@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚔️ สมรภูมิเวิลด์บอส - ICT Talent RPG ⚔️</title>
+    <!-- Google Fonts: Prompt, Outfit & Mali (สำหรับการนับถอยหลังสะใจ) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Mali:wght@700&family=Outfit:wght@400;600;900&family=Prompt:wght@300;500;800;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        prompt: ['Prompt', 'sans-serif'],
+                        outfit: ['Outfit', 'sans-serif'],
+                        mali: ['Mali', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- MediaPipe Pose & Camera Utilities CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <!-- Canvas Confetti CDN (ฉลองชัยชนะ) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+            overflow-x: hidden;
+            font-family: 'Prompt', sans-serif;
+        }
+
+        /* 🔮 สไตล์กล่องกระจกเรืองแสง (Neon Glassmorphism) */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .neon-border-purple {
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+        }
+
+        .neon-border-emerald {
+            border: 2px solid rgba(16, 185, 129, 0.4);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        .neon-text-purple {
+            text-shadow: 0 0 10px rgba(167, 139, 250, 0.6);
+        }
+
+        .neon-text-red {
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+        }
+
+        /* 👹 อนิเมชั่นสั่นเขย่าบอสเมื่อโดนโจมตี */
+        @keyframes shake-rpg {
+            0% { transform: translate(2px, 1px) rotate(0deg) scale(1.05); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg) scale(1.05); }
+            20% { transform: translate(-3px, 0px) rotate(1deg) scale(1.05); }
+            30% { transform: translate(0px, 2px) rotate(0deg) scale(1.05); }
+            40% { transform: translate(2px, -1px) rotate(1deg) scale(1.05); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg) scale(1.05); }
+            60% { transform: translate(-3px, 1px) rotate(0deg) scale(1.05); }
+            70% { transform: translate(2px, 1px) rotate(-1deg) scale(1.05); }
+            80% { transform: translate(-1px, -1px) rotate(1deg) scale(1.05); }
+            90% { transform: translate(2px, 2px) rotate(0deg) scale(1.05); }
+            100% { transform: translate(1px, -2px) rotate(-1deg) scale(1.05); }
+        }
+
+        .animate-shake {
+            animation: shake-rpg 0.4s ease-in-out;
+        }
+
+        /* ⚔️ หน้าจอกดถอยทัพสไตล์ RPG */
+        .rpg-btn-red {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            border-bottom: 4px solid #7f1d1d;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: all 0.1s ease;
+        }
+        .rpg-btn-red:active {
+            border-bottom-width: 0;
+            transform: translateY(4px);
+        }
+
+        .rpg-btn-purple {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            border-bottom: 4px solid #4c1d95;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: all 0.1s ease;
+        }
+        .rpg-btn-purple:active {
+            border-bottom-width: 0;
+            transform: translateY(4px);
+        }
+
+        /* กฎฟังก์ชันไม่แสดงกล้องหลักที่ถูกตรวจจับซ่อนสายเพื่อความเก๋ไก๋ */
+        #wb-video {
+            display: none;
+            width: 0;
+            height: 0;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col justify-between select-none">
+
+    <!-- 🌐 วิดีโอหลักและซ่อนอยู่ของเบราว์เซอร์เพื่อป้อนส่งภาพให้ MediaPipe -->
+    <video id="wb-video" autoplay playsinline muted></video>
+
+    <!-- 🔮 ส่วนหัว: แสดงข้อมูลของนักเรียนและห้องเรียน -->
+    <header class="w-full max-w-7xl mx-auto px-4 pt-4 md:pt-6 flex justify-between items-center z-10">
+        <div class="glass-panel py-2 px-4 md:px-6 rounded-2xl flex items-center gap-3 border border-purple-500/20">
+            <span class="text-2xl md:text-3xl">🛡️</span>
+            <div>
+                <h2 id="ui-student-name" class="font-extrabold text-sm md:text-base text-purple-200 tracking-wide">ผู้กล้า: กำลังดาวน์โหลด...</h2>
+                <p id="ui-student-class" class="text-[10px] md:text-xs font-bold text-indigo-400">ชั้นประถมศึกษาปีที่ -</p>
+            </div>
+        </div>
+        <button onclick="confirmLeaveGame()" 
+                class="rpg-btn-red px-5 py-2.5 rounded-xl text-xs md:text-sm font-black cursor-pointer tracking-wider text-white">
+            🏳️ ถอยทัพหลบหนี
+        </button>
+    </header>
+
+    <!-- ⚔️ สนามรบหลัก: แบ่งเป็นฝั่งซ้าย (กล้อง/AI) และฝั่งขวา (มอนสเตอร์/บอส) -->
+    <main class="w-full max-w-7xl mx-auto px-4 py-4 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        
+        <!-- ฝั่งซ้าย (6/12): หน้าจอประมวลผลกล้องและเส้นไกด์ไลน์กระดูกสีเรืองแสง -->
+        <section class="lg:col-span-7 flex flex-col items-center relative w-full">
+            <div class="relative w-full aspect-[4/3] rounded-3xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
+                <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
+                <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
+                
+                <!-- ตัวกะพริบสถานะ/แจ้งเตือนคำสั่งเบื้องบนกล้อง -->
+                <div id="wb-status-overlay" 
+                     class="absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-purple-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse">
+                    ⏳ กำลังเปิดสะพานเชื่อมอวกาศและโมเดล AI (MediaPipe)...
+                </div>
+
+                <!-- ป้ายนับเวลา 3 2 1 บดขยี้ขนาดใหญ่กึ่งกลางกล้อง -->
+                <div id="wb-countdown-box" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden z-20">
+                    <span id="wb-countdown-text" class="font-mali text-9xl md:text-[11rem] text-yellow-400 font-extrabold text-shadow drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] animate-ping">3</span>
+                </div>
+            </div>
+            
+            <!-- คำแนะนำการจัดท่าสำหรับเด็กข้ามช่อง -->
+            <p class="text-[10px] md:text-xs text-indigo-300 font-bold text-center mt-3 bg-indigo-950/40 border border-indigo-900/40 py-2 px-4 rounded-xl">
+                💡 ยืนถอยหลังให้ห่างจากกล้องพอสมควร ให้กล้องเห็นตั้งแต่ <span class="text-yellow-300 font-extrabold">หัว ไหล่ สะโพก และข้อเท้า</span> เพื่อความแม่นยำสูงสุด!
+            </p>
+        </section>
+
+        <!-- ฝั่งขวา (5/12): การ์ดข้อมูลเวิลด์บอสและสถิติการเล่น -->
+        <section class="lg:col-span-5 w-full flex flex-col gap-6">
+            
+            <!-- การ์ดมอนสเตอร์/บอสตัวฉกาจ -->
+            <div class="glass-panel rounded-3xl p-6 md:p-8 neon-border-purple relative overflow-hidden flex flex-col items-center">
+                <div class="absolute inset-0 bg-gradient-to-tr from-purple-950/10 via-slate-900/40 to-transparent pointer-events-none"></div>
+                
+                <!-- ป้ายบอสโลก -->
+                <span class="bg-red-950/80 text-red-300 text-[10px] font-black uppercase px-3 py-1 rounded-full border border-red-800/80 tracking-wider shadow-inner z-10">WORLD BOSS ACTIVE</span>
+                
+                <!-- อวาตาร์มอนสเตอร์ยักษ์ใหญ่ -->
+                <div id="wb-battle-boss-avatar" class="text-8xl md:text-9xl my-4 drop-shadow-[0_10px_20px_rgba(139,92,246,0.3)] select-none select-none transition transform duration-150">👹</div>
+                
+                <!-- ข้อมูลชื่อบอส -->
+                <h3 id="wb-battle-boss-name" class="font-black text-2xl md:text-3xl text-white text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">มังกรแดงอัคคี</h3>
+                
+                <!-- ไกด์แสดงท่าทาง -->
+                <p id="wb-battle-pose-guide" class="text-xs md:text-sm font-bold text-yellow-300 mt-2 bg-yellow-950/40 border border-yellow-800/40 px-4 py-1.5 rounded-xl text-center animate-pulse">
+                    🏋️‍♂️ โปรดย่อตัวลงสควอทให้เห็นมุมข้อพับ!
+                </p>
+
+                <!-- แถบพลังชีวิตมอนสเตอร์ (Boss HP Bar) -->
+                <div class="w-full mt-6 bg-slate-950/80 border border-slate-800 rounded-full h-8 overflow-hidden relative shadow-inner">
+                    <div id="wb-battle-boss-hp-bar" 
+                         class="h-full bg-gradient-to-r from-red-600 via-rose-500 to-pink-500 transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.5)]" 
+                         style="width: 100%;"></div>
+                    <span id="wb-battle-boss-hp-text" class="absolute inset-0 flex items-center justify-center font-black text-xs md:text-sm text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">100 / 100 HP</span>
+                </div>
+            </div>
+
+            <!-- กล่องสถิติการออกกำลังกายแบบกระจกเรืองแสง (Stopwatch & Reps) -->
+            <div class="grid grid-cols-2 gap-4">
+                
+                <!-- กล่องจับเวลา (Stopwatch) -->
+                <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-purple-500">
+                    <span class="text-[10px] md:text-xs text-indigo-400 font-extrabold uppercase tracking-wider">⏱️ เวลาที่ใช้</span>
+                    <span class="font-outfit text-3xl md:text-4xl font-black text-white mt-1.5 neon-text-purple tracking-tight"><span id="wb-battle-timer">0.00</span>s</span>
+                </div>
+
+                <!-- กล่องนับจำนวนครั้งสะสม (Reps Count) -->
+                <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-emerald-500">
+                    <span class="text-[10px] md:text-xs text-emerald-400 font-extrabold uppercase tracking-wider">🎯 จำนวนครั้ง</span>
+                    <span class="font-outfit text-3xl md:text-4xl font-black text-emerald-300 mt-1.5 tracking-tight"><span id="wb-battle-reps">0 / 10</span></span>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 🔮 ส่วนล่าง: ป้ายลิขสิทธิ์สไตล์ RPG -->
+    <footer class="w-full text-center py-4 text-[10px] font-bold text-indigo-950/80 mt-4 select-none">
+        ICT Talent Connext ED - Dragon Boss Arena © 2026
+    </footer>
+
+    <!-- ========================================================================= -->
+    <!-- 🏆 หน้าต่างสรุปชัยชนะสุดอลังการ (VICTORY MODAL OVERLAY) -->
+    <!-- ========================================================================= -->
+    <div id="wb-victory-modal" 
+         class="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden">
+        
+        <div class="glass-panel rounded-3xl max-w-lg w-full p-8 text-center neon-border-purple relative overflow-hidden flex flex-col items-center shadow-[0_0_50px_rgba(139,92,246,0.3)]">
+            <div class="absolute inset-0 bg-gradient-to-b from-purple-950/20 via-transparent to-black/90 pointer-events-none"></div>
+            
+            <!-- ไอคอนชัยชนะ -->
+            <span class="text-7xl md:text-8xl animate-bounce my-2 drop-shadow-[0_5px_10px_rgba(251,191,36,0.5)] select-none">👑</span>
+            
+            <h1 class="font-black text-3xl md:text-4xl bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight mt-2 font-prompt">
+                ศึกพิชิตชัยชนะ!
+            </h1>
+            <p id="wb-victory-boss-name" class="text-purple-300 font-black tracking-wider text-xs md:text-sm uppercase mt-1">ผู้สยบ: มังกรแดงอัคคี</p>
+            
+            <!-- ป้ายเกียรติยศบันทึกสถิติใหม่ (Personal Best Badge) -->
+            <div id="wb-victory-best-badge" class="mt-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs px-4 py-1.5 rounded-full shadow-lg border border-yellow-300 animate-pulse tracking-widest hidden select-none flex items-center gap-1">
+                🔥 NEW PERSONAL BEST! 🔥
+            </div>
+
+            <!-- ตารางสรุปรางวัลและตัวจับเวลาสรุปผล -->
+            <div class="w-full my-6 bg-slate-950/70 border border-indigo-950 rounded-2xl p-5 text-left grid grid-cols-2 gap-4">
+                
+                <div class="flex flex-col border-r border-indigo-950/80 pr-2">
+                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">⏱️ เวลาสุดท้ายที่ทำได้</span>
+                    <span class="text-2xl font-black text-white font-outfit mt-1"><span id="wb-victory-time">0.00</span> วินาที</span>
+                </div>
+                
+                <div class="flex flex-col pl-2">
+                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">⌛ บันทึกเวลาที่ดีที่สุดเดิม</span>
+                    <span id="wb-victory-prev-best" class="text-sm font-bold text-gray-400 mt-2">กำลังดึงข้อมูล...</span>
+                </div>
+
+                <div class="col-span-2 border-t border-indigo-950/40 pt-4 flex justify-between items-center">
+                    <div>
+                        <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">🪙 รางวัลเหรียญที่เพิ่ม</span>
+                        <span id="wb-victory-reward-coins" class="text-emerald-400 font-black text-lg">+100 เหรียญ</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">⭐ ได้รับ XP สะสม</span>
+                        <span id="wb-victory-reward-xp" class="text-indigo-400 font-black text-lg">+120 XP</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ปุ่มดำเนินการเมื่อชนะเสร็จสิ้น -->
+            <div class="w-full flex gap-3">
+                <button onclick="closeVictoryAndExit()" 
+                        class="flex-1 py-4 rpg-btn-purple text-white font-black text-sm tracking-wider rounded-xl cursor-pointer">
+                    ⚔️ ปิดหน้าต่างรบ และสรุปผล
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 🧠 ตรรกะโปรแกรมควบคุมหน้าจอ World Boss (MediaPipe + API) -->
+    <!-- ========================================================================= -->
+    <script>
+        // 1) แกะค่าพารามิเตอร์ทั้งหมดที่ส่งผ่าน URL
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        const userId = urlParams.get('userId') || 'U-LOCAL';
+        const userName = decodeURIComponent(urlParams.get('userName') || 'ผู้กล้าทดลอง');
+        const className = decodeURIComponent(urlParams.get('className') || 'ป.5/1');
+        
+        const bossId = urlParams.get('bossId') || 'WB001';
+        const bossName = decodeURIComponent(urlParams.get('bossName') || 'มังกรทดสอบ');
+        const poseType = urlParams.get('poseType') || 'squat'; // squat หรือ jumping_jack
+        const targetReps = parseInt(urlParams.get('targetReps') || '10');
+        const maxHp = parseInt(urlParams.get('maxHp') || '100');
+        const rewardCoins = parseInt(urlParams.get('rewardCoins') || '50');
+        const rewardXp = parseInt(urlParams.get('rewardXp') || '50');
+        
+        const webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
+
+        // 2) ตั้งค่า UI พื้นฐาน
+        document.getElementById('ui-student-name').innerText = `ผู้กล้า: ${userName}`;
+        document.getElementById('ui-student-class').innerText = `ชั้นเรียน: ${className}`;
+        
+        document.getElementById('wb-battle-boss-name').innerText = bossName;
+        document.getElementById('wb-battle-boss-avatar').innerText = poseType === 'squat' ? '👹' : '👾';
+        document.getElementById('wb-battle-boss-hp-text').innerText = `${maxHp} / ${maxHp} HP`;
+        document.getElementById('wb-battle-reps').innerText = `0 / ${targetReps}`;
+
+        // 3) ตัวแปรเกมสเตท (Game Loop States)
+        let wbPose = null;
+        let wbCamera = null;
+        let wbGameState = 'PREPARING'; // PREPARING, COUNTDOWN, BATTLE, VICTORY
+        
+        let wbRepsCount = 0;
+        let wbBossHp = maxHp;
+        let wbPoseState = poseType === 'squat' ? 'UP' : 'CLOSED'; // UP/DOWN สำหรับ Squat, CLOSED/OPENED สำหรับ Jumping Jack
+        
+        let wbStartTime = 0;
+        let wbElapsedTime = 0;
+        
+        let wbTimerInterval = null;
+        let wbCountdownTimer = null;
+        let wbCountdownValue = 3;
+        let wbStandingTimer = null;
+        let wbActiveSlashEffects = []; // พาร์ติเคิลดาเมจบนจอ
+
+        // ลิสต์มีเดียอิลิเมนต์
+        const wbVideoEl = document.getElementById('wb-video');
+        const wbCanvasEl = document.getElementById('wb-canvas');
+        const wbCanvasCtx = wbCanvasEl.getContext('2d');
+        let wbStream = null;
+
+        // กำหนดความละเอียดคงที่ของ Canvas
+        wbCanvasEl.width = 640;
+        wbCanvasEl.height = 480;
+
+        // อ้างอิงข้อความแนะนำตัวออกกำลังกาย
+        const poseGuideEl = document.getElementById('wb-battle-pose-guide');
+        if (poseType === 'squat') {
+            poseGuideEl.innerText = "🏋️‍♂️ ท่า Squat: ยื่นแขนไปข้างหน้า ยืนหลังตรง!";
+        } else {
+            poseGuideEl.innerText = "🌪️ กระโดดตบ: ยืนลำตัวตรง เท้าชิดแนบลำตัว!";
+        }
+
+        // 4) เริ่มโหลดโมเดล MediaPipe และเชื่อมกล้องเว็บแคมภายนอก
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('TRACE: หน้าสมรภูมิเดี่ยวโหลดเรียบร้อย เริ่มเช็คกล้อง');
+            initWebcamAndPose();
+        });
+
+        async function initWebcamAndPose() {
+            // สร้างโมเดล MediaPipe Pose (ถ้าไม่มี)
+            if (!wbPose) {
+                wbPose = new Pose({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                    }
+                });
+                
+                wbPose.setOptions({
+                    modelComplexity: 1,
+                    smoothLandmarks: true,
+                    minDetectionConfidence: 0.6,
+                    minTrackingConfidence: 0.6
+                });
+                
+                wbPose.onResults(onPoseResults);
+            }
+            
+            // เรียกเปิดกล้องเว็บแคมในโดเมนตรง (กล้องจะเด้งขอสิทธิ์ปกติ)
+            try {
+                wbStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: 640,
+                        height: 480,
+                        facingMode: 'user'
+                    },
+                    audio: false
+                });
+                
+                wbVideoEl.srcObject = wbStream;
+                
+                await new Promise((resolve) => {
+                    wbVideoEl.onloadedmetadata = () => {
+                        wbVideoEl.play();
+                        resolve();
+                    };
+                });
+                
+                // ใช้ MediaPipe Camera Helper เพื่อดึงเฟรมอย่างรวดเร็ว
+                wbCamera = new Camera(wbVideoEl, {
+                    onFrame: async () => {
+                        if (wbGameState === 'BATTLE' || wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
+                            try {
+                                await wbPose.send({ image: wbVideoEl });
+                            } catch(e) {
+                                console.error('Pose parsing error:', e);
+                            }
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                wbCamera.start();
+                
+                wbGameState = 'PREPARING';
+                const statusOverlay = document.getElementById('wb-status-overlay');
+                statusOverlay.innerHTML = `⚠️ กรุณายืนถอยหลังห่างจากกล้อง ให้ระบบเห็น "หัว ไหล่ สะโพก และข้อเท้า" ในช่องสีเขียว`;
+                statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                
+            } catch (err) {
+                console.error('Camera access failed completely:', err);
+                const statusOverlay = document.getElementById('wb-status-overlay');
+                
+                let errorHelp = "เบราว์เซอร์ปฏิเสธสิทธิ์เข้าถึงกล้อง";
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorHelp = "โปรดกดยอมรับให้เว็บไซต์นี้แชร์กล้องในการสแกนสควอทของน้องๆ ครับ";
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    errorHelp = "ไม่พบอุปกรณ์กล้องเว็บแคมเชื่อมต่ออยู่กับเครื่องนี้ครับ";
+                } else {
+                    errorHelp = err.message || errorHelp;
+                }
+                
+                statusOverlay.innerHTML = `❌ ไม่สามารถเชื่อมต่อเว็บแคมได้: ${errorHelp}`;
+                statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md";
+                alert("❌ เกิดข้อผิดพลาดในการเปิดกล้องเว็บแคมจริง:\n\n" + errorHelp);
+            }
+        }
+
+        // 5) ตรรกะคณิตศาสตร์สำหรับหาองศาข้อเข่าหรือข้อศอก
+        function calculateJointAngle(p1, p2, p3, landmarks) {
+            const pt1 = landmarks[p1];
+            const pt2 = landmarks[p2]; // จุดกลาง (เช่น ข้อเข่า)
+            const pt3 = landmarks[p3];
+            
+            if (!pt1 || !pt2 || !pt3 || pt1.visibility < 0.45 || pt2.visibility < 0.45 || pt3.visibility < 0.45) {
+                return null;
+            }
+            
+            const ba_x = pt1.x - pt2.x;
+            const ba_y = pt1.y - pt2.y;
+            const bc_x = pt3.x - pt2.x;
+            const bc_y = pt3.y - pt2.y;
+            
+            const dotProduct = ba_x * bc_x + ba_y * bc_y;
+            const magBA = Math.sqrt(ba_x * ba_x + ba_y * ba_y);
+            const magBC = Math.sqrt(bc_x * bc_x + bc_y * bc_y);
+            
+            if (magBA === 0 || magBC === 0) return null;
+            
+            const cosAngle = dotProduct / (magBA * magBC);
+            const clamped = Math.max(-1, Math.min(1, cosAngle));
+            const rad = Math.acos(clamped);
+            return rad * (180 / Math.PI);
+        }
+
+        // 6) คอลแบ็กเมื่อ MediaPipe วิเคราะห์พิกัดจุดสำเร็จ
+        function onPoseResults(results) {
+            if (!wbCanvasCtx || wbGameState === 'VICTORY') return;
+            
+            const width = wbCanvasEl.width;
+            const height = wbCanvasEl.height;
+            
+            // วาดเฟรมภาพสดจากกล้องลงบน Canvas
+            wbCanvasCtx.save();
+            wbCanvasCtx.clearRect(0, 0, width, height);
+            wbCanvasCtx.drawImage(results.image, 0, 0, width, height);
+            
+            const landmarks = results.poseLandmarks;
+            let isPositionOk = false;
+            
+            if (landmarks) {
+                // วาดเส้นข้อต่อนีออนเรืองแสง
+                wbCanvasCtx.lineWidth = 4;
+                wbCanvasCtx.shadowBlur = 10;
+                
+                const leftColor = '#60a5fa';   // นีออนฟ้า
+                const rightColor = '#f472b6';  // นีออนชมพู
+                const spineColor = '#a78bfa';  // นีออนม่วง
+                
+                function drawBone(p1, p2, color) {
+                    const pt1 = landmarks[p1];
+                    const pt2 = landmarks[p2];
+                    if (pt1 && pt2 && pt1.visibility > 0.45 && pt2.visibility > 0.45) {
+                        wbCanvasCtx.beginPath();
+                        wbCanvasCtx.moveTo(pt1.x * width, pt1.y * height);
+                        wbCanvasCtx.lineTo(pt2.x * width, pt2.y * height);
+                        wbCanvasCtx.strokeStyle = color;
+                        wbCanvasCtx.shadowColor = color;
+                        wbCanvasCtx.stroke();
+                    }
+                }
+                
+                // วาดแขน-ไหล่-สะโพก-ขา
+                drawBone(11, 13, leftColor);
+                drawBone(13, 15, leftColor);
+                drawBone(12, 14, rightColor);
+                drawBone(14, 16, rightColor);
+                
+                drawBone(11, 12, spineColor);
+                drawBone(12, 24, spineColor);
+                drawBone(24, 23, spineColor);
+                drawBone(23, 11, spineColor);
+                
+                drawBone(23, 25, leftColor);
+                drawBone(25, 27, leftColor);
+                drawBone(24, 26, rightColor);
+                drawBone(26, 28, rightColor);
+                
+                // วาดหัวข้อกลมนีออนขาว
+                const keypoints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+                keypoints.forEach(idx => {
+                    const pt = landmarks[idx];
+                    if (pt && pt.visibility > 0.45) {
+                        wbCanvasCtx.beginPath();
+                        wbCanvasCtx.arc(pt.x * width, pt.y * height, 6, 0, 2 * Math.PI);
+                        wbCanvasCtx.fillStyle = '#ffffff';
+                        wbCanvasCtx.shadowColor = '#ffffff';
+                        wbCanvasCtx.shadowBlur = 8;
+                        wbCanvasCtx.fill();
+                    }
+                });
+                
+                // ตรวจตำแหน่ง Bounding Box
+                const requiredJoints = [11, 12, 23, 24, 27, 28]; // ไหล่ สะโพก ข้อเท้า
+                let visibleCount = 0;
+                let insideBoxCount = 0;
+                
+                const minX = 0.15, maxX = 0.85, minY = 0.04, maxY = 0.96;
+                
+                requiredJoints.forEach(idx => {
+                    const pt = landmarks[idx];
+                    if (pt && pt.visibility > 0.45) {
+                        visibleCount++;
+                        if (pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY) {
+                            insideBoxCount++;
+                        }
+                    }
+                });
+                
+                isPositionOk = (visibleCount === 6 && insideBoxCount === 6);
+                
+                // ประมวลตรรกะเกมสควอท / กระโดดตบ
+                if (wbGameState === 'BATTLE') {
+                    if (poseType === 'squat') {
+                        const leftKnee = calculateJointAngle(23, 25, 27, landmarks);
+                        const rightKnee = calculateJointAngle(24, 26, 28, landmarks);
+                        
+                        if (leftKnee !== null && rightKnee !== null) {
+                            const avgKnee = (leftKnee + rightKnee) / 2;
+                            
+                            // วาดตัวเลขมุมเข่า
+                            wbCanvasCtx.fillStyle = '#ffffff';
+                            wbCanvasCtx.font = 'bold 14px Prompt, sans-serif';
+                            wbCanvasCtx.shadowColor = '#000000';
+                            wbCanvasCtx.shadowBlur = 4;
+                            wbCanvasCtx.fillText(`${Math.round(leftKnee)}°`, landmarks[25].x * width + 10, landmarks[25].y * height);
+                            wbCanvasCtx.fillText(`${Math.round(rightKnee)}°`, landmarks[26].x * width + 10, landmarks[26].y * height);
+                            
+                            if (wbPoseState === 'UP') {
+                                poseGuideEl.innerText = "🏋️‍♂️ ย่อตัวลง! ให้เข่าทำมุมต่ำกว่า 110 องศา";
+                                poseGuideEl.className = "text-xs md:text-sm font-bold text-blue-300 mt-2 bg-blue-950/40 border border-blue-800/40 px-4 py-1.5 rounded-xl text-center";
+                                
+                                if (avgKnee < 110) {
+                                    wbPoseState = 'DOWN';
+                                }
+                            } else if (wbPoseState === 'DOWN') {
+                                poseGuideEl.innerText = "⚡ ยืดหลังตรงขึ้นยืน! (สูงกว่า 155 องศา)";
+                                poseGuideEl.className = "text-xs md:text-sm font-bold text-yellow-300 mt-2 bg-yellow-950/40 border border-yellow-800/40 px-4 py-1.5 rounded-xl text-center animate-pulse";
+                                
+                                if (avgKnee > 155) {
+                                    wbPoseState = 'UP';
+                                    handleRepDetected();
+                                }
+                            }
+                        }
+                    } else {
+                        // jumping_jack
+                        const leftWrist = landmarks[15];
+                        const rightWrist = landmarks[16];
+                        const leftShoulder = landmarks[11];
+                        const rightShoulder = landmarks[12];
+                        const leftAnkle = landmarks[27];
+                        const rightAnkle = landmarks[28];
+                        
+                        if (leftWrist && rightWrist && leftShoulder && rightShoulder && leftAnkle && rightAnkle &&
+                            leftWrist.visibility > 0.45 && rightWrist.visibility > 0.45 &&
+                            leftAnkle.visibility > 0.45 && rightAnkle.visibility > 0.45) {
+                            
+                            const shWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                            const akWidth = Math.abs(leftAnkle.x - rightAnkle.x);
+                            
+                            const handsHigh = (leftWrist.y < leftShoulder.y && rightWrist.y < rightShoulder.y);
+                            const feetWide = (akWidth > shWidth * 1.5);
+                            
+                            if (wbPoseState === 'CLOSED') {
+                                poseGuideEl.innerText = "🌪️ กระโดดกางแขนยกสูงขึ้นฟ้า! และกางเท้าออกข้างลำตัว";
+                                poseGuideEl.className = "text-xs md:text-sm font-bold text-blue-300 mt-2 bg-blue-950/40 border border-blue-800/40 px-4 py-1.5 rounded-xl text-center";
+                                
+                                if (handsHigh && feetWide) {
+                                    wbPoseState = 'OPENED';
+                                }
+                            } else if (wbPoseState === 'OPENED') {
+                                poseGuideEl.innerText = "⚡ หุบแขนแนบลำตัว และกระโดดหุบเท้ากลับตำแหน่งเดิม!";
+                                poseGuideEl.className = "text-xs md:text-sm font-bold text-yellow-300 mt-2 bg-yellow-950/40 border border-yellow-800/40 px-4 py-1.5 rounded-xl text-center animate-pulse";
+                                
+                                if (!handsHigh && !feetWide) {
+                                    wbPoseState = 'CLOSED';
+                                    handleRepDetected();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // วาด Bounding Box ไกด์ไลน์เขียว/เหลือง
+            wbCanvasCtx.lineWidth = 6;
+            wbCanvasCtx.shadowBlur = 15;
+            wbCanvasCtx.shadowColor = isPositionOk ? '#10b981' : '#f59e0b';
+            wbCanvasCtx.strokeStyle = isPositionOk ? '#10b981' : '#f59e0b';
+            wbCanvasCtx.strokeRect(
+                0.15 * width, 
+                0.04 * height, 
+                (0.85 - 0.15) * width, 
+                (0.96 - 0.04) * height
+            );
+            
+            // อัปเดตนับนิ่งเตรียมเริ่มต่อสู้
+            if (wbGameState === 'PREPARING') {
+                const statusOverlay = document.getElementById('wb-status-overlay');
+                if (isPositionOk) {
+                    statusOverlay.innerHTML = `✅ ยืนนิ่งๆ อยู่ในขอบเขตสีเขียว เพื่อเตรียมสัญญาณศึกเริ่มต่อสู้!`;
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-emerald-950/95 border-2 border-emerald-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                    
+                    if (!wbStandingTimer) {
+                        wbStandingTimer = setTimeout(() => {
+                            startCountdownPhase();
+                        }, 1500); // ต้องนิ่งติดต่อกัน 1.5 วินาที
+                    }
+                } else {
+                    statusOverlay.innerHTML = `⚠️ ข้อมูลพิกัดไม่ครบถ้วน! ขยับให้ หัว ไหล่ สะโพก และข้อเท้า อยู่ข้างในขอบสีเหลือง`;
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                    
+                    if (wbStandingTimer) {
+                        clearTimeout(wbStandingTimer);
+                        wbStandingTimer = null;
+                    }
+                }
+            }
+            
+            // วาดพาร์ติเคิลคำดาเมจ (-HP) เด้งเรืองแสงบนหน้าจอกล้อง
+            wbActiveSlashEffects.forEach((eff, idx) => {
+                wbCanvasCtx.font = `black ${eff.size}px Mali, Prompt, sans-serif`;
+                wbCanvasCtx.fillStyle = `rgba(239, 68, 68, ${eff.alpha})`;
+                wbCanvasCtx.shadowBlur = 10;
+                wbCanvasCtx.shadowColor = '#ef4444';
+                wbCanvasCtx.textAlign = 'center';
+                wbCanvasCtx.fillText(`💥 -${eff.damage} HP`, eff.x, eff.y);
+                
+                eff.y -= 2;
+                eff.alpha -= 0.045;
+                if (eff.alpha <= 0) {
+                    wbActiveSlashEffects.splice(idx, 1);
+                }
+            });
+            
+            wbCanvasCtx.restore();
+        }
+
+        // 7) สลับเข้าสู่นับเวลา 3 2 1
+        function startCountdownPhase() {
+            wbGameState = 'COUNTDOWN';
+            if (wbStandingTimer) clearTimeout(wbStandingTimer);
+            
+            const statusOverlay = document.getElementById('wb-status-overlay');
+            statusOverlay.innerHTML = `🔥 เตรียมความพร้อมให้มั่นเหมาะ สัญญาณรบกำลังจะดังขึ้น!`;
+            statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-amber-950/95 border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+            
+            const countdownBox = document.getElementById('wb-countdown-box');
+            const countdownText = document.getElementById('wb-countdown-text');
+            countdownBox.classList.remove('hidden');
+            
+            wbCountdownValue = 3;
+            
+            function runCycle() {
+                if (wbCountdownValue > 0) {
+                    countdownText.innerText = wbCountdownValue;
+                    wbCountdownValue--;
+                    wbCountdownTimer = setTimeout(runCycle, 1000);
+                } else {
+                    countdownBox.classList.add('hidden');
+                    startActiveBattlePhase();
+                }
+            }
+            runCycle();
+        }
+
+        // 8) เริ่มต้นสวมหัวใจสิงห์บดขยี้บอส
+        function startActiveBattlePhase() {
+            wbGameState = 'BATTLE';
+            
+            const statusOverlay = document.getElementById('wb-status-overlay');
+            statusOverlay.innerHTML = `⚔️ ลุยเลย! ทำท่าทางวิเคราะห์ความเคลื่อนไหวให้เต็มที่! ⚔️`;
+            statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-red-950/90 border-2 border-red-500 text-center font-black text-white text-xs md:text-sm shadow-md animate-pulse";
+            
+            wbStartTime = performance.now();
+            
+            if (wbTimerInterval) clearInterval(wbTimerInterval);
+            wbTimerInterval = setInterval(() => {
+                if (wbGameState === 'BATTLE') {
+                    wbElapsedTime = (performance.now() - wbStartTime) / 1000;
+                    document.getElementById('wb-battle-timer').innerText = wbElapsedTime.toFixed(2);
+                }
+            }, 30);
+        }
+
+        // 9) ตรวจพบย่อยืดนับ 1 ครั้ง
+        function handleRepDetected() {
+            if (wbGameState !== 'BATTLE') return;
+            
+            wbRepsCount++;
+            if (wbRepsCount > targetReps) wbRepsCount = targetReps;
+            
+            document.getElementById('wb-battle-reps').innerText = `${wbRepsCount} / ${targetReps}`;
+            
+            const dmg = Math.round(maxHp / targetReps);
+            wbBossHp = Math.max(0, maxHp - (wbRepsCount * dmg));
+            
+            // เขย่าตัวบอสเพื่อการกระตุ้นประสาท
+            const bossAvatar = document.getElementById('wb-battle-boss-avatar');
+            bossAvatar.classList.add('animate-shake');
+            setTimeout(() => {
+                bossAvatar.classList.remove('animate-shake');
+            }, 400);
+            
+            document.getElementById('wb-battle-boss-hp-bar').style.width = `${(wbBossHp / maxHp) * 100}%`;
+            document.getElementById('wb-battle-boss-hp-text').innerText = `${wbBossHp} / ${maxHp} HP`;
+            
+            // แทรกพาร์ติเคิลลดดาเมจ
+            wbActiveSlashEffects.push({
+                x: wbCanvasEl.width / 2 + (Math.random() * 80 - 40),
+                y: wbCanvasEl.height / 2 - 50 + (Math.random() * 40 - 20),
+                damage: dmg,
+                size: 38,
+                alpha: 1.0
+            });
+            
+            if (wbBossHp <= 0) {
+                triggerVictoryPhase();
+            }
+        }
+
+        // 10) ชนะบอสสำเร็จ สรุปผล ส่งคะแนน
+        function triggerVictoryPhase() {
+            wbGameState = 'VICTORY';
+            if (wbTimerInterval) clearInterval(wbTimerInterval);
+            
+            // ปิดกล้องเพื่อการถนอมไฟ
+            stopCamera();
+            
+            const finalTime = Math.round(wbElapsedTime * 100) / 100;
+            
+            // แสดงหน้าสรุปข้อมูล
+            document.getElementById('wb-victory-boss-name').innerText = `ผู้สยบ: ${bossName}`;
+            document.getElementById('wb-victory-time').innerText = finalTime.toFixed(2);
+            document.getElementById('wb-victory-reward-coins').innerText = `+${rewardCoins} เหรียญ`;
+            document.getElementById('wb-victory-reward-xp').innerText = `+${rewardXp} XP`;
+            
+            const victoryModal = document.getElementById('wb-victory-modal');
+            victoryModal.classList.remove('hidden');
+            
+            // ปล่อย confetti ฉลองทันที
+            confetti({
+                particleCount: 150,
+                spread: 85,
+                origin: { y: 0.6 }
+            });
+
+            // ตรวจหาที่อยู่ API หลังบ้านและทำการยิงส่งสัญญาสถิติ
+            if (webAppUrl) {
+                document.getElementById('wb-victory-prev-best').innerText = `กำลังบันทึกสถิติขึ้น Google Sheets...`;
+                
+                // ใช้ POST text/plain เพื่อสกัดกั้น CORS preflight บล็อก
+                fetch(webAppUrl, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
+                    body: JSON.stringify({
+                        action: 'submitWorldBossScore',
+                        userId: userId,
+                        bossId: bossId,
+                        timeSeconds: finalTime
+                    })
+                })
+                .then(response => response.json())
+                .then(res => {
+                    console.log('API Score saved result:', res);
+                    if (res.success) {
+                        // บันทึกสำเร็จ
+                        if (res.previousBest !== null && res.previousBest !== undefined) {
+                            document.getElementById('wb-victory-prev-best').innerText = `${res.previousBest.toFixed(2)} วินาที`;
+                        } else {
+                            document.getElementById('wb-victory-prev-best').innerText = `นี่เป็นประวัติสถิติแรก!`;
+                        }
+                        
+                        if (res.isPersonalBest) {
+                            document.getElementById('wb-victory-best-badge').classList.remove('hidden');
+                            confetti({
+                                particleCount: 100,
+                                spread: 60,
+                                colors: ['#fbbf24', '#f59e0b', '#ffffff']
+                            });
+                        }
+                    } else {
+                        document.getElementById('wb-victory-prev-best').innerText = `ข้อผิดพลาด: ${res.error}`;
+                    }
+                })
+                .catch(err => {
+                    console.error('API submit failed:', err);
+                    document.getElementById('wb-victory-prev-best').innerText = `เชื่อมต่อกับชีตหลักหลังบ้านล้มเหลว`;
+                });
+            } else {
+                document.getElementById('wb-victory-prev-best').innerText = `โหมดทดสอบท้องถิ่นออฟไลน์`;
+            }
+        }
+
+        // ปิดกล้องเว็บแคม
+        function stopCamera() {
+            if (wbCamera) {
+                try { wbCamera.stop(); } catch(e) {}
+                wbCamera = null;
+            }
+            if (wbStream) {
+                try {
+                    wbStream.getTracks().forEach(track => track.stop());
+                } catch(e) {}
+                wbStream = null;
+            }
+            wbVideoEl.srcObject = null;
+        }
+
+        // ยอมแพ้และกดยกเลิกเกม
+        function confirmLeaveGame() {
+            if (confirm("🏳️ ผู้กล้าแน่ใจหรือไม่ว่าต้องการหลบหนีและถอยทัพจากการล่าบอสในเวลานี้?\n\n(สถิติรอบนี้จะไม่ถูกบันทึกนะจ๊ะ)")) {
+                stopCamera();
+                window.close(); // ปิดหน้าต่างรบพากลับไปหน้าล็อบบี้ในแท็บหลัก
+            }
+        }
+
+        // สรุปผลคะแนนและปิดตัว
+        function closeVictoryAndExit() {
+            stopCamera();
+            window.close(); // ปิดแท็บพาผู้เล่นกลับไปหน้าล็อบบี้สะสมเหรียญ
+        }
+    </script>
+</body>
+</html>
