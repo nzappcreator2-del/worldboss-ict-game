@@ -542,6 +542,12 @@
             const landmarks = results.poseLandmarks;
             let isPositionOk = false;
             
+            // กรอบ Bounding Box ทางแนวตั้งและแนวนอน (ขอบเขตปลอดภัย)
+            const minX = 0.05;
+            const maxX = 0.95;
+            const minY = 0.02;
+            const maxY = 0.98;
+            
             if (landmarks) {
                 // วาดเส้นข้อต่อนีออนเรืองแสง
                 wbCanvasCtx.lineWidth = 4;
@@ -598,8 +604,6 @@
                 const requiredJoints = [11, 12, 23, 24]; // ไหล่, สะโพก
                 let visibleCount = 0;
                 let insideBoxCount = 0;
-                
-                const minX = 0.05, maxX = 0.95, minY = 0.02, maxY = 0.98;
                 
                 requiredJoints.forEach(idx => {
                     const pt = landmarks[idx];
