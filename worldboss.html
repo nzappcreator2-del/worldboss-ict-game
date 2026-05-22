@@ -270,10 +270,15 @@
                 </div>
             </div>
 
-            <!-- ปุ่มกลับสู่ล็อบบี้บอส -->
-            <button onclick="closeVictoryAndExit()" class="mt-6 w-full py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-base rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:scale-[1.02] active:scale-[0.98] transition border-b-4 border-indigo-800 active:border-b-0 cursor-pointer flex items-center justify-center gap-2">
-                <span>🚪 กลับสู่ล็อบบี้บอส</span>
-            </button>
+            <!-- ปุ่มควบคุมการสรุปผลและท้าทายใหม่ -->
+            <div class="grid grid-cols-2 gap-4 mt-6 w-full z-10">
+                <button onclick="playAgain()" class="py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-sm md:text-base rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-[0.98] transition border-b-4 border-teal-800 active:border-b-0 cursor-pointer flex items-center justify-center gap-2">
+                    <span>🔄 เล่นใหม่อีกครั้ง</span>
+                </button>
+                <button onclick="closeVictoryAndExit()" class="py-3.5 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-black text-sm md:text-base rounded-2xl shadow-[0_0_15px_rgba(71,85,105,0.3)] hover:scale-[1.02] active:scale-[0.98] transition border-b-4 border-slate-900 active:border-b-0 cursor-pointer flex items-center justify-center gap-2">
+                    <span>🚪 กลับสู่ล็อบบี้</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1281,6 +1286,70 @@
         function closeVictoryAndExit() {
             stopCamera();
             window.close();
+        }
+
+        // 🔄 ฟังก์ชันสำหรับเล่นใหม่อีกครั้ง (Play Again)
+        function playAgain() {
+            // เคลียร์และซ่อน Victory Modal
+            const victoryModal = document.getElementById('wb-victory-modal');
+            if (victoryModal) victoryModal.classList.add('hidden');
+            
+            // รีเซ็ตตัวแปรเกมหลักทั้งหมด
+            wbRepsCount = 0;
+            wbBossHp = maxHp;
+            wbElapsedTime = 0;
+            wbGameState = 'PREPARING';
+            wbActiveSlashEffects = [];
+            particleSparkles = [];
+            
+            if (bossId === 'WB001') {
+                prevFrameData = null;
+                activeSlimeTarget = Math.floor(Math.random() * 4) + 1;
+            } else {
+                gems.length = 0;
+                hazards.length = 0;
+                stunDuration = 0;
+                lastNoseLandmark = null;
+            }
+            
+            // รีเซ็ตตัวคูณความเร็วและเคลียร์ timers ทั้งหมดป้องกันการซ้ำซ้อน
+            wbSpeedMultiplier = 1.0;
+            if (wbTimerInterval) clearInterval(wbTimerInterval);
+            wbTimerInterval = null;
+            if (wbCountdownTimer) clearTimeout(wbCountdownTimer);
+            wbCountdownTimer = null;
+            if (wbStandingTimer) clearTimeout(wbStandingTimer);
+            wbStandingTimer = null;
+            if (wbSpeedScaleInterval) clearInterval(wbSpeedScaleInterval);
+            wbSpeedScaleInterval = null;
+            
+            // สั่งหยุดกล้องปัจจุบันก่อน เพื่อเคลียร์การใช้งานเว็บแคมเดิม
+            stopCamera();
+            
+            // รีเซ็ตข้อความและ UI ทั้งหมดให้กลับมาเป็นค่าเริ่มต้น
+            const elReps = document.getElementById('wb-battle-reps');
+            if (elReps) elReps.innerText = `0 / ${targetReps}`;
+            
+            const elHpBar = document.getElementById('wb-battle-boss-hp-bar');
+            if (elHpBar) elHpBar.style.width = '100%';
+            
+            const elHpText = document.getElementById('wb-battle-boss-hp-text');
+            if (elHpText) elHpText.innerText = `${maxHp} / ${maxHp} HP`;
+            
+            const elTimer = document.getElementById('wb-battle-timer');
+            if (elTimer) elTimer.innerText = '0.00';
+            
+            const statusOverlay = document.getElementById('wb-status-overlay');
+            if (statusOverlay) {
+                statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเริ่มท้าทาย...`;
+                statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-purple-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+            }
+            
+            const elBestBadge = document.getElementById('wb-victory-best-badge');
+            if (elBestBadge) elBestBadge.classList.add('hidden');
+            
+            // เริ่มต้นระบบกล้องเว็บแคมและเอนจิ้นเกมใหม่อัตโนมัติ
+            initWebcamAndPose();
         }
     </script>
 </body>
