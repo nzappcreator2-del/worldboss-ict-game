@@ -1078,9 +1078,11 @@
         function startActiveBattlePhase() {
             wbGameState = 'BATTLE';
             
+            // 🛡️ ซ่อนป้ายสถานะทันทีเมื่อเข้าสู่การต่อสู้จริง (BATTLE) เพื่อให้หน้าจอกล้องโปร่งโล่ง ไม่มีอะไรบดบังภาพน้องๆ บนมือถือ
             const statusOverlay = document.getElementById('wb-status-overlay');
-            statusOverlay.innerHTML = `⚔️ ลุยเลย!`;
-            statusOverlay.className = "absolute top-4 left-4 right-4 py-3.5 px-6 rounded-2xl bg-red-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-2xl z-30";
+            if (statusOverlay) {
+                statusOverlay.classList.add('hidden');
+            }
             
             wbStartTime = performance.now();
             wbSpeedMultiplier = 1.0;
