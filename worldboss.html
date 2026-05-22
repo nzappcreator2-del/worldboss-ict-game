@@ -227,16 +227,57 @@
             <div class="absolute inset-0 bg-gradient-to-b from-purple-950/20 via-transparent to-black/90 pointer-events-none"></div>
             
             <!-- ไอคอนชัยชนะ -->
-            <span class="text-7xl md:text-8xl animate-bounce my-2 drop-shadow-[0_5px_10px_rgba(251,191,36,0.5)] select-none">👑</span>
+            <span class="text-7xl md:text-8xl animate-bounce my-2 drop-shadow-[0_5px_10px_rgba(251,191,36,0.5)] select-none">🏆</span>
             
             <h1 class="font-black text-3xl md:text-4xl bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight mt-2 font-prompt">
-                ศึกพิชิตชัยชนะ!
+                ปราบเวิลด์บอสสำเร็จ!
             </h1>
             <p id="wb-victory-boss-name" class="text-purple-300 font-black tracking-wider text-xs md:text-sm uppercase mt-1">ผู้สยบ: มังกรแดงอัคคี</p>
             
-            <!-- ป้ายเกียรติยศบันทึกสถิติใหม่ (Personal Best Badge) -->
-            <div id="wb-victory-best-badge" class="mt-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs px-4 py-1.5 rounded-full shadow-lg border border-yellow-300 animate-pulse tracking-widest hidden select-none flex items-center gap-1">
-                🔥 NEW PERSONAL BEST!     <script>
+            <div class="w-full bg-slate-950/80 border border-purple-500/30 rounded-2xl p-5 mt-5 relative z-10">
+                <div class="flex flex-col gap-4 text-sm font-bold">
+                    <div class="flex justify-between items-center border-b border-slate-900 pb-2">
+                        <span class="text-slate-400">⏱️ เวลาที่ทำได้:</span>
+                        <div class="flex items-center gap-1">
+                            <span id="wb-victory-time" class="text-2xl font-black text-yellow-400 font-outfit">0.00</span>
+                            <span class="text-slate-300 text-xs">วินาที</span>
+                        </div>
+                    </div>
+
+                    <!-- ป้ายเกียรติยศบันทึกสถิติใหม่ (Personal Best Badge) -->
+                    <div id="wb-victory-best-badge" class="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs px-4 py-2 rounded-full shadow-lg border border-yellow-300 animate-pulse tracking-widest hidden select-none justify-center items-center gap-1">
+                        🔥 NEW PERSONAL BEST! สถิติใหม่ที่ดีที่สุดของคุณ!
+                    </div>
+
+                    <div class="flex justify-between items-center border-b border-slate-900 pb-2">
+                        <span class="text-slate-400">⏱️ สถิติที่ดีที่สุดก่อนหน้านี้:</span>
+                        <div class="flex items-center gap-1">
+                            <span id="wb-victory-prev-best" class="text-base font-black text-slate-300 font-outfit">0.00s</span>
+                        </div>
+                    </div>
+
+                    <div class="text-center font-black text-purple-300 uppercase tracking-widest text-xs mt-1">🎁 ของรางวัลที่ได้รับ</div>
+                    <div class="grid grid-cols-2 gap-3 mt-1">
+                        <div class="bg-yellow-950/40 border border-yellow-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
+                            <span class="text-xl">🪙</span>
+                            <span id="wb-victory-reward-coins" class="text-xs font-black text-yellow-400">+50 เหรียญ</span>
+                        </div>
+                        <div class="bg-indigo-950/40 border border-indigo-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
+                            <span class="text-xl">⭐</span>
+                            <span id="wb-victory-reward-xp" class="text-xs font-black text-indigo-400">+50 XP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ปุ่มกลับสู่ล็อบบี้บอส -->
+            <button onclick="closeVictoryAndExit()" class="mt-6 w-full py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-base rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:scale-[1.02] active:scale-[0.98] transition border-b-4 border-indigo-800 active:border-b-0 cursor-pointer flex items-center justify-center gap-2">
+                <span>🚪 กลับสู่ล็อบบี้บอส</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
         // 1) แกะค่าพารามิเตอร์ทั้งหมดที่ส่งผ่าน URL
         const urlParams = new URLSearchParams(window.location.search);
         
@@ -1112,25 +1153,47 @@
             
             const finalTime = Math.round(wbElapsedTime * 100) / 100;
             
-            document.getElementById('wb-victory-boss-name').innerText = `ผู้สยบ: ${bossName}`;
-            document.getElementById('wb-victory-time').innerText = finalTime.toFixed(2);
-            document.getElementById('wb-victory-reward-coins').innerText = `+${rewardCoins} เหรียญ`;
-            document.getElementById('wb-victory-reward-xp').innerText = `+${rewardXp} XP`;
+            // --- 🛡️ Defensive Programming: ตรวจเช็คความปลอดภัยของ Element ป้องกันหน้าจอค้าง ---
+            const elBossName = document.getElementById('wb-victory-boss-name');
+            if (elBossName) elBossName.innerText = `ผู้สยบ: ${bossName}`;
+            
+            const elTime = document.getElementById('wb-victory-time');
+            if (elTime) elTime.innerText = finalTime.toFixed(2);
+            
+            const elCoins = document.getElementById('wb-victory-reward-coins');
+            if (elCoins) elCoins.innerText = `+${rewardCoins} เหรียญ`;
+            
+            const elXp = document.getElementById('wb-victory-reward-xp');
+            if (elXp) elXp.innerText = `+${rewardXp} XP`;
             
             const victoryModal = document.getElementById('wb-victory-modal');
-            victoryModal.classList.remove('hidden');
+            if (victoryModal) {
+                victoryModal.classList.remove('hidden');
+            } else {
+                // ⚠️ กรณีหาหน้าต่างสรุปชัยชนะหลักไม่พบในหน้าจอ (เช่น HTML เสียหายบนโฮสต์)
+                // จะมีระบบสำรองแจ้งกล่องข้อความเตือนเพื่อให้เด็กๆ เล่นผ่านด่านไปได้โดยไม่ค้าง
+                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ เวลาที่ใช้: ${finalTime.toFixed(2)} วินาที\n🪙 +${rewardCoins} เหรียญ | ⭐ +${rewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ... สามารถกดตกลงเพื่อเล่นรอบถัดไปได้เลย)`);
+            }
             
             playBeep('victory');
             speakThai("ยินดีด้วยค่ะ ชนะแล้ว!");
             
-            confetti({
-                particleCount: 150,
-                spread: 85,
-                origin: { y: 0.6 }
-            });
+            // ป้องกันข้อผิดพลาดหากอินเทอร์เน็ตโหลดไลบรารี confetti ไม่ทัน
+            try {
+                if (typeof confetti === 'function') {
+                    confetti({
+                        particleCount: 150,
+                        spread: 85,
+                        origin: { y: 0.6 }
+                    });
+                }
+            } catch (e) {
+                console.warn("ไม่สามารถยิงพลุ Confetti ได้:", e);
+            }
 
             if (webAppUrl) {
-                document.getElementById('wb-victory-prev-best').innerText = `กำลังบันทึกสถิติขึ้น Google Sheets...`;
+                const elPrevBest = document.getElementById('wb-victory-prev-best');
+                if (elPrevBest) elPrevBest.innerText = `กำลังบันทึกสถิติขึ้น Google Sheets...`;
                 
                 fetch(webAppUrl, {
                     method: 'POST',
@@ -1150,29 +1213,36 @@
                     console.log('API Score saved result:', res);
                     if (res.success) {
                         if (res.previousBest !== null && res.previousBest !== undefined) {
-                            document.getElementById('wb-victory-prev-best').innerText = `${res.previousBest.toFixed(2)} วินาที`;
+                            if (elPrevBest) elPrevBest.innerText = `${res.previousBest.toFixed(2)} วินาที`;
                         } else {
-                            document.getElementById('wb-victory-prev-best').innerText = `นี่เป็นประวัติสถิติแรก!`;
+                            if (elPrevBest) elPrevBest.innerText = `นี่เป็นประวัติสถิติแรก!`;
                         }
                         
                         if (res.isPersonalBest) {
-                            document.getElementById('wb-victory-best-badge').classList.remove('hidden');
-                            confetti({
-                                particleCount: 100,
-                                spread: 60,
-                                colors: ['#fbbf24', '#f59e0b', '#ffffff']
-                            });
+                            const elBestBadge = document.getElementById('wb-victory-best-badge');
+                            if (elBestBadge) elBestBadge.classList.remove('hidden');
+                            
+                            try {
+                                if (typeof confetti === 'function') {
+                                    confetti({
+                                        particleCount: 100,
+                                        spread: 60,
+                                        colors: ['#fbbf24', '#f59e0b', '#ffffff']
+                                    });
+                                }
+                            } catch (e) {}
                         }
                     } else {
-                        document.getElementById('wb-victory-prev-best').innerText = `ข้อผิดพลาด: ${res.error}`;
+                        if (elPrevBest) elPrevBest.innerText = `ข้อผิดพลาด: ${res.error}`;
                     }
                 })
                 .catch(err => {
                     console.error('API submit failed:', err);
-                    document.getElementById('wb-victory-prev-best').innerText = `เชื่อมต่อกับชีตหลักหลังบ้านล้มเหลว`;
+                    if (elPrevBest) elPrevBest.innerText = `เชื่อมต่อกับชีตหลักหลังบ้านล้มเหลว`;
                 });
             } else {
-                document.getElementById('wb-victory-prev-best').innerText = `โหมดทดสอบท้องถิ่นออฟไลน์`;
+                const elPrevBest = document.getElementById('wb-victory-prev-best');
+                if (elPrevBest) elPrevBest.innerText = `โหมดทดสอบท้องถิ่นออฟไลน์`;
             }
         }
 
