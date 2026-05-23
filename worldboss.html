@@ -31,7 +31,10 @@
 
     <style>
         body {
-            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+            background-image: linear-gradient(rgba(8, 10, 24, 0.8), rgba(8, 10, 24, 0.85)), url('https://i.postimg.cc/0QLbMBcH/2-3.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             overflow-x: hidden;
             overflow-y: auto;
             font-family: 'Prompt', sans-serif;
@@ -46,21 +49,45 @@
 
         /* 🔮 สไตล์กล่องกระจกเรืองแสง (Neon Glassmorphism) */
         .glass-panel {
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            background: rgba(8, 10, 24, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
         }
 
         .neon-border-purple {
-            border: 2px solid rgba(239, 68, 68, 0.4);
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+            border: 2px solid rgba(139, 92, 246, 0.4);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
         }
 
         .neon-border-emerald {
             border: 2px solid rgba(16, 185, 129, 0.4);
             box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        /* 🔴 ขอบเรืองแสงสไตล์มาริโอ้นีออน (Mario Theme) */
+        .neon-border-mario {
+            border: 3px solid rgba(239, 68, 68, 0.8) !important;
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.5), inset 0 0 15px rgba(239, 68, 68, 0.2) !important;
+            animation: pulse-mario 3s infinite alternate;
+        }
+
+        /* 🔵 ขอบเรืองแสงสไตล์ดาราจักรอัศวิน (Space/Star Theme) */
+        .neon-border-space {
+            border: 3px solid rgba(6, 182, 212, 0.8) !important;
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.5), inset 0 0 15px rgba(6, 182, 212, 0.2) !important;
+            animation: pulse-space 3s infinite alternate;
+        }
+
+        @keyframes pulse-mario {
+            0% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.3), inset 0 0 8px rgba(239, 68, 68, 0.1); }
+            100% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.7), inset 0 0 20px rgba(239, 68, 68, 0.3); }
+        }
+
+        @keyframes pulse-space {
+            0% { box-shadow: 0 0 12px rgba(6, 182, 212, 0.3), inset 0 0 8px rgba(6, 182, 212, 0.1); }
+            100% { box-shadow: 0 0 30px rgba(6, 182, 212, 0.7), inset 0 0 20px rgba(6, 182, 212, 0.3); }
         }
 
         .neon-text-purple {
@@ -149,7 +176,7 @@
         <section class="w-full flex flex-col gap-3">
             
             <!-- จอภาพเกมมาริโอ้ NES ของจริง -->
-            <div class="glass-panel rounded-2xl lg:rounded-3xl p-1.5 lg:p-4 neon-border-purple relative overflow-hidden flex flex-col items-center">
+            <div id="wb-game-frame" class="glass-panel rounded-2xl lg:rounded-3xl p-1.5 lg:p-4 neon-border-purple relative overflow-hidden flex flex-col items-center">
                 <div class="absolute inset-0 bg-gradient-to-tr from-red-950/10 via-slate-900/40 to-transparent pointer-events-none"></div>
                 
                 <div class="w-full flex justify-between items-center z-10 mb-1 lg:mb-1.5 px-1">
@@ -173,7 +200,7 @@
 
                     <!-- 🎥 หน้าจอประมวลผลกล้องเว็บแคม - ลอยตัวทับมุมขวาบนอย่างสวยงาม ขนาดชัดเจนสำหรับจัดระยะเด็กหน้าห้องเรียน -->
                     <div id="wb-webcam-section" class="absolute top-3 right-3 w-[150px] md:w-[220px] lg:w-[290px] aspect-[4/3] z-30 flex flex-col items-center">
-                        <div class="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
+                        <div id="wb-camera-frame" class="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                             <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
                             <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
                             
@@ -406,17 +433,52 @@
         const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
         if (elRepsMobile) elRepsMobile.innerText = `0 / ${targetReps}`;
 
-        // สลับ UI บอส 1 และบอส 2
+        // สลับ UI บอส 1 และบอส 2 พร้อมเปลี่ยนขอบเรืองแสงแบบ Dynamic
+        const gameFrame = document.getElementById('wb-game-frame');
+        const cameraFrame = document.getElementById('wb-camera-frame');
+        
         if (bossId === 'WB001') {
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SUPER MARIO 🍄";
             document.getElementById('mario-game-status').innerText = "🎮 วิ่ง, กระโดด, นั่งย่อ เพื่อผจญภัยกับมาริโอ้ NES!";
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             document.getElementById('mario-iframe').classList.remove('hidden');
+            
+            // ใช้ขอบนีออนธีมมาริโอ้สีแดง
+            if (gameFrame) {
+                gameFrame.classList.remove('neon-border-purple', 'neon-border-space');
+                gameFrame.classList.add('neon-border-mario');
+            }
+            if (cameraFrame) {
+                cameraFrame.classList.remove('neon-border-purple', 'neon-border-space');
+                cameraFrame.classList.add('neon-border-mario');
+            }
         } else {
-            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: STONE TITAN 👹";
-            document.getElementById('mario-game-status').innerText = "🎮 เอี้ยวคอควบคุมหลบระเบิดเก็บเพชร!";
+            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: STAR GUARDIAN 🌌";
+            document.getElementById('mario-game-status').innerText = "🎮 เอี้ยวคอ/โยกศีรษะ ควบคุมผู้พิทักษ์ดวงดาวหลบระเบิดเก็บเพชรวิเศษ!";
             document.getElementById('mario-iframe').classList.add('hidden');
             document.getElementById('wb-titan-placeholder').classList.remove('hidden');
+            
+            // อัปเดตข้อมูลบนบอสการ์ดในหน้าเล่นเกม
+            const avatarEl = document.getElementById('wb-battle-boss-avatar');
+            if (avatarEl) avatarEl.innerText = "🪐";
+            
+            const nameEl = document.getElementById('wb-battle-boss-name');
+            if (nameEl) nameEl.innerText = "ศึกผู้พิทักษ์ดวงดาว (Star Guardian)";
+            
+            const guideEl = document.getElementById('wb-battle-pose-guide');
+            if (guideEl) {
+                guideEl.innerHTML = "🛡️ <b>ผู้พิทักษ์ดวงดาว:</b> โยกศีรษะและเอี้ยวคอ ↕️ ควบคุมอัศวินหลบลูกระเบิด 💣 และเก็บเพชรวิเศษ 💎";
+            }
+            
+            // ใช้ขอบนีออนธีมผู้พิทักษ์ดวงดาวสีฟ้าไซอัน
+            if (gameFrame) {
+                gameFrame.classList.remove('neon-border-purple', 'neon-border-mario');
+                gameFrame.classList.add('neon-border-space');
+            }
+            if (cameraFrame) {
+                cameraFrame.classList.remove('neon-border-purple', 'neon-border-mario');
+                cameraFrame.classList.add('neon-border-space');
+            }
         }
 
         // 3) ตัวแปรเกมสเตท (Game Loop States)

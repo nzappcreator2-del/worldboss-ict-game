@@ -206,7 +206,7 @@
 
         const dashboardBg = document.getElementById('dashboard-bg-layer');
         if (dashboardBg) {
-            if (pageId === 'dashboard') dashboardBg.classList.remove('opacity-0');
+            if (pageId === 'dashboard' || pageId === 'world-boss') dashboardBg.classList.remove('opacity-0');
             else dashboardBg.classList.add('opacity-0');
         }
 

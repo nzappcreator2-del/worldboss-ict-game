@@ -134,7 +134,7 @@ function setupDatabase() {
   const bossSheet = ss.getSheetByName('WorldBoss_Config');
   if (bossSheet && bossSheet.getLastRow() <= 1) {
     bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
-    bossSheet.appendRow(['WB002', 'พายุทอร์นาโด (Jumping Jack)', 'jumping_jack', 15, 150, 150, 150, true]);
+    bossSheet.appendRow(['WB002', 'ศึกผู้พิทักษ์ดวงดาว (Star Guardian)', 'jumping_jack', 15, 150, 150, 150, true]);
   } else if (bossSheet) {
     // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
     try {
@@ -215,7 +215,7 @@ function ensureDatabaseSetup() {
     const bossSheet = ss.getSheetByName('WorldBoss_Config');
     if (bossSheet && bossSheet.getLastRow() <= 1) {
       bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
-      bossSheet.appendRow(['WB002', 'พายุทอร์นาโด (Jumping Jack)', 'jumping_jack', 15, 150, 150, 150, true]);
+      bossSheet.appendRow(['WB002', 'ศึกผู้พิทักษ์ดวงดาว (Star Guardian)', 'jumping_jack', 15, 150, 150, 150, true]);
     } else if (bossSheet) {
       // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
       try {
