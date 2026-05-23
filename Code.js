@@ -133,8 +133,21 @@ function setupDatabase() {
   // เพิ่มค่า Default ให้ชีท WorldBoss_Config (ถ้ายังไม่มี)
   const bossSheet = ss.getSheetByName('WorldBoss_Config');
   if (bossSheet && bossSheet.getLastRow() <= 1) {
-    bossSheet.appendRow(['WB001', 'ผจญภัยไปกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
+    bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
     bossSheet.appendRow(['WB002', 'พายุทอร์นาโด (Jumping Jack)', 'jumping_jack', 15, 150, 150, 150, true]);
+  } else if (bossSheet) {
+    // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
+    try {
+      const bossData = bossSheet.getDataRange().getValues();
+      for (let i = 1; i < bossData.length; i++) {
+        if (bossData[i][0] === 'WB001' && (bossData[i][1] === 'ผจญภัยไปกับมาริโอ้' || bossData[i][1] === 'ผจญภัยไปกับมาริโอ้ ')) {
+          bossSheet.getRange(i + 1, 2).setValue('ผจญภัยกับมาริโอ้');
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('Error during WorldBoss_Config setup migration:', e);
+    }
   }
   
   // แจ้งเตือนว่าเสร็จสิ้นแล้ว
@@ -201,8 +214,21 @@ function ensureDatabaseSetup() {
     // 🛠️ ตรวจสอบชีต WorldBoss_Config ว่ามีค่า Default ครบถ้วนหรือไม่
     const bossSheet = ss.getSheetByName('WorldBoss_Config');
     if (bossSheet && bossSheet.getLastRow() <= 1) {
-      bossSheet.appendRow(['WB001', 'ผจญภัยไปกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
+      bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
       bossSheet.appendRow(['WB002', 'พายุทอร์นาโด (Jumping Jack)', 'jumping_jack', 15, 150, 150, 150, true]);
+    } else if (bossSheet) {
+      // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
+      try {
+        const bossData = bossSheet.getDataRange().getValues();
+        for (let i = 1; i < bossData.length; i++) {
+          if (bossData[i][0] === 'WB001' && (bossData[i][1] === 'ผจญภัยไปกับมาริโอ้' || bossData[i][1] === 'ผจญภัยไปกับมาริโอ้ ')) {
+            bossSheet.getRange(i + 1, 2).setValue('ผจญภัยกับมาริโอ้');
+            break;
+          }
+        }
+      } catch (e) {
+        console.error('Error during WorldBoss_Config migration:', e);
+      }
     }
   }
 }
