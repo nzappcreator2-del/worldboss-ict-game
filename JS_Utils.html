@@ -1,0 +1,487 @@
+<script>
+    // ==========================================
+    // 🚨 ระบบ Global Error Handler & Unhandled Promise Rejection (ดักจับป้องกันหน้านิ่งเงียบ)
+    // ==========================================
+    window.onerror = function(message, source, lineno, colno, error) {
+        console.error("Global Error Caught:", message, "at", source, ":", lineno, ":", colno);
+        
+        // กรองข้อผิดพลาดที่ไม่สำคัญหรือเป็นเรื่องปกติของปลั๊กอินเบราว์เซอร์
+        if (message && (
+            message.includes("ResizeObserver") || 
+            message.includes("Script error") ||
+            message.includes("extensions")
+        )) {
+            return false;
+        }
+
+        let errorText = `❌ เกิดข้อผิดพลาดในระบบ (Runtime Error):\n\n📄 ข้อความ: ${message}\n📍 ตำแหน่ง: ${source ? source.split('/').pop() : 'unknown'}:${lineno}:${colno}`;
+        if (error && error.stack) {
+            console.error(error.stack);
+        }
+        
+        // ลองแสดงผลด้วย SweetAlert RPG mixin (ถ้าพร้อมใช้งาน) หรือ fallback เป็น alert
+        try {
+            if (typeof SwalRPG !== 'undefined') {
+                SwalRPG.fire({
+                    title: '🚨 ระบบเกิดข้อผิดพลาด!',
+                    text: errorText,
+                    icon: 'error',
+                    confirmButtonText: 'รับทราบ (รีโหลด)',
+                    showCancelButton: true,
+                    cancelButtonText: 'ปิดหน้านี้'
+                }).then((res) => {
+                    if (res.isConfirmed) {
+                        window.location.reload();
+                    }
+                });
+            } else {
+                alert(errorText);
+            }
+        } catch(e) {
+            alert(errorText);
+        }
+        return false;
+    };
+    
+    window.onunhandledrejection = function(event) {
+        console.error("Unhandled Promise Rejection:", event.reason);
+        let reason = event.reason;
+        let errMsg = reason ? (reason.message || reason.toString()) : "Promise Rejection";
+        
+        // กรองบาง error ทั่วไป
+        if (errMsg.includes("ResizeObserver")) return;
+
+        let errorText = `⚠️ เกิดข้อผิดพลาดแบบ Unhandled Rejection:\n\n📄 สาเหตุ: ${errMsg}`;
+        
+        try {
+            if (typeof SwalRPG !== 'undefined') {
+                SwalRPG.fire({
+                    title: '🚨 ข้อผิดพลาดเบื้องหลัง!',
+                    text: errorText,
+                    icon: 'warning',
+                    confirmButtonText: 'ตกลง'
+                });
+            } else {
+                console.warn(errorText);
+            }
+        } catch(e) {
+            console.warn(errorText);
+        }
+    };
+
+    // ==========================================
+    // ตัวช่วยแปลภาษา Error จาก AI (Gemini) ให้เป็นภาษาคน
+    // ==========================================
+    function translateAIError(errMsg) {
+        if (!errMsg) return "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
+        const msg = errMsg.toString().toLowerCase();
+        
+        if (msg.includes('503') || msg.includes('unavailable') || msg.includes('overloaded')) {
+            return "เซิร์ฟเวอร์ AI ของ Google ทำงานหนักมากตอนนี้! มีผู้ใช้งานทั่วโลกเยอะเกินไป (503 High Demand)\n👉 กรุณารอประมาณ 1-2 นาทีแล้วลองใหม่อีกครั้งครับ";
+        }
+        if (msg.includes('429') || msg.includes('quota') || msg.includes('exhausted')) {
+            return "โควต้าการใช้งาน AI ฟรีประจำวันหมดแล้ว! (429 Quota Exceeded)\n👉 โควต้าจะถูกรีเซ็ตใหม่ในวันพรุ่งนี้ครับ";
+        }
+        if (msg.includes('api key not valid') || msg.includes('api_key_invalid')) {
+            return "API Key ของ Gemini ไม่ถูกต้อง ลืมใส่ หรือถูกลบไปแล้วครับ (Invalid API Key)";
+        }
+        if (msg.includes('fetch')) {
+            return "เซิร์ฟเวอร์ยุ่งมากจนการเชื่อมต่อหลุด (Fetch Error)\n👉 โปรดลองใหม่อีกครั้งครับ";
+        }
+        
+        return "เกิดข้อผิดพลาดจากระบบ AI: " + errMsg;
+    }
+
+    // ========== 0. SweetAlert2 RPG Theme ==========
+    const SwalRPG = Swal.mixin({
+        customClass: {
+            popup: 'border-4 border-gray-800 rounded-2xl bg-[#f8f9fa] shadow-2xl',
+            title: 'text-2xl font-mali font-bold text-gray-800',
+            htmlContainer: 'text-gray-600 font-prompt',
+            confirmButton: 'px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-prompt font-bold rounded-xl shadow-[0_4px_0_#4338ca] transition-all active:translate-y-1 active:shadow-none mx-2 cursor-pointer',
+            cancelButton: 'px-6 py-2.5 bg-gray-500 hover:bg-gray-600 text-white font-prompt font-bold rounded-xl shadow-[0_4px_0_#4b5563] transition-all active:translate-y-1 active:shadow-none mx-2 cursor-pointer',
+            input: 'px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-indigo-500/50 outline-none !w-[85%] !mx-auto font-prompt transition text-center text-xl font-bold'
+        },
+        heightAuto: false,
+        returnFocus: false,
+        buttonsStyling: false
+    });
+
+    function customAlert(msg, icon = 'info') {
+        const titleText = msg.length > 50 ? 'แจ้งเตือน' : msg;
+        const bodyText = msg.length > 50 ? msg : '';
+        return SwalRPG.fire({ title: titleText, text: bodyText, icon: icon, confirmButtonText: 'ตกลง' });
+    }
+
+    async function customConfirm(msg, title = 'ยืนยันการดำเนินการ?', icon = 'warning') {
+        const result = await SwalRPG.fire({
+            title: title,
+            text: msg,
+            icon: icon,
+            showCancelButton: true,
+            confirmButtonText: '✅ ตกลง',
+            cancelButtonText: '❌ ยกเลิก'
+        });
+        return result.isConfirmed;
+    }
+
+    async function customPrompt(title, placeholder = '', inputType = 'text') {
+        const result = await SwalRPG.fire({
+            title: title,
+            input: inputType,
+            inputPlaceholder: placeholder,
+            showCancelButton: true,
+            confirmButtonText: '✅ ยืนยัน',
+            cancelButtonText: '❌ ยกเลิก',
+            inputAttributes: {
+                autocapitalize: 'off',
+                autocorrect: 'off'
+            }
+        });
+        return result.isConfirmed ? result.value : null;
+    }
+    // ========== 1. สถานะตัวแปร (Status) ==========
+    let currentUser = null;
+
+    // ========== 2. ระบบ Navigation (เปลี่ยนหน้า) ==========
+    function showPage(pageId) {
+        // ซ่อนทุกหน้า
+        const allPages = ['page-landing', 'page-dashboard', 'page-admin', 'page-lesson', 'page-pretest', 'page-boss-battle', 'page-map', 'page-worksheet', 'page-lobby', 'page-pvp', 'page-world-boss'];
+        allPages.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.classList.remove('page-active', 'flex');
+            }
+        });
+
+        // จัดการ #app container — ซ่อนเมื่อเปิดหน้า map หรือ pvp
+        const appContainer = document.getElementById('app');
+        if (pageId === 'map' || pageId === 'pvp') {
+            appContainer.classList.add('hidden');
+        } else {
+            appContainer.classList.remove('hidden');
+
+            // ถ้าเป็นหน้า Dashboard หรือ หน้าอ่านบทเรียน (Lesson) หรือหน้าทำใบงาน หรือหน้าเวิลด์บอส ให้ขยายเต็มหน้าจอ ไม่กระดับขอบ (Borderless Fullscreen) หรือเอาพื้นกระจกออก
+            if (pageId === 'dashboard' || pageId === 'lesson' || pageId === 'worksheet' || pageId === 'world-boss') {
+                appContainer.classList.remove('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
+                appContainer.classList.add('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
+
+                // นำความเบลอของกระจกออก เพื่อให้เห็น Background และ ฟองสบู่ชัดเจน
+                appContainer.style.background = 'transparent';
+                appContainer.style.backdropFilter = 'none';
+                appContainer.style.webkitBackdropFilter = 'none';
+                appContainer.style.border = 'none';
+                appContainer.style.boxShadow = 'none';
+            } else {
+                appContainer.classList.add('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
+                appContainer.classList.remove('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
+
+                // คืนค่ารูปแบบกระจกเดิม
+                appContainer.style.background = '';
+                appContainer.style.backdropFilter = '';
+                appContainer.style.webkitBackdropFilter = '';
+                appContainer.style.border = '';
+                appContainer.style.boxShadow = '';
+            }
+        }
+
+        // แสดงหน้าที่เลือก
+        const targetPage = document.getElementById('page-' + pageId);
+        if (targetPage) {
+            targetPage.classList.remove('hidden');
+            if (pageId === 'map' || pageId === 'dashboard') {
+                targetPage.classList.add('flex');
+            } else {
+                targetPage.classList.add('page-active');
+            }
+        }
+
+        // จัดการพื้นหลังเฉพาะจุด ให้ออกเฉพาะหน้า
+        const loginBg = document.getElementById('login-bg-layer');
+        if (loginBg) {
+            if (pageId === 'landing' || pageId === 'lobby') loginBg.classList.remove('opacity-0');
+            else loginBg.classList.add('opacity-0');
+        }
+
+        const dashboardBg = document.getElementById('dashboard-bg-layer');
+        if (dashboardBg) {
+            if (pageId === 'dashboard') dashboardBg.classList.remove('opacity-0');
+            else dashboardBg.classList.add('opacity-0');
+        }
+
+        const mapBg = document.getElementById('map-bg-layer');
+        if (mapBg) {
+            if (pageId === 'map') mapBg.classList.remove('opacity-0');
+            else mapBg.classList.add('opacity-0');
+        }
+
+        // ==========================================
+        // แวะเช็ค: เลิกเล่น YouTube อัตโนมัติถ้าไม่ได้อยู่ในหน้า lesson
+        // ==========================================
+        const videoFrame = document.getElementById('lesson-video-frame');
+        if (videoFrame && pageId !== 'lesson') {
+            const currentSrc = videoFrame.src;
+            if (currentSrc && currentSrc.includes('youtube')) {
+                videoFrame.src = currentSrc; // การยิง src ตัวเดิมซ้ำเข้าไป จะทำให้ iframe รีเฟรชและหยุดเล่น
+            }
+        }
+
+        const bossBattleBg = document.getElementById('boss-battle-bg-layer');
+        if (bossBattleBg) {
+            if (pageId === 'boss-battle' || pageId === 'pvp') bossBattleBg.classList.remove('opacity-0');
+            else bossBattleBg.classList.add('opacity-0');
+        }
+
+        const lessonBg = document.getElementById('lesson-bg-layer');
+        if (lessonBg) {
+            if (pageId === 'lesson' || pageId === 'pretest' || pageId === 'worksheet') lessonBg.classList.remove('opacity-0');
+            else lessonBg.classList.add('opacity-0');
+        }
+
+        // เลื่อนกลับขึ้นบนสุด
+        window.scrollTo(0, 0);
+    }
+
+    // ========== ระบบควบคุม Tabs ใน Dashboard ==========
+    function showDashboardTab(tabId) {
+        // ตรวจสอบว่าอยู่หน้า dashboard หรือไม่ ถ้าไม่ให้ย้ายมาก่อน
+        showPage('dashboard');
+
+        // ซ่อนแท็บทั้งหมด
+        const tabs = ['home', 'profile', 'map', 'rank', 'cert'];
+        tabs.forEach(t => {
+            const el = document.getElementById('dash-tab-' + t);
+            if (el) {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        });
+
+        // แสดงแท็บที่เลือก
+        const targetTab = document.getElementById('dash-tab-' + tabId);
+        if (targetTab) {
+            targetTab.classList.remove('hidden');
+            targetTab.classList.add('flex');
+        }
+
+        // จัดการกรอบกระจก ถูกย้ายไปใส่ประจำที่ id dash-tab-map โดยตรงแล้วใน Index.html
+
+        // แจ้งซ่อนเปิดกลุ่มปุ่มเริ่มผจญภัย ให้โชว์เฉพาะหน้าแรกสุด (Home)
+        const bottomBtnBox = document.getElementById('bottom-action-bar');
+        const floatingShopBag = document.getElementById('floating-shop-bag');
+        if (tabId === 'home') {
+            if (bottomBtnBox) bottomBtnBox.classList.remove('hidden');
+            // หน้า Home มี Shop/Bag อยู่ใน bottom action bar แล้ว ไม่ต้องแสดงปุ่มลอย
+            if (floatingShopBag) floatingShopBag.classList.add('hidden');
+        } else {
+            if (bottomBtnBox) bottomBtnBox.classList.add('hidden');
+            // แท็บอื่นๆ ต้องแสดงปุ่มลอยเพื่อเข้าถึง Shop/Bag
+            if (floatingShopBag) floatingShopBag.classList.remove('hidden');
+        }
+    }
+
+    // ========== 3. ระบบโหลดหน้าจอ (Loading) ==========
+    function showLoader() {
+        document.getElementById('global-loader').classList.remove('hidden');
+    }
+    function hideLoader() {
+        document.getElementById('global-loader').classList.add('hidden');
+    }
+
+    // ========== 7. อนิเมชันพื้นหลัง (Animations) ==========
+    function createBubbles() {
+        const container = document.getElementById('bg-bubbles');
+        // สร้างฟองสบู่ลอย 15 อัน
+        for (let i = 0; i < 15; i++) {
+            let bubble = document.createElement('div');
+
+            // สุ่มขนาด และตำแหน่ง
+            let size = Math.random() * 60 + 20 + 'px';
+            bubble.style.width = size;
+            bubble.style.height = size;
+            bubble.style.left = Math.random() * 100 + 'vw';
+            bubble.style.top = '100vh'; // ให้เริ่มจากข้างล่างสุด
+            bubble.style.position = 'absolute';
+
+            // สร้างเอฟเฟกต์ Glass ให้ฟองสบู่
+            bubble.style.background = 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.1))';
+            bubble.style.borderRadius = '50%';
+            bubble.style.boxShadow = '0 8px 32px rgba(255,255,255,0.2)';
+
+            // สุ่มเวลาและระยะเวลาแอนิเมชัน
+            bubble.style.animation = `floatBubble ${Math.random() * 10 + 6}s linear infinite`;
+            bubble.style.animationDelay = `${Math.random() * 5}s`;
+
+            container.appendChild(bubble);
+        }
+    }
+
+
+    // ========== 8. ระบบร้านค้าและกระเป๋า (Shop & Inventory) ==========
+    function openShopModal() {
+        if(typeof currentUser === 'undefined' || !currentUser) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาล็อกอินก่อน', 'error');
+            return;
+        }
+        document.getElementById('shop-coins-display').textContent = currentUser.coins || 0;
+        document.getElementById('shop-modal').classList.remove('hidden');
+        document.getElementById('shop-modal').classList.add('flex');
+    }
+
+    function closeShopModal() {
+        const shopModal = document.getElementById('shop-modal');
+        if (!shopModal) return;
+        shopModal.classList.add('hidden');
+        shopModal.classList.remove('flex');
+    }
+
+    function openInventoryModal() {
+        if(typeof currentUser === 'undefined' || !currentUser) {
+            Swal.fire('ข้อผิดพลาด', 'กรุณาล็อกอินก่อน', 'error');
+            return;
+        }
+        const inv = currentUser.inventory || { potion: 0, magnifier: 0 };
+        document.getElementById('inv-potion-count').textContent = inv.potion || 0;
+        document.getElementById('inv-magnifier-count').textContent = inv.magnifier || 0;
+        document.getElementById('inventory-modal').classList.remove('hidden');
+        document.getElementById('inventory-modal').classList.add('flex');
+    }
+
+    function closeInventoryModal() {
+        document.getElementById('inventory-modal').classList.add('hidden');
+        document.getElementById('inventory-modal').classList.remove('flex');
+    }
+
+    function buyGacha() {
+        if(currentUser.coins < 500) {
+            Swal.fire('ข้อผิดพลาด', 'เหรียญไม่พอสุ่มกาชา!', 'error');
+            return;
+        }
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function(res) {
+                hideLoader();
+                if(res.success) {
+                    currentUser.coins = res.coins;
+                    currentUser.avatar = res.avatar;
+                    document.getElementById('shop-coins-display').textContent = res.coins;
+                    if(typeof updateDashboardInfo === 'function') updateDashboardInfo();
+
+                    // ใช้ Native Modal แทน SweetAlert2 เพราะ Swal มีปัญหา focus-lock ใน GAS iframe
+                    // ไม่ปิดร้าน เผื่อนักเรียนจะสุ่มต่อ
+                    showGachaResultModal(res.avatar, res.rarity);
+                } else {
+                    Swal.fire('ข้อผิดพลาด', res.error, 'error');
+                }
+            })
+            .withFailureHandler(function(err) {
+                hideLoader();
+                Swal.fire('ข้อผิดพลาด', 'การเชื่อมต่อล้มเหลว', 'error');
+            })
+            .gachaAvatar(currentUser.id, 500);
+    }
+
+    function showGachaResultModal(avatar, rarity) {
+        // ลบ modal เก่าถ้ามี (กันซ้ำ)
+        const existing = document.getElementById('gacha-result-modal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'gacha-result-modal';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);padding:1rem;';
+
+        overlay.innerHTML = `
+            <div style="background:#fff url('https://www.transparenttextures.com/patterns/white-diamond.png');border-radius:24px;border:4px solid #1f2937;box-shadow:0 25px 60px rgba(0,0,0,0.4);max-width:400px;width:100%;padding:2rem;text-align:center;animation:gachaGlow 1.5s ease-in-out;" class="gacha-glow">
+                <div style="font-size:1.5rem;font-weight:900;color:#1f2937;margin-bottom:0.5rem;font-family:'Mali','Prompt',sans-serif;">🎉 ยินดีด้วย!</div>
+                <div style="font-size:5rem;margin:1rem 0;" class="gacha-reveal">${avatar}</div>
+                <div style="font-size:1.25rem;font-weight:700;color:#4f46e5;margin-bottom:0.5rem;">ได้ตัวละครระดับ ${rarity}!</div>
+                <p style="color:#6b7280;margin-bottom:1.5rem;font-size:0.9rem;">อวาตาร์ของคุณเปลี่ยนเป็น ${avatar} แล้ว</p>
+                <button id="gacha-close-btn" style="background:linear-gradient(to bottom,#6366f1,#4f46e5);color:#fff;border:none;border-radius:12px;padding:12px 32px;font-size:1rem;font-weight:800;cursor:pointer;box-shadow:0 4px 0 #3730a3;transition:all 0.1s;font-family:'Prompt',sans-serif;width:100%;" onmousedown="this.style.transform='translateY(4px)';this.style.boxShadow='none';" onmouseup="this.style.transform='';this.style.boxShadow='0 4px 0 #3730a3';">
+                    ว้าว! ขอบคุณครับ 🎁
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // ปุ่มปิด
+        const closeBtn = document.getElementById('gacha-close-btn');
+        closeBtn.addEventListener('click', function() {
+            closeGachaResultModal();
+        });
+
+        // กด backdrop ปิดด้วย
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                closeGachaResultModal();
+            }
+        });
+
+        // กด Escape ปิดด้วย
+        document.addEventListener('keydown', handleGachaEscape);
+    }
+
+    function handleGachaEscape(e) {
+        if (e.key === 'Escape') {
+            closeGachaResultModal();
+        }
+    }
+
+    function closeGachaResultModal() {
+        const modal = document.getElementById('gacha-result-modal');
+        if (modal) {
+            modal.remove();
+        }
+        document.removeEventListener('keydown', handleGachaEscape);
+        // อัปเดตเหรียญในร้านให้เป็นค่าล่าสุด (ร้านยังเปิดอยู่เผื่อสุ่มต่อ)
+        if (currentUser) {
+            document.getElementById('shop-coins-display').textContent = currentUser.coins || 0;
+        }
+    }
+
+    function buyItemShop(itemId, cost) {
+        if(currentUser.coins < cost) {
+            Swal.fire('ข้อผิดพลาด', 'เหรียญไม่พอจ้า', 'error');
+            return;
+        }
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function(res) {
+                hideLoader();
+                if(res.success) {
+                    currentUser.coins = res.coins;
+                    currentUser.inventory = res.inventory;
+                    document.getElementById('shop-coins-display').textContent = res.coins;
+                    if(typeof updateDashboardInfo === 'function') updateDashboardInfo();
+                    
+                    let itemName = itemId === 'potion' ? 'ยาเติมเลือด HP' : 'แว่นขยายตัดชอยส์';
+                    let itemEmoji = itemId === 'potion' ? '🧪' : '🔍';
+                    
+                    Swal.fire({
+                        title: 'ซื้อสำเร็จ!',
+                        text: `คุณได้รับ ${itemEmoji} ${itemName} เรียบร้อยแล้ว`,
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        heightAuto: false,
+                        returnFocus: false,
+                        focusConfirm: false
+                    });
+                } else {
+                    Swal.fire('ข้อผิดพลาด', res.error, 'error');
+                }
+            })
+            .withFailureHandler(function(err) {
+                hideLoader();
+                Swal.fire('ข้อผิดพลาด', 'การเชื่อมต่อล้มเหลว', 'error');
+            })
+            .buyItem(currentUser.id, itemId, cost);
+    }
+
+    // ========== เมื่อโหลดหน้าเว็บเสร็จ ให้ทำงาน ==========
+    window.onload = function () {
+        createBubbles();
+        fetchInitialData();
+    };
+</script>

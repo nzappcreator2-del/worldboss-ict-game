@@ -1,0 +1,250 @@
+<script>
+    /**
+     * ==========================================
+     * NPC AI Tutor System
+     * ==========================================
+     */
+
+    function toggleAITutor() {
+        const modal = document.getElementById('ai-tutor-modal');
+        if (modal.classList.contains('translate-y-full')) {
+            modal.classList.remove('translate-y-full');
+            modal.classList.remove('opacity-0');
+            modal.classList.remove('pointer-events-none');
+            // Wait for animation to finish before focusing
+            setTimeout(() => {
+                document.getElementById('ai-chat-input').focus();
+                // ถ้าเป็นแชทว่างเปล่า ให้ส่งคำทักทายแรก
+                const chatBox = document.getElementById('ai-chat-box');
+                if (chatBox.children.length === 0) {
+                    appendAITextWithTypewriter("สวัสดีผู้กล้า! ผมคือ AI พิทักษ์ความรู้ 🤖 มีอะไรให้ผมรับใช้รึเปล่า?");
+                }
+            }, 100);
+        } else {
+            modal.classList.add('translate-y-full');
+            modal.classList.add('opacity-0');
+            modal.classList.add('pointer-events-none');
+        }
+    }
+
+    function handleAIKeyPress(event) {
+        if (event.key === 'Enter') {
+            sendAITutorMessage();
+        }
+    }
+
+    function sendAITutorMessage() {
+        const inputField = document.getElementById('ai-chat-input');
+        const question = inputField.value.trim();
+        if (!question) return;
+
+        // แสดงข้อความของผู้ใช้
+        appendUserText(question);
+        inputField.value = '';
+
+        // แสดงกำลังโหลด
+        const loadingId = 'loading-' + Date.now();
+        const chatBox = document.getElementById('ai-chat-box');
+        chatBox.innerHTML += `
+        <div id="${loadingId}" class="flex gap-3 mb-4 max-w-[85%] self-start mr-auto">
+            <div class="text-3xl drop-shadow-md">🤖</div>
+            <div class="bg-white text-indigo-900 border-2 border-indigo-200 px-4 py-2 rounded-2xl rounded-tl-none shadow-sm font-medium text-sm animate-pulse flex items-center gap-1">
+                <span>กำลังร่ายมนต์หาคำตอบ</span>
+                <span class="animate-bounce" style="animation-delay: 0ms">.</span>
+                <span class="animate-bounce" style="animation-delay: 150ms">.</span>
+                <span class="animate-bounce" style="animation-delay: 300ms">.</span>
+            </div>
+        </div>
+    `;
+        scrollToBottom(chatBox);
+
+        // ดึง Context
+        const activeLessonTitle = document.getElementById('dashboard-current-lesson')?.innerText || 'ไม่มีข้อมูลด่าน';
+        const userName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.name : 'ไม่ระบุนาม';
+        const context = `ชื่อผู้เล่น: ${userName}, ด่านปัจจุบันที่กำลังผจญภัย: ${activeLessonTitle}`;
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                const el = document.getElementById(loadingId);
+                if (el) el.remove();
+                if (res.success) {
+                    appendAITextWithTypewriter(res.answer);
+                } else {
+                    let errorMsg = res.error;
+                    if (res.error && res.error.includes("ไม่พบ Gemini API Key")) {
+                        errorMsg = "ระบบของผมยังไม่ได้รับการเชื่อมต่อพลังงาน (กรุณาให้ครูตั้งค่า API Key ก่อนนะ!)";
+                    } else {
+                        errorMsg = translateAIError(res.error);
+                    }
+                    appendAIText(`⚠️ โอ๊ะโอ! ระบบขัดข้อง: ${errorMsg}`);
+                }
+            })
+            .withFailureHandler(function (err) {
+                const el = document.getElementById(loadingId);
+                if (el) el.remove();
+                appendAIText(`⚠️ การเชื่อมต่อขาดหาย! (Error: ${translateAIError(err.message)})`);
+            })
+            .askNPCAi(question, context);
+    }
+
+    function appendUserText(text) {
+        const chatBox = document.getElementById('ai-chat-box');
+        const avatar = (typeof currentUser !== 'undefined' && currentUser && currentUser.avatar) ? currentUser.avatar : '👤';
+        chatBox.innerHTML += `
+        <div class="flex gap-3 mb-4 max-w-[85%] self-end ml-auto flex-row-reverse">
+            <div class="text-3xl drop-shadow-md flex-shrink-0">${avatar}</div>
+            <div class="bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2 rounded-2xl rounded-tr-none shadow-sm font-medium text-sm">
+                ${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+            </div>
+        </div>
+    `;
+        scrollToBottom(chatBox);
+    }
+
+    function appendAIText(text) {
+        const chatBox = document.getElementById('ai-chat-box');
+        chatBox.innerHTML += `
+        <div class="flex gap-3 mb-4 max-w-[85%] self-start mr-auto">
+            <div class="text-3xl drop-shadow-md flex-shrink-0">🤖</div>
+            <div class="bg-white/90 backdrop-blur-sm text-indigo-900 border-2 border-indigo-200 px-4 py-2 rounded-2xl rounded-tl-none shadow-sm font-medium text-sm">
+                ${formatAIText(text)}
+            </div>
+        </div>
+    `;
+        scrollToBottom(chatBox);
+    }
+
+    function appendAITextWithTypewriter(text) {
+        const chatBox = document.getElementById('ai-chat-box');
+        const msgId = 'msg-' + Date.now();
+        chatBox.innerHTML += `
+        <div class="flex gap-3 mb-4 max-w-[85%] self-start mr-auto">
+            <div class="text-3xl drop-shadow-md animate-bounce" style="animation-duration: 2s; animation-iteration-count: 2;">🤖</div>
+            <div id="${msgId}" class="bg-white/90 backdrop-blur-sm text-indigo-900 border-2 border-indigo-200 px-4 py-2 rounded-2xl rounded-tl-none shadow-sm font-medium text-sm leading-relaxed">
+            </div>
+        </div>
+    `;
+        scrollToBottom(chatBox);
+
+        // Typewriter effect
+        const container = document.getElementById(msgId);
+        let i = 0;
+        const speed = 25; // ms per char
+
+        function typeWriter() {
+            if (i < text.length) {
+                container.innerHTML = formatAIText(text.substring(0, i + 1));
+                i++;
+                scrollToBottom(chatBox);
+                setTimeout(typeWriter, speed);
+            } else {
+                container.innerHTML = formatAIText(text); // Ensure complete text is correctly formatted
+                scrollToBottom(chatBox);
+            }
+        }
+        typeWriter();
+    }
+
+    function formatAIText(text) {
+        // จัดรูปแบบ markdown ตัวหน้า -> html
+        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); // Bold
+        formatted = formatted.replace(/\*(.*?)\*/g, '<i>$1</i>'); // Italic
+        formatted = formatted.replace(/\n/g, '<br>'); // Newline
+        return formatted;
+    }
+
+    function scrollToBottom(el) {
+        el.scrollTop = el.scrollHeight;
+    }
+
+    // Drag and Drop Logic for AI FAB
+    (function initDraggableFAB() {
+        const fab = document.getElementById("ai-tutor-fab");
+        if (!fab) return;
+
+        let isDragging = false;
+        let isMoved = false;
+        let currentX = 0;
+        let currentY = 0;
+        let initialX = 0;
+        let initialY = 0;
+        let xOffset = 0;
+        let yOffset = 0;
+        let startClientX = 0;
+        let startClientY = 0;
+
+        function MathClamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+        }
+
+        function dragStart(e) {
+            isMoved = false; // รีเซ็ตสถานะบนการแตะครั้งใหม่
+            if (e.type === "touchstart") {
+                startClientX = e.touches[0].clientX;
+                startClientY = e.touches[0].clientY;
+            } else {
+                startClientX = e.clientX;
+                startClientY = e.clientY;
+            }
+            initialX = startClientX - xOffset;
+            initialY = startClientY - yOffset;
+
+            isDragging = true;
+        }
+
+        function dragEnd() {
+            if (!isDragging) return;
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+
+            let clientX, clientY;
+            if (e.type === "touchmove") {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            // ถ้าผู้ใช้ขยับเมาส์หรือนิ้วเกิน 5px จากจุดเริ่มต้น ถือว่าขยับปุ่ม ไม่ใช่มือสั่นตอนคลิก
+            if (Math.abs(clientX - startClientX) > 5 || Math.abs(clientY - startClientY) > 5) {
+                isMoved = true;
+            }
+
+            if (e.cancelable) {
+                e.preventDefault();
+            }
+
+            currentX = clientX - initialX;
+            currentY = clientY - initialY;
+
+            xOffset = currentX;
+            yOffset = currentY;
+
+            fab.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+        }
+
+        fab.addEventListener("mousedown", dragStart, { passive: false });
+        document.addEventListener("mouseup", dragEnd, { passive: false });
+        document.addEventListener("mousemove", drag, { passive: false });
+
+        fab.addEventListener("touchstart", dragStart, { passive: false });
+        document.addEventListener("touchend", dragEnd, { passive: false });
+        document.addEventListener("touchmove", drag, { passive: false });
+
+        fab.addEventListener("click", function (e) {
+            // ป้องกันเปิดแชทหากมีเจตนาลากปุ่ม
+            if (isMoved) {
+                e.preventDefault();
+                e.stopPropagation();
+            } else {
+                toggleAITutor();
+            }
+        });
+    })();
+</script>

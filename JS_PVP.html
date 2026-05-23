@@ -1,0 +1,569 @@
+<script>
+    // ==========================================
+    // PVP Logic & Matchmaking (Polling)
+    // ==========================================
+
+    let currentMatchId = null;
+    let pvpPollingInterval = null;
+    let myPvpRole = null;
+    let pvpQuestions = [];
+    let pvpCurrentQuestionIndex = 0;
+    let pvpTimerInterval = null;
+    let pvpTimeLeft = 30;
+    let isPvpBattleStarted = false;
+    let myReadyState = false;
+
+    function enterAdventureMode() {
+        if (typeof playClickSound === 'function') playClickSound();
+        showPage('dashboard');
+        if (typeof renderMapNodes === 'function') renderMapNodes();
+    }
+
+    function enterPVPMode() {
+        if (typeof playClickSound === 'function') playClickSound();
+
+        if (!currentUser || !currentUser.name) {
+            customAlert("กรุณาเข้าสู่ระบบก่อนเข้าเล่นโหมด PVP");
+            showPage('landing');
+            return;
+        }
+
+        // Show Mode Selection UI
+        showPage('pvp');
+        document.getElementById('pvp-mode-selection').classList.remove('hidden');
+        document.getElementById('pvp-matchmaking').classList.add('hidden');
+        document.getElementById('pvp-lobby').classList.add('hidden');
+        document.getElementById('pvp-arena').classList.add('hidden');
+        document.getElementById('pvp-result-modal').classList.add('hidden');
+        document.getElementById('pvp-result-modal').classList.remove('flex');
+        
+        const pinInput = document.getElementById('pvp-room-pin');
+        if (pinInput) pinInput.value = '';
+    }
+
+    function startPvpMatchmaking(roomPin) {
+        if (typeof playClickSound === 'function') playClickSound();
+        
+        let formattedPin = null;
+        if (roomPin !== null) {
+            formattedPin = roomPin.trim();
+            if (!formattedPin || !/^\d{4}$/.test(formattedPin)) {
+                customAlert("กรุณากรอกรหัสผ่าน 4 หลักให้ถูกต้อง (ตัวเลขเท่านั้น)");
+                return;
+            }
+        }
+
+        // Hide Mode Selection and Show Matchmaking UI
+        document.getElementById('pvp-mode-selection').classList.add('hidden');
+        document.getElementById('pvp-matchmaking').classList.remove('hidden');
+        document.getElementById('pvp-match-status').textContent = "กำลังค้นหาคู่ต่อสู้...";
+
+        if (typeof google !== 'undefined') {
+            google.script.run
+                .withSuccessHandler(onMatchmakingSuccess)
+                .withFailureHandler(onMatchmakingFailure)
+                .createOrJoinMatch(currentUser.id, currentUser.name, currentUser.avatar || '🧙‍♂️', formattedPin);
+        } else {
+            // Local preview mock
+            setTimeout(() => {
+                onMatchmakingSuccess({
+                    success: true,
+                    matchId: formattedPin ? 'PRIVATE_' + formattedPin : 'MOCK_MATCH_123',
+                    role: 'Player1',
+                    status: 'WAITING',
+                    p1Id: currentUser.id,
+                    p1Name: currentUser.name,
+                    p1Avatar: currentUser.avatar,
+                    p1Ready: false,
+                    p2Id: null,
+                    p2Name: '',
+                    p2Avatar: '',
+                    p2Ready: false
+                });
+            }, 1000);
+        }
+    }
+
+    function onMatchmakingSuccess(res) {
+        if (!res.success) {
+            customAlert("เกิดข้อผิดพลาดในการหาห้อง: " + res.error);
+            enterPVPMode();
+            return;
+        }
+
+        currentMatchId = res.matchId;
+        myPvpRole = res.role;
+        isPvpBattleStarted = false;
+        myReadyState = false;
+
+        document.getElementById('pvp-matchmaking').classList.add('hidden');
+        document.getElementById('pvp-lobby').classList.remove('hidden');
+        
+        updatePvpLobbyUI(res);
+        startPvpPolling();
+    }
+
+    function updatePvpLobbyUI(res) {
+        const p1Avatar = document.getElementById('pvp-lobby-p1-avatar');
+        const p1Name = document.getElementById('pvp-lobby-p1-name');
+        const p1Status = document.getElementById('pvp-lobby-p1-status');
+        
+        const p2Avatar = document.getElementById('pvp-lobby-p2-avatar');
+        const p2Name = document.getElementById('pvp-lobby-p2-name');
+        const p2Status = document.getElementById('pvp-lobby-p2-status');
+        
+        const btnReady = document.getElementById('pvp-btn-ready');
+
+        // Player 1
+        p1Avatar.textContent = res.p1Avatar || '🧙‍♂️';
+        p1Name.textContent = res.p1Name || 'ผู้เล่น 1';
+        
+        const p1IsReady = res.p1Ready === true || res.p1Ready === 'true' || res.p1Ready === 'TRUE';
+        if (p1IsReady) {
+            p1Status.textContent = '🟢 พร้อมประลอง!';
+            p1Status.className = 'px-4 py-1 rounded-full text-xs font-black bg-emerald-600/30 text-emerald-300 border border-emerald-500/40';
+        } else {
+            p1Status.textContent = '🔴 กำลังเตรียมตัว';
+            p1Status.className = 'px-4 py-1 rounded-full text-xs font-black bg-red-600/30 text-red-300 border border-red-500/40';
+        }
+
+        // Player 2
+        if (res.p2Id) {
+            p2Avatar.textContent = res.p2Avatar || '🧙‍♂️';
+            p2Avatar.classList.remove('animate-pulse');
+            p2Name.textContent = res.p2Name;
+            p2Name.classList.remove('text-gray-400');
+            p2Name.classList.add('text-white');
+            
+            const p2IsReady = res.p2Ready === true || res.p2Ready === 'true' || res.p2Ready === 'TRUE';
+            if (p2IsReady) {
+                p2Status.textContent = '🟢 พร้อมประลอง!';
+                p2Status.className = 'px-4 py-1 rounded-full text-xs font-black bg-emerald-600/30 text-emerald-300 border border-emerald-500/40';
+            } else {
+                p2Status.textContent = '🔴 กำลังเตรียมตัว';
+                p2Status.className = 'px-4 py-1 rounded-full text-xs font-black bg-red-600/30 text-red-300 border border-red-500/40';
+            }
+            
+            // Show Ready Button
+            btnReady.classList.remove('hidden');
+            
+            // Update button visual based on own ready state
+            const myCurrentReady = (myPvpRole === 'Player1') ? p1IsReady : p2IsReady;
+            myReadyState = myCurrentReady;
+            btnReady.disabled = false;
+            if (myReadyState) {
+                btnReady.textContent = '❌ ยกเลิกความพร้อม';
+                btnReady.className = 'w-full py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-black text-xl rounded-2xl border-b-4 border-yellow-800 hover:border-yellow-700 shadow-lg active:translate-y-0.5 active:border-b-2 transition-all flex justify-center items-center gap-2';
+            } else {
+                btnReady.textContent = '🎮 ฉันพร้อมแล้ว!';
+                btnReady.className = 'w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl rounded-2xl border-b-4 border-emerald-800 hover:border-emerald-700 shadow-lg active:translate-y-0.5 active:border-b-2 transition-all flex justify-center items-center gap-2';
+            }
+        } else {
+            // Still waiting for player 2
+            p2Avatar.textContent = '❓';
+            p2Avatar.classList.add('animate-pulse');
+            p2Name.textContent = 'กำลังหาคู่ประลอง...';
+            p2Name.classList.remove('text-white');
+            p2Name.classList.add('text-gray-400');
+            
+            p2Status.textContent = '⏳ รอผู้เล่น';
+            p2Status.className = 'px-4 py-1 rounded-full text-xs font-black bg-gray-700/50 text-gray-400 border border-gray-600/40';
+            
+            // Hide Ready Button until player 2 joins
+            btnReady.classList.add('hidden');
+        }
+    }
+
+    function togglePvpReady() {
+        if (typeof playClickSound === 'function') playClickSound();
+        
+        myReadyState = !myReadyState;
+        
+        const btnReady = document.getElementById('pvp-btn-ready');
+        btnReady.textContent = "⏳ กำลังบันทึก...";
+        btnReady.disabled = true;
+
+        if (typeof google !== 'undefined' && currentMatchId) {
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    btnReady.disabled = false;
+                    if (res.success) {
+                        onPvpPollSuccess(res);
+                    } else {
+                        customAlert("ไม่สามารถปรับสถานะได้: " + res.error);
+                    }
+                })
+                .withFailureHandler(function(err) {
+                    btnReady.disabled = false;
+                    customAlert("เกิดข้อผิดพลาดในการกดยืนยันความพร้อม");
+                })
+                .setPlayerReady(currentMatchId, currentUser.id, myReadyState);
+        } else {
+            // Local preview mock ready behavior
+            btnReady.disabled = false;
+            setTimeout(() => {
+                onPvpPollSuccess({
+                    success: true,
+                    matchId: currentMatchId,
+                    p1Id: myPvpRole === 'Player1' ? currentUser.id : 'MOCK_BOT_ID',
+                    p2Id: myPvpRole === 'Player2' ? currentUser.id : 'MOCK_BOT_ID',
+                    p1Name: myPvpRole === 'Player1' ? currentUser.name : 'คู่แข่ง (Bot)',
+                    p2Name: myPvpRole === 'Player2' ? currentUser.name : 'คู่แข่ง (Bot)',
+                    p1Avatar: myPvpRole === 'Player1' ? currentUser.avatar : '🧛‍♂️',
+                    p2Avatar: myPvpRole === 'Player2' ? currentUser.avatar : '🧛‍♂️',
+                    p1Ready: true,
+                    p2Ready: true,
+                    p1Hp: 100,
+                    p2Hp: 100,
+                    status: 'PLAYING'
+                });
+            }, 1000);
+        }
+    }
+
+    function onMatchmakingFailure(err) {
+        customAlert("การเชื่อมต่อล้มเหลว กรุณาลองใหม่");
+        enterPVPMode();
+    }
+
+    function cancelMatchmaking() {
+        if (pvpPollingInterval) clearInterval(pvpPollingInterval);
+        
+        if (currentMatchId && typeof google !== 'undefined') {
+            google.script.run.leaveMatch(currentMatchId);
+        }
+        
+        currentMatchId = null;
+        isPvpBattleStarted = false;
+        
+        document.getElementById('pvp-lobby').classList.add('hidden');
+        document.getElementById('pvp-matchmaking').classList.add('hidden');
+        
+        enterPVPMode();
+    }
+
+    // ------------------------------------------
+    // Polling System
+    // ------------------------------------------
+    function startPvpPolling() {
+        if (pvpPollingInterval) clearInterval(pvpPollingInterval);
+        
+        pvpPollingInterval = setInterval(() => {
+            if (!currentMatchId) {
+                clearInterval(pvpPollingInterval);
+                return;
+            }
+
+            if (typeof google !== 'undefined') {
+                google.script.run
+                    .withSuccessHandler(onPvpPollSuccess)
+                    .getMatchStatus(currentMatchId);
+            } else {
+                // Local mock behavior
+                if (document.getElementById('pvp-lobby').classList.contains('hidden') === false) {
+                    onPvpPollSuccess({
+                        success: true,
+                        matchId: currentMatchId,
+                        p1Id: currentUser.id,
+                        p1Name: currentUser.name,
+                        p1Avatar: currentUser.avatar,
+                        p1Ready: true,
+                        p2Id: 'MOCK_BOT_ID',
+                        p2Name: 'คู่แข่ง (Bot)',
+                        p2Avatar: '🧛‍♂️',
+                        p2Ready: true,
+                        p1Hp: 100,
+                        p2Hp: 100,
+                        status: 'PLAYING'
+                    });
+                }
+            }
+        }, 1500); // Poll every 1.5 seconds for much faster real-time updates!
+    }
+
+    function onPvpPollSuccess(res) {
+        if (!res.success) return;
+
+        // If we are in LOBBY or WAITING state
+        if (res.status === 'WAITING' || res.status === 'LOBBY') {
+            updatePvpLobbyUI(res);
+        }
+
+        // If we are PLAYING and the battle hasn't started yet!
+        if (res.status === 'PLAYING') {
+            if (!isPvpBattleStarted) {
+                isPvpBattleStarted = true;
+                
+                // Hide lobby elements
+                document.getElementById('pvp-lobby').classList.add('hidden');
+                document.getElementById('pvp-matchmaking').classList.add('hidden');
+                
+                startPvpBattle(res);
+            } else {
+                // Update HP UI if already playing
+                updatePvpUI(res);
+            }
+        }
+
+        // Handle match end
+        if (res.status === 'FINISHED' || res.status === 'CANCELLED') {
+            clearInterval(pvpPollingInterval);
+            if (res.status === 'CANCELLED') {
+                Swal.fire('การประลองสิ้นสุด', 'ห้องถูกยกเลิก หรือคู่ต่อสู้ออกจากห้อง', 'warning').then(() => {
+                    enterPVPMode();
+                });
+            } else {
+                updatePvpUI(res);
+                checkPvpWinner(res);
+            }
+        }
+    }
+
+    // ------------------------------------------
+    // PVP Battle Logic
+    // ------------------------------------------
+    function startPvpBattle(matchData) {
+        document.getElementById('pvp-lobby').classList.add('hidden');
+        document.getElementById('pvp-matchmaking').classList.add('hidden');
+        document.getElementById('pvp-arena').classList.remove('hidden');
+
+        // Setup UI
+        updatePvpUI(matchData);
+
+        // Fetch questions
+        if (typeof google !== 'undefined') {
+            google.script.run
+                .withSuccessHandler(function(res) {
+                    if (res.success && res.data.length > 0) {
+                        pvpQuestions = res.data.slice(0, 5); // Limit to 5 questions for fast PVP
+                        pvpCurrentQuestionIndex = 0;
+                        loadPvpQuestion();
+                    } else {
+                        customAlert("ไม่พบข้อมูลคำถาม");
+                        cancelMatchmaking();
+                    }
+                })
+                .getQuestions('PVP_MODE'); // You can modify the backend to pull random questions
+        } else {
+            // Mock questions
+            pvpQuestions = [
+                { text: 'โหมด PVP ทดสอบข้อ 1', options: ['A', 'B', 'C', 'D'], answer: 0 },
+                { text: 'โหมด PVP ทดสอบข้อ 2', options: ['A', 'B', 'C', 'D'], answer: 1 },
+                { text: 'โหมด PVP ทดสอบข้อ 3', options: ['A', 'B', 'C', 'D'], answer: 2 },
+            ];
+            pvpCurrentQuestionIndex = 0;
+            loadPvpQuestion();
+        }
+    }
+
+    function updatePvpUI(matchData) {
+        // Player 1 is always the left side in UI, but we want the CURRENT USER to be on the left.
+        let meHp, oppHp, meName, oppName, meAvatar, oppAvatar;
+        
+        if (myPvpRole === 'Player1') {
+            meHp = matchData.p1Hp || matchData.p1Score || 100;
+            oppHp = matchData.p2Hp || matchData.p2Score || 100;
+            meName = matchData.p1Name || currentUser.name;
+            oppName = matchData.p2Name || 'Waiting...';
+            meAvatar = matchData.p1Avatar || currentUser.avatar;
+            oppAvatar = matchData.p2Avatar || '⏳';
+        } else {
+            meHp = matchData.p2Hp || matchData.p2Score || 100;
+            oppHp = matchData.p1Hp || matchData.p1Score || 100;
+            meName = matchData.p2Name || currentUser.name;
+            oppName = matchData.p1Name || 'Waiting...';
+            meAvatar = matchData.p2Avatar || currentUser.avatar;
+            oppAvatar = matchData.p1Avatar || '⏳';
+        }
+
+        // Left Side (Me)
+        document.getElementById('pvp-p1-name').textContent = meName;
+        document.getElementById('pvp-p1-avatar').textContent = meAvatar;
+        document.getElementById('pvp-p1-hp-bar').style.width = Math.max(0, meHp) + '%';
+        document.getElementById('pvp-p1-hp-text').textContent = Math.ceil(Math.max(0, meHp)) + ' / 100';
+
+        // Right Side (Opponent)
+        document.getElementById('pvp-p2-name').textContent = oppName;
+        document.getElementById('pvp-p2-avatar').textContent = oppAvatar;
+        document.getElementById('pvp-p2-hp-bar').style.width = Math.max(0, oppHp) + '%';
+        document.getElementById('pvp-p2-hp-text').textContent = Math.ceil(Math.max(0, oppHp)) + ' / 100';
+    }
+
+    function loadPvpQuestion() {
+        if (pvpCurrentQuestionIndex >= pvpQuestions.length) {
+            // End of questions, wait for opponent or determine winner by HP
+            document.getElementById('pvp-question-text').textContent = "รอผลสรุปประลอง...";
+            document.getElementById('pvp-options-container').innerHTML = `
+                <div class="flex flex-col items-center justify-center py-8 text-center text-gray-500 animate-pulse">
+                    <span class="text-4xl mb-4">⌛</span>
+                    <p class="text-lg font-medium">คุณตอบคำถามครบแล้ว! กำลังรอคู่แข่งตอบคำถาม...</p>
+                </div>
+            `;
+            
+            if (typeof google !== 'undefined') {
+                google.script.run.finishMatch(currentMatchId, currentUser.id);
+            } else {
+                // Mock finish
+                setTimeout(() => {
+                    onPvpPollSuccess({
+                        success: true,
+                        status: 'FINISHED',
+                        p1Hp: 100,
+                        p2Hp: 80,
+                        p1Name: currentUser.name,
+                        p2Name: 'คู่แข่ง (Bot)',
+                        p1Avatar: currentUser.avatar,
+                        p2Avatar: '🧛‍♂️'
+                    });
+                }, 1500);
+            }
+            return;
+        }
+
+        const q = pvpQuestions[pvpCurrentQuestionIndex];
+        document.getElementById('pvp-question-number').textContent = pvpCurrentQuestionIndex + 1;
+        document.getElementById('pvp-question-text').textContent = q.text;
+
+        const optsContainer = document.getElementById('pvp-options-container');
+        optsContainer.innerHTML = '';
+
+        q.options.forEach((opt, idx) => {
+            if (!opt) return;
+            const btn = document.createElement('button');
+            const colors = ['border-blue-500', 'border-green-500', 'border-purple-500', 'border-orange-500'];
+            btn.className = `w-full p-4 md:p-6 text-left border-2 ${colors[idx % 4]} rounded-2xl hover:bg-gray-50 transition transform hover:-translate-y-1 shadow-sm font-medium text-gray-700 bg-white group flex items-start gap-3 relative overflow-hidden`;
+            btn.onclick = () => submitPvpAnswer(idx);
+            
+            btn.innerHTML = `
+                <span class="relative z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600">${idx + 1}</span>
+                <span class="relative z-10 text-lg">${opt}</span>
+            `;
+            optsContainer.appendChild(btn);
+        });
+
+        // Setup Timer
+        pvpTimeLeft = 15; // 15 seconds per question in PVP
+        if (pvpTimerInterval) clearInterval(pvpTimerInterval);
+        
+        document.getElementById('pvp-timer-display').textContent = `00:${pvpTimeLeft}`;
+        
+        pvpTimerInterval = setInterval(() => {
+            pvpTimeLeft--;
+            document.getElementById('pvp-timer-display').textContent = `00:${pvpTimeLeft.toString().padStart(2, '0')}`;
+            if (pvpTimeLeft <= 0) {
+                clearInterval(pvpTimerInterval);
+                submitPvpAnswer(-1); // Timeout
+            }
+        }, 1000);
+    }
+
+    let myCurrentHp = 100;
+
+    function submitPvpAnswer(selectedIndex) {
+        if (pvpTimerInterval) clearInterval(pvpTimerInterval);
+        const q = pvpQuestions[pvpCurrentQuestionIndex];
+        const statusEl = document.getElementById('pvp-battle-status');
+        
+        // Disable buttons
+        const btns = document.getElementById('pvp-options-container').querySelectorAll('button');
+        btns.forEach(b => b.disabled = true);
+
+        let isCorrect = selectedIndex === q.answer;
+
+        if (isCorrect) {
+            statusEl.textContent = '✅ ยอดเยี่ยม! คุณตอบถูก';
+            statusEl.className = 'px-6 py-2 rounded-full text-lg font-bold mb-4 shadow-lg text-center animate-bounce block text-green-700 bg-green-100 border border-green-300';
+            if (selectedIndex >= 0 && btns[selectedIndex]) btns[selectedIndex].classList.add('bg-green-100', 'border-green-600');
+            // We don't change our own HP. We wait for opponent to answer incorrectly, or we send 'correct' status.
+            // Actually, in this simple polling model, HP decreases when YOU answer incorrectly.
+            // You win by surviving longer or having more HP at the end.
+        } else {
+            statusEl.textContent = selectedIndex === -1 ? '⏰ หมดเวลา! โดนโจมตี' : '❌ ตอบผิด! โดนโจมตี';
+            statusEl.className = 'px-6 py-2 rounded-full text-lg font-bold mb-4 shadow-lg text-center animate-bounce block text-red-700 bg-red-100 border border-red-300';
+            
+            if (selectedIndex >= 0 && btns[selectedIndex]) {
+                btns[selectedIndex].classList.add('bg-red-100', 'border-red-600');
+                if (btns[q.answer]) btns[q.answer].classList.add('bg-green-100', 'border-green-600');
+            }
+
+            myCurrentHp -= 20; // Loose 20 HP per wrong answer
+            
+            // Sync with Server immediately
+            if (typeof google !== 'undefined') {
+                google.script.run.updateMatchScore(currentMatchId, currentUser.id, myCurrentHp);
+            }
+            
+            // Effect
+            document.getElementById('pvp-p1-avatar').parentElement.classList.add('animate-shake-strong');
+            setTimeout(() => document.getElementById('pvp-p1-avatar').parentElement.classList.remove('animate-shake-strong'), 500);
+        }
+
+        setTimeout(() => {
+            statusEl.classList.add('hidden');
+            pvpCurrentQuestionIndex++;
+            loadPvpQuestion();
+        }, 1500);
+    }
+
+    function checkPvpWinner(res) {
+        let meHp, oppHp;
+        if (myPvpRole === 'Player1') {
+            meHp = res.p1Hp; oppHp = res.p2Hp;
+        } else {
+            meHp = res.p2Hp; oppHp = res.p1Hp;
+        }
+
+        let isWin = false;
+        if (meHp > oppHp) isWin = true;
+        else if (meHp === oppHp) isWin = true; // Draw counts as win for simplicity in UX
+
+        const modal = document.getElementById('pvp-result-modal');
+        const title = document.getElementById('pvp-result-title');
+        const desc = document.getElementById('pvp-result-desc');
+        const emoji = document.getElementById('pvp-result-emoji');
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        if (isWin) {
+            title.textContent = 'ชัยชนะ!';
+            title.className = 'text-5xl md:text-7xl font-black text-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] mb-4 leading-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200';
+            desc.textContent = 'คุณปราบคู่ต่อสู้ได้สำเร็จ!';
+            emoji.textContent = '🏆';
+            if (typeof launchConfetti === 'function') launchConfetti();
+        } else {
+            title.textContent = 'พ่ายแพ้...';
+            title.className = 'text-5xl md:text-7xl font-black text-red-500 drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] mb-4 leading-tight';
+            desc.textContent = 'คุณถูกสยบในการประลองครั้งนี้';
+            emoji.textContent = '💀';
+        }
+    }
+
+    function closePVPResult() {
+        document.getElementById('pvp-result-modal').classList.add('hidden');
+        document.getElementById('pvp-result-modal').classList.remove('flex');
+        cancelMatchmaking(); // Reset everything
+    }
+
+    function confirmLeavePVP() {
+        Swal.fire({
+            title: 'ยอมแพ้?',
+            text: "หากคุณออกจากการประลอง คุณจะถูกปรับแพ้ทันที!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'ยอมแพ้',
+            cancelButtonText: 'สู้ต่อ'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Update HP to 0 so server knows we lost
+                if (typeof google !== 'undefined' && currentMatchId) {
+                    google.script.run.updateMatchScore(currentMatchId, currentUser.id, 0);
+                }
+                setTimeout(() => cancelMatchmaking(), 500);
+            }
+        });
+    }
+
+</script>

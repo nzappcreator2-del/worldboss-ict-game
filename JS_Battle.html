@@ -1,0 +1,1394 @@
+<script>
+    // ========== 6. ระบบบทเรียนและการต่อสู้บอส (Lesson & Boss Battle) ==========
+    let currentLesson = null;
+    let questionsData = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let combo = 1;
+    let maxBossHp = 100;
+    let currentBossHp = 100;
+    let maxPlayerHp = 100;
+    let currentPlayerHp = 100;
+    let timeLeft = 300; // 5 นาที (300 วินาที)
+    let timerInterval = null;
+
+    // 🟢 6.1 ยูทิลิตี้แยก YouTube ID
+    function extractYouTubeId(url) {
+        if (!url) return null;
+        let videoId = null;
+
+        // รองรับลิงก์หลายรูปแบบ: watch?v=, youtu.be/, shorts/, embed/, live/
+        try {
+            if (url.includes('youtu.be/')) {
+                videoId = url.split('youtu.be/')[1].substring(0, 11);
+            } else if (url.includes('watch?v=')) {
+                videoId = url.split('watch?v=')[1].substring(0, 11);
+            } else if (url.includes('shorts/')) {
+                videoId = url.split('shorts/')[1].substring(0, 11);
+            } else if (url.includes('embed/')) {
+                videoId = url.split('embed/')[1].substring(0, 11);
+            } else if (url.includes('live/')) {
+                videoId = url.split('live/')[1].substring(0, 11);
+            } else {
+                // เผื่อมีพารามิเตอร์อื่นๆ ที่แปลกไป สามารถใช้ Regex สำรอง
+                const match = url.match(/(?:v=|v\/|vi=|vi\/|youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/);
+                if (match && match[1]) {
+                    videoId = match[1];
+                }
+            }
+        } catch (e) {
+            console.error("Error parsing YouTube URL", e);
+        }
+
+        return (videoId && videoId.length === 11) ? videoId : null;
+    }
+
+    // 🟢 6.2 เปิดหน้ารายละเอียดบทเรียน
+    function openLesson(lessonId) {
+        currentLesson = lessonsData.find(l => l.id === lessonId);
+        if (!currentLesson) { openMap(); return; }
+
+        // เช็คว่าเปิด Pre-test หรือไม่
+        if (currentLesson.enablePretest) {
+            startPreTest(lessonId);
+            return;
+        }
+
+        // อัปเดตหน้า UI
+        document.getElementById('lesson-title-display').textContent = currentLesson.title;
+        document.getElementById('lesson-desc-display').textContent = currentLesson.description;
+
+        // อัปเดตเนื้อหา (ถ้ามี)
+        const contentDisplay = document.getElementById('lesson-content-display');
+        if (currentLesson.content && currentLesson.content.trim() !== '') {
+            contentDisplay.innerHTML = currentLesson.content.replace(/\n/g, '<br>');
+            contentDisplay.classList.remove('hidden');
+        } else {
+            contentDisplay.classList.add('hidden');
+            contentDisplay.innerHTML = '';
+        }
+
+        // อัปเดตวิดีโอ (ถ้ามี)
+        const videoFrame = document.getElementById('lesson-video-frame');
+        const videoPlaceholder = document.getElementById('video-placeholder');
+
+        if (currentLesson.videoUrl && currentLesson.videoUrl.trim() !== '') {
+            let embedUrl = currentLesson.videoUrl;
+            let videoId = extractYouTubeId(embedUrl);
+
+            if (videoId) {
+                embedUrl = "https://www.youtube.com/embed/" + videoId;
+            }
+
+            videoFrame.src = embedUrl;
+            videoFrame.classList.remove('hidden');
+            videoPlaceholder.classList.add('hidden');
+        } else {
+            videoFrame.src = "";
+            videoFrame.classList.add('hidden');
+            videoPlaceholder.classList.remove('hidden');
+        }
+
+        // จัดการปุ่มใบงาน (แสดงทุกครั้งที่ด่านนั้นมี content ให้ทำใบงาน)
+        const worksheetBtn = document.getElementById('lesson-worksheet-btn');
+        // ให้ปุ่มใบงานแสดงเสมอ ไม่ว่าด่านนั้นจะมีแค่วิดีโออย่างเดียว หรือไม่มีเนื้อหาก็ตาม (เพื่อให้นักเรียนสรุปวิดีโอส่งได้)
+        worksheetBtn.classList.remove('hidden');
+
+        showPage('lesson');
+    }
+
+    // 🟢 6.2 เริ่มการต่อสู้ (ดึงคำถาม)
+    function startBossBattle() {
+        if (!currentLesson) return;
+        showLoader();
+
+        if (typeof google === 'undefined') {
+            setTimeout(() => {
+                hideLoader();
+                // Mock Data คำถาม
+                questionsData = [
+                    { qId: 'Q1', text: '1 + 1 เท่ากับเท่าไร?', options: ['1', '2', '3', '4'], answer: 1, explanation: 'ทดสอบ' },
+                    { qId: 'Q2', text: '5 x 5 เท่ากับเท่าไร?', options: ['10', '15', '20', '25'], answer: 3, explanation: 'ทดสอบ' },
+                    { qId: 'Q3', text: 'เมืองหลวงของไทยคือ?', options: ['เชียงใหม่', 'ภูเก็ต', 'กรุงเทพฯ', 'พัทยา'], answer: 2, explanation: 'ทดสอบ' }
+                ];
+                initBattleState();
+            }, 800);
+            return;
+        }
+
+        // ขอคำถามจากเซิร์ฟเวอร์
+        google.script.run
+            .withSuccessHandler(function (response) {
+                hideLoader();
+                if (response.success && response.data.length > 0) {
+                    questionsData = response.data;
+                    initBattleState();
+                } else {
+                    customAlert('ไม่พบข้อมูลคำถามสำหรับด่านนี้ (หรือรอ Admin เพิ่มคำถามก่อน)');
+                }
+            })
+            .withFailureHandler(function (error) {
+                hideLoader();
+                customAlert('เกิดข้อผิดพลาดในการดึงคำถาม');
+            })
+            .getQuestions(currentLesson.id);
+    }
+
+    // 🟢 6.3 ค่าเริ่มต้นการต่อสู้
+    function initBattleState() {
+        document.getElementById('lesson-video-frame').src = document.getElementById('lesson-video-frame').src;
+
+        currentQuestionIndex = 0;
+        score = 0;
+        combo = 1;
+        // ใช้ Timer จาก settings (ค่าเริ่มต้น 30 วิ/ข้อ × จำนวนคำถาม)
+        const timerPerQ = parseInt(gameSettings.TimerPerQuestion, 10) || 30;
+        timeLeft = timerPerQ * (questionsData.length || 1);
+        currentBossHp = maxBossHp;
+        currentPlayerHp = maxPlayerHp;
+
+        // อัปเดต UI แรกเริ่ม
+        document.getElementById('player-image').textContent = (currentUser && currentUser.avatar) ? currentUser.avatar : '🧙‍♂️';
+        document.getElementById('boss-image').textContent = currentLesson.icon || '🐉';
+        document.getElementById('total-questions').textContent = questionsData.length;
+        document.getElementById('battle-result-modal').classList.add('hidden');
+        document.getElementById('battle-result-modal').classList.remove('flex');
+
+        // จัดการปุ่มไอเทม
+        const btnPotion = document.getElementById('btn-use-potion');
+        const btnMagnifier = document.getElementById('btn-use-magnifier');
+        if (currentUser && currentUser.inventory) {
+            document.getElementById('btl-count-potion').textContent = currentUser.inventory.potion || 0;
+            document.getElementById('btl-count-magnifier').textContent = currentUser.inventory.magnifier || 0;
+            if (currentUser.inventory.potion > 0) btnPotion.classList.remove('hidden'); else btnPotion.classList.add('hidden');
+            if (currentUser.inventory.magnifier > 0) btnMagnifier.classList.remove('hidden'); else btnMagnifier.classList.add('hidden');
+        } else {
+            if (btnPotion) btnPotion.classList.add('hidden');
+            if (btnMagnifier) btnMagnifier.classList.add('hidden');
+        }
+
+        updateHpUI();
+        updateComboUI();
+
+        // เริ่ม Timer
+        clearInterval(timerInterval);
+        updateTimerUI();
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateTimerUI();
+            if (timeLeft <= 0) {
+                endBattle(false, "หมดเวลา!");
+            }
+        }, 1000);
+
+        showPage('boss-battle');
+        loadQuestion();
+
+        // Quest: Play 1 Battle
+        if (typeof updateDailyProgressLocal === 'function') updateDailyProgressLocal('play1', 1);
+    }
+
+    function updateTimerUI() {
+        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const s = (timeLeft % 60).toString().padStart(2, '0');
+        const timerEl = document.getElementById('timer-display');
+        timerEl.textContent = `${m}:${s}`;
+
+        if (timeLeft <= 10) {
+            timerEl.classList.add('text-red-600', 'animate-pulse');
+        } else {
+            timerEl.classList.remove('text-red-600', 'animate-pulse');
+        }
+    }
+
+    function updateHpUI() {
+        // อัปเดตของบอส
+        const bossHpPercent = (currentBossHp / maxBossHp) * 100;
+        document.getElementById('boss-hp-bar').style.width = Math.max(0, bossHpPercent) + '%';
+        document.getElementById('boss-hp-text').textContent = `${Math.ceil(Math.max(0, currentBossHp))} / ${maxBossHp}`;
+
+        // อัปเดตของผู้เล่น
+        const playerHpPercent = (currentPlayerHp / maxPlayerHp) * 100;
+        document.getElementById('player-hp-bar').style.width = Math.max(0, playerHpPercent) + '%';
+        document.getElementById('player-hp-text').textContent = `${Math.ceil(Math.max(0, currentPlayerHp))} / ${maxPlayerHp}`;
+    }
+
+    function updateComboUI() {
+        document.getElementById('combo-display').textContent = `x${combo.toFixed(1)}`;
+        if (combo > 1) {
+            document.getElementById('combo-display').classList.add('animate-bounce');
+            setTimeout(() => document.getElementById('combo-display').classList.remove('animate-bounce'), 500);
+        }
+    }
+
+    let usedMagnifierInTurn = false;
+
+    // 🟢 6.4 แสดงคำถาม
+    function loadQuestion() {
+        usedMagnifierInTurn = false;
+        if (currentQuestionIndex >= questionsData.length) {
+            endBattle(true, "ชนะแล้ว!");
+            return;
+        }
+
+        const q = questionsData[currentQuestionIndex];
+        document.getElementById('question-number').textContent = currentQuestionIndex + 1;
+        document.getElementById('question-text').textContent = q.text;
+
+        const optsContainer = document.getElementById('options-container');
+        optsContainer.innerHTML = '';
+
+        q.options.forEach((optText, idx) => {
+            // ไม่เอาตัวว่าง
+            if (!optText) return;
+
+            const btn = document.createElement('button');
+            const colors = ['border-blue-500', 'border-green-500', 'border-purple-500', 'border-orange-500'];
+
+            btn.className = `w-full p-4 md:p-6 text-left border-2 ${colors[idx % 4]} rounded-2xl hover:bg-gray-50 transition transform hover:-translate-y-1 shadow-sm font-medium text-gray-700 bg-white group flex items-start gap-3 relative overflow-hidden`;
+            btn.onclick = () => submitAnswer(idx);
+
+            // เอฟเฟกต์ hover 
+            const ripple = document.createElement('div');
+            ripple.className = "absolute inset-0 bg-black/5 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 z-0";
+
+            btn.innerHTML = `
+                <span class="relative z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 flex-shrink-0 group-hover:bg-blue-100 group-hover:text-blue-600">${idx + 1}</span>
+                <span class="relative z-10 text-lg md:text-xl">${optText}</span>
+            `;
+            btn.appendChild(ripple);
+            optsContainer.appendChild(btn);
+        });
+    }
+
+    // 🟢 6.5 ตรวจคำตอบ (ทำดาเมจบอส หรือโดนดาเมจเอง)
+    function submitAnswer(selectedIndex) {
+        const q = questionsData[currentQuestionIndex];
+        const statusEl = document.getElementById('battle-status');
+        const bossZone = document.getElementById('boss-zone');
+        const playerZone = document.getElementById('player-zone');
+
+        // บล็อกไม่ให้กดซ้ำ
+        const btns = document.getElementById('options-container').querySelectorAll('button');
+        btns.forEach(b => b.disabled = true);
+
+        if (selectedIndex === q.answer) {
+            // ตอบถูก (ผู้เล่นโจมตีบอส)
+            score++;
+            
+            // Quest: Correct Answer (ส่ง q.qId ไปด้วยเพื่อกันปั๊มข้อเดิม)
+            if (typeof updateDailyProgressLocal === 'function') updateDailyProgressLocal('correct5', 1, q.qId);
+            
+            statusEl.textContent = '✅ ยอดเยี่ยม! โจมตีโดน';
+            statusEl.className = 'text-sm font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full border border-green-300 shadow-sm animate-bounce block';
+
+            // แอนิเมชันผู้เล่นพุ่งไปตี
+            playerZone.classList.add('translate-x-10', 'scale-110');
+            setTimeout(() => playerZone.classList.remove('translate-x-10', 'scale-110'), 300);
+
+            // คำนวณดาเมจ (ให้ลดพอดีตามจำนวนข้อ)
+            const baseDamage = maxBossHp / questionsData.length;
+            const finalDamage = baseDamage;
+            currentBossHp -= finalDamage;
+
+            showDamageEffect(finalDamage, combo > 1, 'boss');
+            combo += 0.2; // เก็บโบนัสคอมโบไปคูณคะแนนตอนจบด่านแทน
+
+            // ทำให้บอสสั่น (โดนโจมตี)
+            setTimeout(() => {
+                bossZone.classList.add('animate-shake-strong');
+                setTimeout(() => bossZone.classList.remove('animate-shake-strong'), 500);
+            }, 150);
+
+            // ไฮไลต์ปุ่มที่ถูก
+            btns[selectedIndex].classList.add('bg-green-100', 'border-green-600');
+
+        } else {
+            // ตอบผิด (บอสโจมตีผู้เล่น)
+            statusEl.textContent = '❌ พลาดแล้ว! โดนโจมตี';
+            statusEl.className = 'text-sm font-bold text-red-700 bg-red-100 px-3 py-1 rounded-full border border-red-300 shadow-sm block';
+            combo = 1; // คอมโบพัง
+
+            // คำนวณดาเมจที่ผู้เล่นโดน
+            const playerDamage = maxPlayerHp / (questionsData.length > 3 ? 3 : 2); // ตอบผิดได้ 3 รอบ ก่อนตาย 
+            currentPlayerHp -= playerDamage;
+
+            // แอนิเมชันบอสพุ่งมาตี
+            bossZone.classList.add('-translate-x-10', 'scale-110');
+            setTimeout(() => bossZone.classList.remove('-translate-x-10', 'scale-110'), 300);
+
+            // ทำให้ผู้เล่นสั่น (โดนโจมตี)
+            setTimeout(() => {
+                showDamageEffect(playerDamage, false, 'player');
+                playerZone.classList.add('animate-shake');
+                setTimeout(() => playerZone.classList.remove('animate-shake'), 500);
+            }, 150);
+
+            // ไฮไลต์ปุ่มที่ผิดแดง และปุ่มที่ถูกให้เป็นสีเขียว
+            btns[selectedIndex].classList.add('bg-red-100', 'border-red-600');
+            btns[q.answer].classList.add('bg-green-100', 'border-green-600');
+        }
+
+        updateHpUI();
+        updateComboUI();
+
+        // เปลี่ยนคำถามต่อไป หรือจบถ้าเลือดฝ่ายใดฝ่ายหนึ่งหมด
+        setTimeout(() => {
+            statusEl.classList.add('hidden');
+            if (currentBossHp <= 0) {
+                endBattle(true, "ชัยชนะ!");
+            } else if (currentPlayerHp <= 0) {
+                endBattle(false, "คุณพ่ายแพ้! พลังชีวิตหมด");
+            } else {
+                currentQuestionIndex++;
+                loadQuestion();
+            }
+        }, 1500);
+    }
+
+    // 🟢 6.5.5 ใช้งานไอเทม
+    function useItemInBattle(itemId) {
+        if (!currentUser || !currentUser.inventory) return Swal.fire('ข้อผิดพลาด', 'ไม่มีข้อมูลไอเทม', 'error');
+        if (!currentUser.inventory[itemId] || currentUser.inventory[itemId] <= 0) {
+            return Swal.fire('ไอเทมหมด!', 'คุณไม่มีไอเทมนี้ในกระเป๋า', 'warning');
+        }
+
+        if (itemId === 'potion') {
+            if (currentPlayerHp >= maxPlayerHp) {
+                return Swal.fire('HP เต็มแล้ว!', 'พลังชีวิตคุณเต็มอยู่แล้ว', 'info');
+            }
+            const healAmount = maxPlayerHp * 0.3;
+            currentPlayerHp = Math.min(maxPlayerHp, currentPlayerHp + healAmount);
+            showDamageEffect(Math.ceil(healAmount), false, 'player', true);
+            updateHpUI();
+            Swal.fire({ title: 'ฟื้นฟูสำเร็จ!', text: 'พลังชีวิตเพิ่มขึ้น 30%', icon: 'success', timer: 1000, showConfirmButton: false });
+        } else if (itemId === 'magnifier') {
+            if (usedMagnifierInTurn) return Swal.fire('ใช้ไปแล้ว!', 'คุณตัดชอยส์ในข้อนี้ไปแล้ว', 'warning');
+            const q = questionsData[currentQuestionIndex];
+            const btns = document.getElementById('options-container').querySelectorAll('button');
+
+            let wrongIndexes = [];
+            q.options.forEach((opt, idx) => {
+                if (idx !== q.answer && !btns[idx].classList.contains('hidden') && opt) {
+                    wrongIndexes.push(idx);
+                }
+            });
+
+            if (wrongIndexes.length > 0) {
+                const toRemove = wrongIndexes[Math.floor(Math.random() * wrongIndexes.length)];
+                btns[toRemove].classList.add('hidden');
+                usedMagnifierInTurn = true;
+                Swal.fire({ title: 'ตัดชอยส์!', text: 'ตัวเลือกที่ผิดโดนทำลายแล้ว', icon: 'success', timer: 1000, showConfirmButton: false });
+            } else {
+                return Swal.fire('ไม่สามารถตัดได้', 'ไม่มีตัวเลือกให้ตัดแล้ว', 'warning');
+            }
+        }
+
+        currentUser.inventory[itemId] -= 1;
+        document.getElementById(`btl-count-${itemId}`).textContent = currentUser.inventory[itemId];
+        if (typeof updateDashboardInfo === 'function') updateDashboardInfo();
+
+        if (typeof google !== 'undefined') {
+            google.script.run.useItem(currentUser.id, itemId);
+        }
+    }
+
+    // 🟢 6.6 เอฟเฟกต์ตัวเลขดาเมจลอยขึ้น
+    function showDamageEffect(damage, isCrit, target = 'boss') {
+        const container = document.getElementById('damage-popup-container');
+        const popup = document.createElement('div');
+
+        const isMiss = damage === 0;
+
+        // กำหนดตำแหน่ง X ตามเป้าหมายที่โดนโจมตี
+        // ซ้ายสุด (player) ประมาณ 25%, ขวาสุด (boss) ประมาณ 75%
+        const baseX = target === 'player' ? 25 : 75;
+        // สุ่มให้เยื้องซ้ายขวานิดหน่อย จะได้ไม่ทับกัน
+        const randomX = baseX + (Math.random() * 10 - 5);
+        // สุ่มความสูงนิดหน่อย
+        const randomY = 40 + (Math.random() * 20);
+
+        popup.className = `absolute transform -translate-x-1/2 -translate-y-1/2 text-4xl md:text-6xl font-black drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] z-50 pointer-events-none ${arguments[3] ? 'text-green-400 animate-float-up scale-110' : (isCrit ? 'text-yellow-400 animate-crit-hit scale-150' : 'text-white animate-float-up')}`;
+        popup.style.left = `${randomX}%`;
+        popup.style.top = `${randomY}%`;
+
+        popup.textContent = arguments[3] ? `+${Math.ceil(damage)}` : `-${Math.ceil(damage)}`;
+        container.appendChild(popup);
+
+        setTimeout(() => {
+            if (container.contains(popup)) {
+                popup.remove();
+            }
+        }, 1000);
+    }
+
+    // 🟢 6.7 จบเกม
+    function endBattle(isWin, reason) {
+        clearInterval(timerInterval);
+
+        // --- 60% Pass Requirement Logic ---
+        let pct = 0;
+        if (questionsData.length > 0) {
+            pct = (score / questionsData.length) * 100;
+        }
+
+        // หากผู้เล่นชนะการต่อสู้ (เช่น ทำบอสตาย หรือตอบครบข้อ) แต่คะแนนไม่ถึง 60% จะปรับให้แพ้เพื่อบังคับให้เรียนใหม่
+        if (isWin && pct < 60) {
+            isWin = false;
+            reason = `คุณทำคะแนนได้ ${Math.floor(pct)}% (ต้องการ 60% ขึ้นไปเพื่อผ่านด่าน)`;
+        }
+
+        const statusObj = isWin ? "Passed" : "Failed";
+
+        // --- Optimistic UI: คำนวณจำลองไว้แสดงผลทันทีให้ไวขึ้น ---
+        const alreadyPassed = currentUser.passedLessons && currentUser.passedLessons.includes(currentLesson.id);
+
+        let optimisticGainedXp = 0;
+        if (isWin && !alreadyPassed) {
+            optimisticGainedXp = Math.floor(score * 10 * combo);
+        } else if (!isWin) {
+            optimisticGainedXp = score * 2; // แพ้ได้ข้อละ 2
+        }
+
+        const optimisticStats = {
+            xp: currentUser.xp + optimisticGainedXp,
+            level: Math.floor((currentUser.xp + optimisticGainedXp) / 100) + 1,
+            rank: currentUser.rank, // เก็บ Rank เดิมไว้ก่อน รอ Server อัปเดตจริง
+            gainedXp: optimisticGainedXp,
+            alreadyPassed: alreadyPassed
+        };
+
+        // แสดงผลทันทีโดยไม่ต้องรอโหลดหน้า
+        showBattleResultModal(isWin, reason, optimisticStats);
+
+        // แอบส่งให้เซิร์ฟเวอร์เซฟและคำนวณด้านหลัง (Server Authoritative)
+        google.script.run
+            .withSuccessHandler(function (response) {
+                if (response.success) {
+                    // เมื่อ Server ยืนยัน ให้อัปเดตตัวแปรจริงตาม Server 
+                    currentUser.xp = response.stats.xp;
+                    currentUser.level = response.stats.level;
+                    currentUser.rank = response.stats.rank;
+                    if (response.stats.coins !== undefined) {
+                        currentUser.coins = response.stats.coins;
+                    }
+                    if (isWin && !response.stats.alreadyPassed) {
+                        if (!currentUser.passedLessons) currentUser.passedLessons = [];
+                        if (!currentUser.passedLessons.includes(currentLesson.id)) {
+                            currentUser.passedLessons.push(currentLesson.id);
+                        }
+                    }
+                    updateDashboardInfo(); // แอบรีเฟรชข้อมูลเงียบๆ
+                    // รีเฟรชเหรียญใน shop modal เผื่อว่ากำลังเปิดอยู่
+                    const shopCoinDisplay = document.getElementById('shop-coins-display');
+                    if (shopCoinDisplay) shopCoinDisplay.textContent = currentUser.coins;
+                } else {
+                    console.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + response.error);
+                }
+            })
+            .saveStudentProgress(currentUser.id, currentLesson.id, statusObj, score, questionsData.length, combo);
+    }
+
+    // 🟢 6.8 แสดงผลลัพธ์หลังเซิร์ฟเวอร์คำนวณเสร็จ (แทนที่ saveProgress เดิม)
+    function showBattleResultModal(isWin, reason, stats) {
+        const modal = document.getElementById('battle-result-modal');
+        const title = document.getElementById('result-title');
+        const desc = document.getElementById('result-desc');
+        const emoji = document.getElementById('result-emoji');
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        // อัปเดตข้อมูลผู้เล่นใน Local Memory ให้ตรงกับเซิร์ฟเวอร์
+        currentUser.xp = stats.xp;
+        currentUser.level = stats.level;
+        currentUser.rank = stats.rank;
+        if (stats.coins !== undefined) {
+            currentUser.coins = stats.coins;
+        }
+
+        if (isWin && !stats.alreadyPassed) {
+            if (!currentUser.passedLessons) currentUser.passedLessons = [];
+            currentUser.passedLessons.push(currentLesson.id); // บันทึกว่าด่านนี้ผ่านแล้ว
+        }
+
+        updateDashboardInfo(); // แสดงแถบพลังใหม่
+
+        let pct = questionsData.length > 0 ? (score / questionsData.length) * 100 : 0;
+
+        if (isWin) {
+            title.textContent = 'ปราบลาสบอสสำเร็จ!';
+            title.className = 'text-4xl font-black mb-2 drop-shadow-md text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200';
+            emoji.textContent = '🎉';
+
+            if (stats.alreadyPassed) {
+                // หากเคยผ่านแล้ว ให้ 0 XP และให้ข้อความพิเศษ
+                desc.innerHTML = `ตอบถูก ${score}/${questionsData.length} ข้อ <br> <span class="text-orange-500 font-bold text-lg mt-2 block">🌟 ด่านนี้ผ่านไปแล้ว ไม่ได้รับ XP เพิ่มนะจ๊ะ!</span>`;
+            } else {
+                // หากเพิ่งผ่านครั้งแรก โชว์ XP ที่ได้จากเซิร์ฟเวอร์พร้อมโบนัสคอมโบ
+                const comboShow = combo.toFixed(1);
+                desc.innerHTML = `ตอบถูก ${score}/${questionsData.length} ข้อ <br> ได้รับ <span class="text-green-400 font-bold text-2xl">+${stats.gainedXp}</span> XP <span class="text-sm font-bold text-yellow-600">(โบนัสคอมโบ x${comboShow})</span>`;
+            }
+
+            // ⭐ Star Rating (คำนวณจาก % ตอบถูก)
+            let stars = 1;
+            if (pct >= 80) stars = 3;
+            else if (pct >= 60) stars = 2;
+            updateStarRating(stars);
+
+            // 🎊 ยิง Confetti ฉลองชัยชนะ!
+            launchConfetti();
+
+        } else {
+            title.textContent = 'พ่ายแพ้...';
+            title.className = 'text-4xl font-black mb-2 drop-shadow-md text-red-500';
+            emoji.textContent = '💀';
+
+            if (pct < 60 && reason.includes("60%")) {
+                desc.innerHTML = `ตอบถูก ${score}/${questionsData.length} ข้อ <br> <span class="text-red-600 font-bold">${reason}</span> <br> <span class="text-sm font-bold text-gray-600 mt-2 block">กรุณากลับไปทบทวนบทเรียนอีกครั้ง</span>`;
+            } else {
+                desc.innerHTML = `${reason} บอสป้องกันการโจมตีของคุณได้<br><span class="text-sm text-gray-500 mt-2 block">ได้รับ XP ปลอบใจ +${stats.gainedXp}</span>`;
+            }
+        }
+    }
+
+    // 🟢 6.9 จบกลับแผนที่
+    function finishBattle() {
+        document.getElementById('battle-result-modal').classList.add('hidden');
+        document.getElementById('battle-result-modal').classList.remove('flex');
+
+        // Optimistic Update สำหรับแผนที่:
+        // อัปเดตสถานะการปลดล็อคใน lessonsData ภายในเครื่อง (ไม่ต้องโหลดใหม่จากเซิร์ฟเวอร์ให้เสียเวลา)
+        if (currentUser && currentUser.passedLessons && lessonsData.length > 0) {
+            lessonsData.forEach((lesson, i) => {
+                if (i === 0) {
+                    lesson.unlocked = true;
+                } else {
+                    const prevLessonId = lessonsData[i - 1].id;
+                    lesson.unlocked = currentUser.passedLessons.includes(prevLessonId);
+                }
+            });
+        }
+
+        openMap();
+        renderMapNodes(); // บังคับวาด UI แผนที่ใหม่ทันที
+    }
+
+    // ⭐ Star Rating ตอนจบด่าน
+    function updateStarRating(stars) {
+        const container = document.getElementById('result-stars');
+        if (!container) return;
+        container.innerHTML = '';
+        for (let i = 1; i <= 3; i++) {
+            const span = document.createElement('span');
+            span.textContent = '⭐';
+            span.style.transition = 'all 0.4s ease';
+            span.style.transitionDelay = (i * 0.3) + 's';
+            if (i <= stars) {
+                span.style.opacity = '1';
+                span.style.transform = 'scale(1.2)';
+                span.style.filter = 'drop-shadow(0 0 8px rgba(255,215,0,0.8))';
+            } else {
+                span.style.opacity = '0.2';
+                span.style.transform = 'scale(0.8)';
+            }
+            container.appendChild(span);
+        }
+        // Animate in
+        setTimeout(() => {
+            const spans = container.querySelectorAll('span');
+            spans.forEach((s, i) => {
+                if (i < stars) {
+                    s.style.transform = 'scale(1.3)';
+                    setTimeout(() => s.style.transform = 'scale(1.1)', 300);
+                }
+            });
+        }, 100);
+    }
+
+    // ========== 10. Pre-test System ==========
+    let pretestQuestions = [];
+    let pretestIndex = 0;
+    let pretestScore = 0;
+    let pretestLessonId = '';
+
+    function startPreTest(lessonId) {
+        pretestLessonId = lessonId;
+        pretestIndex = 0;
+        pretestScore = 0;
+        pretestQuestions = [];
+
+        document.getElementById('pretest-title').textContent = '📝 Pre-test: ' + (currentLesson ? currentLesson.title : '');
+        document.getElementById('pretest-result').classList.add('hidden');
+        document.getElementById('pretest-question-text').textContent = 'กำลังโหลดคำถาม...';
+        document.getElementById('pretest-options-container').innerHTML = '';
+
+        showPage('pretest');
+
+        if (typeof google === 'undefined') {
+            // Mock
+            pretestQuestions = [
+                { qId: 'PQ1', text: 'คำถาม Pre-test ข้อ 1?', options: ['ก.ตัวเลือก 1', 'ข.ตัวเลือก 2', 'ค.ตัวเลือก 3', 'ง.ตัวเลือก 4'], answer: 0 },
+                { qId: 'PQ2', text: 'คำถาม Pre-test ข้อ 2?', options: ['ก.ตัวเลือก 1', 'ข.ตัวเลือก 2', 'ค.ตัวเลือก 3', 'ง.ตัวเลือก 4'], answer: 1 },
+                { qId: 'PQ3', text: 'คำถาม Pre-test ข้อ 3?', options: ['ก.ตัวเลือก 1', 'ข.ตัวเลือก 2', 'ค.ตัวเลือก 3', 'ง.ตัวเลือก 4'], answer: 2 }
+            ];
+            renderPreTestQuestion();
+            return;
+        }
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success && res.data.length > 0) {
+                    pretestQuestions = res.data;
+                    renderPreTestQuestion();
+                } else {
+                    // ไม่มีคำถาม Pre-test → ข้ามไปหน้า Lesson เลย
+                    goToLessonFromPretest();
+                }
+            })
+            .withFailureHandler(function () {
+                hideLoader();
+                goToLessonFromPretest();
+            })
+            .getPreTestQuestions(lessonId);
+    }
+
+    function renderPreTestQuestion() {
+        if (pretestIndex >= pretestQuestions.length) {
+            // แสดงสรุปผล
+            document.getElementById('pretest-result').classList.remove('hidden');
+            document.getElementById('pretest-score-text').textContent = 'คะแนน: ' + pretestScore + '/' + pretestQuestions.length;
+            document.getElementById('pretest-question-text').parentElement.classList.add('hidden');
+            return;
+        }
+
+        const q = pretestQuestions[pretestIndex];
+        document.getElementById('pretest-q-number').textContent = pretestIndex + 1;
+        document.getElementById('pretest-q-total').textContent = pretestQuestions.length;
+        document.getElementById('pretest-question-text').textContent = q.text;
+        document.getElementById('pretest-question-text').parentElement.classList.remove('hidden');
+
+        const optColors = ['bg-blue-500 hover:bg-blue-600', 'bg-green-500 hover:bg-green-600', 'bg-yellow-500 hover:bg-yellow-600', 'bg-red-500 hover:bg-red-600'];
+        const optLabels = ['ก', 'ข', 'ค', 'ง'];
+        let html = '';
+        q.options.forEach((opt, i) => {
+            html += `<button onclick="submitPreTestAnswer(${i})"
+                class="p-4 ${optColors[i]} text-white rounded-2xl font-bold text-lg shadow-lg hover:scale-105 transition-all text-left flex items-center gap-3">
+                <span class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl font-black">${optLabels[i]}</span>
+                <span>${opt}</span>
+            </button>`;
+        });
+        document.getElementById('pretest-options-container').innerHTML = html;
+    }
+
+    function submitPreTestAnswer(selectedIndex) {
+        const q = pretestQuestions[pretestIndex];
+        const isCorrect = (selectedIndex === q.answer);
+
+        if (isCorrect) pretestScore++;
+
+        // ปิด buttons ชั่วคราว + แสดง feedback
+        const buttons = document.getElementById('pretest-options-container').querySelectorAll('button');
+        buttons.forEach((btn, i) => {
+            btn.disabled = true;
+            btn.classList.remove('hover:scale-105');
+            if (i === q.answer) {
+                btn.classList.add('ring-4', 'ring-white', 'scale-105');
+            } else if (i === selectedIndex && !isCorrect) {
+                btn.classList.add('opacity-50', 'line-through');
+            }
+        });
+
+        // ไปข้อถัดไปหลัง 1 วินาที
+        setTimeout(() => {
+            pretestIndex++;
+            renderPreTestQuestion();
+        }, 1000);
+    }
+
+    function goToLessonFromPretest() {
+        if (!currentLesson) { openMap(); return; }
+
+        document.getElementById('lesson-title-display').textContent = currentLesson.title;
+        document.getElementById('lesson-desc-display').textContent = currentLesson.description;
+
+        const videoFrame = document.getElementById('lesson-video-frame');
+        const videoPlaceholder = document.getElementById('video-placeholder');
+
+        if (currentLesson.videoUrl && currentLesson.videoUrl.trim() !== '') {
+            let embedUrl = currentLesson.videoUrl;
+            let videoId = extractYouTubeId(embedUrl);
+
+            if (videoId) {
+                embedUrl = "https://www.youtube.com/embed/" + videoId;
+            }
+            videoFrame.src = embedUrl;
+            videoFrame.classList.remove('hidden');
+            videoPlaceholder.classList.add('hidden');
+        } else {
+            videoFrame.src = "";
+            videoFrame.classList.add('hidden');
+            videoPlaceholder.classList.remove('hidden');
+        }
+
+        // จัดการปุ่มใบงาน (แสดงทุกครั้งที่ด่านนั้นมี content ให้ทำใบงาน)
+        const worksheetBtn = document.getElementById('lesson-worksheet-btn');
+        if (worksheetBtn) {
+            worksheetBtn.classList.remove('hidden');
+        }
+
+        showPage('lesson');
+    }
+
+    // 🏆 Leaderboard
+    function openLeaderboard() {
+        showDashboardTab('rank');
+        loadLeaderboard();
+    }
+
+    function closeLeaderboard() {
+        showDashboardTab('home');
+    }
+
+    let currentLeaderboardType = 'individual';
+
+    function toggleLeaderboardType(type) {
+        if (currentLeaderboardType === type) return;
+        currentLeaderboardType = type;
+
+        const btnIndi = document.getElementById('btn-lb-individual');
+        const btnGuild = document.getElementById('btn-lb-guild');
+
+        if (type === 'individual') {
+            btnIndi.className = 'px-4 py-1.5 bg-yellow-100 text-yellow-900 font-bold rounded-lg shadow-sm text-sm transition-all';
+            btnGuild.className = 'px-4 py-1.5 text-white font-bold rounded-lg hover:bg-white/20 text-sm transition-all opacity-80';
+            loadLeaderboard();
+        } else {
+            btnGuild.className = 'px-4 py-1.5 bg-yellow-100 text-yellow-900 font-bold rounded-lg shadow-sm text-sm transition-all';
+            btnIndi.className = 'px-4 py-1.5 text-white font-bold rounded-lg hover:bg-white/20 text-sm transition-all opacity-80';
+            loadGuildLeaderboard();
+        }
+    }
+
+    function loadLeaderboard() {
+        const list = document.getElementById('leaderboard-list');
+        const podium = document.getElementById('leaderboard-podium');
+        list.innerHTML = '<div class="text-center text-gray-500 font-bold p-8">กำลังโหลดข้อมูล... <span class="animate-spin inline-block">⏳</span></div>';
+        podium.innerHTML = '';
+
+        if (typeof google === 'undefined') return;
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                if (currentLeaderboardType !== 'individual') return; // กันโหลดทับ
+                if (res.success) {
+                    renderLeaderboard(res.data);
+                } else {
+                    list.innerHTML = `<div class="text-center text-red-500 font-bold p-8">โหลดล้มเหลว: ${res.error}</div>`;
+                }
+            })
+            .getLeaderboard();
+    }
+
+    function loadGuildLeaderboard() {
+        const list = document.getElementById('leaderboard-list');
+        const podium = document.getElementById('leaderboard-podium');
+        list.innerHTML = '<div class="text-center text-gray-500 font-bold p-8">กำลังโหลดข้อมูลกิลด์... <span class="animate-spin inline-block">⏳</span></div>';
+        podium.innerHTML = '';
+
+        if (typeof google === 'undefined') return;
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                if (currentLeaderboardType !== 'guild') return; // กันโหลดทับ
+                if (res.success) {
+                    renderGuildLeaderboard(res.data);
+                } else {
+                    list.innerHTML = `<div class="text-center text-red-500 font-bold p-8">โหลดล้มเหลว: ${res.error}</div>`;
+                }
+            })
+            .getGuildLeaderboard();
+    }
+
+    function renderLeaderboard(students) {
+        const list = document.getElementById('leaderboard-list');
+        const podium = document.getElementById('leaderboard-podium');
+        list.innerHTML = '';
+        podium.innerHTML = '';
+
+        if (!students || students.length === 0) {
+            list.innerHTML = '<div class="text-center text-gray-500 p-8">ยังไม่มีข้อมูลผู้เล่น</div>';
+            return;
+        }
+
+        // Top 3 Podium
+        const top3 = students.slice(0, 3);
+        const podiumConfig = [
+            { order: 'order-2', height: 'h-28', bgColor: 'from-yellow-400 to-yellow-500', medal: '🥇', textSize: 'text-4xl', labelColor: 'text-yellow-600' },
+            { order: 'order-1', height: 'h-20', bgColor: 'from-gray-300 to-gray-400', medal: '🥈', textSize: 'text-3xl', labelColor: 'text-gray-500' },
+            { order: 'order-3', height: 'h-16', bgColor: 'from-orange-300 to-orange-400', medal: '🥉', textSize: 'text-3xl', labelColor: 'text-orange-500' }
+        ];
+
+        top3.forEach((s, i) => {
+            const p = podiumConfig[i];
+            const div = document.createElement('div');
+            div.className = `flex flex-col items-center ${p.order} w-1/3`;
+            // ดึง 3 เหรียญหลักมาโชว์ (ไม่รวมเหรียญด่านธรรมดา)
+            let topBadges = '';
+            let hasCert = false;
+            if (s.badges && Array.isArray(s.badges)) {
+                hasCert = s.badges.includes('badge_cert');
+                const showBadges = s.badges.filter(b => !b.startsWith('badge_lesson_')).slice(0, 3);
+                showBadges.forEach(bId => {
+                    const bInfo = window.BADGE_DEFS ? window.BADGE_DEFS[bId] : null;
+                    if (bInfo) topBadges += `<span title="${bInfo.title}" class="cursor-help">${bInfo.icon}</span>`;
+                });
+                if (hasCert && !topBadges.includes('🎓')) topBadges = '<span title="บัณฑิตน้อย" class="cursor-help">🎓</span>' + topBadges;
+            }
+            
+            const vipGlow = hasCert ? 'ring-4 ring-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse rounded-full bg-yellow-50' : '';
+
+            div.innerHTML = `
+                <div class="${p.textSize} mb-1 ${vipGlow} p-1">${s.avatar || '🧙‍♂️'}</div>
+                <div class="text-xs font-bold text-gray-800 truncate max-w-full px-1 flex items-center justify-center gap-1">
+                    ${s.name} <div class="flex gap-0.5 text-[10px]">${topBadges}</div>
+                </div>
+                <span class="text-xs ${p.labelColor} font-bold">${s.xp} XP</span>
+                <div class="w-full bg-gradient-to-t ${p.bgColor} ${p.height} rounded-t-xl mt-2 flex items-start justify-center pt-2 shadow-md">
+                    <span class="text-2xl">${p.medal}</span>
+                </div>
+            `;
+            podium.appendChild(div);
+        });
+
+        // รายการทั้งหมด (เริ่มจากอันดับ 4 เป็นต้นไป)
+        const rankColors = {
+            'BRONZE': 'from-amber-100 to-amber-50 border-amber-200',
+            'SILVER': 'from-gray-100 to-gray-50 border-gray-200',
+            'GOLD': 'from-yellow-100 to-yellow-50 border-yellow-200',
+            'PLATINUM': 'from-cyan-100 to-cyan-50 border-cyan-200',
+            'DIAMOND': 'from-blue-100 to-blue-50 border-blue-200',
+            'MASTER': 'from-purple-100 to-purple-50 border-purple-200',
+            'GRANDMASTER': 'from-red-100 to-yellow-50 border-red-200'
+        };
+
+        students.forEach((s, i) => {
+            const rankStyle = rankColors[s.rank] || 'from-gray-100 to-gray-50 border-gray-200';
+            const isMe = currentUser && s.id === currentUser.id;
+
+            const div = document.createElement('div');
+            div.className = `flex items-center gap-4 p-3 rounded-xl bg-gradient-to-r ${rankStyle} border shadow-sm transition hover:shadow-md ${isMe ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`;
+            // ดึง 3 เหรียญมาโชว์
+            let topBadges = '';
+            let hasCert = false;
+            if (s.badges && Array.isArray(s.badges)) {
+                hasCert = s.badges.includes('badge_cert');
+                const showBadges = s.badges.filter(b => !b.startsWith('badge_lesson_')).slice(0, 3);
+                showBadges.forEach(bId => {
+                    const bInfo = window.BADGE_DEFS ? window.BADGE_DEFS[bId] : null;
+                    if (bInfo) topBadges += `<span title="${bInfo.title}" class="cursor-help">${bInfo.icon}</span>`;
+                });
+                if (hasCert && !topBadges.includes('🎓')) topBadges = '<span title="บัณฑิตน้อย" class="cursor-help">🎓</span>' + topBadges;
+            }
+
+            const vipGlow = hasCert ? 'ring-2 ring-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)] rounded-full bg-yellow-50 animate-pulse' : '';
+
+            div.innerHTML = `
+                <div class="w-8 h-8 flex items-center justify-center font-black text-lg ${i < 3 ? 'text-yellow-600' : 'text-gray-400'}">${i + 1}</div>
+                <div class="text-2xl ${vipGlow} p-1 h-10 w-10 flex items-center justify-center shrink-0">${s.avatar || '🧙‍♂️'}</div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-gray-800 truncate flex items-center gap-1">
+                        ${s.name} 
+                        ${isMe ? '<span class="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">คุณ</span>' : ''}
+                    </div>
+                    <div class="text-xs text-gray-500 flex items-center gap-1">
+                        ${s.class} • ${s.rank}
+                        <div class="flex gap-0.5 ml-1 text-sm border-l pl-1 border-gray-300">${topBadges}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-black text-indigo-600">${s.xp} <span class="text-xs text-gray-400">XP</span></div>
+                    <div class="text-xs text-gray-500">Lv.${s.level}</div>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+
+        // 📌 เพิ่ม Sticky Bar แสดงอันดับเราเองที่ด้านล่าง (ถ้าล็อกอิน)
+        if (currentUser) {
+            const myRankIndex = students.findIndex(s => s.id === currentUser.id);
+            if (myRankIndex !== -1) {
+                const s = students[myRankIndex];
+                const sticky = document.createElement('div');
+                sticky.className = 'sticky-rank flex items-center gap-4 mt-6';
+                // สร้าง Badges และ VIP Glow แบบเดียวกับรายการปกติ
+                let topBadges = '';
+                let hasCert = false;
+                if (s.badges && Array.isArray(s.badges)) {
+                    hasCert = s.badges.includes('badge_cert');
+                    const showBadges = s.badges.filter(b => !b.startsWith('badge_lesson_')).slice(0, 3);
+                    showBadges.forEach(bId => {
+                        const bInfo = window.BADGE_DEFS ? window.BADGE_DEFS[bId] : null;
+                        if (bInfo) topBadges += `<span title="${bInfo.title}" class="cursor-help">${bInfo.icon}</span>`;
+                    });
+                    if (hasCert && !topBadges.includes('🎓')) topBadges = '<span title="บัณฑิตน้อย" class="cursor-help">🎓</span>' + topBadges;
+                }
+                const vipGlow = hasCert ? 'ring-2 ring-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)] rounded-full bg-yellow-50 animate-pulse' : '';
+
+                sticky.innerHTML = `
+                    <div class="w-10 h-10 flex items-center justify-center font-black text-white bg-indigo-600 rounded-full shadow-lg border-2 border-white">${myRankIndex + 1}</div>
+                    <div class="text-2xl ${vipGlow} p-1 h-10 w-10 flex items-center justify-center shrink-0">${s.avatar || '🧙‍♂️'}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-gray-800">นี่คือคุณ!</div>
+                        <div class="text-xs text-indigo-600 font-bold flex items-center gap-1">
+                            ${s.rank}
+                            <div class="flex gap-0.5 ml-1 text-sm border-l border-indigo-200 pl-1">${topBadges}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-black text-indigo-600">${s.xp} <span class="text-xs">XP</span></div>
+                        <div class="text-xs text-gray-500">Lv.${s.level}</div>
+                    </div>
+                `;
+                list.appendChild(sticky);
+            }
+        }
+    }
+
+    function renderGuildLeaderboard(guilds) {
+        const list = document.getElementById('leaderboard-list');
+        const podium = document.getElementById('leaderboard-podium');
+        list.innerHTML = '';
+        podium.innerHTML = '';
+
+        if (!guilds || guilds.length === 0) {
+            list.innerHTML = '<div class="text-center text-gray-500 p-8">ยังไม่มีข้อมูลกิลด์</div>';
+            return;
+        }
+
+        // Top 3 Podium for Guilds
+        const top3 = guilds.slice(0, 3);
+        const podiumConfig = [
+            { order: 'order-2', height: 'h-28', bgColor: 'from-amber-400 to-amber-500', medal: '🥇', textSize: 'text-4xl', labelColor: 'text-amber-800' },
+            { order: 'order-1', height: 'h-20', bgColor: 'from-slate-300 to-slate-400', medal: '🥈', textSize: 'text-3xl', labelColor: 'text-slate-800' },
+            { order: 'order-3', height: 'h-16', bgColor: 'from-orange-300 to-orange-400', medal: '🥉', textSize: 'text-3xl', labelColor: 'text-orange-800' }
+        ];
+
+        top3.forEach((g, i) => {
+            const p = podiumConfig[i];
+            const div = document.createElement('div');
+            const isMyGuild = currentUser && String(g.className) === String(currentUser.class);
+            div.className = `flex flex-col items-center ${p.order} w-1/3`;
+            div.innerHTML = `
+                <div class="${p.textSize} mb-1">🏰</div>
+                <span class="text-xs font-bold ${isMyGuild ? 'text-indigo-600' : 'text-gray-800'} truncate max-w-full px-1">${g.className}</span>
+                <span class="text-[10px] ${p.labelColor} font-bold">${g.totalXp} XP</span>
+                <div class="w-full bg-gradient-to-t ${p.bgColor} ${p.height} rounded-t-xl mt-2 flex items-start justify-center pt-2 shadow-md ${isMyGuild ? 'ring-2 ring-indigo-400 ring-offset-2' : ''}">
+                    <span class="text-2xl">${p.medal}</span>
+                </div>
+            `;
+            podium.appendChild(div);
+        });
+
+        // List
+        guilds.forEach((g, i) => {
+            const isMyGuild = currentUser && String(g.className) === String(currentUser.class);
+            const rankStyle = isMyGuild ? 'from-indigo-100 to-indigo-50 border-indigo-200 ring-2 ring-indigo-500' : 'from-gray-100 to-gray-50 border-gray-200';
+
+            const div = document.createElement('div');
+            div.className = `flex items-center gap-4 p-3 rounded-xl bg-gradient-to-r ${rankStyle} border shadow-sm transition hover:shadow-md`;
+            div.innerHTML = `
+                <div class="w-8 h-8 flex items-center justify-center font-black text-lg ${i < 3 ? 'text-amber-600' : 'text-gray-400'}">${i + 1}</div>
+                <div class="text-2xl">🏰</div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-gray-800 truncate">${g.className} ${isMyGuild ? '<span class="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full ml-1">กิลด์คุณ</span>' : ''}</div>
+                    <div class="text-xs text-gray-500">สมาชิก: ${g.memberCount} คน</div>
+                </div>
+                <div class="text-right">
+                    <div class="font-black text-amber-600">${g.totalXp} <span class="text-xs">XP</span></div>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    // 📜 Certificate
+    function openCertificate() {
+        if (!currentUser) {
+            customAlert('กรุณาเข้าสู่ระบบก่อนเพื่อตรวจสอบสิทธิ์รับเกียรติบัตร');
+            return;
+        }
+
+        if (typeof google === 'undefined') {
+            openCertificateModal();
+            return;
+        }
+
+        showLoader();
+
+        // 🚀 ให้ Server ช่วยเช็คว่าด่านที่ผ่าน ครบตามด่านที่มีอยู่จริงๆ หรือไม่ (อัปเดตแบบ Realtime ทุกครั้ง)
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) {
+                    if (res.isEligible) {
+                        // อัปเดตเหรียญกลับมาเวลาผ่านครบ
+                        if (!currentUser.inventory) currentUser.inventory = {};
+                        if (!currentUser.inventory.badges) currentUser.inventory.badges = [];
+                        if (!currentUser.inventory.badges.includes('badge_cert')) {
+                             currentUser.inventory.badges.push('badge_cert');
+                        }
+                        openCertificateModal();
+                    } else {
+                        // ริบเหรียญคืนอัติโนมัติ ถ้าจู่ๆ ครูเพิ่มด่าน
+                        if (currentUser.inventory && currentUser.inventory.badges) {
+                            currentUser.inventory.badges = currentUser.inventory.badges.filter(b => b !== 'badge_cert');
+                        }
+                        customAlert(`ยังเรียนไม่ครบ!\nคุณเรียนและสอบผ่านไปแล้ว ${res.passedCount}/${res.totalActiveCount} ด่าน ต้องผ่านให้ครบทุกด่านก่อนนะ!`);
+                    }
+                } else {
+                    customAlert('เกิดข้อผิดพลาดในการตรวจสอบข้อมูลด่าน: ' + res.error);
+                }
+            })
+            .withFailureHandler(function () {
+                hideLoader();
+                customAlert('เชื่อมต่อขัดข้อง ไม่สามารถตรวจสอบสิทธิ์ได้');
+            })
+            .checkCertificateEligibility(currentUser.id);
+    }
+
+    function openCertificateModal() {
+        showDashboardTab('cert');
+        generateCertificate();
+    }
+
+    function closeCertificate() {
+        showDashboardTab('home');
+    }
+
+    async function generateCertificate() {
+        const canvas = document.getElementById('cert-canvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('cert-status');
+        const downloadBtn = document.getElementById('cert-download-btn');
+        const classroomBtn = document.getElementById('cert-classroom-btn');
+
+        if (!currentUser) {
+            status.innerHTML = '<span class="text-red-500 font-bold">⚠️ กรุณาเข้าสู่ระบบก่อน</span>';
+            downloadBtn.classList.add('hidden');
+            if (classroomBtn) classroomBtn.classList.add('hidden');
+            return;
+        }
+
+        status.innerHTML = '<span class="text-indigo-600 font-bold">กำลังสร้างเกียรติบัตร... <span class="animate-spin inline-block">⏳</span></span>';
+        downloadBtn.classList.add('hidden');
+        if (classroomBtn) classroomBtn.classList.add('hidden');
+
+        // เคลียร์ Canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // พื้นหลังสีทอง
+        const bgGrad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        bgGrad.addColorStop(0, '#fef9c3');
+        bgGrad.addColorStop(0.5, '#fffbeb');
+        bgGrad.addColorStop(1, '#fef3c7');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // ขอบทอง
+        ctx.strokeStyle = '#d97706';
+        ctx.lineWidth = 8;
+        ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+
+        // มุมตกแต่ง
+        const corners = [[40, 40], [canvas.width - 40, 40], [40, canvas.height - 40], [canvas.width - 40, canvas.height - 40]];
+        ctx.fillStyle = '#f59e0b';
+        corners.forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Load school logo
+        const logoUrl = "https://i.postimg.cc/ZnHTDXT2/1.png";
+        try {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = logoUrl;
+            });
+            const logoSize = 100;
+            ctx.drawImage(img, (canvas.width / 2) - (logoSize / 2), 35, logoSize, logoSize);
+        } catch (e) {
+            console.error('Failed to load logo img:', e);
+            // โหลดรูปล้มเหลวก็ช่างมัน วาดอันอื่นต่อ
+        }
+
+        const yOffset = 70; // ขยับข้อความลง 70px เผื่อขนาดโลโก้
+
+        // โลโก้ / หัวข้อ
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#92400e';
+        ctx.font = 'bold 20px "Prompt", sans-serif';
+        const certHeader = (gameSettings && gameSettings.CertHeader) ? gameSettings.CertHeader : '🏆 ICT Talent CONNEXT ED 🏆';
+        ctx.fillText(certHeader, canvas.width / 2, 95 + yOffset);
+
+        ctx.fillStyle = '#78350f';
+        ctx.font = 'bold 40px "Prompt", sans-serif';
+        ctx.fillText('เกียรติบัตร', canvas.width / 2, 135 + yOffset);
+
+        ctx.fillStyle = '#a16207';
+        ctx.font = '16px "Prompt", sans-serif';
+        ctx.fillText('ขอมอบเกียรติบัตรฉบับนี้เพื่อแสดงว่า', canvas.width / 2, 180 + yOffset);
+
+        // ชื่อผู้เล่น
+        ctx.fillStyle = '#1e3a5f';
+        ctx.font = 'bold 36px "Prompt", sans-serif';
+        ctx.fillText(currentUser.name, canvas.width / 2, 240 + yOffset);
+
+        // Class
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '18px "Prompt", sans-serif';
+        ctx.fillText('ชั้น ' + currentUser.class, canvas.width / 2, 275 + yOffset);
+
+        // ข้อความ
+        ctx.fillStyle = '#78350f';
+        ctx.font = '16px "Prompt", sans-serif';
+        ctx.fillText('ได้สำเร็จหลักสูตรการเรียนรู้ เกมส์การเรียนรู้ NextGen Play', canvas.width / 2, 320 + yOffset);
+        ctx.fillText('ด้วยผลงานที่ยอดเยี่ยม', canvas.width / 2, 345 + yOffset);
+
+        // สถิติ
+        ctx.fillStyle = '#7c3aed';
+        ctx.font = 'bold 22px "Prompt", sans-serif';
+        ctx.fillText(currentUser.avatar + '  XP: ' + (currentUser.xp || 0) + '  |  Rank: ' + (currentUser.rank || 'BRONZE') + '  |  Level: ' + (currentUser.level || 1), canvas.width / 2, 400 + yOffset);
+
+        // ⭐ ดาว
+        ctx.font = '40px "Prompt", sans-serif';
+        ctx.fillText('⭐ ⭐ ⭐', canvas.width / 2, 455 + yOffset);
+
+        // ลายเซ็น
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '14px "Prompt", sans-serif';
+        const dateObj = new Date();
+        const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+        let certYear = dateObj.getFullYear();
+        if (certYear < 2500) certYear += 543;
+        const today = `${dateObj.getDate()} ${thaiMonths[dateObj.getMonth()]} ${certYear}`;
+        ctx.fillText('วันที่: ' + today, canvas.width / 2, 500 + yOffset);
+        const certFooter = (gameSettings && gameSettings.CertFooter) ? gameSettings.CertFooter : 'ICT Talent CONNEXT ED ภาคกลาง';
+        ctx.fillText(certFooter, canvas.width / 2, 525 + yOffset);
+
+        status.innerHTML = '<span class="text-green-600 font-bold">✅ สร้างเกียรติบัตรสำเร็จ!</span>';
+        downloadBtn.classList.remove('hidden');
+        if (classroomBtn) classroomBtn.classList.remove('hidden');
+    }
+
+    function downloadCertificate() {
+        const canvas = document.getElementById('cert-canvas');
+        const link = document.createElement('a');
+        link.download = 'เกียรติบัตร_' + (currentUser ? currentUser.name : 'student') + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    // 🎊 Confetti เอฟเฟกต์
+    function launchConfetti() {
+        const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#9b59b6', '#ff9ff3', '#00d2d3', '#ff6348'];
+        const shapes = ['circle', 'square'];
+
+        for (let i = 0; i < 80; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti-piece';
+
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+            const size = Math.random() * 8 + 6;
+
+            confetti.style.width = size + 'px';
+            confetti.style.height = size + 'px';
+            confetti.style.backgroundColor = color;
+            confetti.style.left = Math.random() * 100 + 'vw';
+            confetti.style.top = '-20px';
+            confetti.style.borderRadius = shape === 'circle' ? '50%' : '2px';
+            confetti.style.animation = `confettiFall ${Math.random() * 2 + 2}s linear forwards`;
+            confetti.style.animationDelay = Math.random() * 1.5 + 's';
+
+            document.body.appendChild(confetti);
+
+            // ลบออกหลังแอนิเมชั่นจบ
+            setTimeout(() => confetti.remove(), 4500);
+        }
+    }
+
+    // ========== 11. ระบบใบงาน (Worksheet System) ==========
+    function openWorksheetModal() {
+        if (!currentLesson) return;
+
+        // เซ็ตเนื้อหาด้านซ้าย
+        const contentBox = document.getElementById('worksheet-content');
+        let contentHtml = '';
+        if (currentLesson.content) {
+            contentHtml += currentLesson.content.replace(/\n/g, '<br>');
+        }
+        if (currentLesson.worksheetUrl && currentLesson.worksheetUrl.trim() !== '') {
+            let url = currentLesson.worksheetUrl.trim();
+            // ปุ่มลิงก์หลัก (เผื่อกรณีระบบฝังกรอบด้านล่างแสดงผลไม่ได้ เช่นลิงก์ Classroom)
+            contentHtml += `<div class="mt-4 mb-6"><a href="${url}" target="_blank" class="w-full text-center text-blue-800 font-extrabold bg-blue-50 border-2 border-blue-300 p-4 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-blue-100 hover:text-blue-900 shadow-sm hover:shadow-md transition-all transform hover:-translate-y-1 no-underline group cursor-pointer">
+                <span class="text-3xl mb-1 group-hover:scale-110 transition-transform">🔗</span>
+                <span class="underline decoration-2 underline-offset-4">คลิกเปิด ไปยังลิงก์ต้นฉบับ / Classroom</span>
+            </a></div>`;
+
+            // เช็คประเภทเพื่อแสดงผลฝังในตัว (Embed)
+            if (url.includes('classroom.google.com')) {
+                // Classroom ไม่อนุญาตให้ฝัง iframe ผ่านนโยบาย X-Frame-Options ให้โชว์แค่ปุ่มด้านบน
+                contentHtml += `<div class="text-center p-4 bg-gray-100 rounded-xl text-gray-500 font-bold border-2 border-dashed border-gray-300 leading-relaxed">
+                    💡 ระบบของ Classroom ป้องกันการโชว์หน้าจอซ้อน<br>
+                    กรุณากดตัวหนังสือสีน้ำเงินด้านบน เพื่อไปดูโจทย์ที่ Classroom ของคุณครูได้เลยครับ
+                </div>`;
+            } else if (url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
+                // เป็นไฟล์รูปภาพ
+                contentHtml += `<div class="w-full rounded-xl overflow-hidden border-[3px] border-gray-300 shadow-inner mt-2 bg-gray-50 p-2"><img src="${url}" class="w-full h-auto object-contain rounded-lg"></div>`;
+            } else if (url.includes('drive.google.com')) {
+                // เป็นลิงก์ Google Drive ลองดึง ID เพื่อแปลงเป็นโหมด Preview ของไดรฟ์
+                let fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                let embedUrl = url;
+                if (fileIdMatch && fileIdMatch[1]) {
+                    embedUrl = `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+                }
+                contentHtml += `<div class="w-full h-[500px] md:h-[600px] mt-2 rounded-xl overflow-hidden border-[3px] border-gray-300 shadow-inner relative flex items-center justify-center bg-gray-100">
+                    <span class="absolute text-gray-400 font-bold z-0 text-center">กำลังโหลดพรีวิวจาก Google Drive...</span>
+                    <iframe src="${embedUrl}" class="w-full h-full relative z-10" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                </div>`;
+            } else {
+                // ลิงก์อื่นๆ ทั่วไป (เช่น Google Form, Google Docs) ลองฝังเป็น Iframe เผื่อไว้
+                contentHtml += `<div class="w-full h-[500px] md:h-[600px] mt-2 rounded-xl overflow-hidden border-[3px] border-gray-300 shadow-inner bg-gray-100 flex items-center justify-center relative">
+                    <span class="absolute text-gray-500 font-bold z-0 text-center px-4 leading-relaxed">หากกรอบนี้เป็นสีเทา หรือว่างเปล่า<br>แปลว่าเว็บไซต์ปลายทางป้องกันการฝังหน้าต่าง<br><span class="text-blue-600">โปรดคลิกปุ่มสีน้ำเงินด้านบนสุดแทนนะครับ!</span></span>
+                    <iframe src="${url}" class="w-full h-full relative z-10 bg-transparent" frameborder="0" allowfullscreen></iframe>
+                </div>`;
+            }
+        }
+        contentBox.innerHTML = contentHtml || 'ไม่มีเนื้อหาใบงาน';
+
+        document.getElementById('worksheet-input').value = '';
+        showPage('worksheet');
+    }
+
+    function closeWorksheetModal() {
+        showPage('lesson');
+    }
+
+    function submitWorksheet() {
+        const inputStr = document.getElementById('worksheet-input').value.trim();
+        if (!inputStr) {
+            Swal.fire('ข้อความว่างเปล่า!', 'กรุณาพิมพ์สรุปความรู้ หรือแบบฝึกหัดลงในช่องว่าง เพื่อเป็นหลักฐานการส่งงานครับ', 'warning');
+            return;
+        }
+
+        const canvas = document.getElementById('worksheet-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // เคลียร์ Canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // สีพื้นหลังใบงานแบบพรีเมียม (ขาว)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // กรอบนอก (หนา)
+        ctx.strokeStyle = '#1e3a8a'; // blue-900
+        ctx.lineWidth = 10;
+        ctx.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
+
+        // กรอบใน (บาง)
+        ctx.strokeStyle = '#3b82f6'; // blue-500
+        ctx.lineWidth = 3;
+        ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+
+        // หัวข้อใบงาน
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#1e3a8a';
+        ctx.font = 'bold 36px "Prompt", sans-serif';
+        ctx.fillText('ใบงานสรุปความรู้ 📝', canvas.width / 2, 80);
+
+        // ข้อมูลบทเรียน
+        ctx.fillStyle = '#1d4ed8';
+        ctx.font = 'bold 24px "Prompt", sans-serif';
+        ctx.fillText(`ด่าน/บทเรียน: ${currentLesson.title}`, canvas.width / 2, 120);
+
+        // ข้อมูลนักเรียน
+        ctx.fillStyle = '#374151'; // gray-700
+        ctx.font = 'bold 22px "Prompt", sans-serif';
+        if (currentUser) {
+            ctx.fillText(`จัดทำโดย: ${currentUser.name} | ชั้น: ${currentUser.class} | Avatar: ${currentUser.avatar}`, canvas.width / 2, 160);
+        }
+
+        // เส้นคั่น
+        ctx.beginPath();
+        ctx.moveTo(100, 190);
+        ctx.lineTo(canvas.width - 100, 190);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.stroke();
+
+        // เอา Text มาตัดบรรทัด (Word Wrap)
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#1f2937'; // gray-800
+        ctx.font = '22px "Prompt", sans-serif';
+
+        let words = inputStr.split('\n');
+        let y = 240;
+        const lineheight = 36;
+        const maxWidth = canvas.width - 140;
+
+        for (let n = 0; n < words.length; n++) {
+            let spaceWords = words[n].split(' ');
+            let line = '';
+            for (let i = 0; i < spaceWords.length; i++) {
+                let testLine = line + spaceWords[i] + ' ';
+                let metrics = ctx.measureText(testLine);
+                let testWidth = metrics.width;
+                if (testWidth > maxWidth && i > 0) {
+                    ctx.fillText(line, 70, y);
+                    line = spaceWords[i] + ' ';
+                    y += lineheight;
+                } else {
+                    line = testLine;
+                }
+            }
+            ctx.fillText(line, 70, y);
+            y += lineheight;
+        }
+
+        // ข้อความด้านล่าง
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#94a3b8'; // gray-400
+        ctx.font = '16px "Prompt", sans-serif';
+        ctx.fillText(`--- สร้างโดยระบบเกม NextGen Play ---`, canvas.width / 2, canvas.height - 50);
+
+        // แสดงผลขี้น Modal
+        const previewImg = document.getElementById('worksheet-preview-img');
+        previewImg.src = canvas.toDataURL('image/png');
+        document.getElementById('worksheet-result-modal').classList.remove('hidden');
+        document.getElementById('worksheet-result-modal').classList.add('flex');
+    }
+
+    function downloadWorksheetImage() {
+        const canvas = document.getElementById('worksheet-canvas');
+        const link = document.createElement('a');
+        link.download = `ใบงาน_${currentLesson.title}_${currentUser ? currentUser.name : 'student'}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function closeWorksheetResult() {
+        document.getElementById('worksheet-result-modal').classList.add('hidden');
+        document.getElementById('worksheet-result-modal').classList.remove('flex');
+    }
+</script>

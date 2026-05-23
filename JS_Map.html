@@ -1,0 +1,388 @@
+<script>
+    // ========== 5. ระบบแผนที่ (Map Navigation) ==========
+    function openMap() {
+        try {
+            showDashboardTab('map');
+
+            if (!lessonsData) {
+                customAlert('CRITICAL: lessonsData is null!');
+                return;
+            }
+
+            if (lessonsData.length === 0) {
+                fetchMapData();
+            } else {
+                renderMapNodes();
+            }
+        } catch (e) {
+            customAlert('openMap CRASH: ' + e.message);
+        }
+    }
+
+    function fetchMapData() {
+        try {
+            const container = document.getElementById('map-container');
+            if (container) {
+                // Toggle Loading Layer
+                const loadingEl = document.getElementById('map-loading');
+                if (loadingEl) {
+                    loadingEl.classList.remove('hidden');
+                    loadingEl.classList.add('flex');
+                    loadingEl.innerHTML = `
+                        <div class="inline-block w-16 h-16 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mb-4 shadow-lg"></div>
+                        <p class="text-white font-bold bg-black/40 px-4 py-1 rounded-full backdrop-blur-sm animate-pulse">กำลังสอดแนมพื้นที่...</p>
+                    `;
+                }
+
+                // Clear Map Data
+                const svgPath = document.getElementById('map-svg-path');
+                if (svgPath) svgPath.innerHTML = '';
+                const nodesLayer = document.getElementById('map-nodes-layer');
+                if (nodesLayer) nodesLayer.innerHTML = '';
+
+            } else {
+                customAlert('CRITICAL: map-container not found in DOM!');
+            }
+
+            if (typeof google === 'undefined') {
+                // Mock Data สำหรับ Preview
+                setTimeout(() => {
+                    lessonsData = [
+                        { id: 'L1', title: 'ด่าน 1: ป่าเริ่มต้น', description: 'ทำความคุ้นเคยกับระบบ', icon: '🌳', unlocked: true },
+                        { id: 'L2', title: 'ด่าน 2: ถ้ำแห่งความมืด', description: 'ทดสอบความรู้รอบตัว', icon: '🦇', unlocked: false },
+                        { id: 'L3', title: 'ด่าน 3: ปราสาทมังกร', description: 'บอสใหญ่อันตราย', icon: '🏰', unlocked: false }
+                    ];
+                    renderMapNodes();
+                }, 800);
+                return;
+            }
+
+            // 🚀 ส่ง currentUser.id ไปให้เซิร์ฟเวอร์ด้วย เพื่อขอทั้งข้อมูลด่าน + ตำนานด่านที่เคยผ่าน (รวดเดียว)
+            const userId = currentUser ? currentUser.id : null;
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    try {
+                        if (response.success) {
+                            lessonsData = response.data;
+                            const passedLessons = response.passedLessons || [];
+
+                            if (currentUser) {
+                                // 🛡️ สำคัญ: บันทึกข้อมูลประวัติด่านที่ผ่านแล้วเอาไว้ในตัวแปรประจำผู้เล่น (เพื่อป้องกันปั๊ม XP)
+                                currentUser.passedLessons = passedLessons;
+
+                                // ด่านแรกเปิดเสมอ, ด่านถัดไปต้องผ่านด่านก่อนหน้า
+                                lessonsData.forEach((lesson, i) => {
+                                    if (i === 0) {
+                                        lesson.unlocked = true;
+                                    } else {
+                                        const prevLessonId = lessonsData[i - 1].id;
+                                        lesson.unlocked = passedLessons.includes(prevLessonId);
+                                    }
+                                });
+                            } else {
+                                lessonsData.forEach((l, i) => l.unlocked = (i === 0));
+                            }
+
+                            renderMapNodes();
+                        } else {
+                            const loadingEl = document.getElementById('map-loading');
+                            if (loadingEl) loadingEl.innerHTML = '<p class="text-red-500 font-bold bg-white px-4 py-2 rounded-xl text-center">โหลดด่านไม่สำเร็จ (' + response.error + ')</p>';
+                            customAlert('โหลดข้อมูลแผนที่ล้มเหลว: ' + response.error);
+                        }
+                    } catch (e2) {
+                        customAlert('SuccessHandler CRASH: ' + e2.message);
+                    }
+                })
+                .withFailureHandler(function (error) {
+                    const loadingEl = document.getElementById('map-loading');
+                    if (loadingEl) loadingEl.innerHTML = '<p class="text-red-500 font-bold bg-white px-4 py-2 rounded-xl text-center">เชื่อมต่อเครือข่ายล้มเหลว</p>';
+                    customAlert('Network CRASH: ' + error.message);
+                })
+                .getLessons(userId); // สั่ง API เพียง 1 ครั้ง
+        } catch (e) {
+            customAlert('fetchMapData CRASH: ' + e.message);
+        }
+    }
+
+    function renderMapNodes() {
+        const container = document.getElementById('map-container');
+        const nodesLayer = document.getElementById('map-nodes-layer');
+        const svgContainer = document.getElementById('map-svg-path');
+        const loadingEl = document.getElementById('map-loading');
+
+        if (!container || !nodesLayer || !svgContainer) {
+            return;
+        }
+
+        try {
+
+            // Hide loading
+            if (loadingEl) {
+                loadingEl.classList.remove('flex');
+                loadingEl.classList.add('hidden');
+            }
+
+            // Clear previous layers
+            nodesLayer.innerHTML = '';
+            svgContainer.innerHTML = '';
+
+            if (!lessonsData || lessonsData.length === 0) {
+                nodesLayer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center p-8 z-30"><div class="bg-white/80 p-6 rounded-2xl text-center backdrop-blur-sm"><div class="text-4xl mb-2">🚧</div><h3 class="text-xl font-bold text-gray-800">ยังไม่มีด่านผจญภัย</h3><p class="text-gray-600">รอ Admin เพิ่มข้อมูลบทเรียนก่อนนะ</p></div></div>';
+                return;
+            }
+
+            let svgHtml = '';
+            const positions = [];
+            let foundCurrent = false;
+
+            // ตำแหน่งพิกัดตายตัว (เปอร์เซ็นต์ X, Y) ให้ตรงกับรูปภาพแผนที่
+            const mapNodePositions = [
+                { x: 25, y: 88 }, // 1. จุดเริ่ม (Bottom Left)
+                { x: 60, y: 82 }, // 2. (Middle Bottom) - เลื่อนขวาลงหน่อย
+                { x: 80, y: 65 }, // 3. (Bottom Right)
+                { x: 45, y: 55 }, // 4. (Center) - หลบมาซ้าย
+                { x: 18, y: 45 }, // 5. (Middle Left)
+                { x: 45, y: 35 }, // 6. (Top Center)
+                { x: 80, y: 25 }, // 7. (Top Right)
+                { x: 58, y: 15 }, // 8. ปราสาทลอยฟ้า (Top)
+                { x: 35, y: 12 }, // 9. 
+                { x: 15, y: 8 }  // 10. ปลายทาง
+            ];
+
+            lessonsData.forEach((lesson, index) => {
+                let xOffset = 50;
+                let yPos = 50;
+
+                if (index < mapNodePositions.length) {
+                    xOffset = mapNodePositions[index].x;
+                    yPos = mapNodePositions[index].y;
+                } else {
+                    xOffset = index % 2 === 0 ? 30 : 70;
+                    yPos = 90 + ((index - mapNodePositions.length) * 15);
+                }
+
+                positions.push({ x: xOffset, y: yPos, elementId: 'node-' + index });
+
+                const nodeDiv = document.createElement('div');
+                nodeDiv.id = 'node-' + index;
+                nodeDiv.style.left = `${xOffset}%`;
+                nodeDiv.style.top = `${yPos}%`;
+                nodeDiv.id = 'node-' + index;
+
+                const isLocked = !lesson.unlocked;
+                const isCleared = currentUser && currentUser.passedLessons && (currentUser.passedLessons.includes(lesson.id.toString()) || currentUser.passedLessons.includes(lesson.id));
+                let isCurrent = false;
+
+                if (!isLocked && !isCleared && !foundCurrent) {
+                    isCurrent = true;
+                    foundCurrent = true;
+                }
+
+                nodeDiv.className = `absolute transform -translate-x-1/2 -translate-y-1/2 group transition-all duration-300 ${isCurrent ? 'z-[60]' : 'z-20 hover:z-[50]'}`;
+
+                let lockClass, clickHandler, borderColor, glowClass, iconHtml, badgeHtml;
+
+                if (isLocked) {
+                    lockClass = 'grayscale opacity-70 cursor-not-allowed';
+                    clickHandler = '';
+                    borderColor = 'border-gray-500 bg-gray-300';
+                    glowClass = '';
+                    // Padlock and Chain overlay for locked nodes
+                    iconHtml = `
+                        <img src="https://cdn-icons-png.flaticon.com/512/2913/2913093.png" class="w-8 h-8 md:w-10 md:h-10 opacity-60 relative z-10" />
+                        <div class="absolute inset-0 flex items-center justify-center text-4xl opacity-30 transform -rotate-45 z-0">⛓️</div>
+                    `;
+                    badgeHtml = `<div class="absolute -top-2 -right-2 w-8 h-8 bg-gray-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md border-2 border-white">${index + 1}</div>`;
+                } else if (isCleared) {
+                    lockClass = 'cursor-pointer hover:scale-110';
+                    clickHandler = `onclick="showLessonPreviewModal('${lesson.id}')"`;
+                    borderColor = 'border-green-500 hover:border-green-400 bg-green-50';
+                    glowClass = 'group-hover:opacity-70 group-hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.6)]';
+                    iconHtml = lesson.icon || '⭐';
+                    if (!lesson.icon) iconHtml = `<div class="text-[32px] md:text-[40px] leading-none mb-1">⭐</div>`;
+                    badgeHtml = `<div class="absolute -top-2 -right-2 w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md border-2 border-white">⭐</div>`;
+                } else { // Current
+                    lockClass = 'cursor-pointer hover:scale-110';
+                    clickHandler = `onclick="showLessonPreviewModal('${lesson.id}')"`;
+                    borderColor = 'border-yellow-400 hover:border-yellow-300 hover:shadow-yellow-300/50 bg-white ring-4 ring-yellow-400/50 animate-pulse-slow';
+                    glowClass = 'group-hover:opacity-70 group-hover:bg-yellow-400 opacity-60 bg-yellow-300 shadow-[0_0_25px_rgba(250,204,21,0.8)]';
+                    iconHtml = lesson.icon || '⚔️';
+                    if (!lesson.icon && (index + 1) === 2) iconHtml = '🤡'; // Special case for UI
+                    badgeHtml = `<div class="absolute -top-2 -right-2 w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md border-2 border-white">${index + 1}</div>`;
+                }
+
+                // ตรวจสอบว่าด่านอยู่ด้านบนๆ ของแผนที่หรือไม่ (เพื่อปรับให้ป้าย/อวตารแสดงลงด้านล่างแทน)
+                const isNearTop = yPos < 25;
+
+                // Add Avatar to the Current node
+                let avatarHtml = '';
+                if (isCurrent) {
+                    let avatarIcon = '🧙‍♂️';
+                    if (currentUser && currentUser.avatar) avatarIcon = currentUser.avatar;
+                    else if (document.getElementById('student-avatar')) avatarIcon = document.getElementById('student-avatar').value || '🧙‍♂️';
+
+                    let avatarPos = isNearTop ? 'top-full mt-2 left-1/2 -translate-x-1/2' : '-top-[55px] left-1/2 -translate-x-1/2';
+                    avatarHtml = `
+                        <div class="absolute ${avatarPos} text-4xl md:text-5xl bg-white/95 rounded-full w-14 md:w-16 h-14 md:h-16 flex items-center justify-center border-[3px] md:border-[4px] border-[#5a78b5] shadow-[0_8px_15px_rgba(0,0,0,0.4)] z-[60] animate-bounce cursor-pointer group-hover:scale-110 transition-transform">
+                            <span class="mb-1">${avatarIcon}</span>
+                        </div>
+                    `;
+                }
+
+                let tooltipPosObj = isCurrent ? 'bottom-full mb-[40px]' : 'bottom-full mb-2';
+                let hoverTranslate = 'translate-y-4 lg:group-hover:translate-y-0';
+                let triangleHtml = `<div class="absolute -bottom-[10px] left-1/2 -translate-x-1/2 w-4 h-4 bg-[#d4a373] border-b-4 border-r-4 border-[#8b5a2b] transform rotate-45" style="background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');"></div>`;
+
+                if (isNearTop) {
+                    tooltipPosObj = isCurrent ? 'top-full mt-[75px]' : 'top-full mt-2';
+                    hoverTranslate = '-translate-y-4 lg:group-hover:translate-y-0';
+                    triangleHtml = `<div class="absolute -top-[10px] left-1/2 -translate-x-1/2 w-4 h-4 bg-[#d4a373] border-t-4 border-l-4 border-[#8b5a2b] transform rotate-45" style="background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');"></div>`;
+                }
+
+                nodeDiv.innerHTML = `
+                    ${avatarHtml}
+                    <div class="relative transition-transform duration-300 ${lockClass}" ${clickHandler}>
+                        <div class="absolute inset-0 rounded-full blur-xl ${glowClass} transition-opacity"></div>
+                        <div class="relative w-16 h-16 md:w-20 md:h-20 rounded-full border-[3px] md:border-4 ${borderColor} ${isLocked ? 'shadow-inner' : 'shadow-xl'} flex items-center justify-center text-3xl md:text-4xl mb-2 z-10 ${isLocked ? 'overflow-hidden' : ''}">
+                            <span class="${isCurrent ? 'drop-shadow-md' : (isCleared ? 'opacity-90' : '')}">${iconHtml}</span>
+                            ${badgeHtml}
+                        </div>
+                    </div>
+                    
+                    <!-- Wooden Signpost Tooltip -->
+                    <div class="absolute ${tooltipPosObj} left-1/2 -translate-x-1/2 w-[220px] ${isCurrent ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible lg:group-hover:opacity-100 lg:group-hover:visible ' + hoverTranslate} transition-all duration-300 pointer-events-none transform z-[9999] text-center">
+                        <div class="relative inline-block bg-[#d4a373] border-4 border-[#8b5a2b] shadow-[0_5px_15px_rgba(0,0,0,0.5),inset_0_4px_0_rgba(255,255,255,0.3)] rounded-xl pt-2 pb-2 pl-4 pr-4" style="background-image: url('https://www.transparenttextures.com/patterns/wood-pattern.png');">
+                            ${triangleHtml}
+                            
+                            <!-- ป้ายหมุดเหล็กซ้ายขวา -->
+                            <div class="absolute top-[5px] left-[5px] w-2 h-2 bg-gray-400 rounded-full border border-gray-700 shadow-inner"></div>
+                            <div class="absolute top-[5px] right-[5px] w-2 h-2 bg-gray-400 rounded-full border border-gray-700 shadow-inner"></div>
+                            <div class="absolute bottom-[5px] left-[5px] w-2 h-2 bg-gray-400 rounded-full border border-gray-700 shadow-inner"></div>
+                            <div class="absolute bottom-[5px] right-[5px] w-2 h-2 bg-gray-400 rounded-full border border-gray-700 shadow-inner"></div>
+
+                            <h4 class="font-bold text-[#5c3a21] text-[13px] md:text-sm mb-0.5 leading-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">${lesson.title}</h4>
+                            <div class="text-[10px] font-bold ${isLocked ? 'text-[#8b5a2b] opacity-80' : (isCleared ? 'text-green-800' : 'text-blue-800')} flex items-center justify-center gap-1 drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">${isLocked ? '🔒 ต้องผ่านด่านก่อนหน้า' : (isCleared ? '⭐ เล่นซ้ำได้' : 'คลิกบุกโจมตี ⚔️')}</div>
+                        </div>
+                    </div>
+                `;
+
+                nodesLayer.appendChild(nodeDiv);
+            });
+
+            // SVG Paths
+            if (svgContainer) {
+                const containerWidth = container.offsetWidth || 1000;
+                const containerHeight = container.offsetHeight || 562;
+                svgContainer.setAttribute('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
+
+                for (let i = 0; i < positions.length - 1; i++) {
+                    const startNode = positions[i];
+                    const endNode = positions[i + 1];
+
+                    const sx = (startNode.x / 100) * containerWidth;
+                    const ex = (endNode.x / 100) * containerWidth;
+                    const sy = (startNode.y / 100) * containerHeight;
+                    const ey = (endNode.y / 100) * containerHeight;
+                    const midY = (sy + ey) / 2;
+
+                    const pathData = `M ${sx} ${sy} C ${sx} ${midY}, ${ex} ${midY}, ${ex} ${ey}`;
+
+                    svgHtml += `
+                        <!-- เส้นพื้นหลัง -->
+                        <path d="${pathData}" stroke="rgba(255,255,255,0.4)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="10 15"></path>
+                        <!-- เส้นด้านหน้า (สีเหลืองอ่อน) -->
+                        <path d="${pathData}" stroke="#fbbf24" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="10 15" class="animate-pulse"></path>
+                    `;
+                }
+
+                svgContainer.innerHTML = svgHtml;
+
+                // เลื่อนหน้าจอไปหาด่านปัจจุบันอัตโนมัติ
+                setTimeout(() => {
+                    const scrollArea = document.getElementById('map-scroll-area');
+                    const scrollContainer = scrollArea.parentElement; // The rpg-box wrapping it
+                    let targetNode = null;
+
+                    // หาด่านที่เป็น current (มี avatar อยู่) หรือถ้าเรียนจบหมดให้เลื่อนไปด่านสุดท้าย
+                    if (foundCurrent) {
+                        for (let i = 0; i < positions.length; i++) {
+                            const nId = 'node-' + i;
+                            const el = document.getElementById(nId);
+                            // เช็คจาก class ที่มี avatar bounce 
+                            if (el && el.innerHTML.includes('animate-bounce')) {
+                                targetNode = el;
+                                break;
+                            }
+                        }
+                    } else if (positions.length > 0) {
+                        targetNode = document.getElementById('node-' + (positions.length - 1));
+                    }
+
+                    if (targetNode && scrollContainer) {
+                        // คำนวณให้ด่านอยู่ตรงกลางจอ
+                        const nodeRect = targetNode.getBoundingClientRect();
+                        const containerRect = scrollContainer.getBoundingClientRect();
+
+                        // ถ้าระยะไม่เข้าเงื่อนไขให้ข้ามไป (เช่น display: none)
+                        if (nodeRect.width > 0 && containerRect.width > 0) {
+                            const scrollLeftTarget = targetNode.offsetLeft - (containerRect.width / 2) + (targetNode.offsetWidth / 2);
+                            const scrollTopTarget = targetNode.offsetTop - (containerRect.height / 2) + (targetNode.offsetHeight / 2);
+
+                            scrollContainer.scrollTo({
+                                top: scrollTopTarget,
+                                left: scrollLeftTarget,
+                                Math: 'smooth'
+                            });
+                        }
+                    }
+                }, 300); // ดีเลย์เล็กน้อยรอให้ DOM วาดเสร็จและ Transition ของ Tab เปิดสมบูรณ์
+            }
+        } catch (error) {
+            console.warn("renderMapNodes error:", error);
+        }
+    }
+
+    // ========== 5.1 ระบบแสดงหน้าต่างตัวอย่างก่อนเรียน (RPG Lesson Preview Modal) ==========
+    function showLessonPreviewModal(lessonId) {
+        if (!lessonsData) return;
+        const lesson = lessonsData.find(l => l.id === lessonId);
+        if (!lesson) return;
+
+        // อัปเดตข้อมูลใน Modal
+        document.getElementById('preview-lesson-title').innerText = lesson.title;
+        document.getElementById('preview-lesson-desc').innerText = `"${lesson.description}"`;
+        document.getElementById('preview-lesson-icon').innerText = lesson.icon;
+
+        // ผูก Event เข้าไปตอนกดยืนยันบุกโจมตี
+        const enterBtn = document.getElementById('preview-enter-btn');
+        enterBtn.onclick = () => {
+            closeLessonPreviewModal();
+            openLesson(lessonId);
+        };
+
+        // แสดง Modal พร้อม Animation
+        const modal = document.getElementById('modal-lesson-preview');
+        const content = document.getElementById('modal-lesson-preview-content');
+        modal.classList.remove('hidden');
+
+        // Trigger reflow
+        void modal.offsetWidth;
+
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }
+
+    function closeLessonPreviewModal() {
+        const modal = document.getElementById('modal-lesson-preview');
+        const content = document.getElementById('modal-lesson-preview-content');
+
+        content.classList.remove('scale-100', 'opacity-100');
+        content.classList.add('scale-95', 'opacity-0');
+
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300); // รอให้ animation จังหวะย่อเสร็จก่อน
+    }
+
+</script>

@@ -1,0 +1,247 @@
+<script>
+    /**
+     * ==========================================
+     * ระบบ Daily Quest & Streak System
+     * ==========================================
+     */
+
+    const DAILY_QUESTS_CONFIG = [
+        { id: 'login', title: 'เช็คอินประจำวัน', desc: 'เข้าสู่ระบบผจญภัยวันนี้', target: 1, reward: '🪙 20 Coins', type: 'coins', amount: 20 },
+        { id: 'play1', title: 'เริ่มการเดินทาง', desc: 'ออกบุกโจมตีด่านต่าง ๆ 1 ครั้ง', target: 1, reward: '⭐ 15 XP', type: 'xp', amount: 15 },
+        { id: 'correct5', title: 'ผู้เจนจัดความรู้', desc: 'สะสมการตอบคำถามถูก 5 ข้อ', target: 5, reward: '🪙 30 Coins', type: 'coins', amount: 30 }
+    ];
+
+    let userDailyStatus = {
+        progress: { play1: 0, correct5: 0 },
+        done: []
+    };
+
+    /**
+     * 1. ตรวจสอบและแสดง Login Bonus หลังเข้าสู่ระบบ
+     */
+    function checkAndShowLoginBonus() {
+        if (!currentUser) return;
+        
+        google.script.run
+            .withSuccessHandler(function(res) {
+                if (res.success && res.isNew) {
+                    // อัปเดตข้อมูลผู้เล่นปัจจุบัน
+                    if (res.totalCoins) currentUser.coins = res.totalCoins;
+                    if (res.streak) currentUser.streak = res.streak;
+                    
+                    showLoginBonusModal(res.streak, res.coinsGained);
+                    updateDashboardInfo();
+                    
+                    // เควส Login สำเร็จทันที
+                    updateDailyProgressLocal('login', 1);
+                }
+                
+                // โหลดสถานะเควสทั้งหมด
+                fetchDailyQuestStatus();
+            })
+            .claimLoginBonus(currentUser.id);
+    }
+
+    /**
+     * 2. ดึงข้อมูลสถานะเควสจาก Server
+     */
+    function fetchDailyQuestStatus() {
+        if (!currentUser) return;
+        
+        google.script.run
+            .withSuccessHandler(function(res) {
+                if (res.success) {
+                    userDailyStatus.progress = res.progress || { play1: 0, correct5: 0 };
+                    userDailyStatus.done = res.done || [];
+                    renderDailyQuests();
+                }
+            })
+            .getDailyQuestStatus(currentUser.id);
+    }
+
+    /**
+     * 3. อัปเดตความคืบหน้าเควส (Client-side และ Sync ไป Server)
+     */
+    function updateDailyProgressLocal(questId, increment, extraData) {
+        if (!currentUser) return;
+        
+        // ถ้าทำเสร็จและรับรางวัลไปแล้ว ไม่ต้องทำซ้ำ
+        if (userDailyStatus.done.includes(questId)) return;
+
+        // อัปเดต Client-side ทันทีเพื่อความลื่นไหล (ยกเว้นเควสที่ต้องการความปลอดภัยสูง/มี extraData)
+        if (questId !== 'login' && !extraData) {
+            userDailyStatus.progress[questId] = (userDailyStatus.progress[questId] || 0) + increment;
+            renderDailyQuests();
+        }
+
+        // Sync ไปหา Server
+        google.script.run
+            .withSuccessHandler(function(res) {
+                if (res.success && res.newProgress !== undefined) {
+                    userDailyStatus.progress[questId] = res.newProgress;
+                    renderDailyQuests();
+                }
+            })
+            .updateDailyProgress(currentUser.id, questId, increment, extraData);
+    }
+
+    /**
+     * 4. วาดการ์ดเควสประจำวัน
+     */
+    function renderDailyQuests() {
+        const container = document.getElementById('daily-quest-container');
+        if (!container) return;
+
+        let html = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        `;
+
+        DAILY_QUESTS_CONFIG.forEach(q => {
+            const current = (q.id === 'login') ? 1 : (userDailyStatus.progress[q.id] || 0);
+            const isFinished = current >= q.target;
+            const isClaimed = userDailyStatus.done.includes(q.id);
+            const percent = Math.min(100, (current / q.target) * 100);
+
+            html += `
+                <div class="relative bg-white/80 backdrop-blur-sm border-2 ${isClaimed ? 'border-green-500 bg-green-50/50' : 'border-indigo-100 hover:border-indigo-300'} rounded-2xl p-4 transition-all group overflow-hidden shadow-sm">
+                    ${isClaimed ? '<div class="absolute -right-2 -top-2 rotate-12 bg-green-500 text-white px-3 py-1 text-[10px] font-bold shadow-md z-10">สำเร็จแล้ว!</div>' : ''}
+                    
+                    <div class="flex flex-col h-full">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-indigo-900 text-sm">${q.title}</h4>
+                            <span class="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">${q.reward}</span>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mb-3 flex-1">${q.desc}</p>
+                        
+                        <div class="space-y-1.5 mt-auto">
+                            <div class="flex justify-between text-[10px] font-bold">
+                                <span class="${isFinished ? 'text-green-600' : 'text-indigo-400'}">${isFinished ? 'พร้อมรับรางวัล!' : 'กำลังดำเนินการ...'}</span>
+                                <span class="text-gray-400">${Math.min(current, q.target)} / ${q.target}</span>
+                            </div>
+                            <div class="h-2 w-full bg-gray-100 rounded-full overflow-hidden border border-gray-100">
+                                <div class="h-full ${isFinished ? 'bg-green-500' : 'bg-indigo-500'} transition-all duration-500" style="width: ${percent}%"></div>
+                            </div>
+                        </div>
+
+                        ${isFinished && !isClaimed ? `
+                            <button onclick="claimDailyQuest('${q.id}')" class="mt-3 w-full py-1.5 bg-yellow-400 hover:bg-yellow-500 text-white text-[11px] font-bold rounded-lg shadow-[0_3px_0_#d97706] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2">
+                                🎁 รับรางวัลเลย!
+                            </button>
+                        ` : ''}
+
+                        ${isClaimed ? `
+                            <div class="mt-3 w-full py-1.5 bg-gray-100 text-gray-400 text-[11px] font-bold rounded-lg flex items-center justify-center gap-2 cursor-default">
+                                ✅ เคลียร์เรียบร้อย
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    /**
+     * 5. กดส่งคำขอรับรางวัลเควส
+     */
+    function claimDailyQuest(questId) {
+        const q = DAILY_QUESTS_CONFIG.find(x => x.id === questId);
+        if (!q) return;
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function(res) {
+                hideLoader();
+                if (res.success) {
+                    userDailyStatus.done.push(questId);
+                    if (res.coins) currentUser.coins = res.coins;
+                    if (res.xp) currentUser.xp = res.xp;
+                    
+                    updateDashboardInfo();
+                    renderDailyQuests();
+                    
+                    SwalRPG.fire({
+                        title: 'รับรางวัลสำเร็จ!',
+                        html: `<div class="text-center font-mali">
+                            <div class="text-4xl mb-2">🎁</div>
+                            <p class="text-lg">คุณได้รับ <b>${q.reward}</b></p>
+                            <p class="text-sm text-gray-400">มาทำเควสใหม่ในวันพรุ่งนี้นะ!</p>
+                        </div>`,
+                        icon: 'success',
+                        timer: 2500,
+                        showConfirmButton: false
+                    });
+                } else {
+                    SwalRPG.fire('โอ๊ะโอ!', res.error, 'error');
+                }
+            })
+            .completeDailyQuest(currentUser.id, questId, q.type === 'coins' ? q.amount : 0, q.type === 'xp' ? q.amount : 0);
+    }
+
+    /**
+     * 6. แสดง Modal Login Bonus (RPG Style)
+     */
+    function showLoginBonusModal(streak, coins) {
+        // ลบ modal เก่าถ้ามี
+        const existing = document.getElementById('login-bonus-modal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'login-bonus-modal';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);padding:1rem;';
+
+        overlay.innerHTML = `
+            <div class="bg-[#f8f9fa] rounded-[2rem] border-4 border-gray-800 shadow-[0_25px_60px_rgba(0,0,0,0.5)] max-w-sm w-full p-8 text-center animate-bounce-in relative">
+                <!-- ตกแต่งแสงรัศมี -->
+                <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-48 bg-yellow-400/20 rounded-full blur-3xl animate-pulse"></div>
+                
+                <h3 class="font-mali text-2xl font-black text-gray-800 mb-2">ของขวัญวันนี้! 🎁</h3>
+                
+                <div class="my-6 relative">
+                    <div class="text-[5rem] animate-float">💰</div>
+                    <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full font-bold shadow-lg text-sm">
+                        +${coins} Coins
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-4 border-2 border-dashed border-indigo-200 mb-6">
+                    <p class="text-gray-600 font-prompt text-sm mb-1">สะสมความต่อเนื่อง</p>
+                    <div class="text-2xl font-black text-indigo-600 font-mali">🔥 ${streak} วันแล้ว!</div>
+                </div>
+
+                <button id="close-login-bonus" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-[0_4px_0_#4338ca] active:translate-y-1 active:shadow-none transition-all cursor-pointer font-prompt">
+                    เข้าสู่การผจญภัย
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('close-login-bonus').onclick = () => {
+            overlay.classList.add('opacity-0', 'scale-95');
+            overlay.style.transition = 'all 0.3s ease';
+            setTimeout(() => overlay.remove(), 300);
+        };
+    }
+</script>
+
+<style>
+    @keyframes bounce-in {
+        0% { transform: scale(0.3); opacity: 0; }
+        50% { transform: scale(1.05); }
+        70% { transform: scale(0.9); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-bounce-in {
+        animation: bounce-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    .animate-float {
+        animation: float 2s ease-in-out infinite;
+    }
+</style>

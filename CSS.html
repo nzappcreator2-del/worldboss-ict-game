@@ -1,0 +1,1188 @@
+<style>
+    /* ========== 1. Global Styles (การตั้งค่าทั่วไปของเว็บไซต์) ========== */
+    .font-prompt {
+        font-family: 'Prompt', sans-serif;
+    }
+
+    body {
+        /* Vibrant Pastel Theme */
+        background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+        background-attachment: fixed;
+    }
+
+    /* ✨ Modern Custom Scrollbar (ดีไซน์พรีเมียม) */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(to bottom, #6366f1, #a855f7);
+        border-radius: 10px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #4f46e5;
+        border: 1.5px solid transparent;
+        background-clip: content-box;
+    }
+
+    /* ซ่อน Scrollbar สำหรับ Firefox */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: #6366f1 rgba(0, 0, 0, 0.05);
+    }
+
+    /* ========== 2. UI Components (คอมโพเนนต์พื้นฐานแบบ Glassmorphism) ========== */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.45);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.10);
+    }
+
+    /* ========== 3. Layouts & Navigation (ระบบเปลี่ยนหน้าแบบซ่อน/แสดง) ========== */
+    section {
+        display: none;
+        animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    section.page-active {
+        display: flex;
+    }
+
+    /* หน้า Login และหน้าเลือกโหมด (Lobby): บังคับให้พอดีจอ + scroll ภายในเมื่อเนื้อหาล้น */
+    #page-landing.page-active,
+    #page-lobby.page-active {
+        height: calc(100vh - 3rem);
+        max-height: calc(100vh - 3rem);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #page-landing::-webkit-scrollbar,
+    #page-lobby::-webkit-scrollbar {
+        width: 0;
+        display: none;
+    }
+
+    #page-landing,
+    #page-lobby {
+        scrollbar-width: none;
+    }
+
+    /* ========== 4. Animations (แอนิเมชันและการเคลื่อนไหวต่างๆ) ========== */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.98);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    @keyframes floatBubble {
+        0% {
+            transform: translateY(0) scale(1) rotate(0deg);
+            opacity: 0.1;
+        }
+
+        50% {
+            opacity: 0.4;
+        }
+
+        100% {
+            transform: translateY(-100vh) scale(1.5) rotate(360deg);
+            opacity: 0;
+        }
+    }
+
+    @keyframes blob {
+        0% {
+            transform: translate(0px, 0px) scale(1);
+        }
+
+        33% {
+            transform: translate(30px, -50px) scale(1.1);
+        }
+
+        66% {
+            transform: translate(-20px, 20px) scale(0.9);
+        }
+
+        100% {
+            transform: translate(0px, 0px) scale(1);
+        }
+    }
+
+    .animate-blob {
+        animation: blob 7s infinite;
+    }
+
+    .animation-delay-2000 {
+        animation-delay: 2s;
+    }
+
+    /* สั่นสะเทือน (ใช้เวลาตอบคำถามผิด) */
+    @keyframes shake {
+
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+
+        10%,
+        30%,
+        50%,
+        70%,
+        90% {
+            transform: translateX(-5px);
+        }
+
+        20%,
+        40%,
+        60%,
+        80% {
+            transform: translateX(5px);
+        }
+    }
+
+    .shake-effect {
+        animation: shake 0.5s ease-in-out;
+    }
+
+    @keyframes shakeStrong {
+
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+
+        10%,
+        30%,
+        50%,
+        70%,
+        90% {
+            transform: translateX(-10px) translateY(-5px);
+        }
+
+        20%,
+        40%,
+        60%,
+        80% {
+            transform: translateX(10px) translateY(5px);
+        }
+    }
+
+    .animate-shake-strong {
+        animation: shakeStrong 0.5s ease-in-out;
+    }
+
+    /* ⚔️ Damage Popups */
+    @keyframes floatUpDamage {
+        0% {
+            transform: translateY(0) scale(0.8);
+            opacity: 1;
+        }
+
+        50% {
+            transform: translateY(-40px) scale(1.1);
+            opacity: 1;
+        }
+
+        100% {
+            transform: translateY(-80px) scale(1);
+            opacity: 0;
+        }
+    }
+
+    .animate-float-up {
+        animation: floatUpDamage 1s ease-out forwards;
+    }
+
+    @keyframes critHitDamage {
+        0% {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        20% {
+            transform: translateY(-20px) scale(1.8);
+            opacity: 1;
+        }
+
+        80% {
+            transform: translateY(-30px) scale(1.5);
+            opacity: 0.8;
+        }
+
+        100% {
+            transform: translateY(-50px) scale(1.2);
+            opacity: 0;
+        }
+    }
+
+    .animate-crit-hit {
+        animation: critHitDamage 1.2s ease-out forwards;
+    }
+
+    /* 🎊 Confetti ตอนชนะ */
+    @keyframes confettiFall {
+        0% {
+            transform: translateY(-100vh) rotate(0deg);
+            opacity: 1;
+        }
+
+        100% {
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
+        }
+    }
+
+    .confetti-piece {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        z-index: 999;
+        pointer-events: none;
+    }
+
+    /* ✨ Sparkle particles */
+    @keyframes sparkle {
+        0% {
+            transform: scale(0) rotate(0deg);
+            opacity: 1;
+        }
+
+        50% {
+            transform: scale(1) rotate(180deg);
+            opacity: 0.8;
+        }
+
+        100% {
+            transform: scale(0) rotate(360deg);
+            opacity: 0;
+        }
+    }
+
+    .sparkle-particle {
+        position: absolute;
+        pointer-events: none;
+        z-index: 100;
+    }
+
+    /* 💫 Pulse-glow สำหรับปุ่ม CTA */
+    @keyframes pulseGlow {
+
+        0%,
+        100% {
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.1);
+        }
+
+        50% {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.6), 0 0 40px rgba(99, 102, 241, 0.3);
+        }
+    }
+
+    .pulse-glow {
+        animation: pulseGlow 2s ease-in-out infinite;
+    }
+
+    /* ✨ Gacha/Reward Animations */
+    @keyframes gachaReveal {
+        0% {
+            transform: scale(0) rotate(-180deg);
+            opacity: 0;
+            filter: brightness(2);
+        }
+
+        70% {
+            transform: scale(1.2) rotate(10deg);
+            opacity: 1;
+            filter: brightness(1.5);
+        }
+
+        100% {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+            filter: brightness(1);
+        }
+    }
+
+    .gacha-reveal {
+        animation: gachaReveal 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @keyframes gachaGlow {
+        0% {
+            box-shadow: 0 0 0px #fff, 0 0 0px #fff;
+        }
+
+        50% {
+            box-shadow: 0 0 40px #fff, 0 0 80px #ffd700;
+        }
+
+        100% {
+            box-shadow: 0 0 0px #fff, 0 0 0px #fff;
+        }
+    }
+
+    .gacha-glow {
+        animation: gachaGlow 1.5s ease-in-out;
+    }
+
+    /* ✨ Rainbow shimmer สำหรับ GRANDMASTER */
+    @keyframes rainbowShift {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+    .rainbow-text {
+        background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b);
+        background-size: 300% 300%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: rainbowShift 3s ease-in-out infinite;
+    }
+
+    /* 🍮 Jelly Button Effect (New UI) */
+    .ui-jelly-btn {
+        position: relative;
+        box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15), inset 0 3px 0 rgba(255, 255, 255, 0.4), inset 0 -3px 0 rgba(0, 0, 0, 0.1);
+        transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        text-shadow: 0px 2px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .ui-jelly-btn:active,
+    .ui-jelly-btn:focus {
+        transform: translateY(4px) scale(0.95);
+        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15), inset 0 2px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+        outline: none;
+    }
+
+    .ui-jelly-btn::before {
+        content: '';
+        position: absolute;
+        top: 5px;
+        left: 20%;
+        width: 60%;
+        height: 15%;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+
+    /* 🌊 Floating card hover effect */
+    .float-hover {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .float-hover:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 15px 45px rgba(0, 0, 0, 0.15), 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+
+    /* 🏷️ Shop Item Card Glow */
+    .shop-card-glow:hover {
+        border-color: #fbbf24;
+        box-shadow: 0 0 25px rgba(251, 191, 36, 0.4), inset 0 0 10px rgba(251, 191, 36, 0.2);
+    }
+
+    /* 📌 Sticky Rank Bar */
+    .sticky-rank {
+        position: sticky;
+        bottom: 0;
+        z-index: 50;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        border-top: 4px solid #4f46e5;
+        margin: 0 -1.5rem -1.5rem -1.5rem;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    /* ========== 5. RPG Themed UI (การออกแบบสไตล์เกม RPG) ========== */
+    .rpg-title {
+        font-family: 'Mali', 'Prompt', cursive;
+        font-weight: 700;
+        color: #fff;
+        text-shadow:
+            4px 4px 0 #3b82f6,
+            -2px -2px 0 #3b82f6,
+            2px -2px 0 #3b82f6,
+            -2px 2px 0 #3b82f6,
+            2px 2px 0 #3b82f6,
+            0 8px 0 #1e3a8a,
+            0 10px 15px rgba(0, 0, 0, 0.4);
+        letter-spacing: 2px;
+    }
+
+    .quest-board {
+        background: #fffdf2;
+        border: 8px solid #b45309;
+        border-radius: 24px;
+        box-shadow:
+            inset 0 0 30px rgba(180, 83, 9, 0.2),
+            0 15px 35px rgba(0, 0, 0, 0.25),
+            0 10px 0 #78350f;
+        position: relative;
+    }
+
+    .quest-board::before,
+    .quest-board::after {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: #78350f;
+        border-radius: 50%;
+        box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    .quest-board::before {
+        top: 12px;
+        left: 12px;
+    }
+
+    .quest-board::after {
+        top: 12px;
+        right: 12px;
+    }
+
+    .quest-board-inner::before,
+    .quest-board-inner::after {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: #78350f;
+        border-radius: 50%;
+        box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.4);
+        z-index: 10;
+        bottom: 12px;
+    }
+
+    .quest-board-inner::before {
+        left: 12px;
+    }
+
+    .quest-board-inner::after {
+        right: 12px;
+    }
+
+    .game-input {
+        background: #f8fafc;
+        border: 4px solid #cbd5e1;
+        border-radius: 16px;
+        font-weight: bold;
+        color: #334155;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: inset 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    .game-input:focus {
+        border-color: #3b82f6;
+        background: #fff;
+        box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2), inset 0 4px 6px rgba(0, 0, 0, 0.05);
+        outline: none;
+        transform: scale(1.02);
+    }
+
+    .btn-arcade {
+        background: linear-gradient(to bottom, #ef4444, #dc2626);
+        border: 4px solid #7f1d1d;
+        border-radius: 20px;
+        color: white;
+        text-transform: uppercase;
+        font-weight: 900;
+        letter-spacing: 2px;
+        box-shadow: 0 8px 0 #991b1b, 0 15px 25px rgba(0, 0, 0, 0.3), inset 0 4px 0 rgba(255, 255, 255, 0.4);
+        transition: all 0.1s active;
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+    }
+
+    .btn-arcade:active {
+        transform: translateY(8px);
+        box-shadow: 0 0 0 #991b1b, 0 5px 10px rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .btn-arcade:hover {
+        filter: brightness(1.1);
+        animation: pulseGlow 1.5s infinite;
+    }
+
+    .avatar-btn {
+        background: #ffffff;
+        border: 4px solid #e2e8f0;
+        border-radius: 24px;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 8px 0 #cbd5e1;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+    }
+
+    .avatar-btn:hover {
+        transform: translateY(-8px) scale(1.05);
+        box-shadow: 0 16px 0 #cbd5e1, 0 10px 20px rgba(0, 0, 0, 0.1);
+        border-color: #94a3b8;
+    }
+
+    .avatar-btn.selected {
+        border-color: #f59e0b;
+        background: #fffbeb;
+        box-shadow: 0 8px 0 #b45309, 0 0 30px rgba(245, 158, 11, 0.6);
+        transform: translateY(-4px) scale(1.05);
+    }
+
+    /* Elemental Backgrounds */
+    .avatar-btn.mage::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .avatar-btn.elf::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .avatar-btn.warrior::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    /* Fantasy Background */
+    .bg-fantasy {
+        background:
+            radial-gradient(circle at 15% 50%, rgba(255, 255, 255, 0.4), transparent 30%),
+            radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.4), transparent 30%),
+            url('data:image/svg+xml;utf8,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20" fill="none"/><circle cx="10" cy="10" r="1" fill="rgba(255,255,255,0.1)"/></svg>'),
+            linear-gradient(135deg, #74ebd5 0%, #9face6 100%);
+        background-attachment: fixed;
+    }
+
+    /* ========== Dashboard RPG UI Styles ========== */
+    .hero-card {
+        background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
+        border: 6px solid #fbbf24;
+        border-radius: 30px;
+        box-shadow:
+            0 15px 35px rgba(0, 0, 0, 0.15),
+            inset 0 0 0 4px #fef08a,
+            0 10px 0 #b45309;
+        position: relative;
+    }
+
+    .hero-card::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 24px;
+        box-shadow: inset 0px 4px 10px rgba(255, 255, 255, 0.8);
+        pointer-events: none;
+    }
+
+    .inventory-slot {
+        background: #f8fafc;
+        border: 4px solid #cbd5e1;
+        border-radius: 16px;
+        box-shadow:
+            inset 0 6px 10px rgba(0, 0, 0, 0.06),
+            0 4px 0 #94a3b8;
+        transition: transform 0.2s;
+    }
+
+    .inventory-slot:hover {
+        transform: translateY(-2px);
+        background: #fff;
+        border-color: #93c5fd;
+        box-shadow:
+            inset 0 6px 10px rgba(59, 130, 246, 0.1),
+            0 4px 0 #60a5fa,
+            0 8px 15px rgba(59, 130, 246, 0.2);
+    }
+
+    .menu-card {
+        background: #ffffff;
+        border-radius: 24px;
+        position: relative;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        cursor: pointer;
+        overflow: hidden;
+    }
+
+    .menu-card-blue {
+        border: 6px solid #3b82f6;
+        box-shadow: 0 10px 0 #1d4ed8, 0 15px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .menu-card-yellow {
+        border: 6px solid #eab308;
+        box-shadow: 0 10px 0 #a16207, 0 15px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .menu-card-green {
+        border: 6px solid #22c55e;
+        box-shadow: 0 10px 0 #15803d, 0 15px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .menu-card:active {
+        transform: translateY(8px) scale(0.98) !important;
+        box-shadow: 0 2px 0 currentColor, 0 5px 10px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .menu-card:hover {
+        transform: translateY(-10px) scale(1.03);
+    }
+
+    .menu-card-blue:hover {
+        box-shadow: 0 20px 0 #1d4ed8, 0 25px 30px rgba(59, 130, 246, 0.3);
+    }
+
+    .menu-card-yellow:hover {
+        box-shadow: 0 20px 0 #a16207, 0 25px 30px rgba(234, 179, 8, 0.3);
+    }
+
+    .menu-card-green:hover {
+        box-shadow: 0 20px 0 #15803d, 0 25px 30px rgba(34, 197, 94, 0.3);
+    }
+
+    .btn-logout {
+        background: linear-gradient(to bottom, #fca5a5, #ef4444);
+        border: 3px solid #b91c1c;
+        border-radius: 12px;
+        color: white;
+        font-weight: 800;
+        box-shadow: 0 5px 0 #7f1d1d, 0 8px 15px rgba(0, 0, 0, 0.2);
+        transition: all 0.1s;
+    }
+
+    .btn-logout:active {
+        transform: translateY(5px);
+        box-shadow: 0 0 0 #7f1d1d, 0 3px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    .xp-bar-glow {
+        box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+        border: 2px solid rgba(255, 255, 255, 0.8);
+    }
+
+    /* ========== 6. Extra Modules (สไตล์เฉพาะหน้าแผนที่และการต่อสู้) ========== */
+    .rpg-box {
+        background: rgba(255, 255, 255, 0.95);
+        border: 6px solid #64748b;
+        border-radius: 20px;
+        box-shadow:
+            0 10px 25px rgba(0, 0, 0, 0.15),
+            inset 0 0 0 4px #e2e8f0,
+            0 8px 0 #334155;
+    }
+
+    .rpg-box-blue {
+        border-color: #3b82f6;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), inset 0 0 0 4px #dbeafe, 0 8px 0 #1d4ed8;
+    }
+
+    .rpg-box-yellow {
+        border-color: #eab308;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), inset 0 0 0 4px #fef08a, 0 8px 0 #a16207;
+    }
+
+    .rpg-box-green {
+        border-color: #22c55e;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), inset 0 0 0 4px #dcfce7, 0 8px 0 #15803d;
+    }
+
+    .rpg-box-wood {
+        border-color: #92400e;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2), inset 0 0 0 4px #fef3c7, 0 8px 0 #78350f;
+    }
+
+    .bg-world-map {
+        background:
+            linear-gradient(rgba(255, 255, 255, 0.4) 2px, transparent 2px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.4) 2px, transparent 2px),
+            radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(6, 95, 70, 0.4) 150%),
+            #a7f3d0 !important;
+        background-size: 80px 80px, 80px 80px, 100% 100%, 100% 100% !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 50px rgba(6, 95, 70, 0.2) !important;
+    }
+
+    .btn-action {
+        border: 3px solid rgba(0, 0, 0, 0.2);
+        box-shadow: 0 5px 0 rgba(0, 0, 0, 0.2), 0 10px 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.1s;
+    }
+
+    .btn-action:active {
+        transform: translateY(5px);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0.2), 0 3px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 🔥 ละอองไฟ (Embers) ในฉากต่อสู้ */
+    @keyframes emberFly1 {
+        0% {
+            transform: translate(0, 0) scale(1);
+            opacity: 0;
+        }
+
+        20% {
+            opacity: 1;
+        }
+
+        80% {
+            opacity: 0.8;
+        }
+
+        100% {
+            transform: translate(-50px, -200px) scale(0.5);
+            opacity: 0;
+        }
+    }
+
+    @keyframes emberFly2 {
+        0% {
+            transform: translate(0, 0) scale(1);
+            opacity: 0;
+        }
+
+        20% {
+            opacity: 0.8;
+        }
+
+        80% {
+            opacity: 0.6;
+        }
+
+        100% {
+            transform: translate(30px, -250px) scale(0.2);
+            opacity: 0;
+        }
+    }
+
+    @keyframes emberFly3 {
+        0% {
+            transform: translate(0, 0) scale(1);
+            opacity: 0;
+        }
+
+        20% {
+            opacity: 1;
+        }
+
+        80% {
+            opacity: 0.9;
+        }
+
+        100% {
+            transform: translate(-20px, -150px) scale(0);
+            opacity: 0;
+        }
+    }
+
+    @keyframes emberFly4 {
+        0% {
+            transform: translate(0, 0) scale(1);
+            opacity: 0;
+        }
+
+        20% {
+            opacity: 0.7;
+        }
+
+        80% {
+            opacity: 0.5;
+        }
+
+        100% {
+            transform: translate(40px, -300px) scale(0.3);
+            opacity: 0;
+        }
+    }
+
+    .animate-ember-1 {
+        animation: emberFly1 3s ease-in-out infinite;
+    }
+
+    .animate-ember-2 {
+        animation: emberFly2 4s ease-in-out infinite;
+    }
+
+    .animate-ember-3 {
+        animation: emberFly3 3.5s ease-in-out infinite;
+    }
+
+    .animate-ember-4 {
+        animation: emberFly4 4.5s ease-in-out infinite;
+    }
+
+    /* ========== Admin Panel Full-Screen Layout ========== */
+    /* ขยาย Admin Panel ให้เต็มจอ (ทะลุ max-w-4xl ของ #app) */
+    #page-admin {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 40 !important;
+        /* ต้องน้อยกว่า 50 เพื่อไม่ให้บัง Modal */
+        max-width: 100vw !important;
+        width: 100vw !important;
+        margin: 0 !important;
+        padding: 1.5rem 2rem !important;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 30%, #f0e6ff 70%, #fce7f3 100%);
+        background-attachment: fixed;
+    }
+
+    @media (min-width: 768px) {
+        #page-admin {
+            padding: 2rem 3rem !important;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        #page-admin {
+            padding: 2rem 4rem !important;
+        }
+    }
+
+    /* ป้องกัน Tab Content ล้นออกนอกจอ */
+    #page-admin>div[id^="tab-content-"] {
+        min-height: 0;
+    }
+
+    /* ตารางภายใน Admin ให้ scroll ได้ทั้งแนวนอนและแนวตั้ง */
+    #page-admin .overflow-x-auto {
+        overflow-y: auto;
+        max-height: calc(100vh - 340px);
+    }
+
+    /* ✨ Modern Scrollbar เฉพาะ Admin Panel */
+    #page-admin::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    #page-admin::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    #page-admin::-webkit-scrollbar-thumb {
+        background: linear-gradient(to bottom, #818cf8, #a78bfa);
+        border-radius: 100px;
+    }
+
+    #page-admin::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(to bottom, #6366f1, #8b5cf6);
+    }
+
+    /* Scrollbar เฉพาะตาราง Admin */
+    #page-admin .overflow-x-auto::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    #page-admin .overflow-x-auto::-webkit-scrollbar-track {
+        background: rgba(99, 102, 241, 0.05);
+        border-radius: 100px;
+    }
+
+    #page-admin .overflow-x-auto::-webkit-scrollbar-thumb {
+        background: rgba(99, 102, 241, 0.25);
+        border-radius: 100px;
+    }
+
+    #page-admin .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+        background: rgba(99, 102, 241, 0.45);
+    }
+
+    /* Firefox scrollbar */
+    #page-admin {
+        scrollbar-width: thin;
+        scrollbar-color: #818cf8 transparent;
+    }
+
+    #page-admin .overflow-x-auto {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(99, 102, 241, 0.25) transparent;
+    }
+
+    /* Admin Tabs ให้ scroll ได้บนมือถือ */
+    #page-admin>div:nth-child(2) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #page-admin>div:nth-child(2)::-webkit-scrollbar {
+        height: 0;
+        display: none;
+    }
+
+    /* Settings tab ต้อง scroll ได้ด้านในเพราะเนื้อหาเยอะ */
+    #tab-content-settings {
+        overflow-y: auto;
+        max-height: calc(100vh - 220px);
+    }
+
+    #tab-content-settings::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #tab-content-settings::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    #tab-content-settings::-webkit-scrollbar-thumb {
+        background: rgba(99, 102, 241, 0.2);
+        border-radius: 100px;
+    }
+
+    /* ========== 7. Background Images (Desktop & Mobile) ========== */
+    /* --- รูปภาพฉากหลังแบบปกติ (จอคอม) --- */
+    #login-bg-layer {
+        background-image: url('https://i.postimg.cc/mrYZDgKV/2.jpg');
+    }
+
+    #dashboard-bg-layer {
+        background-image: url('https://i.postimg.cc/nrYwj6pk/2-2.png');
+    }
+
+    #boss-battle-bg-layer {
+        background-image: url('https://i.postimg.cc/0QLbMBcH/2-3.png');
+    }
+
+    #lesson-bg-layer {
+        background-image: url('https://i.postimg.cc/PqqznyKK/2-4.png');
+    }
+
+    /* --- รูปภาพฉากหลังแบบแนวตั้ง (จอมือถือ <= 768px) --- */
+    @media (max-width: 768px) {
+        #login-bg-layer {
+            background-image: url('https://i.postimg.cc/xdQ2Zq2M/logint-ng.png');
+        }
+
+        #dashboard-bg-layer {
+            background-image: url('https://i.postimg.cc/59Rs0G6b/dae-ch-bxr-d-naew-t-ng.png');
+        }
+
+        #boss-battle-bg-layer {
+            background-image: url('https://i.postimg.cc/SsBFWKD8/t-xs-naewt-ng.png');
+        }
+
+        #lesson-bg-layer {
+            background-image: url('https://i.postimg.cc/yxHp13Ly/bthre-ynt-ng.png');
+        }
+    }
+
+    /* ========== PVP Premium RPG Mode Selection Cards ========== */
+    .pvp-card-quick {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.95) 100%);
+        border: 4px solid #3b82f6; /* Blue border */
+        border-radius: 28px;
+        box-shadow: 
+            0 15px 35px rgba(0, 0, 0, 0.5),
+            inset 0 0 25px rgba(59, 130, 246, 0.3),
+            0 10px 0 #1d4ed8;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .pvp-card-quick:hover {
+        transform: translateY(-12px);
+        border-color: #60a5fa;
+        box-shadow: 
+            0 25px 45px rgba(0, 0, 0, 0.6),
+            0 0 30px rgba(59, 130, 246, 0.6),
+            inset 0 0 35px rgba(59, 130, 246, 0.5),
+            0 18px 0 #1d4ed8;
+    }
+
+    .pvp-card-quick:active {
+        transform: translateY(-4px);
+        box-shadow: 
+            0 10px 20px rgba(0, 0, 0, 0.6),
+            0 0 15px rgba(59, 130, 246, 0.4),
+            inset 0 0 20px rgba(59, 130, 246, 0.3),
+            0 6px 0 #1d4ed8;
+    }
+
+    .pvp-card-private {
+        background: linear-gradient(135deg, rgba(24, 15, 15, 0.85) 0%, rgba(45, 27, 27, 0.95) 100%);
+        border: 4px solid #ef4444; /* Red/Crimson border */
+        border-radius: 28px;
+        box-shadow: 
+            0 15px 35px rgba(0, 0, 0, 0.5),
+            inset 0 0 25px rgba(239, 68, 68, 0.3),
+            0 10px 0 #b91c1c;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .pvp-card-private:hover {
+        transform: translateY(-12px);
+        border-color: #f87171;
+        box-shadow: 
+            0 25px 45px rgba(0, 0, 0, 0.6),
+            0 0 30px rgba(239, 68, 68, 0.6),
+            inset 0 0 35px rgba(239, 68, 68, 0.5),
+            0 18px 0 #b91c1c;
+    }
+
+    .pvp-card-private:active {
+        transform: translateY(-4px);
+        box-shadow: 
+            0 10px 20px rgba(0, 0, 0, 0.6),
+            0 0 15px rgba(239, 68, 68, 0.4),
+            inset 0 0 20px rgba(239, 68, 68, 0.3),
+            0 6px 0 #b91c1c;
+    }
+
+    /* วงแหวนไอคอนเวทมนตร์เรืองแสง */
+    .pvp-icon-glow-blue {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, rgba(59, 130, 246, 0.1) 70%);
+        border: 3px double #3b82f6;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .pvp-icon-glow-red {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(239, 68, 68, 0.4) 0%, rgba(239, 68, 68, 0.1) 70%);
+        border: 3px double #ef4444;
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* ช่องรหัสผ่านลับสไตล์หีบสมบัติ */
+    .pvp-pin-input {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 3px solid #f59e0b !important; /* Gold border */
+        border-radius: 16px !important;
+        color: #fef08a !important; /* Yellow-200 text */
+        text-shadow: 0 0 5px rgba(245, 158, 11, 0.5);
+        box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.8) !important;
+        letter-spacing: 0.25em;
+        transition: all 0.3s;
+    }
+
+    .pvp-pin-input:focus {
+        border-color: #fbbf24 !important;
+        box-shadow: 
+            inset 0 4px 10px rgba(0, 0, 0, 0.8),
+            0 0 15px rgba(251, 191, 36, 0.5) !important;
+        transform: scale(1.03);
+    }
+</style>
+
+<script>
+    /**
+     * ตั้งค่า Tailwind CSS 
+     * เพื่อเพิ่มสีหลัก ขยายการปรับแต่งต่างๆ โดยไม่ต้องเขียน CSS เพิ่ม
+     */
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    game: {
+                        bossHp: '#ff4757',
+                        xp: '#2ed573',
+                        damage: '#ffa502'
+                    }
+                },
+                keyframes: {
+                    'shake-strong': {
+                        '0%, 100%': { transform: 'translateX(0)' },
+                        '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-10px) rotate(-2deg)' },
+                        '20%, 40%, 60%, 80%': { transform: 'translateX(10px) rotate(2deg)' }
+                    },
+                    'float-up': {
+                        '0%': { opacity: 0, transform: 'translate(-50%, -10px) scale(0.5)' },
+                        '20%': { opacity: 1, transform: 'translate(-50%, -40px) scale(1.2)' },
+                        '100%': { opacity: 0, transform: 'translate(-50%, -100px) scale(1)' }
+                    },
+                    'crit-hit': {
+                        '0%': { opacity: 0, transform: 'translate(-50%, 0) scale(0.5)' },
+                        '20%': { opacity: 1, transform: 'translate(-50%, -20px) scale(1.5) rotate(10deg)' },
+                        '80%': { opacity: 1, transform: 'translate(-50%, -20px) scale(1.5) rotate(0deg)' },
+                        '100%': { opacity: 0, transform: 'translate(-50%, -50px) scale(1)' }
+                    },
+                    shimmer: {
+                        '100%': { transform: 'translateX(100%)' }
+                    },
+                    'pulse-slow': {
+                        '0%, 100%': { opacity: 1 },
+                        '50%': { opacity: .5 }
+                    }
+                },
+                animation: {
+                    'shake-strong': 'shake-strong 0.5s ease-in-out',
+                    'float-up': 'float-up 1s ease-out forwards',
+                    'crit-hit': 'crit-hit 1s ease-out forwards',
+                    'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                }
+            }
+        }
+    }
+</script>

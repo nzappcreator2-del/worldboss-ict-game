@@ -458,37 +458,24 @@
             if (typeof iframeWin.pressMarioKey === 'function') {
                 // ถ้าสเตทขยับเปลี่ยน ล้างปุ่มที่กดไว้เดิมทั้งหมดก่อนเพื่อความสะอาด
                 if (marioState !== previousMarioState) {
-                    const keysToRelease = [37, 39, 38, 40, 83, 65]; // Left, Right, Up, Down, S (Jump), A (Run/Fire)
+                    const keysToRelease = [37, 39, 38, 40, 88, 90]; // Left, Right, Up, Down, X (Jump - 88), Z (Run/Fire - 90)
                     keysToRelease.forEach(code => iframeWin.pressMarioKey(code, false));
                     previousMarioState = marioState;
                 }
 
-                // หากเด็กทำท่า วิ่ง หรือ กระโดด และยังเป็นหน้าจอไตเติลเมนูอยู่ 
-                // ให้จำลองการกดปุ่ม S (83) เพื่อเข้าเกม (Auto-Start)
-                if (iframeWin.Mario && iframeWin.Mario.MarioCharacter && iframeWin.Mario.MarioCharacter.LevelString === "none") {
-                    if (marioState === 'RUNNING' || marioState === 'JUMPING') {
-                        iframeWin.pressMarioKey(83, true); // กด S เพื่อเริ่มเกม
-                        setTimeout(() => {
-                            iframeWin.pressMarioKey(83, false);
-                        }, 100);
-                        speakThai("เริ่มเกมมาริโอ้คลาสสิกแล้วค่ะ");
-                        return;
-                    }
-                }
-
                 if (marioState === 'RUNNING') {
-                    // วิ่งขวา (39) + วิ่งเร็วพิเศษ Sprint (65 - ปุ่ม A ใน Infinite Mario)
+                    // วิ่งขวา (39) + วิ่งเร็วพิเศษ Sprint (90 - ปุ่ม Z ใน Super Mario Bros 1)
                     iframeWin.pressMarioKey(39, true);
-                    iframeWin.pressMarioKey(65, true);
+                    iframeWin.pressMarioKey(90, true);
                 } else if (marioState === 'JUMPING') {
-                    // กระโดด (83 - ปุ่ม S ใน Infinite Mario) + เคลื่อนขวา (39) + วิ่งเร็ว (65)
+                    // กระโดด (88 - ปุ่ม X ใน Super Mario Bros 1) + เคลื่อนขวา (39) + วิ่งเร็ว (90)
                     iframeWin.pressMarioKey(39, true);
-                    iframeWin.pressMarioKey(83, true);
-                    iframeWin.pressMarioKey(65, true);
+                    iframeWin.pressMarioKey(88, true);
+                    iframeWin.pressMarioKey(90, true);
                 } else if (marioState === 'CROUCHING') {
-                    // นั่งย่อหมอบ (40) + สั่งยิงกระสุนปืนไฟ (65 - ปุ่ม A ใน Infinite Mario)
+                    // นั่งย่อหมอบ (40) + สั่งยิงกระสุนปืนไฟ (90 - ปุ่ม Z ใน Super Mario Bros 1)
                     iframeWin.pressMarioKey(40, true);
-                    iframeWin.pressMarioKey(65, true);
+                    iframeWin.pressMarioKey(90, true);
                 }
             } else {
                 // FALLBACK: ใช้โครงสร้างเดิม (กรณีที่ API Bridge ยังโหลดไม่เสร็จ)

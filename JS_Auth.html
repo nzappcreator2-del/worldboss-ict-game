@@ -1,0 +1,347 @@
+<script>
+    // ========== 4. ฟังก์ชันหลัก (Core Features) ==========
+    let lessonsData = [];
+    let allRegisteredUsers = [];
+    let gameSettings = { TimerPerQuestion: 30, Classes: 'ป.4,ป.5,ป.6' };
+    let gameNews = [];
+
+    // --> ดึงข้อมูลตอนเปิดเว็บรวดเดียว (Batch Data)
+    function fetchInitialData() {
+        if (typeof google !== 'undefined') {
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    if (response.success) {
+                        allRegisteredUsers = response.users || [];
+                        gameSettings = response.settings || { TimerPerQuestion: 30, Classes: 'ป.4,ป.5,ป.6' };
+                        gameNews = response.news || [];
+
+                        if (typeof renderClassDropdown === 'function') {
+                            renderClassDropdown(gameSettings.Classes, gameSettings.Rooms);
+                        }
+                        if (typeof renderDashboardNews === 'function') {
+                            renderDashboardNews();
+                        }
+                    }
+                })
+                .getInitialData();
+        } else {
+            // Mock data สำหรับตอน Preview Local
+            allRegisteredUsers = [
+                { name: 'สมชาย รักเรียน', class: 'ป.5', avatar: '⚔️' },
+                { name: 'สมหญิง จริงใจ', class: 'ป.4', avatar: '🧝‍♀️' }
+            ];
+            gameSettings = { TimerPerQuestion: 30, Classes: 'ป.4,ป.5,ป.6' };
+            gameNews = [
+                { id: 'N1', icon: '📌', type: 'HOT NEWS🔥', title: 'อัปเดตใหญ่: ระบบเกียรติบัตร', content: 'รับเกียรติบัตรได้แล้ววันนี้', date: 'เร็วๆ นี้', isActive: true }
+            ];
+            if (typeof renderClassDropdown === 'function') renderClassDropdown(gameSettings.Classes, gameSettings.Rooms);
+            if (typeof renderDashboardNews === 'function') renderDashboardNews();
+        }
+    }
+
+    // --> เมื่อเลือกชั้นเรียนหรือห้อง
+    function onClassChange() {
+        let selectedClass = document.getElementById('student-class') ? document.getElementById('student-class').value : '';
+        const selectedRoom = document.getElementById('student-room') ? document.getElementById('student-room').value : '';
+        
+        if (selectedClass && selectedRoom && selectedRoom !== "") {
+            selectedClass = selectedClass + '/' + selectedRoom;
+        }
+
+        const nameSelect = document.getElementById('student-name-select');
+        const nameInputContainer = document.getElementById('new-name-container');
+
+        // กรองหาเด็กในชั้นนี้และห้องนี้
+        const classUsers = allRegisteredUsers.filter(u => u.class === selectedClass);
+
+        let optionsHtml = '<option value="" disabled selected>เลือกชื่อผู้กล้า...</option>';
+        optionsHtml += '<option value="NEW_PLAYER" class="text-blue-600 font-bold">➕ ลงทะเบียนผู้เล่นใหม่</option>';
+
+        // ใช้การต่อข้อความไว้ก่อน แล้วค่อยใส่ innerHTML ทีเดียว เพื่อแก้ปัญหาภาพกระตุก/ช้า
+        classUsers.forEach(u => {
+            optionsHtml += `<option value="${u.name}">${u.avatar || '👤'} ${u.name}</option>`;
+        });
+
+        nameSelect.innerHTML = optionsHtml;
+        nameSelect.disabled = false;
+        nameInputContainer.classList.add('hidden');
+        document.getElementById('student-name-input').required = false;
+    }
+
+    // --> เมื่อเลือกชื่อ
+    function onNameSelectChange() {
+        const selectedValue = document.getElementById('student-name-select').value;
+        const nameInputContainer = document.getElementById('new-name-container');
+        const nameInput = document.getElementById('student-name-input');
+
+        if (selectedValue === 'NEW_PLAYER') {
+            nameInputContainer.classList.remove('hidden');
+            nameInput.required = true;
+        } else {
+            nameInputContainer.classList.add('hidden');
+            nameInput.required = false;
+
+            let selectedClass = document.getElementById('student-class') ? document.getElementById('student-class').value : '';
+            const selectedRoom = document.getElementById('student-room') ? document.getElementById('student-room').value : '';
+            if (selectedClass && selectedRoom && selectedRoom !== "") {
+                selectedClass = selectedClass + '/' + selectedRoom;
+            }
+
+            // เปลี่ยน Avatar ตามที่เคยเลือกมาอัตโนมัติ (ถ้ามี)
+            const user = allRegisteredUsers.find(u => u.name === selectedValue && u.class === selectedClass);
+            if (user && user.avatar) {
+                const opts = document.querySelectorAll('.avatar-option');
+                opts.forEach(opt => {
+                    if (opt.textContent.includes(user.avatar)) {
+                        selectAvatar(user.avatar, opt);
+                    }
+                });
+            }
+        }
+    }
+
+    // --> เลือก Avatar
+    function selectAvatar(emoji, element) {
+        document.getElementById('student-avatar').value = emoji;
+        // ล้าง style เก่า
+        document.querySelectorAll('.avatar-option').forEach(el => {
+            el.classList.remove('ring-2', 'ring-blue-500');
+        });
+        // ใส่ style ใหม่
+        element.classList.add('ring-2', 'ring-blue-500');
+    }
+
+    // --> ผูกฟังก์ชัน Login กับ HTML Form
+    function handleLogin(event) {
+        event.preventDefault(); // ป้องกันการ Refresh หน้า
+
+        let studentClass = document.getElementById('student-class').value;
+        const studentRoom = document.getElementById('student-room') ? document.getElementById('student-room').value : '';
+        
+        if (studentRoom && studentRoom !== "") {
+            studentClass = studentClass + '/' + studentRoom;
+        }
+
+        const nameSelectMode = document.getElementById('student-name-select').value;
+
+        let name = '';
+        if (nameSelectMode === 'NEW_PLAYER') {
+            name = document.getElementById('student-name-input').value.trim();
+            if (!name) {
+                customAlert('กรุณาพิมพ์ชื่อผู้กล้าคนใหม่');
+                return;
+            }
+        } else {
+            name = nameSelectMode;
+        }
+
+        const avatar = document.getElementById('student-avatar').value;
+
+        showLoader();
+
+        // (สำหรับการพรีวิว ถ้าไม่ได้ทำงานบน GAS)
+        if (typeof google === 'undefined') {
+            setTimeout(() => {
+                hideLoader();
+                currentUser = { name: name, class: studentClass, level: 1, xp: 45, rank: 'BRONZE', avatar: avatar || '🧙‍♂️', id: 'local_test' };
+                updateDashboardInfo();
+                showPage('lobby');
+            }, 1000);
+            return;
+        }
+
+        // เชื่อมต่อ API ดึงข้อมูลจาก Google Sheets (Code.gs)
+        google.script.run
+            .withSuccessHandler(function (response) {
+                hideLoader();
+                
+                // Defensive Check: ป้องกันกรณี Server คืนค่า null หรือโครงสร้างผิดพลาด
+                if (!response) {
+                    console.error('Server returned null response');
+                    customAlert('พบข้อผิดพลาดจากเซิร์ฟเวอร์ (Null Response) กรุณาลองใหม่อีกครั้ง');
+                    return;
+                }
+
+                if (response.success) {
+                    currentUser = response.user;
+                    if (!currentUser.inventory) currentUser.inventory = { potion: 0, magnifier: 0 };
+                    if (!currentUser.coins) currentUser.coins = 0;
+
+                    // Optimistic Update
+                    const exists = allRegisteredUsers.find(u => u.name === currentUser.name && u.class === currentUser.class);
+                    if (!exists) {
+                        allRegisteredUsers.push({
+                            name: currentUser.name,
+                            class: currentUser.class,
+                            avatar: currentUser.avatar
+                        });
+                    }
+
+                    updateDashboardInfo();
+                    if(typeof checkAndShowLoginBonus === 'function') checkAndShowLoginBonus();
+                    showPage('lobby');
+                } else {
+                    customAlert('เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+                }
+            })
+            .withFailureHandler(function (error) {
+                hideLoader();
+                customAlert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+                console.error(error);
+            })
+            .loginStudent(name, studentClass, avatar);
+    }
+
+    // --> ฟังก์ชันออกจากระบบ
+    async function logout() {
+        if (await customConfirm('ผู้กล้าต้องการพักการผจญภัยใช่หรือไม่?')) {
+            showLoader();
+
+            // ผู้ใช้เสนอให้ Refresh หน้าใหม่ไปเลย เพื่อเป็นการล้าง State และหน่วยความจำแบบ 100% 
+            // แก้สารพัดปัญหาบัคภาพค้าง แผนที่หาย
+            if (typeof google !== 'undefined') {
+                google.script.run
+                    .withSuccessHandler(function (url) {
+                        window.top.location.href = url; // รีโหลดหน้าเว็บกลับไปยังจุดเริ่มต้น
+                    })
+                    .withFailureHandler(function (error) {
+                        console.error('Logout error:', error);
+                        window.top.location.reload();
+                    })
+                    .getScriptUrl();
+            } else {
+                // สำหรับการรันแบบปกติ Local
+                window.location.reload();
+            }
+        }
+    }
+
+    // --> อัปเดตข้อมูลบน Dashboard ตามตัวละครที่ Login
+    function updateDashboardInfo() {
+        if (!currentUser) return;
+
+        // อัปเดตข้อความ
+        document.getElementById('display-name').textContent = currentUser.name;
+        document.getElementById('display-class').textContent = 'ระดับชั้น ' + currentUser.class;
+        document.getElementById('display-level').textContent = currentUser.level;
+        document.getElementById('display-xp').textContent = currentUser.xp;
+        document.getElementById('display-avatar').textContent = currentUser.avatar || '🧙‍♂️';
+
+        // อัปเดต Stats Grid
+        const statScore = document.getElementById('stat-score');
+        const statCoins = document.getElementById('stat-coins');
+        const statRank = document.getElementById('stat-rank');
+        const statLesson = document.getElementById('stat-lesson');
+
+        if (statScore) statScore.textContent = currentUser.xp;
+        if (statCoins) statCoins.textContent = currentUser.coins || 0;
+
+        const statStreak = document.getElementById('stat-streak');
+        if (statStreak) statStreak.textContent = (currentUser.streak || 0) + ' วัน';
+
+        if (typeof fetchDailyQuestStatus === 'function') fetchDailyQuestStatus();
+
+        if (statRank && statLesson) {
+            statRank.textContent = '⏳';
+            statLesson.textContent = '⏳';
+            if (typeof google !== 'undefined') {
+                google.script.run
+                    .withSuccessHandler(function (res) {
+                        if (res.success) {
+                            statRank.textContent = res.sequence !== '-' ? '#' + res.sequence : '-';
+                            statLesson.textContent = res.currentLesson || '-';
+                            statLesson.title = res.currentLesson || '-';
+                        } else {
+                            statRank.textContent = '-';
+                            statLesson.textContent = '-';
+                        }
+                    })
+                    .getUserStats(currentUser.id);
+            } else {
+                statRank.textContent = '#1';
+                statLesson.textContent = 'ด่านที่ 1';
+            }
+        }
+
+        // อัปเดตข้อมูลในหน้าแผนที่ด้วย
+        if (document.getElementById('map-user-level')) {
+            document.getElementById('map-user-level').textContent = 'Level ' + currentUser.level;
+            document.getElementById('map-user-xp').textContent = currentUser.xp + ' XP';
+            document.getElementById('map-avatar').textContent = currentUser.avatar || '🧙‍♂️';
+        }
+
+        // คำนวณความยาวหลอด XP (สมมุติ 1 เวล = 100 XP)
+        let xpPercent = (currentUser.xp % 100) + '%';
+        const xpBar = document.getElementById('xp-bar');
+        if (xpBar) xpBar.style.width = xpPercent;
+
+        // คำนวณ Rank ตามเกณฑ์ใหม่ (0, 300, 600, 1200, 2500, 5000, 10000)
+        if (currentUser.xp >= 10000) currentUser.rank = 'GRANDMASTER';
+        else if (currentUser.xp >= 5000) currentUser.rank = 'MASTER';
+        else if (currentUser.xp >= 2500) currentUser.rank = 'DIAMOND';
+        else if (currentUser.xp >= 1200) currentUser.rank = 'PLATINUM';
+        else if (currentUser.xp >= 600) currentUser.rank = 'GOLD';
+        else if (currentUser.xp >= 300) currentUser.rank = 'SILVER';
+        else currentUser.rank = 'BRONZE';
+
+        const rankEl = document.getElementById('stat-rank');
+        if (rankEl) {
+            rankEl.textContent = currentUser.rank;
+
+            // Optional: เปลี่ยนสีตัวหนังสือตามยศ (ลบคลาสสีเก่าทิ้งแล้วใส่ใหม่)
+            rankEl.className = 'text-[10px] md:text-xs font-black ml-1 relative z-0 flex-1 text-center truncate px-1 ' +
+                (currentUser.rank === 'BRONZE' ? 'text-amber-800' :
+                    currentUser.rank === 'SILVER' ? 'text-slate-600' :
+                        currentUser.rank === 'GOLD' ? 'text-yellow-600' :
+                            currentUser.rank === 'PLATINUM' ? 'text-cyan-600' :
+                                currentUser.rank === 'DIAMOND' ? 'text-fuchsia-600' :
+                                    currentUser.rank === 'MASTER' ? 'text-red-600' : 'text-purple-600');
+        }
+
+        // กรณี UI แบบเก่า อาจจะยังมี display-rank ค้างอยู่ (fallback ป้องกันพัง)
+        const oldRankEl = document.getElementById('display-rank');
+        if (oldRankEl) oldRankEl.textContent = 'ยศ: ' + currentUser.rank;
+    }
+
+    // --> เรนเดอร์ข่าวสารในหน้า Home
+    function renderDashboardNews() {
+        const container = document.getElementById('home-news-container');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        if (!gameNews || gameNews.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-800 font-bold p-8 bg-white/80 rounded-xl shadow-inner border border-gray-200">ขณะนี้ยังไม่มีประกาศใหม่จากสมาคมนักเวท</div>';
+            return;
+        }
+
+        gameNews.forEach(item => {
+            const typeBadge = item.type
+                ? `<span class="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md">${item.type}</span>`
+                : '';
+            const dateStr = item.date ? `<span>📅 อัปเดตเมื่อ: ${item.date}</span>` : '';
+
+            // ถ้ามีคำว่า PATCH ให้เป็นสีเขียว, HOT NEWS สีแดง, default สีคราม
+            let colorTheme = 'indigo';
+            if (item.type && item.type.includes('PATCH')) colorTheme = 'emerald';
+            if (item.type && item.type.includes('HOT')) colorTheme = 'red';
+
+            const html = `
+                <div class="bg-white/95 border-l-[6px] md:border-l-8 border-${colorTheme}-500 rounded-xl shadow-lg relative transform hover:-translate-y-1 transition-transform border-[2px] border-gray-200">
+                    <div class="px-5 py-4">
+                        <h3 class="font-black text-lg md:text-xl text-${colorTheme}-900 mb-2 flex items-center gap-2 drop-shadow-sm">
+                            ${item.icon || '📌'} ${item.title}
+                        </h3>
+                        <p class="text-gray-700 font-bold text-sm md:text-base leading-relaxed mb-3 whitespace-pre-wrap">${item.content}</p>
+                        <div class="flex justify-between items-center text-xs md:text-sm text-gray-500 font-bold border-t border-gray-100 pt-2 mt-2">
+                            ${typeBadge}
+                            ${dateStr}
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += html;
+        });
+    }
+
+</script>

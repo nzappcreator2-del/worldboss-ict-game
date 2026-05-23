@@ -1,0 +1,1283 @@
+<script>
+    // ========== 8. ระบบ Admin Panel ==========
+    window.currentAdminPin = "";
+
+    async function adminLoginPrompt() {
+        const pin = await customPrompt('ผู้ดูแลระบบ กรุณาใส่รหัสลับ (PIN) เพื่อเข้าแคมป์บัญชาการ:', 'ระบุรหัสผ่าน (PIN)', 'password');
+
+        if (pin === null) return; // กด Cancel
+        if (!pin.trim()) {
+            customAlert('กรุณาระบุรหัสผ่าน!', 'warning');
+            return;
+        }
+
+        if (typeof google === 'undefined') {
+            // Mock data สำหรับรันบน Local
+            if (pin === '1234') {
+                customAlert('ยืนยันตัวตนสำเร็จ! ขอต้อนรับท่านผู้ดูแลระบบ (Local)');
+                showPage('admin');
+                swichAdminTab('lessons');
+            } else {
+                customAlert('รหัสลับไม่ถูกต้อง! คุณไม่ได้รับอนุญาตให้ใช้เวทย์มนต์บทนี้', 'error');
+            }
+            return;
+        }
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success && res.isValid) {
+                    window.currentAdminPin = pin;
+                    customAlert('ยืนยันตัวตนสำเร็จ! ขอต้อนรับท่านผู้ดูแลระบบ', 'success');
+                    showPage('admin');
+                    swichAdminTab('lessons'); // เปิดแท็บแรก
+                } else {
+                    customAlert('รหัสลับไม่ถูกต้อง! คุณไม่ได้รับอนุญาตให้ใช้เวทย์มนต์บทนี้', 'error');
+                }
+            })
+            .verifyAdminPin(pin);
+    }
+
+    async function adminLogout() {
+        if (await customConfirm('ท่านแน่ใจหรือไม่ที่จะออกจากระบบการจัดการ?')) {
+            showPage('landing');
+        }
+    }
+
+    function swichAdminTab(tabName) {
+        ['lessons', 'questions', 'students', 'reports', 'settings', 'news'].forEach(t => {
+            const content = document.getElementById('tab-content-' + t);
+            const btn = document.getElementById('tab-btn-' + t);
+            if (content) { content.classList.add('hidden'); content.classList.remove('flex'); }
+            if (btn) { btn.classList.remove('text-indigo-700', 'border-indigo-600', 'bg-white'); btn.classList.add('text-gray-500', 'border-transparent'); }
+        });
+
+        const activeContent = document.getElementById('tab-content-' + tabName);
+        const activeBtn = document.getElementById('tab-btn-' + tabName);
+        if (activeContent) { activeContent.classList.remove('hidden'); activeContent.classList.add('flex'); }
+        if (activeBtn) { activeBtn.classList.remove('text-gray-500', 'border-transparent'); activeBtn.classList.add('text-indigo-700', 'border-indigo-600', 'bg-white'); }
+
+        if (tabName === 'lessons') {
+            loadAdminLessons();
+        } else if (tabName === 'students') {
+            loadAdminStudents();
+        } else if (tabName === 'reports') {
+            populateReportLessonDropdown();
+        } else if (tabName === 'settings') {
+            loadAdminSettings();
+        } else if (tabName === 'news') {
+            loadAdminNews();
+        }
+    }
+
+    // --- จัดการบทเรียน ---
+    let adminLessonsCache = [];
+
+    function loadAdminLessons() {
+        const tbody = document.getElementById('admin-lessons-table-body');
+        tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 font-bold">กำลังโหลดข้อมูลบทเรียน... <span class="animate-spin inline-block">⏳</span></td></tr>';
+
+        if (typeof google === 'undefined') {
+            setTimeout(() => {
+                adminLessonsCache = lessonsData.length ? lessonsData : [{ id: 'L1', title: 'ด่าน 1: ทักทาย', description: 'สวัสดี', icon: '👋', isActive: true }];
+                renderAdminLessonsTable();
+            }, 500);
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler(function (response) {
+                if (response.success) {
+                    adminLessonsCache = response.data;
+                    renderAdminLessonsTable();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-red-500 font-bold">โหลดข้อมูลล้มเหลว: ${response.error}</td></tr>`;
+                }
+            })
+            .getLessons(); // ใช้ร่วมกับ API ของนร.ได้เลย
+    }
+
+    function renderAdminLessonsTable() {
+        const tbody = document.getElementById('admin-lessons-table-body');
+        tbody.innerHTML = '';
+
+        if (!adminLessonsCache || adminLessonsCache.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 font-bold bg-gray-50"><i>ยังไม่มีบทเรียนในระบบ</i></td></tr>';
+            return;
+        }
+
+        adminLessonsCache.forEach((lesson, index) => {
+            const statusBadge = lesson.isActive !== false
+                ? '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold border border-green-200 shadow-sm">เปิดใช้งาน</span>'
+                : '<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold border border-red-200 shadow-sm">ปิดใช้งาน</span>';
+
+            const pretestBadge = lesson.enablePretest
+                ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold border border-blue-200 ml-1">📝 Pre-test</span>'
+                : '';
+
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-indigo-50/50 transition';
+            tr.innerHTML = `
+                <td class="p-4 font-mono text-sm text-gray-600 whitespace-nowrap">${lesson.id}</td>
+                <td class="p-4 font-bold text-gray-800 whitespace-nowrap"><span class="text-xl mr-2">${lesson.icon || '📄'}</span> ${lesson.title}</td>
+                <td class="p-4 text-sm text-gray-500 hidden md:table-cell max-w-xs truncate">${lesson.description}</td>
+                <td class="p-4 text-center whitespace-nowrap">${statusBadge}${pretestBadge}</td>
+                <td class="p-4 text-center whitespace-nowrap">
+                <td class="p-4 text-center whitespace-nowrap">
+                    <div class="flex items-center justify-center gap-2">
+                        <button onclick="editLesson(adminLessonsCache[${index}])" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="แก้ไขข้อมูลบทเรียน">✏️</button>
+                        
+                        <!-- แจ้งจำนวนข้อสอบ -->
+                        <div class="flex flex-col gap-1">
+                            ${lesson.enablePretest ? `<button onclick="openBatchQuestionModal(adminLessonsCache[${index}].id, adminLessonsCache[${index}].title, 'pretest')" class="px-3 py-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg transition" title="จัดการแบบทดสอบก่อนเรียน">📝 Pre-test</button>` : ''}
+                            
+                            <button onclick="openBatchQuestionModal(adminLessonsCache[${index}].id, adminLessonsCache[${index}].title, 'posttest')" class="px-3 py-1.5 text-xs font-bold ${lesson.questionCount > 0 ? 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200 animate-pulse'} border rounded-lg transition" title="จัดการแบบทดสอบหรือบอส">
+                                ⚔️ จัดการข้อสอบ (${lesson.questionCount || 0})
+                            </button>
+                        </div>
+
+                        <!-- ปุ่มลบ -->
+                        <button onclick="deleteLesson(adminLessonsCache[${index}].id)" class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition ml-2" title="ลบบทเรียนนี้">🗑️</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function openLessonModal() {
+        document.getElementById('form-manage-lesson').reset();
+        document.getElementById('lesson-id-input').value = '';
+        document.getElementById('lesson-content-input').value = '';
+        document.getElementById('lesson-worksheet-input').value = '';
+        document.getElementById('modal-lesson-title').textContent = '✨ เพิ่มบทเรียนใหม่';
+        document.getElementById('modal-lesson').classList.remove('hidden');
+        document.getElementById('modal-lesson').classList.add('flex');
+    }
+
+    function closeLessonModal() {
+        document.getElementById('modal-lesson').classList.add('hidden');
+        document.getElementById('modal-lesson').classList.remove('flex');
+    }
+
+    function editLesson(lesson) {
+        document.getElementById('lesson-id-input').value = lesson.id;
+        document.getElementById('lesson-title-input').value = lesson.title;
+        document.getElementById('lesson-desc-input').value = lesson.description;
+        document.getElementById('lesson-content-input').value = lesson.content || '';
+        document.getElementById('lesson-icon-input').value = lesson.icon || '';
+        document.getElementById('lesson-video-input').value = lesson.videoUrl || '';
+        document.getElementById('lesson-worksheet-input').value = lesson.worksheetUrl || '';
+        document.getElementById('lesson-active-input').value = lesson.isActive !== false ? 'true' : 'false';
+        document.getElementById('lesson-pretest-input').checked = lesson.enablePretest === true;
+
+        document.getElementById('modal-lesson-title').innerHTML = '✏️ แก้ไขบทเรียน <span class="text-sm font-normal text-indigo-200 ml-2">(' + lesson.id + ')</span>';
+        document.getElementById('modal-lesson').classList.remove('hidden');
+        document.getElementById('modal-lesson').classList.add('flex');
+    }
+
+    function saveLessonData(event) {
+        event.preventDefault();
+        const btnSubmit = document.querySelector('#form-manage-lesson button[type="submit"]');
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '⏳ กำลังบันทึก...';
+
+        const data = {
+            id: document.getElementById('lesson-id-input').value,
+            title: document.getElementById('lesson-title-input').value.trim(),
+            description: document.getElementById('lesson-desc-input').value.trim(),
+            content: document.getElementById('lesson-content-input').value.trim(),
+            icon: document.getElementById('lesson-icon-input').value.trim(),
+            videoUrl: document.getElementById('lesson-video-input').value.trim(),
+            worksheetUrl: document.getElementById('lesson-worksheet-input').value.trim(),
+            isActive: document.getElementById('lesson-active-input').value === 'true',
+            enablePretest: document.getElementById('lesson-pretest-input').checked
+        };
+
+        if (typeof google === 'undefined') {
+            setTimeout(() => {
+                customAlert('บันทึกสำเร็จ (Mock)');
+                closeLessonModal();
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '💾 บันทึกข้อมูล';
+            }, 500);
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '💾 บันทึกข้อมูล';
+                if (res.success) {
+                    closeLessonModal();
+                    loadAdminLessons(); // โหลดใหม่
+                    lessonsData = []; // บังคับให้โหลด Map ใหม่ตอนกลับไปหน้า Map
+
+                    // จัดการเปิดหน้าข้อสอบต่อ
+                    setTimeout(async () => {
+                        const isNew = !data.id;
+
+                        // 🌟 ถ้าระบบมีข้อสอบ AI รออยู่ ให้เปิดหน้าต่างข้อสอบโดยโยนไปให้ modal จัดการหยอดให้
+                        if (window.tempAIQuizData && window.tempAIQuizData.length > 0) {
+                            customAlert('✨ บันทึกบทเรียนเรียบร้อย! ระบบกำลังเปิดหน้าต่างชุดข้อสอบของ AI ที่เตรียมไว้ให้...', 'success');
+                            openBatchQuestionModal(res.id, data.title, 'posttest');
+                            return;
+                        }
+
+                        // กรณีเซฟปกติ ไม่มี AI ให้แอดมินลุยเอง
+                        const msg = isNew ? `✨ สร้าง "${data.title}" สำเร็จ!\n\nคุณต้องการเข้าไปจัดการ "ข้อสอบ/บอส" สำหรับด่านนี้ต่อเลยหรือไม่?` : `💾 บันทึก "${data.title}" สำเร็จ!\n\nต้องการเข้าไปตรวจดู "ข้อสอบ/บอส" ของด่านนี้ไหม?`;
+
+                        if (await customConfirm(msg, isNew ? 'สร้างสำเร็จ!' : 'บันทึกสำเร็จ!', 'success')) {
+                            // สั่งให้โหลดขึ้นมาเลย (ใช้ res.id ที่ได้กลับมาจากเซิร์ฟเวอร์ เพราะด่านใหม่อาจยังไม่รู้ ID)
+                            openBatchQuestionModal(res.id, data.title, 'posttest');
+                        }
+                    }, 500); // ดีเลย์นิดหน่อยให้ UI เก่าปิดลงก่อน
+                } else {
+                    customAlert('บันทึกผิดพลาด: ' + res.error);
+                }
+            })
+            .saveAdminLesson(data, window.currentAdminPin);
+    }
+
+    async function deleteLesson(lessonId) {
+        if (!await customConfirm('คำเตือน: การลบบทเรียนจะทำให้คำถามทั้งหมดในด่านนี้ถูกลบไปด้วย คุณแน่ใจหรือไม่? (คลิกตกลง เพื่อลบ)')) return;
+
+        if (typeof google === 'undefined') return customAlert('Mode จำลองไม่สามารถลบได้');
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) {
+                    loadAdminLessons();
+                } else customAlert('ลบล้มเหลว: ' + res.error);
+            })
+            .deleteAdminLesson(lessonId, window.currentAdminPin);
+    }
+
+    // --- จัดการคำถาม ---
+    function updateLessonSelects() {
+        const selects = [document.getElementById('admin-filter-lesson-select'), document.getElementById('q-lesson-select')];
+        const defaultText = ['-- ดึงข้อสอบจากด่านทั้งหมด --', '-- โปรดเลือกด่าน --'];
+
+        let optionsHtml = '';
+        adminLessonsCache.forEach(ls => {
+            optionsHtml += `<option value="${ls.id}">${ls.icon || ''} ${ls.title}</option>`;
+        });
+
+        selects.forEach((sel, i) => {
+            if (!sel) return;
+            sel.innerHTML = `<option value="">${defaultText[i]}</option>` + optionsHtml;
+        });
+    }
+
+    // ==========================================
+    // จัดการข้อสอบแบบชุด (Batch Questions)
+    // ==========================================
+
+    function openBatchQuestionModal(lessonId, lessonTitle, type) {
+        document.getElementById('form-manage-question').reset();
+        document.getElementById('q-lesson-id-input').value = lessonId;
+        document.getElementById('q-type-input').value = type;
+
+        const typeLabel = type === 'pretest' ? '📝 แบบทดสอบก่อนเรียน (Pre-test)' : '⚔️ บททดสอบปะทะบอส (Post-test)';
+        document.getElementById('modal-question-title').innerHTML = `${typeLabel}`;
+        document.getElementById('modal-question-subtitle').innerText = `ด่าน: ${lessonTitle}`;
+
+        // เคลียร์ container
+        const container = document.getElementById('questions-container');
+
+        document.getElementById('modal-question').classList.remove('hidden');
+        document.getElementById('modal-question').classList.add('flex');
+
+        // 🌟 ถ้าระบบมีข้อสอบ AI รออยู่ ให้วาดลงฟอร์มเลยโดยไม่ต้องไปดึงของเก่า (ป้องกันข้อมูลเก่าทับ AI)
+        if (window.tempAIQuizData && window.tempAIQuizData.length > 0) {
+            container.innerHTML = '';
+
+            // ให้ Modal Render ขึ้นมาก่อนนิดนึงแล้วค่อยยัด DOM
+            setTimeout(() => {
+                window.tempAIQuizData.forEach((item, index) => {
+                    addQuestionBlock();
+                    const allBlocks = document.querySelectorAll('.q-block');
+                    const lastBlock = allBlocks[allBlocks.length - 1];
+
+                    lastBlock.querySelector('.q-form-text').value = item.text || '';
+                    lastBlock.querySelector('.q-form-opt1').value = item.options[0] || '';
+                    lastBlock.querySelector('.q-form-opt2').value = item.options[1] || '';
+                    lastBlock.querySelector('.q-form-opt3').value = item.options[2] || '';
+                    lastBlock.querySelector('.q-form-opt4').value = item.options[3] || '';
+
+                    const answerIdx = item.answer || 1;
+                    const radios = lastBlock.querySelectorAll('.q-form-ans-radio');
+                    radios.forEach(r => {
+                        if (parseInt(r.value) === answerIdx) r.checked = true;
+                    });
+                    lastBlock.querySelector('.q-form-exp').value = item.explanation || '';
+                });
+                window.tempAIQuizData = null; // ล้างค่าทิ้งเมื่อนำออกมาแสดงแล้ว
+                customAlert('แทรกข้อสอบอัตโนมัติสำเร็จ! กรุณาตรวจสอบแล้วกด "💾 บันทึกข้อมูลทั้งชุด" ที่ด้านล่าง', 'success');
+            }, 200);
+
+            return; // จบการทำงานฟังก์ชัน ไม่ไปโหลด db เดิม
+        }
+
+        container.innerHTML = '<div class="text-center p-8 text-gray-500 font-bold">กำลังโหลดคำถามเดิม... <span class="animate-spin inline-block">⏳</span></div>';
+
+        if (typeof google === 'undefined') {
+            container.innerHTML = '';
+            addQuestionBlock(); // ลองสร้างบล็อคเปล่า 1 อันถ้าไม่มีเน็ต
+            return;
+        }
+
+        // ขอข้อมูลคำถามเดิม
+        google.script.run
+            .withSuccessHandler(function (res) {
+                container.innerHTML = '';
+                if (res.success && res.data && res.data.length > 0) {
+                    res.data.forEach((q, index) => {
+                        addQuestionBlock(q, index + 1);
+                    });
+                } else {
+                    // ถ้ายังไม่มีคำถามเลย สร้างกล่องเปล่าให้ 1 กล่อง
+                    addQuestionBlock();
+                }
+            })
+            .getAdminQuestionsByLessonAndType(lessonId, type, window.currentAdminPin);
+    }
+
+    let globalQuestionCounter = 0; // เอาไว้นับแยก id ให้ input radio
+
+    function addQuestionBlock(existingData = null, forcedIndex = null) {
+        const container = document.getElementById('questions-container');
+        globalQuestionCounter++;
+
+        const qNum = forcedIndex || (container.children.length + 1);
+        const radioName = `q-ans-${globalQuestionCounter}`; // ชื่อต้องไม่ซ้ำกันในแต่ละข้อ
+
+        const div = document.createElement('div');
+        div.className = 'q-block bg-white p-6 rounded-2xl border-2 border-green-100 shadow-sm relative transition-all group';
+
+        // Data extraction
+        const qText = existingData ? existingData.text : '';
+        const op1 = existingData && existingData.options ? existingData.options[0] : '';
+        const op2 = existingData && existingData.options ? existingData.options[1] : '';
+        const op3 = existingData && existingData.options ? existingData.options[2] : '';
+        const op4 = existingData && existingData.options ? existingData.options[3] : '';
+        const exp = existingData ? existingData.explanation : '';
+        const ans = existingData ? parseInt(existingData.answer) : 1;
+
+        div.innerHTML = `
+            <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button type="button" onclick="this.closest('.q-block').remove(); updateQuestionNumbers();" class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition" title="ลบข้อนี้">🗑️ ลบ</button>
+            </div>
+            
+            <h4 class="font-bold text-lg text-emerald-800 mb-4 flex items-center gap-2">
+                <span class="q-number-badge bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg">ข้อที่ ${qNum}</span>
+            </h4>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-bold text-gray-700 mb-1">โจทย์คำถาม <span class="text-red-500">*</span></label>
+                <textarea class="q-form-text w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-lg text-gray-800 bg-gray-50" rows="2" required placeholder="พิมพ์ข้อสอบของคุณที่นี่...">${qText}</textarea>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <!-- Option 1 -->
+                <div>
+                    <label class="block text-sm font-semibold flex items-center justify-between mb-1">
+                        <span class="text-gray-600">ตัวเลือกที่ 1 <span class="text-red-500">*</span></span>
+                        <label class="flex items-center gap-1 cursor-pointer bg-green-50 px-2 py-0.5 rounded border border-green-200 hover:bg-green-100 transition">
+                            <input type="radio" name="${radioName}" value="1" ${ans === 1 ? 'checked' : ''} class="q-form-ans-radio w-4 h-4 text-green-600 focus:ring-green-500 cursor-pointer">
+                            <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
+                        </label>
+                    </label>
+                    <input type="text" class="q-form-opt1 w-full px-4 py-2 border border-blue-200 bg-blue-50/30 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op1}">
+                </div>
+                
+                <!-- Option 2 -->
+                <div>
+                    <label class="block text-sm font-semibold flex items-center justify-between mb-1">
+                        <span class="text-gray-600">ตัวเลือกที่ 2 <span class="text-red-500">*</span></span>
+                        <label class="flex items-center gap-1 cursor-pointer bg-green-50 px-2 py-0.5 rounded border border-green-200 hover:bg-green-100 transition">
+                            <input type="radio" name="${radioName}" value="2" ${ans === 2 ? 'checked' : ''} class="q-form-ans-radio w-4 h-4 text-green-600 focus:ring-green-500 cursor-pointer">
+                            <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
+                        </label>
+                    </label>
+                    <input type="text" class="q-form-opt2 w-full px-4 py-2 border border-green-200 bg-green-50/30 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op2}">
+                </div>
+
+                <!-- Option 3 -->
+                <div>
+                    <label class="block text-sm font-semibold flex items-center justify-between mb-1">
+                        <span class="text-gray-600">ตัวเลือกที่ 3 <span class="text-red-500">*</span></span>
+                        <label class="flex items-center gap-1 cursor-pointer bg-green-50 px-2 py-0.5 rounded border border-green-200 hover:bg-green-100 transition">
+                            <input type="radio" name="${radioName}" value="3" ${ans === 3 ? 'checked' : ''} class="q-form-ans-radio w-4 h-4 text-green-600 focus:ring-green-500 cursor-pointer">
+                            <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
+                        </label>
+                    </label>
+                    <input type="text" class="q-form-opt3 w-full px-4 py-2 border border-purple-200 bg-purple-50/30 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op3}">
+                </div>
+
+                <!-- Option 4 -->
+                <div>
+                    <label class="block text-sm font-semibold flex items-center justify-between mb-1">
+                        <span class="text-gray-600">ตัวเลือกที่ 4 <span class="text-red-500">*</span></span>
+                        <label class="flex items-center gap-1 cursor-pointer bg-green-50 px-2 py-0.5 rounded border border-green-200 hover:bg-green-100 transition">
+                            <input type="radio" name="${radioName}" value="4" ${ans === 4 ? 'checked' : ''} class="q-form-ans-radio w-4 h-4 text-green-600 focus:ring-green-500 cursor-pointer">
+                            <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
+                        </label>
+                    </label>
+                    <input type="text" class="q-form-opt4 w-full px-4 py-2 border border-orange-200 bg-orange-50/30 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op4}">
+                </div>
+            </div>
+            
+            <div class="bg-yellow-50/50 p-3 rounded-xl border border-yellow-200">
+                <label class="block text-xs font-bold text-yellow-800 mb-1">💡 คำอธิบายเฉลย (แสดงเมื่อตอบผิด)</label>
+                <input type="text" class="q-form-exp w-full px-3 py-2 text-sm border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white" placeholder="อธิบายทำไมถึงตอบข้อนี้... (ไม่บังคับ)" value="${exp}">
+            </div>
+        `;
+
+        container.appendChild(div);
+
+        // Scroll to bottom
+        setTimeout(() => {
+            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }, 100);
+    }
+
+    function updateQuestionNumbers() {
+        const blocks = document.querySelectorAll('.q-number-badge');
+        blocks.forEach((badge, index) => {
+            badge.innerText = `ข้อที่ ${index + 1}`;
+        });
+    }
+
+    async function saveBatchQuestionsData(event) {
+        event.preventDefault();
+
+        const lessonId = document.getElementById('q-lesson-id-input').value;
+        const type = document.getElementById('q-type-input').value;
+        const blocks = document.querySelectorAll('.q-block');
+
+        let questionsArray = [];
+
+        // สกัดข้อมูลจากแต่ละ Block
+        for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i];
+            const text = block.querySelector('.q-form-text').value.trim();
+            const opt1 = block.querySelector('.q-form-opt1').value.trim();
+            const opt2 = block.querySelector('.q-form-opt2').value.trim();
+            const opt3 = block.querySelector('.q-form-opt3').value.trim();
+            const opt4 = block.querySelector('.q-form-opt4').value.trim();
+            const exp = block.querySelector('.q-form-exp').value.trim();
+
+            // หา radio ที่ถูกเลือกใน block นี้
+            let ans = 1;
+            const radios = block.querySelectorAll('.q-form-ans-radio');
+            radios.forEach(r => {
+                if (r.checked) ans = parseInt(r.value);
+            });
+
+            // Validate: ไม่ควรอนุญาตถ้าโจทย์ว่าง
+            if (!text || !opt1 || !opt2 || !opt3 || !opt4) {
+                customAlert(`กรุณากรอกข้อมูลให้ครบถ้วนในข้อที่ ${i + 1}`);
+                return;
+            }
+
+            questionsArray.push({
+                text: text,
+                options: [opt1, opt2, opt3, opt4],
+                answer: ans,
+                explanation: exp
+            });
+        }
+
+        // ถ้าไม่มีข้อสอบเลย ควรถามยืนยันว่าต้องการลบทั้งหมดใช่ไหม
+        if (questionsArray.length === 0) {
+            if (!await customConfirm('คุณลบข้อสอบออกทั้งหมด หมายถึงต้องการเคลียร์ชุดข้อสอบนี้ทิ้งใช่หรือไม่?')) return;
+        }
+
+        const btnSubmit = document.querySelector('#form-manage-question button[type="submit"]');
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '⏳ กำลังบันทึกชุดข้อสอบ...';
+
+        if (typeof google === 'undefined') return customAlert('Mock: ' + JSON.stringify(questionsArray));
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '💾 บันทึกข้อมูลทั้งชุด';
+                if (res.success) {
+                    closeQuestionModal();
+                    customAlert('บันทึกชุดข้อสอบสำเร็จ!');
+                } else {
+                    customAlert('บันทึกผิดพลาด: ' + (res.error || 'Unknown error'));
+                }
+            })
+            .saveBatchQuestions(lessonId, type, questionsArray, window.currentAdminPin);
+    }
+
+    function closeQuestionModal() {
+        document.getElementById('modal-question').classList.add('hidden');
+        document.getElementById('modal-question').classList.remove('flex');
+    }
+    // --- จัดการผู้เล่น (Students) ---
+    let globalAdminStudents = [];
+    function loadAdminStudents() {
+        const tbody = document.getElementById('admin-students-table-body');
+        const classFilter = document.getElementById('admin-filter-class-select').value;
+        tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-500 font-bold">กำลังโหลดข้อมูลผู้เล่น... <span class="animate-spin inline-block">⏳</span></td></tr>';
+
+        if (typeof google === 'undefined') return;
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                if (res.success) {
+                    globalAdminStudents = res.data;
+                    updateAdminClassFilterDropdown(res.data, classFilter);
+                    renderAdminStudents(res.data, classFilter);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 font-bold">โหลดข้อมูลล้มเหลว: ${res.error}</td></tr>`;
+                }
+            })
+            .getAdminStudents(window.currentAdminPin);
+    }
+    
+    function updateAdminClassFilterDropdown(students, currentSelection) {
+        const select = document.getElementById('admin-filter-class-select');
+        if (!select) return;
+        
+        let uniqueClasses = [...new Set(students.map(s => s.class))].filter(c => c);
+        // เรียงลำดับตัวอักษร
+        uniqueClasses.sort();
+        
+        let html = '<option value="">ทุกชั้นเรียน</option>';
+        uniqueClasses.forEach(c => {
+            html += `<option value="${c}" ${c === currentSelection ? 'selected' : ''}>${c}</option>`;
+        });
+        select.innerHTML = html;
+    }
+
+    function renderAdminStudents(students, classFilter) {
+        const tbody = document.getElementById('admin-students-table-body');
+        tbody.innerHTML = '';
+
+        // กรองตามชั้นเรียน
+        let filtered = students;
+        if (classFilter) {
+            filtered = students.filter(s => s.class === classFilter);
+        }
+
+        if (!filtered || filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-500 font-bold bg-gray-50"><i>ไม่พบข้อมูลผู้เล่น</i></td></tr>';
+            return;
+        }
+
+        // สร้างสีสำหรับ Rank
+        const rankColors = {
+            'BRONZE': 'bg-amber-100 text-amber-700 border-amber-300',
+            'SILVER': 'bg-gray-200 text-gray-700 border-gray-400',
+            'GOLD': 'bg-yellow-100 text-yellow-700 border-yellow-400',
+            'PLATINUM': 'bg-cyan-100 text-cyan-700 border-cyan-400',
+            'DIAMOND': 'bg-blue-100 text-blue-700 border-blue-400',
+            'MASTER': 'bg-purple-100 text-purple-700 border-purple-400',
+            'GRANDMASTER': 'bg-gradient-to-r from-red-100 to-yellow-100 text-red-700 border-red-400'
+        };
+
+        filtered.forEach(s => {
+            const rankStyle = rankColors[s.rank] || 'bg-gray-100 text-gray-600';
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-purple-50/50 transition';
+            tr.innerHTML = `
+                <td class="p-4 text-center text-2xl">${s.avatar || '🧙‍♂️'}</td>
+                <td class="p-4 font-bold text-gray-800">${s.name}</td>
+                <td class="p-4 text-gray-600">${s.class}</td>
+                <td class="p-4 text-center font-mono font-bold text-indigo-600">${s.xp || 0}</td>
+                <td class="p-4 text-center"><span class="px-2 py-1 text-xs font-bold rounded-full border ${rankStyle}">${s.rank || 'BRONZE'}</span></td>
+                <td class="p-4 text-center font-bold">${s.level || 1}</td>
+                <td class="p-4 text-center text-sm font-semibold text-teal-600">${s.currentLesson || '-'}</td>
+                <td class="p-4 text-center whitespace-nowrap">
+                    <button onclick='analyzeStudentAI(${JSON.stringify(s).replace(/'/g, "&apos;")})' class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition mr-1" title="วิเคราะห์ผู้เรียนด้วย AI">🤖</button>
+                    <button onclick="resetStudentXP('${s.id}')" class="p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition mr-1" title="รีเซ็ต XP">🔄</button>
+                    <button onclick="deleteStudent('${s.id}')" class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบผู้เล่น">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function resetStudentXP(userId) {
+        if (!await customConfirm('เตือน: จะรีเซ็ต XP, Level, Rank ของผู้เล่นนี้กลับเป็น 0 คุณแน่ใจหรือไม่?')) return;
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) loadAdminStudents();
+                else customAlert('รีเซ็ตล้มเหลว: ' + res.error);
+            })
+            .resetStudentData(userId, window.currentAdminPin);
+    }
+
+    async function deleteStudent(userId) {
+        if (!await customConfirm('⚠️ คำเตือน: จะลบผู้เล่นนี้ออกจากระบบถาวร รวมถึงข้อมูลความก้าวหน้าทั้งหมด คุณแน่ใจหรือไม่?')) return;
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) loadAdminStudents();
+                else customAlert('ลบล้มเหลว: ' + res.error);
+            })
+            .deleteStudentData(userId, window.currentAdminPin);
+    }
+
+    async function analyzeStudentAI(studentData) {
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) {
+                    Swal.fire({
+                        title: '🤖 บทวิเคราะห์ผู้เรียนโดย AI',
+                        html: `<div class="text-left text-sm text-gray-700 w-full leading-relaxed space-y-4 font-prompt break-words">
+                                ${marked.parse((res.answer || res.content).replace(/</g, "&lt;").replace(/>/g, "&gt;")).replace(/<a/g, '<a target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline"')}
+                               </div>`,
+                        icon: 'info',
+                        width: '600px',
+                        confirmButtonText: 'รับทราบ',
+                        confirmButtonColor: '#4f46e5'
+                    });
+                } else {
+                    customAlert('วิเคราะห์ผิดพลาด:\n' + translateAIError(res.error), 'error');
+                }
+            })
+            .withFailureHandler(function (err) {
+                hideLoader();
+                customAlert('การเชื่อมต่อล้มเหลว: ' + err, 'error');
+            })
+            .generateAIProgressReport(studentData, 'teacher', window.currentAdminPin);
+    }
+
+    async function resetAllStudents() {
+        const classFilter = document.getElementById('admin-filter-class-select').value;
+        const target = classFilter ? ('ชั้น ' + classFilter) : 'ทุกคน';
+
+        if (!await customConfirm('⚠️ คำเตือนร้ายแรง!\n\nกำลังจะรีเซ็ต XP, Level, Rank ของผู้เล่น' + target + 'กลับเป็น 0 ทั้งหมด\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้! คุณแน่ใจหรือไม่?')) return;
+        if (!await customConfirm('ยืนยันอีกครั้ง: ต้องการรีเซ็ต XP ของผู้เล่น' + target + 'จริงๆ ใช่ไหม?', 'ถามซ้ำอีกที', 'question')) return;
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) {
+                    customAlert('✅ รีเซ็ตข้อมูลผู้เล่น' + target + 'สำเร็จ จำนวน ' + (res.count || 0) + ' คน');
+                    loadAdminStudents();
+                } else customAlert('รีเซ็ตล้มเหลว: ' + res.error);
+            })
+            .resetAllStudentData(classFilter, window.currentAdminPin);
+    }
+
+    // ========== 11. Admin Settings ==========
+    function renderClassDropdown(classesString, roomsString) {
+        const select = document.getElementById('student-class');
+        const roomSelect = document.getElementById('student-room');
+        const roomContainer = document.getElementById('student-room-container');
+        
+        if (select) {
+            // แยก string ที่คั่นด้วยลูกน้ำ และตัดช่องว่างซ้ายขวา
+            const classes = classesString ? classesString.split(',').map(c => c.trim()).filter(c => c) : ['ป.4', 'ป.5', 'ป.6'];
+
+            let html = '<option value="" disabled selected>เลือกระดับชั้นเรียนก่อน...</option>';
+            classes.forEach(c => {
+                html += `<option value="${c}">${c}</option>`;
+            });
+            select.innerHTML = html;
+        }
+
+        if (roomSelect && roomContainer) {
+            const rooms = roomsString ? roomsString.split(',').map(r => r.trim()).filter(r => r) : [];
+            if (rooms.length > 0) {
+                let html = '<option value="" selected>ไม่มีห้อง (ทุกห้อง)</option>';
+                rooms.forEach(r => {
+                    html += `<option value="${r}">${r}</option>`;
+                });
+                roomSelect.innerHTML = html;
+                roomContainer.classList.remove('hidden');
+            } else {
+                roomContainer.classList.add('hidden');
+                roomSelect.innerHTML = '<option value="" disabled selected>เลือกห้องเรียน...</option>';
+            }
+        }
+    }
+
+    function loadAdminSettings() {
+        const timerInput = document.getElementById('settings-timer');
+        if (timerInput) {
+            timerInput.value = gameSettings.TimerPerQuestion || 30;
+        }
+        const pinInput = document.getElementById('settings-admin-pin');
+        if (pinInput) {
+            pinInput.value = gameSettings.AdminPIN || '1234';
+        }
+        const classesInput = document.getElementById('settings-classes');
+        if (classesInput) {
+            classesInput.value = gameSettings.Classes || 'ป.4,ป.5,ป.6';
+        }
+        const roomsInput = document.getElementById('settings-rooms');
+        if (roomsInput) {
+            roomsInput.value = gameSettings.Rooms || '1, 2, 3';
+        }
+        const certHeaderInput = document.getElementById('settings-cert-header');
+        if (certHeaderInput) {
+            certHeaderInput.value = gameSettings.CertHeader || '';
+        }
+        const certFooterInput = document.getElementById('settings-cert-footer');
+        if (certFooterInput) {
+            certFooterInput.value = gameSettings.CertFooter || '';
+        }
+        const geminiInput = document.getElementById('settings-geminikey');
+        if (geminiInput) {
+            geminiInput.value = gameSettings.GeminiAPIKey || '';
+        }
+    }
+
+    function adminSaveSettings() {
+        const timerVal = parseInt(document.getElementById('settings-timer').value) || 30;
+        const pinVal = document.getElementById('settings-admin-pin').value.trim() || '1234';
+        const classesVal = document.getElementById('settings-classes').value.trim() || 'ป.4,ป.5,ป.6';
+        const roomsVal = document.getElementById('settings-rooms').value.trim() || '';
+        const headerVal = document.getElementById('settings-cert-header').value.trim();
+        const footerVal = document.getElementById('settings-cert-footer').value.trim();
+        const geminiVal = document.getElementById('settings-geminikey').value.trim();
+
+        if (typeof google === 'undefined') {
+            gameSettings.TimerPerQuestion = timerVal;
+            gameSettings.AdminPIN = pinVal;
+            gameSettings.Classes = classesVal;
+            gameSettings.Rooms = roomsVal;
+            gameSettings.CertHeader = headerVal;
+            gameSettings.CertFooter = footerVal;
+            gameSettings.GeminiAPIKey = geminiVal;
+            customAlert('บันทึกสำเร็จ (Mock) — Timer: ' + timerVal + ' วินาที/ข้อ\nClasses: ' + classesVal);
+            renderClassDropdown(classesVal, roomsVal);
+            return;
+        }
+
+        showLoader();
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) {
+                    gameSettings.TimerPerQuestion = timerVal;
+                    gameSettings.AdminPIN = pinVal;
+                    gameSettings.Classes = classesVal;
+                    gameSettings.Rooms = roomsVal;
+                    gameSettings.CertHeader = headerVal;
+                    gameSettings.CertFooter = footerVal;
+                    gameSettings.GeminiAPIKey = geminiVal;
+                    customAlert('✅ บันทึกการตั้งค่าสำเร็จ!\nรหัส PIN ของแอดมินถูกบันทึกแล้ว');
+                    renderClassDropdown(classesVal, roomsVal);
+                } else {
+                    customAlert('บันทึกล้มเหลว: ' + res.error);
+                }
+            })
+            .saveSettings({
+                TimerPerQuestion: String(timerVal),
+                AdminPIN: pinVal,
+                Classes: classesVal,
+                Rooms: roomsVal,
+                CertHeader: headerVal,
+                CertFooter: footerVal,
+                GeminiAPIKey: geminiVal
+            }, window.currentAdminPin);
+    }
+
+    // --- จัดการข่าวสาร (News & Announcements) ---
+    let adminNewsCache = [];
+
+    function loadAdminNews() {
+        const tbody = document.getElementById('admin-news-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-500 font-bold">กำลังโหลดข้อมูลข่าวสาร... <span class="animate-spin inline-block">⏳</span></td></tr>';
+
+        if (typeof google === 'undefined') {
+            setTimeout(() => {
+                adminNewsCache = [{ id: 'N1', icon: '📌', type: 'HOT NEWS🔥', title: 'อัปเดตระบบ', content: 'ทดสอบ', date: 'วันนี้', isActive: true }];
+                renderAdminNewsTable();
+            }, 500);
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler(function (response) {
+                if (response.success) {
+                    adminNewsCache = response.data;
+                    renderAdminNewsTable();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">โหลดข้อมูลล้มเหลว: ${response.error}</td></tr>`;
+                }
+            })
+            .withFailureHandler(function (error) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">เซิร์ฟเวอร์ตอบสนองผิดพลาด: ${error.message || error}</td></tr>`;
+            })
+            .getAllNewsAdmin(window.currentAdminPin);
+    }
+
+    function renderAdminNewsTable() {
+        const tbody = document.getElementById('admin-news-table-body');
+        tbody.innerHTML = '';
+
+        if (!adminNewsCache || adminNewsCache.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-500 font-bold bg-gray-50"><i>ยังไม่มีประกาศในระบบ</i></td></tr>';
+            return;
+        }
+
+        adminNewsCache.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-blue-50 transition-colors duration-150';
+
+            const activeBadge = item.isActive
+                ? '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold border border-green-200">🟢 เปิดใช้งาน</span>'
+                : '<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold border border-red-200">🔴 ซ่อน</span>';
+
+            tr.innerHTML = `
+                <td class="p-4 font-mono text-sm text-gray-500">${item.id}</td>
+                <td class="p-4">
+                    <div class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                        <span class="text-2xl">${item.icon || '📌'}</span> ${item.title}
+                    </div>
+                </td>
+                <td class="p-4 hidden md:table-cell text-sm font-bold text-gray-600">${item.type || '-'}</td>
+                <td class="p-4 text-center font-bold text-sm text-indigo-600">${item.date || '-'}</td>
+                <td class="p-4 text-center">${activeBadge}</td>
+                <td class="p-4 text-center">
+                    <div class="flex items-center justify-center gap-2">
+                        <button onclick="editNews('${item.id}')" class="p-2 text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-lg transition" title="แก้ไข">✏️</button>
+                        <button onclick="deleteNews('${item.id}')" class="p-2 text-red-600 bg-red-100 hover:bg-red-200 rounded-lg transition" title="ลบ">🗑️</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function openNewsModal() {
+        document.getElementById('form-manage-news').reset();
+        document.getElementById('news-id-input').value = '';
+        document.getElementById('modal-news-title').innerHTML = '📢 สร้างประกาศใหม่';
+        document.getElementById('modal-news').classList.remove('hidden');
+    }
+
+    function closeNewsModal() {
+        document.getElementById('modal-news').classList.add('hidden');
+    }
+
+    function editNews(id) {
+        const item = adminNewsCache.find(n => n.id == id);
+        if (!item) return;
+
+        document.getElementById('news-id-input').value = item.id;
+        document.getElementById('news-title-input').value = item.title || '';
+        document.getElementById('news-content-input').value = item.content || '';
+        document.getElementById('news-icon-input').value = item.icon || '📌';
+        document.getElementById('news-type-input').value = item.type || 'NEWS';
+        document.getElementById('news-date-input').value = item.date || '';
+        document.getElementById('news-active-input').value = String(item.isActive);
+
+        document.getElementById('modal-news-title').innerHTML = '✏️ แก้ไขประกาศข่าวสาร';
+        document.getElementById('modal-news').classList.remove('hidden');
+    }
+
+    async function deleteNews(id) {
+        if (await customConfirm('ต้องการลบประกาศนี้ใช่หรือไม่? ข้อมูลจะถูกลบถาวร', 'danger')) {
+            showLoader();
+            if (typeof google === 'undefined') {
+                hideLoader();
+                adminNewsCache = adminNewsCache.filter(n => n.id != id);
+                renderAdminNewsTable();
+                customAlert('ลบสำเร็จ (Mock)');
+                return;
+            }
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    hideLoader();
+                    if (response.success) {
+                        customAlert(response.message, 'success');
+                        loadAdminNews();
+                    } else {
+                        customAlert('ลบไม่สำเร็จ: ' + response.error, 'error');
+                    }
+                })
+                .withFailureHandler(function (error) {
+                    hideLoader();
+                    customAlert('ลบล้มเหลว (Server Error): ' + (error.message || error), 'error');
+                })
+                .deleteNewsItem(id, window.currentAdminPin);
+        }
+    }
+
+    function saveNewsData(e) {
+        e.preventDefault();
+
+        const id = document.getElementById('news-id-input').value;
+        const title = document.getElementById('news-title-input').value.trim();
+        const content = document.getElementById('news-content-input').value.trim();
+        const icon = document.getElementById('news-icon-input').value.trim();
+        const type = document.getElementById('news-type-input').value.trim();
+        const date = document.getElementById('news-date-input').value.trim();
+        const isActive = document.getElementById('news-active-input').value === 'true';
+
+        const newsData = { id, title, content, icon, type, date, isActive };
+
+        closeNewsModal();
+        showLoader();
+
+        if (typeof google === 'undefined') {
+            hideLoader();
+            customAlert('บันทึกสำเร็จ (Mock)');
+            loadAdminNews();
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler(function (response) {
+                hideLoader();
+                if (response.success) {
+                    customAlert(response.message, 'success');
+                    loadAdminNews();
+                } else {
+                    customAlert('บันทึกไม่สำเร็จ: ' + response.error, 'error');
+                }
+            })
+            .withFailureHandler(function (error) {
+                hideLoader();
+                customAlert('บันทึกล้มเหลว (Server Error): ' + (error.message || error), 'error');
+            })
+            .saveNewsItem(newsData, window.currentAdminPin);
+    }
+
+    // ==========================================
+    // ฟอร์ม AI Generator (Phase 2 - Single Click)
+    // ==========================================
+
+    function openAIGeneratorModal() {
+        // เช็คว่ากรอกชื่อด่านมาหรือยัง ถ้ากรอกแล้วให้ยืมมาใส่ใน AI Topic เลยเพื่อความไว
+        const lessonTitleInput = document.getElementById('lesson-title-input').value.trim();
+        const aiTopicInput = document.getElementById('ai-topic-input');
+
+        if (lessonTitleInput !== '') {
+            aiTopicInput.value = lessonTitleInput;
+        } else {
+            aiTopicInput.value = '';
+        }
+
+        document.getElementById('ai-questions-input').value = "5"; // Default 5 ข้อ
+        document.getElementById('modal-ai-generator').classList.remove('hidden');
+    }
+
+    async function executeAIGeneration() {
+        const topic = document.getElementById('ai-topic-input').value.trim();
+        const numQuestions = parseInt(document.getElementById('ai-questions-input').value);
+
+        if (!topic) {
+            customAlert('กรุณาระบุหัวข้อที่ต้องการให้ AI สร้างเนื้อหาก่อนครับ', 'warning');
+            return;
+        }
+
+        const confirmMsg = numQuestions > 0
+            ? `ให้ AI สรุปเนื้อหา และสร้างแบบทดสอบ ${numQuestions} ข้อ\nเรื่อง: "${topic}"\n\nกระบวนการนี้อาจใช้เวลา 5-15 วินาที ยืนยันหรือไม่?`
+            : `ให้ AI สรุปเนื้อหาอย่างเดียว\nเรื่อง: "${topic}"\n\nยืนยันหรือไม่?`;
+
+        if (!await customConfirm(confirmMsg)) return;
+
+        // ปิด Modal ให้ผู้ใช้เห็น Loading
+        document.getElementById('modal-ai-generator').classList.add('hidden');
+        showLoader();
+
+        // ฝั่ง Mock System (เผื่อกดยกเลิกสิทธิ์ API)
+        if (typeof google === 'undefined') {
+            setTimeout(async () => {
+                hideLoader();
+                const mockContent = "นี่คือเนื้อหาจำลองของ: " + topic;
+                document.getElementById('lesson-content-input').value = mockContent;
+                customAlert('สร้างเนื้อหา (Mock) สำเร็จ');
+            }, 1000);
+            return;
+        }
+
+        // ยิง Request จริง
+        google.script.run
+            .withSuccessHandler(async function (res) {
+                hideLoader();
+                if (res.success) {
+                    const data = res.data;
+
+                    // 1. นำเนื้อหาบทเรียนไปใส่ในแบบฟอร์มเพิ่มบทเรียน
+                    const contentField = document.getElementById('lesson-content-input');
+                    if (contentField.value.trim() !== '') {
+                        contentField.value += '\n\n---\n\n' + (data.lessonContent || '');
+                    } else {
+                        contentField.value = data.lessonContent || '';
+                    }
+
+                    customAlert('✨ AI เขียนเนื้อหาเสร็จเรียบร้อยแล้ว!', 'success');
+
+                    // 2. ถามความสมัครใจว่าต้องการแทรกข้อสอบที่สร้างด้วยเลยไหม (ถ้าสั่งให้สร้าง)
+                    if (numQuestions > 0 && data.quizContent && data.quizContent.length > 0) {
+                        const wantToInjectQuiz = await customConfirm(`AI ได้เตรียมแบบทดสอบไว้ ${data.quizContent.length} ข้อ คุณต้องการรับมาใส่ในด่านนี้เลยหรือไม่?`, 'สำเร็จ!', 'question');
+
+                        // สมมติผู้ใช้กด OK
+                        if (wantToInjectQuiz) {
+                            // ต้องแอบเซฟ Lesson นี้เพื่อให้ได้ Lesson ID มาผูกกับโจทย์ (ถ้ายังไม่เคยเซฟอาจจะไม่มี ID)
+                            // ในระบบเดิมหน้า Batch Questions ใช้ 'q-lesson-id-input' รั้ง ID ไว้
+                            const currentLessonId = document.getElementById('lesson-id-input').value;
+
+                            if (!currentLessonId) {
+                                customAlert('ระบบจะจำข้อสอบไว้ให้ แต่คุณต้องกด "💾 บันทึกข้อมูล" บทเรียนนี้ให้มีไอดีเสียก่อน ถึงจะเข้าไปจัดการแทรกข้อสอบได้', 'warning');
+                                // ตัวแปร Global ซ่อนเพื่อรอเซฟ
+                                window.tempAIQuizData = data.quizContent;
+                                return;
+                            }
+
+                            // กรณีบทเรียนมี ID อยู่แล้ว สั่งเปิดหน้าต่างข้อสอบโดยฝากค่าให้ modal จัดการต่อ
+                            window.tempAIQuizData = data.quizContent;
+                            const title = document.getElementById('lesson-title-input').value || 'บทเรียนเสกด้วย AI';
+                            openBatchQuestionModal(currentLessonId, title, 'posttest');
+                        }
+                    }
+
+                } else {
+                    customAlert('❌ ' + translateAIError(res.error), 'error');
+                }
+            })
+            .withFailureHandler(function (error) {
+                hideLoader();
+                customAlert('ไม่สามารถติดต่อ Server ได้: ' + error.message, 'error');
+            })
+            .generateLessonAndQuizWithGemini(topic, numQuestions, window.currentAdminPin);
+    }
+
+    // ==========================================
+    // สำหรับหน้าต่าง จัดการชุดข้อสอบ (Batch) โดยเฉพาะ
+    // ==========================================
+    async function generateQuizWithAI() {
+        const lessonId = document.getElementById('q-lesson-id-input').value;
+        const lessonObj = adminLessonsCache.find(l => l.id == lessonId);
+
+        let contextTopic = lessonObj ? lessonObj.title : 'ทั่วไป';
+
+        const userInput = prompt(`กรุณาระบุหัวข้อคำถาม หรือ ปล่อยว่างไว้เพื่อใช้ชื่อด่าน\n(หัวข้อตั้งต้น: ${contextTopic})`);
+
+        // ถ้ากดยกเลิก
+        if (userInput === null) return;
+
+        // ถ้าพิมพ์อะไรมา ให้ใช้ตัวนั้น
+        if (userInput.trim() !== '') {
+            contextTopic = userInput.trim();
+        }
+
+        if (!await customConfirm(`ต้องการให้ AI สร้างข้อสอบ 4 ตัวเลือก จำนวน 5 ข้อ\nเรื่อง: ${contextTopic} ใช่หรือไม่?`)) return;
+
+        // เช็คว่ามีข้อเก่าอยู่ไหม
+        const container = document.getElementById('questions-container');
+        if (container.children.length > 0) {
+            if (!await customConfirm(`พบคำถามที่กำลังสร้างอยู่บนหน้าจอ คุณต้องการล้างค่าแล้วให้ AI วาดทับใหม่หรือไม่?`, 'warning')) return;
+        }
+
+        showLoader();
+
+        // ไปยืมฟังก์ชันของรอบนี้มาประยุกต์ โดยสั่งเอาบทเรียน 0 กล่อง เพื่อให้รันเฉพาะข้อสอบ 5 ข้อ
+        google.script.run
+            .withSuccessHandler(function (res) {
+                hideLoader();
+                if (res.success) {
+                    // เคลียร์หน้าจอ
+                    container.innerHTML = '';
+                    const quizData = res.data.quizContent;
+
+                    if (!quizData || quizData.length === 0) {
+                        customAlert('AI ไม่ได้ตอบกลับข้อสอบมาให้ ให้ลองใหม่อีกครั้ง', 'warning');
+                        return;
+                    }
+
+                    // วนลูปวาดกล่องคำถาม
+                    quizData.forEach((item, index) => {
+                        addQuestionBlock(); // วาดกล่องเปล่าขึ้นมาก่อน 1 กล่อง
+
+                        const allBlocks = document.querySelectorAll('.q-block');
+                        const lastBlock = allBlocks[allBlocks.length - 1];
+
+                        lastBlock.querySelector('.q-form-text').value = item.text || '';
+                        lastBlock.querySelector('.q-form-opt1').value = item.options[0] || '';
+                        lastBlock.querySelector('.q-form-opt2').value = item.options[1] || '';
+                        lastBlock.querySelector('.q-form-opt3').value = item.options[2] || '';
+                        lastBlock.querySelector('.q-form-opt4').value = item.options[3] || '';
+
+                        const answerIdx = item.answer || 1;
+                        const radios = lastBlock.querySelectorAll('.q-form-ans-radio');
+                        radios.forEach(r => {
+                            if (parseInt(r.value) === answerIdx) r.checked = true;
+                        });
+
+                        lastBlock.querySelector('.q-form-exp').value = item.explanation || '';
+                    });
+
+                    customAlert('✨ AI ส่งชุดข้อสอบมาให้แล้ว อย่าลืมกดบันทึกเพื่อจัดเก็บลงระบบด้วยล่ะ!', 'success');
+                } else {
+                    customAlert('❌ ' + translateAIError(res.error), 'error');
+                }
+            })
+            .withFailureHandler(function (error) {
+                hideLoader();
+                customAlert('ไม่สามารถติดต่อ Server ได้', 'error');
+            })
+            .generateLessonAndQuizWithGemini(contextTopic, 5, window.currentAdminPin); // สั่งเนื้อหากับข้อสอบ 5 ข้อ
+    }
+
+    // ==========================================
+    // ระบบรายงานผลสอบ (Exam Reports)
+    // ==========================================
+    let adminReportsCache = [];
+
+    function populateReportLessonDropdown() {
+        const select = document.getElementById('admin-report-lesson-select');
+        if (!select) return;
+
+        // ใช้ข้อมูลบทเรียนจาก cache ถ้ามี
+        if (adminLessonsCache && adminLessonsCache.length > 0) {
+            let html = '<option value="">-- เลือกบทเรียน --</option>';
+            adminLessonsCache.forEach(l => {
+                html += `<option value="${l.id}">${l.icon || '📘'} ${l.title}</option>`;
+            });
+            select.innerHTML = html;
+            return;
+        }
+
+        // ถ้ายังไม่มีให้โหลดใหม่
+        if (typeof google === 'undefined') return;
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                if (res.success) {
+                    adminLessonsCache = res.data;
+                    let html = '<option value="">-- เลือกบทเรียน --</option>';
+                    res.data.forEach(l => {
+                        html += `<option value="${l.id}">${l.icon || '📘'} ${l.title}</option>`;
+                    });
+                    select.innerHTML = html;
+                }
+            })
+            .getAdminLessons(window.currentAdminPin);
+    }
+
+    function loadAdminReports() {
+        const lessonId = document.getElementById('admin-report-lesson-select').value;
+        const tbody = document.getElementById('admin-reports-table-body');
+        const summary = document.getElementById('admin-report-summary');
+
+        if (!lessonId) {
+            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 font-bold bg-gray-50"><i>ยังไม่ได้เลือกบทเรียน</i></td></tr>';
+            summary.textContent = 'กรุณาเลือกบทเรียนเพื่อดูรายงานผลสอบ';
+            adminReportsCache = [];
+            return;
+        }
+
+        tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 font-bold">กำลังโหลดรายงาน... <span class="animate-spin inline-block">⏳</span></td></tr>';
+        summary.textContent = 'กำลังโหลด...';
+
+        if (typeof google === 'undefined') {
+            setTimeout(() => {
+                const mockData = [
+                    { timestamp: '2026-04-18 10:30', name: 'สมชาย', class: 'ป.5/1', totalQuestions: 10, score: 8 },
+                    { timestamp: '2026-04-18 10:45', name: 'สมหญิง', class: 'ป.4/2', totalQuestions: 10, score: 6 }
+                ];
+                adminReportsCache = mockData;
+                renderAdminReports(mockData);
+            }, 500);
+            return;
+        }
+
+        google.script.run
+            .withSuccessHandler(function (res) {
+                if (res.success) {
+                    adminReportsCache = res.data || [];
+                    renderAdminReports(res.data || []);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-red-500 font-bold">โหลดรายงานล้มเหลว: ${res.error}</td></tr>`;
+                    summary.textContent = 'เกิดข้อผิดพลาด';
+                }
+            })
+            .withFailureHandler(function (err) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-red-500 font-bold">เซิร์ฟเวอร์ตอบสนองผิดพลาด</td></tr>`;
+                summary.textContent = 'เกิดข้อผิดพลาด';
+            })
+            .getExamReports(lessonId, window.currentAdminPin);
+    }
+
+    function renderAdminReports(data) {
+        const tbody = document.getElementById('admin-reports-table-body');
+        const summary = document.getElementById('admin-report-summary');
+        tbody.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500 font-bold bg-gray-50"><i>ไม่พบข้อมูลผลสอบของบทเรียนนี้</i></td></tr>';
+            summary.textContent = 'ไม่พบข้อมูล';
+            return;
+        }
+
+        // คำนวณสถิติ
+        const totalStudents = data.length;
+        const avgScore = (data.reduce((sum, d) => sum + (d.score || 0), 0) / totalStudents).toFixed(1);
+        const maxScore = Math.max(...data.map(d => d.score || 0));
+        summary.innerHTML = `📌 พบ <b>${totalStudents}</b> รายการ | คะแนนเฉลี่ย <b>${avgScore}</b> | คะแนนสูงสุด <b>${maxScore}</b>`;
+
+        data.forEach(d => {
+            const pct = d.totalQuestions > 0 ? Math.round((d.score / d.totalQuestions) * 100) : 0;
+            const pctColor = pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600';
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-indigo-50/50 transition';
+            tr.innerHTML = `
+                <td class="p-4 text-sm text-gray-500 font-mono whitespace-nowrap">${d.timestamp || '-'}</td>
+                <td class="p-4 font-bold text-gray-800">${d.name || '-'}</td>
+                <td class="p-4 text-center text-gray-600">${d.class || '-'}</td>
+                <td class="p-4 text-center font-bold text-green-700">${d.totalQuestions || 0}</td>
+                <td class="p-4 text-center font-bold ${pctColor}">${d.score || 0} <span class="text-xs text-gray-400">(${pct}%)</span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function downloadReportCSV() {
+        if (!adminReportsCache || adminReportsCache.length === 0) {
+            customAlert('ยังไม่มีข้อมูลให้ดาวน์โหลด กรุณาเลือกบทเรียนก่อน', 'warning');
+            return;
+        }
+
+        // สร้าง CSV พร้อม BOM สำหรับ UTF-8
+        const BOM = '\uFEFF';
+        let csv = BOM + 'เวลาที่ส่ง,ชื่อผู้เรียน,ชั้น/ห้องเรียน,คะแนนเต็ม,คะแนนที่ได้,เปอร์เซ็นต์\n';
+
+        adminReportsCache.forEach(d => {
+            const pct = d.totalQuestions > 0 ? Math.round((d.score / d.totalQuestions) * 100) : 0;
+            csv += `"${d.timestamp || ''}","${d.name || ''}","${d.class || ''}",${d.totalQuestions || 0},${d.score || 0},${pct}%\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        // ดึงชื่อบทเรียนจาก dropdown
+        const selectEl = document.getElementById('admin-report-lesson-select');
+        const lessonLabel = selectEl.options[selectEl.selectedIndex].text || 'report';
+        
+        link.href = url;
+        link.download = `รายงานผลสอบ_${lessonLabel.replace(/[^a-zA-Zก-๙0-9]/g, '_')}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+
+        customAlert('✅ ดาวน์โหลดไฟล์ CSV สำเร็จ!', 'success');
+    }
+
+</script>

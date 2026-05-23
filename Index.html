@@ -1,0 +1,2415 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextGen Play - RPG Learning Game</title>
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&family=Prompt:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- SweetAlert2 (สำหรับ Popup แจ้งเตือนสไตล์เกม) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Marked.js สำหรับแปลง Markdown เป็น HTML -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- MediaPipe Pose and Camera utilities for AI detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <!-- ดึงไฟล์ CSS ที่เราสร้างแยกไว้ -->
+    <?!= include('CSS'); ?>
+</head>
+
+<body class="bg-fantasy font-prompt h-screen w-screen relative overflow-hidden text-gray-800">
+
+    <!-- ฉากหลังภาพดั้งเดิม (สำหรับหน้า Login) -->
+    <div id="login-bg-layer"
+        class="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 pointer-events-none">
+    </div>
+
+    <!-- ฉากหลังฐานบัญชาการ (สำหรับหน้า Dashboard) -->
+    <div id="dashboard-bg-layer"
+        class="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 pointer-events-none opacity-0">
+    </div>
+
+    <!-- ฉากหลังแผนที่ผจญภัย (สำหรับหน้า Map) -->
+    <div id="map-bg-layer"
+        class="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 pointer-events-none opacity-0"
+        style="background-image: url('https://i.postimg.cc/FFTrYGRw/hn-ale-xkmap.png');"></div>
+
+    <!-- ฉากหลังศึกปะทะบอส (สำหรับหน้า Boss Battle) -->
+    <div id="boss-battle-bg-layer"
+        class="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 pointer-events-none opacity-0">
+    </div>
+
+    <!-- ฉากหลังหน้าอ่านบทเรียน (สำหรับหน้า Lesson) -->
+    <div id="lesson-bg-layer"
+        class="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 pointer-events-none opacity-0">
+    </div>
+
+    <!-- พื้นหลัง Animated Bubbles (ให้อยู่เหนือรูปแบคกราวด์เล็กน้อยด้วยการไม่ตั้ง z-index ลบ แต่ปล่อยซ้อนไว้ข้างบน) -->
+    <div id="bg-bubbles" class="fixed inset-0 pointer-events-none z-0"></div>
+
+    <!-- หน้าจอโหลดข้อมูลแบบ Full Screen -->
+    <div id="global-loader"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] hidden flex flex-col items-center justify-center">
+        <div class="loader-spinner w-16 h-16 border-4 border-white border-t-pink-500 rounded-full animate-spin"></div>
+        <p class="text-white mt-4 font-semibold text-lg animate-pulse">กำลังร่ายเวทย์โหลดข้อมูล...</p>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app" class="relative z-10 w-full max-w-4xl mx-auto min-h-screen flex flex-col pt-6 pb-6 px-4">
+
+        <!-- ==================== หน้า 1: Landing & Login ==================== -->
+        <section id="page-landing"
+            class="flex-1 flex flex-col items-center justify-start page-active relative overflow-y-auto overflow-x-hidden">
+            <!-- เอฟเฟกต์ตกแต่งฉากหลังหน้า Login -->
+            <div class="absolute inset-0 pointer-events-none flex justify-between items-start px-10 pt-10 opacity-40">
+                <div class="text-6xl animate-bounce" style="animation-duration: 4s;">☁️</div>
+                <div class="text-7xl animate-bounce" style="animation-duration: 6s; transform: scaleX(-1);">☁️</div>
+            </div>
+
+            <div
+                class="quest-board quest-board-inner p-6 md:p-8 w-full max-w-md text-center transform transition-all duration-500 hover:scale-[1.02] mt-16 z-10 shrink-0">
+
+                <div class="absolute -top-16 left-1/2 transform -translate-x-1/2">
+                    <div
+                        class="bg-gradient-to-b from-yellow-300 to-yellow-500 border-4 border-yellow-700 rounded-full p-2 shadow-[0_5px_15px_rgba(0,0,0,0.3)] animate-pulse relative">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3206/3206037.png" alt="Logo"
+                            class="w-20 h-20 animate-bounce">
+                    </div>
+                </div>
+
+                <h1 class="rpg-title text-4xl mt-6 mb-3">
+                    NextGen Play
+                </h1>
+                <p
+                    class="text-orange-900 bg-orange-100/90 inline-block px-4 py-1.5 rounded-full mb-6 font-bold border-2 border-orange-300 text-sm shadow-sm tracking-wide">
+                    ✨ LMS+Gamification สำหรับการเรียนรู้ยุคใหม่ ✨</p>
+
+                <form id="login-form" class="space-y-4 text-left" onsubmit="handleLogin(event)">
+                    <div>
+                        <label class="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">1. 📚
+                            เลือกระดับชั้นเรียน</label>
+                        <select id="student-class" required onchange="onClassChange()"
+                            class="game-input w-full px-4 py-3 cursor-pointer">
+                            <option value="" disabled selected>เลือกระดับชั้นเรียนก่อน...</option>
+                            <option value="ป.4">ประถมศึกษาปีที่ 4</option>
+                            <option value="ป.5">ประถมศึกษาปีที่ 5</option>
+                            <option value="ป.6">ประถมศึกษาปีที่ 6</option>
+                        </select>
+                    </div>
+                    <div id="student-room-container" class="hidden animate-fadeIn">
+                        <label class="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">🚪
+                            เลือกห้องเรียน</label>
+                        <select id="student-room" onchange="onClassChange()"
+                            class="game-input w-full px-4 py-3 cursor-pointer">
+                            <option value="" disabled selected>เลือกห้องเรียน...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">2. 👤
+                            เลือกรายชื่อผู้กล้า</label>
+                        <select id="student-name-select" required disabled onchange="onNameSelectChange()"
+                            class="game-input w-full px-4 py-3 cursor-pointer disabled:opacity-60 disabled:bg-gray-200">
+                            <option value="" disabled selected>โปรดเลือกระดับชั้นก่อน</option>
+                        </select>
+                    </div>
+                    <div id="new-name-container" class="hidden animate-fadeIn">
+                        <label class="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">✒️
+                            พิมพ์ชื่อผู้กล้าคนใหม่</label>
+                        <input type="text" id="student-name-input" placeholder="ใส่ชื่อของคุณที่นี่..."
+                            class="game-input w-full px-4 py-3">
+                    </div>
+                    <div id="avatar-selection-container">
+                        <label class="block text-sm font-black text-amber-900 mb-2 mt-2 drop-shadow-sm">3. ⚔️
+                            เลือกคู่หูผจญภัย</label>
+                        <div class="flex justify-between gap-3" id="avatar-selection">
+                            <div class="avatar-option avatar-btn mage flex-1 text-center py-3 selected"
+                                onclick="selectAvatar('🧙‍♂️', this)">
+                                <div class="text-4xl mb-1 drop-shadow-md relative z-10">🧙‍♂️</div>
+                                <div class="text-[11px] font-black text-blue-800 tracking-wide z-10 relative">จอมเวทย์
+                                </div>
+                            </div>
+                            <div class="avatar-option avatar-btn elf flex-1 text-center py-3"
+                                onclick="selectAvatar('🧝‍♀️', this)">
+                                <div class="text-4xl mb-1 drop-shadow-md relative z-10">🧝‍♀️</div>
+                                <div class="text-[11px] font-black text-green-800 tracking-wide z-10 relative">เอลฟ์
+                                </div>
+                            </div>
+                            <div class="avatar-option avatar-btn warrior flex-1 text-center py-3"
+                                onclick="selectAvatar('⚔️', this)">
+                                <div class="text-4xl mb-1 drop-shadow-md relative z-10">⚔️</div>
+                                <div class="text-[11px] font-black text-red-800 tracking-wide z-10 relative">นักรบ</div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="student-avatar" value="🧙‍♂️" required>
+                    </div>
+                    <button type="submit" class="btn-arcade w-full py-4 mt-6 text-xl">
+                        ▶ เริ่มการผจญภัย
+                    </button>
+                </form>
+            </div>
+
+            <!-- ผู้พัฒนาและช่องทางติดต่อ -->
+            <div class="mt-4 mb-6 text-center z-10 relative flex flex-col items-center shrink-0">
+                <!-- Admin Button -->
+                <button onclick="adminLoginPrompt()"
+                    class="mb-4 text-sm text-indigo-900 bg-indigo-100 hover:bg-indigo-200 hover:text-indigo-950 font-black cursor-pointer transition-all px-6 py-2.5 rounded-full border-2 border-indigo-300 shadow-[0_4px_10px_rgba(79,70,229,0.2)] hover:shadow-[0_6px_15px_rgba(79,70,229,0.3)] float-hover inline-flex items-center gap-2 transform hover:-translate-y-1">
+                    <span class="text-lg">🛡️</span> สำหรับครูผู้ดูแลระบบ (Admin Panel)
+                </button>
+
+                <!-- Developer & Contact -->
+                <div
+                    class="glass-card px-5 py-3 rounded-2xl border-2 border-white/80 inline-flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🧑‍💻</span>
+                        <span class="text-xs font-black text-gray-800">By Kru_Veeraphat Jitphapan</span>
+                    </div>
+                    <div class="hidden sm:block w-px h-5 bg-gray-300"></div>
+                    <div class="flex items-center gap-3">
+                        <a href="https://www.facebook.com/chayphat.sk?mibextid=wwXIfr&rdid=jFhE06egPrAFQSCC&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F18KyjMm9ci%2F%3Fmibextid%3DwwXIfr#"
+                            target="_blank" rel="noopener noreferrer"
+                            class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center hover:scale-110 transition-transform shadow-md"
+                            title="Facebook">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                            </svg>
+                        </a>
+                        <a href="tel:088-7842314"
+                            class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center hover:scale-110 transition-transform shadow-md"
+                            title="โทร 088-7842314">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                            </svg>
+                        </a>
+                        <a href="https://line.me/ti/p/hkwcKeUa-g" target="_blank" rel="noopener noreferrer"
+                            class="w-8 h-8 rounded-full bg-[#06c755] flex items-center justify-center hover:scale-110 transition-transform shadow-md"
+                            title="Line">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== หน้า 1.5: Lobby เลือกโหมด ==================== -->
+        <section id="page-lobby"
+            class="flex-1 hidden flex-col items-center justify-start md:justify-center relative overflow-x-hidden overflow-y-auto py-12 md:py-8">
+            <!-- เอฟเฟกต์ตกแต่งฉากหลังหน้า Lobby (ใช้คล้าย Login) -->
+            <div class="absolute inset-0 pointer-events-none flex justify-between items-start px-10 pt-10 opacity-40">
+                <div class="text-6xl animate-bounce" style="animation-duration: 4s;">☁️</div>
+                <div class="text-7xl animate-bounce" style="animation-duration: 6s; transform: scaleX(-1);">☁️</div>
+            </div>
+
+            <div class="z-10 text-center mb-8 mt-8 shrink-0">
+                <h2 class="text-5xl md:text-6xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]" style="text-shadow: 3px 3px 0 #b45309, -1px -1px 0 #b45309, 1px -1px 0 #b45309, -1px 1px 0 #b45309, 1px 1px 0 #b45309;">
+                    เลือกโหมดการเล่น
+                </h2>
+                <p class="text-xl text-yellow-200 font-bold mt-2 drop-shadow-md">คุณพร้อมจะลุยแบบไหน?</p>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-6 md:gap-10 z-10 w-full max-w-4xl px-4 justify-center items-center pb-8 shrink-0">
+                <!-- โหมดผจญภัย -->
+                <div onclick="enterAdventureMode()"
+                    class="group relative w-full max-w-sm bg-gradient-to-b from-emerald-400 to-green-600 rounded-3xl p-2 cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-2 shadow-[0_10px_20px_rgba(0,0,0,0.4)] border-4 border-green-200">
+                    <div class="bg-white/95 backdrop-blur-sm rounded-2xl p-6 text-center h-full flex flex-col border-4 border-green-700 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10 pointer-events-none"></div>
+                        
+                        <!-- รูปภาพที่เกี่ยวข้องกับโหมดผจญภัย -->
+                        <div class="w-full h-36 flex items-center justify-center mb-2 relative z-10">
+                            <svg class="w-32 h-32 filter drop-shadow-[0_8px_16px_rgba(16,185,129,0.3)] transition-transform duration-500 group-hover:scale-110" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="60" cy="60" r="50" fill="url(#greenGlowGrad)" opacity="0.15" />
+                                <circle cx="60" cy="60" r="40" fill="url(#greenGlowGrad)" opacity="0.2" />
+                                <path d="M60 12C78 12 92 18 92 18C92 18 96 50 86 78C76 100 60 108 60 108C60 108 44 100 34 78C24 50 28 18 28 18C28 18 42 12 60 12Z" fill="url(#woodShieldGrad)" stroke="#15803d" stroke-width="4" stroke-linejoin="round"/>
+                                <path d="M42 75C48 70 48 55 60 55C72 55 72 40 78 35" stroke="#fbbf24" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 6" />
+                                <path d="M40 55L48 43L55 52" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M50 58L58 46L65 55" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                                <g transform="translate(68, 62)">
+                                    <polygon points="12,0 3,3 0,12 -3,3 -12,0 -3,-3 0,-12 3,-3" fill="#fbbf24" stroke="#d97706" stroke-width="1"/>
+                                    <circle cx="0" cy="0" r="3" fill="#ef4444" />
+                                </g>
+                                <defs>
+                                    <radialGradient id="greenGlowGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(60 60) rotate(90) scale(50)">
+                                        <stop stop-color="#10b981"/>
+                                        <stop offset="1" stop-color="#10b981" stop-opacity="0"/>
+                                    </radialGradient>
+                                    <linearGradient id="woodShieldGrad" x1="60" y1="12" x2="60" y2="108" gradientUnits="userSpaceOnUse">
+                                        <stop stop-color="#dcfce7"/>
+                                        <stop offset="1" stop-color="#bbf7d0"/>
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+
+                        <h3 class="text-3xl font-black text-green-800 drop-shadow-sm mb-2 relative z-10 mt-2">ผจญภัยในบทเรียน</h3>
+                        <p class="text-green-700 font-bold mb-6 relative z-10 text-sm md:text-base">ตะลุยด่าน สู้กับมอนสเตอร์เพื่อเก็บเกี่ยวความรู้และตามล่าหาไอเทมแรร์!</p>
+                        <div class="mt-auto pt-4 relative z-10">
+                            <button class="w-full py-3 bg-green-500 text-white font-black text-xl rounded-xl border-b-4 border-green-800 shadow-md group-hover:bg-green-400 transition-colors flex justify-center items-center gap-2">
+                                <span>เข้าสู่โลกกว้าง</span> <span class="text-2xl">▶</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- โหมด PVP -->
+                <div onclick="enterPVPMode()"
+                    class="group relative w-full max-w-sm bg-gradient-to-b from-orange-400 to-red-600 rounded-3xl p-2 cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-2 shadow-[0_10px_20px_rgba(0,0,0,0.4)] border-4 border-red-200">
+                    <div class="bg-white/95 backdrop-blur-sm rounded-2xl p-6 text-center h-full flex flex-col border-4 border-red-700 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10 pointer-events-none"></div>
+                        <div class="absolute top-2 left-2 bg-red-600 text-white text-xs font-black px-2 py-1 rounded shadow-sm z-10 transform -rotate-12 animate-pulse">NEW!</div>
+                        
+                        <!-- รูปภาพที่เกี่ยวข้องกับโหมด PVP -->
+                        <div class="w-full h-36 flex items-center justify-center mb-2 relative z-10">
+                            <svg class="w-32 h-32 filter drop-shadow-[0_8px_16px_rgba(239,68,68,0.3)] transition-transform duration-500 group-hover:scale-110" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="60" cy="60" r="50" fill="url(#redGlowGrad)" opacity="0.15" />
+                                <circle cx="60" cy="60" r="40" fill="url(#redGlowGrad)" opacity="0.2" />
+                                <g transform="translate(60, 60)">
+                                    <g transform="rotate(45)">
+                                        <path d="M-4 -45L4 -45L4 15L-4 15Z" fill="url(#silverBladeGrad)" stroke="#475569" stroke-width="2"/>
+                                        <path d="M-12 15L12 15L8 20L-8 20Z" fill="#fbbf24" stroke="#b45309" stroke-width="2"/>
+                                        <path d="M-3 20L3 20L2 35L-2 35Z" fill="#78350f" stroke="#451a03" stroke-width="1.5"/>
+                                        <circle cx="0" cy="37" r="4" fill="#fbbf24" stroke="#b45309" stroke-width="1.5"/>
+                                    </g>
+                                    <g transform="rotate(-45)">
+                                        <path d="M-4 -45L4 -45L4 15L-4 15Z" fill="url(#silverBladeGrad)" stroke="#475569" stroke-width="2"/>
+                                        <path d="M-12 15L12 15L8 20L-8 20Z" fill="#fbbf24" stroke="#b45309" stroke-width="2"/>
+                                        <path d="M-3 20L3 20L2 35L-2 35Z" fill="#78350f" stroke="#451a03" stroke-width="1.5"/>
+                                        <circle cx="0" cy="37" r="4" fill="#fbbf24" stroke="#b45309" stroke-width="1.5"/>
+                                    </g>
+                                    <circle cx="0" cy="0" r="10" fill="url(#clashFlashGrad)" />
+                                    <g transform="scale(1.2)">
+                                        <path d="M0 -15L3 -4L14 0L3 4L0 15L-3 4L-14 0L-3 -4Z" fill="#fbbf24" />
+                                    </g>
+                                    <circle cx="0" cy="0" r="4" fill="#fff" />
+                                </g>
+                                <defs>
+                                    <radialGradient id="redGlowGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(60 60) rotate(90) scale(50)">
+                                        <stop stop-color="#ef4444"/>
+                                        <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
+                                    </radialGradient>
+                                    <radialGradient id="clashFlashGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(0 0) scale(15)">
+                                        <stop stop-color="#fbbf24"/>
+                                        <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
+                                    </radialGradient>
+                                    <linearGradient id="silverBladeGrad" x1="-4" y1="-45" x2="4" y2="15" gradientUnits="userSpaceOnUse">
+                                        <stop stop-color="#f1f5f9"/>
+                                        <stop offset="0.5" stop-color="#cbd5e1"/>
+                                        <stop offset="1" stop-color="#64748b"/>
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+
+                        <h3 class="text-3xl font-black text-red-800 drop-shadow-sm mb-2 relative z-10 mt-2">ท้าสู้กับเพื่อน (PVP)</h3>
+                        <p class="text-red-700 font-bold mb-6 relative z-10 text-sm md:text-base">ประลองความรู้แบบ 1v1 ใครจะแน่กว่ากัน ท้าเพื่อนในห้องมาวัดกันเลย!</p>
+                        <div class="mt-auto pt-4 relative z-10">
+                            <button class="w-full py-3 bg-red-500 text-white font-black text-xl rounded-xl border-b-4 border-red-800 shadow-md group-hover:bg-red-400 transition-colors flex justify-center items-center gap-2">
+                                <span>เข้าสู่ลานประลอง</span> <span class="text-2xl">⚔️</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- โหมด World Boss -->
+                <div onclick="enterWorldBossMode()"
+                    class="group relative w-full max-w-sm bg-gradient-to-b from-purple-400 to-indigo-600 rounded-3xl p-2 cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-2 shadow-[0_10px_20px_rgba(0,0,0,0.4)] border-4 border-purple-200">
+                    <div class="bg-white/95 backdrop-blur-sm rounded-2xl p-6 text-center h-full flex flex-col border-4 border-purple-700 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10 pointer-events-none"></div>
+                        <div class="absolute top-2 left-2 bg-purple-600 text-white text-xs font-black px-2 py-1 rounded shadow-sm z-10 transform -rotate-12 animate-pulse">HOT!</div>
+                        
+                        <!-- รูปภาพที่เกี่ยวข้องกับโหมด World Boss -->
+                        <div class="w-full h-36 flex items-center justify-center mb-2 relative z-10">
+                            <svg class="w-32 h-32 filter drop-shadow-[0_8px_16px_rgba(139,92,246,0.3)] transition-transform duration-500 group-hover:scale-110" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="60" cy="60" r="50" fill="url(#purpleGlowGrad)" opacity="0.15" />
+                                <circle cx="60" cy="60" r="40" fill="url(#purpleGlowGrad)" opacity="0.2" />
+                                <g transform="translate(60, 60)">
+                                    <!-- ตัวบอสไททันกึ่งหุ่นยนต์/โกเลม -->
+                                    <path d="M-20 -35 L20 -35 L25 -10 L-25 -10 Z" fill="#4f46e5" stroke="#312e81" stroke-width="3"/>
+                                    <!-- ลวดลายเรืองแสงไอที -->
+                                    <path d="M-15 -30 L15 -30" stroke="#a78bfa" stroke-width="2"/>
+                                    <!-- ตาเดียว/เลนส์เรืองแสงสีม่วงแดง -->
+                                    <circle cx="0" cy="-22" r="8" fill="#d946ef" stroke="#fff" stroke-width="2" />
+                                    <!-- ตัวเกราะไหล่ -->
+                                    <circle cx="-25" cy="-10" r="8" fill="#1e1b4b" />
+                                    <circle cx="25" cy="-10" r="8" fill="#1e1b4b" />
+                                    <!-- แขนยักษ์เหล็ก -->
+                                    <path d="M-28 -5 L-35 15 L-25 20 L-20 0 Z" fill="#312e81" />
+                                    <path d="M28 -5 L35 15 L25 20 L20 0 Z" fill="#312e81" />
+                                    <!-- ตัวฐาน/ลำตัวหลัก -->
+                                    <path d="M-18 -10 L18 -10 L12 25 L-12 25 Z" fill="#4338ca" stroke="#1e1b4b" stroke-width="3"/>
+                                    <circle cx="0" cy="8" r="6" fill="#f43f5e" />
+                                </g>
+                                <defs>
+                                    <radialGradient id="purpleGlowGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(60 60) rotate(90) scale(50)">
+                                        <stop stop-color="#8b5cf6"/>
+                                        <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+                                    </radialGradient>
+                                </defs>
+                            </svg>
+                        </div>
+
+                        <h3 class="text-3xl font-black text-purple-800 drop-shadow-sm mb-2 relative z-10 mt-2">สู้เวิลด์บอส (AI Camera)</h3>
+                        <p class="text-purple-700 font-bold mb-6 relative z-10 text-sm md:text-base">ใช้กล้องเว็บแคมตรวจท่าทาง กายบริหารพิชิตบอสสุดแกร่งและชิงสถิติความเร็ว!</p>
+                        <div class="mt-auto pt-4 relative z-10">
+                            <button class="w-full py-3 bg-purple-500 text-white font-black text-xl rounded-xl border-b-4 border-purple-800 shadow-md group-hover:bg-purple-400 transition-colors flex justify-center items-center gap-2">
+                                <span>เข้าสู่รังบอส</span> <span class="text-2xl">📸</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 z-10 shrink-0">
+                <button onclick="logout()" class="px-6 py-2 bg-black/30 hover:bg-black/50 text-white font-bold rounded-full backdrop-blur-md border border-white/30 transition-colors shadow-lg flex items-center gap-2">
+                    <span>🚪</span> เปลี่ยนผู้เล่น
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== หน้า 2: Dashboard ผู้เล่น (New Game UI) ==================== -->
+        <section id="page-dashboard"
+            class="flex-1 hidden absolute inset-0 w-full h-full overflow-hidden bg-transparent">
+
+
+
+            <!-- ==================== 1. TOP BAR ==================== -->
+            <div
+                class="absolute top-4 left-0 right-0 px-2 md:px-6 flex flex-col md:flex-row justify-between items-center md:items-start z-20 pointer-events-none gap-2 md:gap-0">
+
+                <!-- ซ้ายบนสุด: ว่างไว้หลบ Sidebar ใน PC (ซ่อนในมือถือ) -->
+                <div class="hidden md:block w-20 lg:w-32"></div>
+
+                <!-- กลางบน: Profile & Level Bar -->
+                <div
+                    class="pointer-events-auto relative flex items-center bg-yellow-100 border-4 border-yellow-600 rounded-full h-16 md:h-20 w-[95%] sm:w-[90%] md:max-w-sm md:w-full shadow-[0_8px_0_#b45309] transform hover:-translate-y-1 transition-transform mx-auto md:mx-0">
+                    <!-- รูป Avatar (โผล่ออกมานอกกรอบซ้าย) -->
+                    <div id="display-avatar"
+                        class="absolute -left-6 md:-left-8 w-20 h-20 md:w-24 md:h-24 bg-white border-4 border-yellow-500 rounded-2xl flex items-center justify-center text-4xl md:text-5xl shadow-lg bg-gradient-to-br from-indigo-100 to-purple-200">
+                        <span class="drop-shadow-md">🧙‍♂️</span>
+                    </div>
+
+                    <!-- ข้อมูลชื่อ และ หลอด Level -->
+                    <div class="ml-14 sm:ml-16 md:ml-20 flex-1 px-3 md:px-4 flex flex-col justify-center">
+                        <div class="flex justify-between items-end mb-1">
+                            <h3 id="display-name"
+                                class="text-sm sm:text-lg md:text-xl font-black text-yellow-900 tracking-wide truncate w-24 sm:w-32 md:w-40">
+                                PlayerName</h3>
+                            <span
+                                class="text-[10px] sm:text-xs font-black text-red-600 bg-red-100 px-1 sm:px-2 py-0.5 rounded shadow-sm border border-red-200"
+                                id="display-class">Class</span>
+                        </div>
+
+                        <!-- RPG Style Progress Bar -->
+                        <div
+                            class="relative w-full h-5 md:h-6 border-2 border-yellow-800 bg-yellow-900 rounded-full overflow-hidden shadow-inner flex items-center">
+                            <div id="xp-bar"
+                                class="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-orange-400 to-yellow-400 w-0 transition-all duration-1000">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')] opacity-30">
+                            </div>
+
+                            <!-- ข้อความทับในหลอด -->
+                            <div
+                                class="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-black text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                                Level <span id="display-level" class="mx-1 text-yellow-200 text-sm">1</span> (<span
+                                    id="display-xp">0</span>/100)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ขวาบน: Resources & Score -->
+                <div
+                    class="pointer-events-auto flex flex-row md:flex-col gap-1 sm:gap-2 w-[98%] md:w-32 lg:w-48 justify-center md:justify-start items-center md:items-end drop-shadow-md flex-wrap mt-1 md:mt-0">
+
+                    <!-- เหรียญ/คะแนน -->
+                    <div
+                        class="flex items-center bg-white border-2 sm:border-4 border-amber-500 rounded-full pl-1 pr-2 sm:pr-4 py-1 h-10 sm:h-12 shadow-[0_4px_0_#d97706] hover:-translate-y-1 transition-transform cursor-default flex-shrink-0">
+                        <div
+                            class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full flex justify-center items-center text-sm sm:text-xl shadow-inner border border-yellow-600 z-10 -ml-2">
+                            ⭐</div>
+                        <div id="stat-score"
+                            class="text-sm sm:text-lg font-black text-amber-800 ml-1 sm:ml-2 min-w-[30px] sm:min-w-[50px] text-right">
+                            0
+                        </div>
+                    </div>
+
+                    <!-- เหรียญกาชา (Coins) -->
+                    <div
+                        class="flex items-center bg-white border-2 sm:border-4 border-yellow-500 rounded-full pl-1 pr-2 sm:pr-4 py-1 h-10 sm:h-12 shadow-[0_4px_0_#ca8a04] hover:-translate-y-1 transition-transform cursor-default flex-shrink-0">
+                        <div
+                            class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-b from-yellow-100 to-yellow-300 rounded-full flex justify-center items-center text-sm sm:text-xl shadow-inner border border-yellow-400 z-10 -ml-2">
+                            🪙</div>
+                        <div id="stat-coins"
+                            class="text-sm sm:text-lg font-black text-yellow-800 ml-1 sm:ml-2 min-w-[30px] sm:min-w-[50px] text-right">
+                            0
+                        </div>
+                    </div>
+
+                    <!-- โล่ยศ (Rank) -->
+                    <div
+                        class="flex items-center bg-white border-2 sm:border-4 border-slate-400 rounded-full pl-1 pr-2 sm:pr-4 py-1 h-10 sm:h-12 shadow-[0_4px_0_#64748b] hover:-translate-y-1 transition-transform cursor-default overflow-visible w-auto max-w-[120px] sm:max-w-[140px] flex-shrink-0">
+                        <div
+                            class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-b from-slate-200 to-slate-400 rounded-full flex justify-center items-center text-sm sm:text-xl shadow-inner border border-slate-500 z-10 -ml-2 flex-shrink-0">
+                            🛡️</div>
+                        <div id="stat-rank"
+                            class="text-[10px] sm:text-xs font-black text-slate-700 ml-1 relative z-0 flex-1 text-center truncate px-1">
+                            BRONZE</div>
+                    </div>
+
+                    <!-- Streak (NEW) -->
+                    <div id="stat-streak-container"
+                        class="flex items-center bg-white border-2 sm:border-4 border-orange-500 rounded-full pl-1 pr-2 sm:pr-4 py-1 h-10 sm:h-12 shadow-[0_4px_0_#ea580c] hover:-translate-y-1 transition-transform cursor-default overflow-visible w-auto flex-shrink-0">
+                        <div
+                            class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-b from-orange-300 to-orange-500 rounded-full flex justify-center items-center text-sm sm:text-xl shadow-inner border border-orange-600 z-10 -ml-2 flex-shrink-0">
+                            🔥</div>
+                        <div id="stat-streak"
+                            class="text-[10px] sm:text-xs font-black text-orange-700 ml-1 relative z-0 flex-1 text-center truncate px-1">
+                            0 วัน</div>
+                    </div>
+
+                    <!-- ด่านปัจจุบัน -->
+                    <div
+                        class="flex items-center bg-white border-2 sm:border-4 border-emerald-500 rounded-full pl-1 pr-2 sm:pr-3 py-1 h-10 sm:h-12 shadow-[0_4px_0_#059669] hover:-translate-y-1 transition-transform cursor-default overflow-visible w-auto max-w-[120px] sm:max-w-[140px] flex-shrink-0">
+                        <div
+                            class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-b from-emerald-300 to-emerald-500 rounded-full flex justify-center items-center text-sm sm:text-xl shadow-inner border border-emerald-600 z-10 -ml-2 flex-shrink-0">
+                            📖</div>
+                        <div id="stat-lesson"
+                            class="text-[8px] sm:text-[10px] font-black text-emerald-800 ml-1 relative z-0 flex-1 text-center truncate px-1 leading-tight"
+                            title="กำลังโหลด...">...</div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <!-- ==================== 2. NAVIGATION BAR ==================== -->
+            <div id="sidebar"
+                class="absolute bottom-2 left-1/2 -translate-x-1/2 w-auto max-w-[95%] md:w-auto md:max-w-none justify-center overflow-x-auto md:bottom-auto md:left-4 md:top-1/2 md:-translate-x-0 md:-translate-y-1/2 z-50 flex flex-row md:flex-col gap-2 md:gap-3 py-2 md:py-4 bg-white/70 md:bg-white/40 backdrop-blur-md rounded-2xl md:rounded-3xl border-2 border-white/50 shadow-[0_-5px_15px_rgba(0,0,0,0.1)] md:shadow-lg px-3 sm:px-3 md:px-3 items-center">
+
+                <button onclick="showDashboardTab('home')"
+                    class="ui-jelly-btn bg-yellow-400 hover:bg-yellow-300 w-[50px] h-[50px] sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border-[3px] md:border-4 border-yellow-600 outline-none group relative flex-shrink-0">
+                    <span
+                        class="text-xl sm:text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">🏠</span>
+                    <span class="text-[7px] sm:text-[8px] md:text-[10px] font-black text-yellow-900 mt-0.5">Home</span>
+                </button>
+
+                <button onclick="openProfile()"
+                    class="ui-jelly-btn bg-indigo-400 hover:bg-indigo-300 w-[50px] h-[50px] sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border-[3px] md:border-4 border-indigo-700 outline-none group relative flex-shrink-0">
+                    <span
+                        class="text-xl sm:text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">👤</span>
+                    <span
+                        class="text-[7px] sm:text-[8px] md:text-[10px] font-black text-indigo-900 mt-0.5">Profile</span>
+                </button>
+
+                <button onclick="openMap();"
+                    class="ui-jelly-btn bg-green-400 hover:bg-green-300 w-[50px] h-[50px] sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border-[3px] md:border-4 border-green-700 outline-none group relative flex-shrink-0">
+                    <span
+                        class="text-xl sm:text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">🗺️</span>
+                    <span class="text-[7px] sm:text-[8px] md:text-[10px] font-black text-green-900 mt-0.5">Map</span>
+                </button>
+
+                <button onclick="openLeaderboard()"
+                    class="ui-jelly-btn bg-amber-400 hover:bg-amber-300 w-[50px] h-[50px] sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border-[3px] md:border-4 border-amber-700 outline-none group relative flex-shrink-0">
+                    <span
+                        class="text-xl sm:text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">🏆</span>
+                    <span class="text-[7px] sm:text-[8px] md:text-[10px] font-black text-amber-900 mt-0.5">Rank</span>
+                </button>
+
+                <button onclick="openCertificate()"
+                    class="ui-jelly-btn bg-cyan-400 hover:bg-cyan-300 w-[50px] h-[50px] sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border-[3px] md:border-4 border-cyan-700 outline-none group flex-shrink-0">
+                    <span
+                        class="text-xl sm:text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">📜</span>
+                    <span class="text-[7px] sm:text-[8px] md:text-[10px] font-black text-cyan-900 mt-0.5">Cert.</span>
+                </button>
+
+                <div class="w-1 h-8 md:w-full md:h-1 bg-white/50 rounded-full my-0.5 md:my-1 flex-shrink-0"></div>
+
+                <button onclick="logout()"
+                    class="ui-jelly-btn bg-rose-400 hover:bg-rose-300 w-[50px] h-[50px] sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border-[3px] md:border-4 border-rose-700 outline-none group flex-shrink-0">
+                    <span
+                        class="text-xl sm:text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">🚪</span>
+                    <span class="text-[7px] sm:text-[8px] md:text-[10px] font-black text-rose-900 mt-0.5">Exit</span>
+                </button>
+
+            </div>
+
+            <!-- ==================== 2.5 FLOATING SHOP & BAG BUTTONS ==================== -->
+            <!-- มือถือ: ลอยด้านบน sidebar (เหนือ navbar) / Desktop: ลอยด้านขวาจอ -->
+            <div id="floating-shop-bag"
+                class="absolute bottom-[75px] right-2 sm:right-4 md:bottom-auto md:right-4 md:top-1/2 md:-translate-y-1/2 z-50 flex flex-row md:flex-col gap-2 md:gap-3 hidden">
+
+                <button onclick="openShopModal()"
+                    class="ui-jelly-btn bg-fuchsia-400 hover:bg-fuchsia-300 w-14 h-14 md:w-16 md:h-16 rounded-2xl flex flex-col items-center justify-center border-4 border-fuchsia-700 outline-none group relative pulse-glow shadow-lg">
+                    <span
+                        class="text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">🎁</span>
+                    <span class="text-[8px] md:text-[10px] font-black text-fuchsia-900 mt-0.5">Shop</span>
+                </button>
+
+                <button onclick="openInventoryModal()"
+                    class="ui-jelly-btn bg-indigo-400 hover:bg-indigo-300 w-14 h-14 md:w-16 md:h-16 rounded-2xl flex flex-col items-center justify-center border-4 border-indigo-700 outline-none group relative shadow-lg">
+                    <span
+                        class="text-2xl md:text-3xl group-hover:-translate-y-1 transition-transform drop-shadow-sm">🎒</span>
+                    <span class="text-[8px] md:text-[10px] font-black text-indigo-900 mt-0.5">Bag</span>
+                </button>
+
+            </div>
+
+
+            <!-- ==================== 3. CENTER / MAIN STAGE ==================== -->
+            <!-- พื้นที่ตรงกลางสำหรับแสดงเนื้อหาต่างๆ -->
+            <div
+                class="absolute top-24 bottom-24 left-2 right-2 md:bottom-16 md:left-24 md:right-24 xl:left-32 xl:right-32 z-10 pointer-events-none flex items-center justify-center overflow-hidden drop-shadow-xl">
+                <div id="dashboard-content-area"
+                    class="w-full h-full max-w-5xl rounded-2xl md:rounded-3xl p-2 pb-20 md:p-4 md:pl-20 md:pb-4 relative overflow-hidden flex flex-col transition-all duration-300 pointer-events-auto">
+
+                    <!-- Tab: Home -->
+                    <div id="dash-tab-home"
+                        class="flex-1 flex flex-col w-full h-full animate-fade-in relative z-10 md:p-4 overflow-hidden">
+
+                        <!-- Header กระดานข่าวสาร -->
+                        <div class="flex flex-col items-center justify-center mb-4 mt-6 md:mt-2 shrink-0">
+                            <h2
+                                class="rpg-title text-3xl md:text-5xl text-center drop-shadow-lg transform -rotate-1 relative inline-block border-b-4 border-indigo-200 pb-2">
+                                ประกาศข่าวสาร
+                            </h2>
+                        </div>
+
+                        <!-- ตัวกระดานข่าว -->
+                        <div
+                            class="rpg-box rpg-box-wood flex-1 w-full max-w-4xl mx-auto overflow-y-auto p-4 md:p-6 flex flex-col gap-4 relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]">
+
+                            <!-- หมุดตกแต่งกระดาน 4 มุม -->
+                            <div
+                                class="absolute top-3 left-3 w-4 h-4 bg-gray-300 rounded-full border-[3px] border-gray-700 shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.4),2px_2px_4px_rgba(0,0,0,0.5)]">
+                            </div>
+                            <div
+                                class="absolute top-3 right-3 w-4 h-4 bg-gray-300 rounded-full border-[3px] border-gray-700 shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.4),2px_2px_4px_rgba(0,0,0,0.5)]">
+                            </div>
+                            <div
+                                class="absolute bottom-3 left-3 w-4 h-4 bg-gray-300 rounded-full border-[3px] border-gray-700 shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.4),2px_2px_4px_rgba(0,0,0,0.5)]">
+                            </div>
+                            <div
+                                class="absolute bottom-3 right-3 w-4 h-4 bg-gray-300 rounded-full border-[3px] border-gray-700 shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.4),2px_2px_4px_rgba(0,0,0,0.5)]">
+                            </div>
+
+                            <!-- Daily Quests (NEW) -->
+                            <div class="flex flex-col gap-2 shrink-0">
+                                <h3 class="font-bold text-gray-700 flex items-center gap-2 mb-1">
+                                    🎯 ภารกิจประจำวัน
+                                </h3>
+                                <div id="daily-quest-container">
+                                    <!-- Dynamic Daily Quests -->
+                                </div>
+                            </div>
+
+                            <hr class="border-gray-200 border-dashed mb-2 shrink-0">
+
+                            <!-- News Container (Dynamic) -->
+                            <div id="home-news-container" class="flex flex-col gap-4 mt-2">
+                                <div class="text-center text-gray-800 font-bold p-8">กำลังรวบรวมประกาศล่าสุด... <span
+                                        class="animate-spin inline-block">⏳</span></div>
+                            </div>
+
+                            <!-- spacer for bottom buttons -->
+                            <div class="h-10 shrink-0"></div>
+                        </div>
+
+                        <!-- spacer for global bottom action bar -->
+                        <div class="h-28 md:h-24 shrink-0"></div>
+                    </div>
+
+                    <!-- Tab: Profile (NEW) -->
+                    <div id="dash-tab-profile"
+                        class="hidden flex-1 flex flex-col w-full h-full animate-fade-in relative z-10 md:p-4 overflow-y-auto overflow-x-hidden pb-32">
+                        <!-- Content will be rendered by JS_Profile -->
+                        <div class="flex items-center justify-center h-64">
+                            <div
+                                class="inline-block w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin">
+                            </div>
+                            <span class="ml-3 text-indigo-600 font-bold">กำลังเปิดหน้าต่างข้อมูลผู้กล้า...</span>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Map -->
+                    <div id="dash-tab-map"
+                        class="hidden flex-1 flex-col rounded-2xl overflow-hidden relative glass-card bg-white/70 backdrop-blur-md border-[3px] md:border-4 border-white/80 shadow-2xl p-1 md:p-3">
+                        <div
+                            class="absolute top-4 left-4 right-4 flex justify-between items-start z-30 pointer-events-none drop-shadow-lg">
+                            <div class="pointer-events-auto mt-2 ml-2">
+                                <h2 class="font-mali text-4xl md:text-5xl font-black text-[#5a78b5] tracking-wide"
+                                    style="text-shadow: 3px 3px 0 #fff, -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 0 8px 15px rgba(0,0,0,0.2);">
+                                    แผนที่ผจญภัย</h2>
+                            </div>
+                            <!-- removed current status badge as requested -->
+                        </div>
+
+                        <div
+                            class="rpg-box rpg-box-wood flex-1 relative overflow-auto flex flex-col rounded-3xl border-[6px] border-[#8b5a2b] shadow-[inset_0_0_20px_rgba(0,0,0,0.5),0_10px_30px_rgba(0,0,0,0.5)] m-1 md:m-2 mt-24 md:mt-2 bg-[#a7f3d0]">
+                            <div id="map-scroll-area"
+                                class="flex-1 relative w-[1000px] md:w-full h-full min-h-full min-h-[562px] mx-auto bg-center bg-no-repeat"
+                                style="background-image: url('https://i.postimg.cc/FFTrYGRw/hn-ale-xkmap.png'); background-size: 100% 100%;">
+                                <div id="map-container" class="absolute inset-0 w-full h-full z-20">
+                                    <svg id="map-svg-path"
+                                        class="absolute inset-0 w-full h-full pointer-events-none z-10"
+                                        preserveAspectRatio="none"></svg>
+                                    <div class="hidden w-full h-full flex-col items-center justify-center absolute inset-0 z-30 pointer-events-none bg-black/50 backdrop-blur-sm rounded-2xl"
+                                        id="map-loading">
+                                        <div
+                                            class="inline-block w-16 h-16 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mb-4 shadow-lg">
+                                        </div>
+                                        <p
+                                            class="text-white font-bold bg-black/40 px-4 py-1 rounded-full backdrop-blur-sm animate-pulse">
+                                            กำลังสอดแนมพื้นที่...</p>
+                                    </div>
+                                    <div id="map-nodes-layer" class="absolute inset-0 w-full h-full z-20"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Rank -->
+                    <div id="dash-tab-rank"
+                        class="hidden flex-1 flex-col items-center justify-start p-4 overflow-hidden">
+                        <div
+                            class="rpg-box rpg-box-yellow w-full max-w-2xl h-full mb-32 overflow-hidden flex flex-col relative bg-white/90 shadow-2xl">
+                            <div
+                                class="bg-gradient-to-r from-yellow-500 to-orange-500 p-5 text-white flex justify-between items-center border-b-4 border-yellow-700 shrink-0 flex-wrap gap-2">
+                                <h3 class="font-black text-3xl flex items-center gap-2 drop-shadow-md">🏆
+                                    หอเกียรติยศ
+                                </h3>
+                                <div class="flex bg-white/30 p-1 rounded-xl shadow-inner border border-white/20">
+                                    <button id="btn-lb-individual" onclick="toggleLeaderboardType('individual')"
+                                        class="px-3 py-1.5 bg-yellow-100 text-yellow-900 font-bold rounded-lg shadow-sm text-sm transition-all">👦
+                                        ผู้กล้าเดี่ยว</button>
+                                    <button id="btn-lb-guild" onclick="toggleLeaderboardType('guild')"
+                                        class="px-3 py-1.5 text-white font-bold rounded-lg hover:bg-white/20 text-sm transition-all opacity-80">🏯
+                                        อันดับกิลด์</button>
+                                </div>
+                            </div>
+                            <div class="p-6 flex-1 overflow-y-auto pb-10">
+                                <!-- Top 3 Podium -->
+                                <div id="leaderboard-podium" class="flex items-end justify-center gap-4 mb-8 py-4">
+                                    <!-- สร้างโดย JS -->
+                                </div>
+                                <!-- List -->
+                                <div id="leaderboard-list" class="space-y-3">
+                                    <div class="text-center text-gray-500 font-bold p-8">กำลังโหลดข้อมูล... <span
+                                            class="animate-spin inline-block">⏳</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Cert -->
+                    <div id="dash-tab-cert" class="hidden flex-1 flex-col items-center justify-center overflow-hidden">
+                        <div
+                            class="rpg-box rpg-box-green w-full max-w-2xl h-full overflow-hidden flex flex-col relative bg-white/90">
+                            <div
+                                class="bg-gradient-to-r from-green-500 to-emerald-600 p-5 text-white flex justify-between items-center border-b-4 border-green-800 shrink-0">
+                                <h3 class="font-black text-3xl flex items-center gap-2 drop-shadow-md">📜
+                                    เกียรติบัตร
+                                    (Certificate)</h3>
+                            </div>
+                            <div
+                                class="p-4 sm:p-6 flex-1 flex flex-col items-center justify-start overflow-y-auto pb-28 mt-2">
+                                <canvas id="cert-canvas" width="800" height="640"
+                                    class="w-full max-w-xl h-auto object-contain rounded-xl shadow-lg border-4 border-gray-300 mb-6 shrink-0"></canvas>
+                                <div id="cert-status" class="text-center text-gray-600 font-bold mb-4"></div>
+                                <button id="cert-download-btn" onclick="downloadCertificate()"
+                                    class="btn-arcade w-full max-w-sm py-4 text-xl hidden mb-3 shrink-0">
+                                    <span class="text-2xl">⬇️</span> เซฟรูปเกียรติบัตรไว้ส่งงาน
+                                </button>
+
+                                <a id="cert-classroom-btn" href="https://classroom.google.com/" target="_blank"
+                                    class="hidden w-full max-w-sm py-4 text-xl bg-white border-4 border-green-600 text-green-700 font-bold rounded-xl shadow-md flex justify-center items-center gap-2 hover:bg-green-50 transition transform hover:-translate-y-1 active:translate-y-1 mb-8 shrink-0">
+                                    <svg viewBox="0 0 24 24" class="w-8 h-8 fill-current text-green-600">
+                                        <path
+                                            d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z" />
+                                    </svg>
+                                    เข้า Classroom เพื่อส่งงาน
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+                <!-- ==================== 4. BOTTOM ACTION BAR ==================== -->
+                <div id="bottom-action-bar"
+                    class="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto w-[92%] sm:w-auto max-w-sm sm:max-w-none">
+                    <div
+                        class="bg-blue-300/80 backdrop-blur-md p-2 md:p-3 rounded-[30px] md:rounded-[40px] border-[3px] md:border-4 border-blue-500 flex items-center justify-center gap-2 md:gap-4 shadow-[0_10px_20px_rgba(0,0,0,0.2)]">
+
+                        <button onclick="openInventoryModal()"
+                            class="ui-jelly-btn w-12 h-12 md:w-14 md:h-14 bg-indigo-400 rounded-full border-[3px] md:border-4 border-indigo-700 flex items-center justify-center text-xl md:text-2xl hover:bg-indigo-300 flex-shrink-0">
+                            🎒
+                        </button>
+
+                        <button onclick="openMap();"
+                            class="ui-jelly-btn bg-gradient-to-b from-green-300 to-green-500 hover:from-green-200 hover:to-green-400 text-white font-black text-xl md:text-3xl px-6 md:px-12 py-2 md:py-3 rounded-full border-[3px] md:border-4 border-green-800 shadow-[0_8px_0_#166534,-2px_-2px_8px_rgba(255,255,255,0.5)_inset] flex items-center justify-center gap-1 md:gap-2 transform active:translate-y-2 active:shadow-none transition-all flex-1 sm:flex-none">
+                            <span class="text-xl md:text-3xl drop-shadow-sm">▶️</span> <span>เริ่มการผจญภัย</span> <span
+                                class="hidden sm:inline">(Play)</span>
+                        </button>
+
+                        <button onclick="openShopModal()"
+                            class="ui-jelly-btn w-12 h-12 md:w-14 md:h-14 bg-fuchsia-400 rounded-full border-[3px] md:border-4 border-fuchsia-700 flex items-center justify-center text-xl md:text-2xl hover:bg-fuchsia-300 flex-shrink-0">
+                            🎁
+                        </button>
+
+                    </div>
+                </div>
+
+        </section>
+
+        <!-- ==================== หน้า 3: Admin Panel ==================== -->
+        <section id="page-admin" class="flex-1 hidden flex flex-col relative z-20 w-full">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h2 class="text-3xl font-black text-gray-800 drop-shadow-sm flex items-center gap-2">
+                    <span class="text-4xl text-indigo-600">🛠️</span> ระบบหลังบ้าน (Admin Panel)
+                </h2>
+                <div class="flex items-center gap-3">
+                    <button onclick="adminLogout()"
+                        class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition flex items-center gap-2">
+                        <span>👋</span> ออกจากระบบ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div
+                class="flex border-b-2 border-gray-300 mb-6 bg-white/50 backdrop-blur-sm rounded-t-2xl overflow-x-auto overflow-y-hidden whitespace-nowrap">
+                <button id="tab-btn-lessons" onclick="swichAdminTab('lessons')"
+                    class="flex-1 min-w-[200px] py-4 font-bold text-lg text-indigo-700 bg-white border-b-4 border-indigo-600 outline-none transition cursor-pointer">
+                    📚 จัดการบทเรียน/ข้อสอบ
+                </button>
+                <button id="tab-btn-students" onclick="swichAdminTab('students')"
+                    class="flex-1 min-w-[150px] py-4 font-bold text-lg text-gray-500 hover:text-indigo-600 hover:bg-white/80 border-b-4 border-transparent outline-none transition cursor-pointer">
+                    👥 จัดการผู้เล่น
+                </button>
+                <button id="tab-btn-reports" onclick="swichAdminTab('reports')"
+                    class="flex-1 min-w-[150px] py-4 font-bold text-lg text-gray-500 hover:text-indigo-600 hover:bg-white/80 border-b-4 border-transparent outline-none transition cursor-pointer">
+                    📊 รายงานผลสอบ
+                </button>
+                <button id="tab-btn-settings" onclick="swichAdminTab('settings')"
+                    class="flex-1 min-w-[120px] py-4 font-bold text-lg text-gray-500 hover:text-indigo-600 hover:bg-white/80 border-b-4 border-transparent outline-none transition cursor-pointer">
+                    ⚙️ ตั้งค่า
+                </button>
+                <button id="tab-btn-news" onclick="swichAdminTab('news')"
+                    class="flex-1 min-w-[150px] py-4 font-bold text-lg text-gray-500 hover:text-indigo-600 hover:bg-white/80 border-b-4 border-transparent outline-none transition cursor-pointer">
+                    📢 แผงประกาศ
+                </button>
+            </div>
+
+            <!-- Tab Content: Lessons -->
+            <div id="tab-content-lessons"
+                class="flex-1 flex flex-col glass-card p-6 md:p-8 rounded-b-3xl rounded-tr-3xl shadow-xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">รายชื่อบทเรียนในเกม</h3>
+                    <button onclick="openLessonModal()"
+                        class="px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-md transition flex items-center gap-2">
+                        <span>➕</span> เพิ่มบทเรียนใหม่
+                    </button>
+                </div>
+                <!-- Table container responsive -->
+                <div class="overflow-x-auto bg-white/80 rounded-2xl shadow-inner border border-gray-100 flex-1">
+                    <table class="w-full text-left border-collapse min-w-max">
+                        <thead>
+                            <tr class="bg-indigo-100 text-indigo-900 border-b-2 border-indigo-200">
+                                <th class="p-4 font-bold whitespace-nowrap">ลำดับ (ID)</th>
+                                <th class="p-4 font-bold whitespace-nowrap">ไอคอน/ชื่อด่าน</th>
+                                <th class="p-4 font-bold hidden md:table-cell">รายละเอียดย่อ</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">สถานะ</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-lessons-table-body" class="divide-y divide-gray-200 text-gray-700">
+                            <tr>
+                                <td colspan="5" class="p-8 text-center text-gray-500 font-bold">กำลังโหลดข้อมูล...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
+
+            <!-- Tab Content: Students -->
+            <div id="tab-content-students" class="flex-1 hidden flex-col glass-card p-6 md:p-8 rounded-b-3xl shadow-xl">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                    <h3 class="text-2xl font-bold text-gray-800">👥 จัดการผู้เล่นทั้งหมด</h3>
+                    <div class="flex flex-col sm:flex-row items-center gap-3">
+                        <select id="admin-filter-class-select" onchange="loadAdminStudents()"
+                            class="w-full sm:w-48 px-4 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
+                            <option value="">ทุกชั้นเรียน</option>
+                        </select>
+                        <button onclick="resetAllStudents()"
+                            class="w-full sm:w-auto px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition flex justify-center items-center gap-2 whitespace-nowrap">
+                            <span>⚠️</span> รีเซ็ตทั้งหมด
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto bg-white/80 rounded-2xl shadow-inner border border-gray-100 flex-1">
+                    <table class="w-full text-left border-collapse min-w-max">
+                        <thead>
+                            <tr class="bg-purple-100 text-purple-900 border-b-2 border-purple-200">
+                                <th class="p-4 font-bold whitespace-nowrap">Avatar</th>
+                                <th class="p-4 font-bold whitespace-nowrap">ชื่อผู้เล่น</th>
+                                <th class="p-4 font-bold whitespace-nowrap">ชั้นเรียน</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">XP</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">Rank</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">Level</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">เรียนถึง</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-students-table-body" class="divide-y divide-gray-200 text-gray-700">
+                            <tr>
+                                <td colspan="8" class="p-8 text-center text-gray-500 font-bold">กำลังโหลดข้อมูล...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab Content: Reports -->
+            <div id="tab-content-reports" class="flex-1 hidden flex-col glass-card p-6 md:p-8 rounded-b-3xl shadow-xl">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                    <h3 class="text-2xl font-bold text-gray-800">📊 รายงานผลคะแนนผู้เรียน</h3>
+                    <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                        <select id="admin-report-lesson-select" onchange="loadAdminReports()"
+                            class="w-full sm:w-64 px-4 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
+                            <option value="">-- เลือกบทเรียน --</option>
+                        </select>
+                        <button onclick="downloadReportCSV()"
+                            class="w-full sm:w-auto px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-md transition flex justify-center items-center gap-2 whitespace-nowrap">
+                            <span>⬇️</span> ดาวน์โหลด CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 mb-4">
+                    <p class="text-gray-600 font-semibold" id="admin-report-summary">กรุณาเลือกบทเรียนเพื่อดูรายงานผลสอบ
+                    </p>
+                </div>
+
+                <div class="overflow-x-auto bg-white/80 rounded-2xl shadow-inner border border-gray-100 flex-1">
+                    <table class="w-full text-left border-collapse min-w-max">
+                        <thead>
+                            <tr class="bg-indigo-100 text-indigo-900 border-b-2 border-indigo-200">
+                                <th class="p-4 font-bold whitespace-nowrap">เวลาที่ส่ง</th>
+                                <th class="p-4 font-bold whitespace-nowrap">ชื่อผู้เรียน</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">ชั้น/ห้องเรียน</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap text-green-700">คะแนนเต็ม</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap text-blue-700">คะแนนที่ได้</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-reports-table-body" class="divide-y divide-gray-200 text-gray-700">
+                            <tr>
+                                <td colspan="5" class="p-8 text-center text-gray-500 font-bold bg-gray-50">
+                                    <i>ยังไม่ได้เลือกบทเรียน</i>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab Content: Settings -->
+            <div id="tab-content-settings" class="flex-1 hidden flex-col glass-card p-6 md:p-8 rounded-b-3xl shadow-xl">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6">⚙️ ตั้งค่าระบบ</h3>
+                <div class="space-y-6 max-w-lg">
+                    <div class="bg-white/80 p-6 rounded-2xl shadow-inner border border-gray-100">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">⏱️ เวลาต่อคำถาม (วินาที)</label>
+                        <div class="flex items-center gap-3">
+                            <input type="number" id="settings-timer" min="5" max="300" value="30"
+                                class="w-32 px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-2xl font-bold text-center">
+                            <span class="text-gray-500 font-semibold">วินาที/ข้อ (ค่าเริ่มต้น 30)</span>
+                        </div>
+                        <p class="text-xs text-indigo-500 mt-2 font-semibold">กำหนดเวลาตอบแต่ละคำถาม
+                            (ระบบจะนำไปคูณกับจำนวนข้อทั้งหมดของด่านนั้นๆ อัตโนมัติ)</p>
+                    </div>
+
+                    <div
+                        class="bg-white/80 p-6 rounded-2xl shadow-inner border border-red-100 border-l-4 border-l-red-500">
+                        <label class="block text-sm font-bold text-red-700 mb-2">🔐 รหัสลับบัญชาการ (Admin PIN)</label>
+                        <div class="flex items-center gap-3">
+                            <input type="text" id="settings-admin-pin" placeholder="รหัสผ่านปัจจุบัน"
+                                class="w-full sm:w-64 px-4 py-3 border-2 border-red-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-xl font-bold tracking-widest text-center text-red-700">
+                        </div>
+                        <p class="text-xs text-red-500 mt-2 font-semibold">รหัสผ่านสำหรับเข้าสู่ระบบแอดมิน
+                            (โปรดเก็บตัวเลขหรือข้อความนี้ไว้เป็นความลับ)</p>
+                    </div>
+
+                    <div class="bg-white/80 p-6 rounded-2xl shadow-inner border border-gray-100">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">🏫 ระดับชั้นเรียน (Classes)</label>
+                        <input type="text" id="settings-classes" placeholder="ป.4, ป.5, ป.6"
+                            class="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold">
+                        <p class="text-xs text-gray-400 mt-2">พิมพ์ระดับชั้นที่ต้องการให้เลือกในหน้า Login
+                            (คั่นด้วยเครื่องหมายคอมมา ,)</p>
+                    </div>
+
+                    <div class="bg-white/80 p-6 rounded-2xl shadow-inner border border-gray-100">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">🚪 ห้องเรียน (Rooms)</label>
+                        <input type="text" id="settings-rooms" placeholder="1, 2, 3, 4"
+                            class="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold">
+                        <p class="text-xs text-gray-400 mt-2">พิมพ์ห้องเรียนเพื่อใช้ประกอบลงท้ายกับระดับชั้น
+                            (คั่นด้วยเครื่องหมายคอมมา ,) หากปล่อยว่างไว้ นักเรียนจะเลือกได้แค่ชั้นเรียน</p>
+                    </div>
+
+                    <div class="bg-purple-50 p-6 rounded-2xl shadow-inner border border-purple-200">
+                        <label class="flex items-center gap-2 text-sm font-bold text-purple-800 mb-2">
+                            <span>🤖</span> Gemini API Key (สำหรับ AI Generator)
+                        </label>
+                        <div class="relative">
+                            <input type="password" id="settings-geminikey" placeholder="AIzaSy..."
+                                class="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-lg font-bold">
+                            <button type="button"
+                                onclick="const input = document.getElementById('settings-geminikey'); input.type = input.type === 'password' ? 'text' : 'password';"
+                                class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-600">
+                                👁️
+                            </button>
+                        </div>
+                        <p class="text-xs text-purple-500 mt-2">
+                            รับ Key ฟรีได้ที่ Google AI Studio นำมาตั้งค่าเพื่อใช้งานปุ่ม "✨ สร้างเนื้อหาด้วย AI"
+                        </p>
+                    </div>
+
+                    <div class="bg-white/80 p-6 rounded-2xl shadow-inner border border-gray-100">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">📜 ข้อความส่วนหัวเกียรติบัตร
+                            (Certificate Header)</label>
+                        <input type="text" id="settings-cert-header" placeholder="เช่น 🏆 โรงเรียนทดสอบวิทยา 🏆"
+                            class="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold">
+                        <p class="text-xs text-gray-400 mt-2">ใช้แสดงที่ด้านบนสุดของเกียรติบัตร
+                            (เว้นว่างเพื่อใช้ค่าเริ่มต้น)</p>
+                    </div>
+
+                    <div class="bg-white/80 p-6 rounded-2xl shadow-inner border border-gray-100">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">📜 ข้อความส่วนท้ายเกียรติบัตร
+                            (Certificate Footer)</label>
+                        <input type="text" id="settings-cert-footer"
+                            placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษาฯ"
+                            class="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold">
+                        <p class="text-xs text-gray-400 mt-2">ใช้แสดงเป็นผู้มอบเกียรติบัตรที่ด้านล่างสุด (ล่างวันที่)
+                        </p>
+                    </div>
+                    <button onclick="adminSaveSettings()"
+                        class="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition flex items-center gap-2">
+                        💾 บันทึกการตั้งค่า
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content: News -->
+            <div id="tab-content-news" class="flex-1 hidden flex-col glass-card p-6 md:p-8 rounded-b-3xl shadow-xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">📢 กระดานประกาศข่าวสารเกม (Announcements)</h3>
+                    <button onclick="openNewsModal()"
+                        class="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md transition flex items-center gap-2">
+                        <span>➕</span> ประกาศข่าวใหม่
+                    </button>
+                </div>
+                <!-- Table container responsive -->
+                <div class="overflow-x-auto bg-white/80 rounded-2xl shadow-inner border border-gray-100 flex-1">
+                    <table class="w-full text-left border-collapse min-w-max">
+                        <thead>
+                            <tr class="bg-blue-100 text-blue-900 border-b-2 border-blue-200">
+                                <th class="p-4 font-bold whitespace-nowrap">ลำดับ (ID)</th>
+                                <th class="p-4 font-bold whitespace-nowrap">หัวข้อประกาศ</th>
+                                <th class="p-4 font-bold hidden md:table-cell">หมวดหมู่/ประเภท</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">เวลา</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">สถานะ</th>
+                                <th class="p-4 font-bold text-center whitespace-nowrap">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-news-table-body" class="divide-y divide-gray-200 text-gray-700">
+                            <tr>
+                                <td colspan="6" class="p-8 text-center text-gray-500 font-bold">
+                                    กำลังโหลดข้อมูลข่าวสาร...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- === Modal: Manage Lesson === -->
+        <div id="modal-lesson"
+            class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4 overflow-y-auto">
+            <div
+                class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-6 md:my-10 overflow-hidden transform transition-all">
+                <div
+                    class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex justify-between items-center mb-2">
+                    <h3 id="modal-lesson-title" class="font-bold text-xl flex items-center gap-2">✨ จัดการบทเรียน</h3>
+                    <button type="button" onclick="closeLessonModal()"
+                        class="text-white/80 hover:text-white text-3xl leading-none">&times;</button>
+                </div>
+                <form id="form-manage-lesson" onsubmit="saveLessonData(event)" class="p-6 flex flex-col gap-6">
+                    <input type="hidden" id="lesson-id-input">
+                    <!-- แบ่ง Layout เป็น 2 คอลัมน์ -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        <!-- ฝั่งซ้าย: ข้อมูลทั่วไป -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อด่าน (Title)</label>
+                                <input type="text" id="lesson-title-input" required
+                                    placeholder="เช่น ด่าน 1: ป่าเริ่มต้น"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">รายละเอียด
+                                    (Description)</label>
+                                <textarea id="lesson-desc-input" rows="2" required
+                                    placeholder="อธิบายเรื่องที่จะสอนสั้นๆ"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition"></textarea>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="w-1/3 flex flex-col">
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ไอคอน (Emoji)</label>
+                                    <input type="text" id="lesson-icon-input" placeholder="เช่น 🐉"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-xl text-center text-xl focus:ring-2 focus:ring-indigo-500 outline-none transition mb-2">
+                                    <div
+                                        class="flex flex-wrap gap-1 bg-gray-50 p-2 rounded-xl border border-gray-200 justify-center shadow-inner h-[130px] overflow-y-auto content-start">
+                                        <div class="text-[10px] w-full text-indigo-500 font-bold mb-1 text-center">👇
+                                            คลิกเลือกบอส/ไอคอน</div>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🐉</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">👹</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">👽</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🧟</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🧛</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">💀</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">👾</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🕷️</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🐍</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🦂</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🦖</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🤖</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🦇</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🏰</button>
+                                        <button type="button"
+                                            onclick="document.getElementById('lesson-icon-input').value = this.innerText"
+                                            class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">⚔️</button>
+                                    </div>
+                                </div>
+                                <div class="w-2/3 space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">สถานะด่าน
+                                            (Active)</label>
+                                        <select id="lesson-active-input"
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer transition">
+                                            <option value="true">🟢 เปิดให้เล่น (Active)</option>
+                                            <option value="false">🔴 ปิดให้เข้า (Inactive)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์วิดีโอเนื้อหา
+                                            (YouTube) - <i>Optional</i></label>
+                                        <input type="url" id="lesson-video-input"
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์ใบงาน (Worksheet)
+                                            - <i>Optional</i></label>
+                                        <input type="url" id="lesson-worksheet-input"
+                                            placeholder="https://docs.google.com/..."
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ฝั่งขวา: เนื้อหาและออปชั่นเสริม -->
+                        <div class="space-y-4 flex flex-col h-full">
+                            <div class="flex-1 flex flex-col">
+                                <div class="flex justify-between items-center mb-1 flex-wrap gap-2">
+                                    <label class="block text-sm font-bold text-gray-700">เนื้อหาบทเรียน
+                                        (Content)</label>
+                                    <button type="button" onclick="openAIGeneratorModal()"
+                                        class="text-xs font-bold bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-3 py-1.5 rounded-full shadow-md transition transform hover:scale-105">
+                                        ✨ สร้างบทเรียนและข้อสอบด้วย AI
+                                    </button>
+                                </div>
+                                <textarea id="lesson-content-input"
+                                    placeholder="พิมพ์เนื้อหาที่ใช้สอน หรือเว้นว่างไว้..."
+                                    class="w-full flex-1 min-h-[220px] px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none"></textarea>
+                            </div>
+
+                            <div
+                                class="flex items-center gap-3 bg-blue-50 p-3 rounded-xl border border-blue-200 mt-auto">
+                                <input type="checkbox" id="lesson-pretest-input"
+                                    class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                                <label for="lesson-pretest-input"
+                                    class="text-sm font-bold text-blue-800 cursor-pointer flex-1">📝 เปิด
+                                    Pre-test (แบบทดสอบก่อนเรียน)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 pb-2 flex justify-end gap-3 border-t mt-2">
+                        <button type="button" onclick="closeLessonModal()"
+                            class="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition">ยกเลิก</button>
+                        <button type="submit"
+                            class="px-6 py-2.5 text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold shadow-md transition flex items-center gap-2">
+                            💾 บันทึกข้อมูล
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- === Modal: AI Generator (Phase 2) === -->
+        <div id="modal-ai-generator"
+            class="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[60] hidden flex justify-center items-center p-4">
+            <div
+                class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border-4 border-purple-300 relative">
+                <div
+                    class="bg-gradient-to-r from-purple-600 to-pink-500 p-5 text-white flex justify-between items-center relative overflow-hidden">
+                    <div class="absolute -right-4 -top-4 opacity-20 text-6xl">🤖</div>
+                    <h3 class="font-bold text-xl flex items-center gap-2 relative z-10">✨ AI Generator</h3>
+                    <button type="button"
+                        onclick="document.getElementById('modal-ai-generator').classList.add('hidden')"
+                        class="text-white/80 hover:text-white text-3xl leading-none relative z-10">&times;</button>
+                </div>
+
+                <div class="p-6 space-y-5 bg-purple-50/50">
+                    <div
+                        class="bg-purple-100 p-4 rounded-xl border border-purple-200 text-purple-800 text-sm font-medium shadow-inner">
+                        <span class="text-xl">💡</span> ประหยัดเวลา! ให้ปัญญาประดิษฐ์สร้าง <b>"เนื้อหาบทเรียน"</b> และ
+                        <b>"ชุดข้อสอบ"</b> รวดเดียวเตรียมไว้ให้คุณ
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">📚 หัวข้อที่ต้องการให้ AI
+                            ช่วยเขียน</label>
+                        <input type="text" id="ai-topic-input" placeholder="เช่น ระบบสุริยะจักรวาล ป.4"
+                            class="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition text-base font-bold text-gray-800 shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">📋 จำนวนข้อสอบที่ต้องการ</label>
+                        <select id="ai-questions-input"
+                            class="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition font-bold text-gray-800 bg-white shadow-sm cursor-pointer">
+                            <option value="0">ไม่ต้องสร้างข้อสอบ เอาแค่เนื้อหา</option>
+                            <option value="1">สร้างแบบทดสอบ 1 ข้อ</option>
+                            <option value="2">สร้างแบบทดสอบ 2 ข้อ</option>
+                            <option value="3">สร้างแบบทดสอบ 3 ข้อ</option>
+                            <option value="4">สร้างแบบทดสอบ 4 ข้อ</option>
+                            <option value="5" selected>สร้างแบบทดสอบ 5 ข้อ (แนะนำ)</option>
+                            <option value="10">สร้างแบบทดสอบ 10 ข้อ</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-4 flex justify-end gap-3 mt-4">
+                        <button type="button"
+                            onclick="document.getElementById('modal-ai-generator').classList.add('hidden')"
+                            class="px-5 py-2.5 text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold transition">ยกเลิก</button>
+                        <button type="button" onclick="executeAIGeneration()"
+                            class="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-2 transform hover:scale-105">
+                            <span class="text-lg">🚀</span> เสกเนื้อหาเลย!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === Modal: Manage Batch Questions === -->
+        <div id="modal-question"
+            class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4 overflow-y-auto">
+            <div
+                class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col transform transition-all">
+                <div id="modal-question-header"
+                    class="bg-gradient-to-r from-emerald-500 to-green-600 p-5 text-white flex justify-between items-center rounded-t-3xl shrink-0">
+                    <div>
+                        <h3 id="modal-question-title" class="font-bold text-2xl flex items-center gap-2">📝
+                            จัดการข้อสอบแบบชุด</h3>
+                        <p id="modal-question-subtitle" class="text-sm text-green-100 mt-1 opacity-90"></p>
+                    </div>
+                    <button type="button" onclick="closeQuestionModal()"
+                        class="text-white/80 hover:text-white text-4xl leading-none">&times;</button>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="generateQuizWithAI()"
+                            class="flex-1 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold rounded-xl shadow-md hover:scale-105 transition-transform flex justify-center items-center gap-2">
+                            ✨ ให้ AI สร้างชุดข้อสอบ (5 ข้อ)
+                        </button>
+                    </div>
+                </div>
+                <!-- Area for dynamic blocks -->
+                <form id="form-manage-question" onsubmit="saveBatchQuestionsData(event)"
+                    class="p-6 overflow-y-auto flex-1 bg-gray-50 flex flex-col gap-6">
+                    <input type="hidden" id="q-lesson-id-input">
+                    <input type="hidden" id="q-type-input">
+
+                    <div id="questions-container" class="space-y-6">
+                        <!-- JS Will Inject Question Blocks Here -->
+                    </div>
+
+                    <div class="flex justify-center mt-4">
+                        <button type="button" onclick="addQuestionBlock()"
+                            class="px-6 py-3 border-2 border-dashed border-green-500 text-green-700 font-bold rounded-2xl hover:bg-green-50 transition w-full max-w-md flex items-center justify-center gap-2">
+                            <span class="text-2xl leading-none">+</span> เพิ่มข้อสอบใหม่อีกข้อ
+                        </button>
+                    </div>
+
+                    <div class="pt-6 pb-2 flex justify-end gap-3 border-t mt-4 sticky bottom-0 bg-gray-50 z-10 p-2">
+                        <button type="button" onclick="closeQuestionModal()"
+                            class="px-6 py-3 text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold transition">ยกเลิก</button>
+                        <button type="submit"
+                            class="px-8 py-3 text-white bg-green-600 hover:bg-green-700 rounded-xl font-bold shadow-lg transition flex items-center gap-2 text-lg">
+                            💾 บันทึกข้อมูลทั้งชุด
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- === Modal: Manage News === -->
+        <div id="modal-news"
+            class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4 overflow-y-auto">
+            <div
+                class="bg-white rounded-3xl shadow-2xl w-full max-w-lg mb-10 mt-10 overflow-hidden transform transition-all">
+                <div
+                    class="bg-gradient-to-r from-blue-500 to-indigo-600 p-4 text-white flex justify-between items-center mb-2">
+                    <h3 id="modal-news-title" class="font-bold text-xl flex items-center gap-2">📢 สร้างประกาศใหม่</h3>
+                    <button type="button" onclick="closeNewsModal()"
+                        class="text-white/80 hover:text-white text-3xl leading-none">&times;</button>
+                </div>
+                <form id="form-manage-news" onsubmit="saveNewsData(event)" class="p-6 space-y-4">
+                    <input type="hidden" id="news-id-input">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">หัวข้อข่าว (Title)</label>
+                        <input type="text" id="news-title-input" required placeholder="เช่น อัปเดตใหญ่: ระบบสัตว์เลี้ยง"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">เนื้อหาข่าว (Content)</label>
+                        <textarea id="news-content-input" rows="4" required placeholder="พิมพ์รายละเอียดประกาศ..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-vertical transition"></textarea>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <div class="w-1/3 flex flex-col">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ไอคอน (Emoji)</label>
+                            <input type="text" id="news-icon-input" placeholder="เช่น 📌"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-xl text-center text-xl focus:ring-2 focus:ring-blue-500 outline-none transition mb-2">
+                            <div
+                                class="flex flex-wrap gap-1 bg-gray-50 p-2 rounded-xl border border-gray-200 justify-center shadow-inner">
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">📌</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">📢</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🔥</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🎁</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">⚠️</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🌟</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🗓️</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">📝</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">💡</button>
+                                <button type="button"
+                                    onclick="document.getElementById('news-icon-input').value = this.innerText"
+                                    class="text-lg hover:scale-150 hover:z-10 transition-transform origin-center">🏆</button>
+                            </div>
+                        </div>
+                        <div class="w-2/3">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">หมวดหมู่/ป้ายกำกับ (Type)</label>
+                            <input type="text" id="news-type-input" placeholder="เช่น HOT NEWS🔥, EVENT✨"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <div class="w-1/2">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">วันที่ (Date)</label>
+                            <input type="text" id="news-date-input" placeholder="เช่น วันนี้, 2 วันก่อน"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <div class="w-1/2">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">การแสดงผล (Active)</label>
+                            <select id="news-active-input"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer transition">
+                                <option value="true">🟢 เปิดใช้งาน (Active)</option>
+                                <option value="false">🔴 ซ่อน (Inactive)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-6 pb-2 flex justify-end gap-3 border-t mt-4">
+                        <button type="button" onclick="closeNewsModal()"
+                            class="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition">ยกเลิก</button>
+                        <button type="submit"
+                            class="px-6 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-xl font-bold shadow-md transition flex items-center gap-2">
+                            💾 บันทึกเนื้อหาข่าว
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- === Modal: Map Lesson Preview (Wanted Poster Style) === -->
+        <div id="modal-lesson-preview"
+            class="fixed inset-0 bg-black/70 backdrop-blur-md z-[60] hidden flex justify-center items-center p-4 overflow-y-auto">
+
+            <div class="relative w-full max-w-sm transform transition-all duration-300 scale-95 opacity-0 group"
+                id="modal-lesson-preview-content">
+                <!-- ตกแต่งฉากหลังให้เป็นแผ่นป้ายม้วนกระดาษโบราณหรือกระดานไม้ -->
+                <div class="absolute inset-0 bg-[#e6d5b8] rounded-md shadow-[0_0_30px_rgba(0,0,0,0.8)] border-4 border-[#8b5a2b] overflow-hidden -z-10"
+                    style="background-image: url('https://www.transparenttextures.com/patterns/aged-paper.png');">
+                    <!-- ขอบกระดาษขาดๆ ซ้ายขวาบนล่าง (CSS หรือ SVG ปลอมๆ) -->
+                    <div class="absolute top-0 left-0 w-full h-4 bg-[#8b5a2b] opacity-20 blur-[2px]"></div>
+                    <div class="absolute bottom-0 left-0 w-full h-4 bg-[#8b5a2b] opacity-20 blur-[2px]"></div>
+                </div>
+
+                <div class="p-6 md:p-8 relative text-center">
+
+                    <!-- หัวหมุดไม้ / โซ่เหล็ก -->
+                    <div
+                        class="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-gray-300 rounded-full border-4 border-gray-600 shadow-md">
+                    </div>
+
+                    <!-- ปุ่มปิด (กากบาท) -->
+                    <button type="button" onclick="closeLessonPreviewModal()"
+                        class="absolute -top-3 -right-3 w-10 h-10 bg-red-600 text-white rounded-full border-4 border-red-900 font-bold text-xl flex items-center justify-center hover:bg-red-500 hover:scale-110 shadow-lg transition-transform z-10">&times;</button>
+
+                    <!-- หัวข้อป้ายประกาศ -->
+                    <div class="mb-4 mt-2">
+                        <h3
+                            class="font-mali text-3xl md:text-4xl font-black text-[#5c3a21] drop-shadow-[1px_1px_0_rgba(255,255,255,0.8)] tracking-wide">
+                            🔥 จุดหมายถัดไป 🔥</h3>
+                        <div class="h-1 w-24 bg-[#5c3a21] mx-auto mt-2 rounded-full opacity-50"></div>
+                    </div>
+
+                    <!-- ภาพบอส / ไอคอนด่าน -->
+                    <div
+                        class="relative mx-auto w-32 h-32 md:w-40 md:h-40 bg-gradient-to-b from-gray-200 to-gray-400 rounded-lg border-4 border-[#5c3a21] shadow-inner mb-4 flex justify-center items-center overflow-hidden">
+                        <div id="preview-lesson-icon"
+                            class="text-6xl md:text-7xl drop-shadow-lg transform hover:scale-110 transition-transform">
+                            🐉</div>
+                        <!-- เอฟเฟกต์รอยข่วน (ถ้าเป็นบอส) -->
+                        <div
+                            class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/scratches.png')] opacity-20 pointer-events-none">
+                        </div>
+                    </div>
+
+                    <!-- ชื่อด่าน -->
+                    <h4 id="preview-lesson-title"
+                        class="font-bold text-2xl md:text-3xl text-[#5c3a21] mb-2 px-2 leading-tight">ด่าน 1:
+                        ป่าเริ่มต้น</h4>
+
+                    <!-- รายละเอียดแบบกระชับ -->
+                    <p id="preview-lesson-desc"
+                        class="text-sm md:text-base text-[#7c5030] font-medium mb-6 px-4 italic bg-[#d9c4a1] py-2 rounded border border-[#c2b08f] shadow-inner">
+                        "เตรียมพร้อมรับมือกับสิ่งที่ซ่อนอยู่ในความมืด..."</p>
+
+                    <!-- ข้อมูลของรางวัล (XP/Badge) -->
+                    <div class="bg-black/10 rounded-xl p-3 mb-6 border border-[#5c3a21]/20">
+                        <div class="text-[10px] md:text-xs font-black text-[#5c3a21] uppercase mb-1 tracking-widest">🏆
+                            ของรางวัลที่คาดหวัง 🏆</div>
+                        <div class="flex justify-center items-center gap-4">
+                            <div class="font-bold text-yellow-700 bg-yellow-100 px-3 py-1 rounded-full shadow-sm">⭐ +XP
+                            </div>
+                            <div class="font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full shadow-sm">🎓
+                                ความรู้</div>
+                        </div>
+                    </div>
+
+                    <!-- ปุ่มบุกโจมตี -->
+                    <button id="preview-enter-btn"
+                        class="w-full bg-gradient-to-b from-red-500 to-red-700 hover:from-red-400 hover:to-red-600 text-white font-black text-2xl py-4 rounded-xl border-b-4 border-red-900 shadow-[0_5px_15px_rgba(220,38,38,0.5)] transform active:translate-y-1 active:border-b-0 transition-all flex justify-center items-center gap-2">
+                        <span>⚔️</span> บุกโจมตี!
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== หน้า Pre-test (แบบทดสอบก่อนเรียน) ==================== -->
+        <section id="page-pretest" class="flex-1 hidden flex flex-col relative z-20 pt-4">
+            <div class="flex items-center justify-between mb-6 gap-2">
+                <button onclick="openMap()"
+                    class="btn-action text-blue-800 font-black flex items-center gap-1 bg-blue-100 hover:bg-blue-200 px-5 py-2.5 rounded-xl shadow-sm transition"><span
+                        class="text-lg">←</span> ถอยทัพ</button>
+                <h2 id="pretest-title" class="rpg-title text-3xl">
+                    📝 Pre-test</h2>
+            </div>
+
+            <div class="rpg-box rpg-box-blue p-6 md:p-8 mb-6 flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <div
+                        class="text-sm font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                        คำถามที่ <span id="pretest-q-number" class="text-blue-600 text-lg">1</span>/<span
+                            id="pretest-q-total">5</span>
+                    </div>
+                    <div class="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                        📝 แบบทดสอบก่อนเรียน
+                    </div>
+                </div>
+
+                <h3 id="pretest-question-text" class="text-xl md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">
+                    กำลังโหลดคำถาม...
+                </h3>
+
+                <div id="pretest-options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
+                    <!-- ปุ่มตัวเลือกจะถูกสร้างด้วย JS -->
+                </div>
+            </div>
+
+            <!-- สรุปผล Pre-test -->
+            <div id="pretest-result" class="rpg-box rpg-box-blue p-8 shadow-xl text-center hidden">
+                <div class="text-6xl mb-4 animate-bounce text-center mx-auto">📊</div>
+                <h3 class="rpg-title text-3xl mb-2">สรุปผล Pre-test</h3>
+                <p id="pretest-score-text" class="text-xl text-indigo-700 font-black mb-4">คะแนน: 3/5</p>
+                <p class="text-gray-600 font-bold mb-6">มาดูเนื้อหาเพื่อเตรียมตัวสำหรับ Boss Battle กันเถอะ!</p>
+                <button onclick="goToLessonFromPretest()" class="btn-arcade w-full max-w-sm mx-auto py-4 text-xl block">
+                    📖 ไปดูเนื้อหาเลย
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== หน้า 4: บทเรียน (Video/เนื้อหา) ==================== -->
+        <section id="page-lesson" class="flex-1 hidden flex flex-col relative z-20 p-4 md:p-8 h-full overflow-y-auto">
+            <div class="flex items-center justify-between mb-6 gap-2">
+                <button onclick="openMap()"
+                    class="btn-action text-blue-800 font-black flex items-center gap-1 bg-blue-100 hover:bg-blue-200 px-5 py-2.5 rounded-xl shadow-sm transition"><span
+                        class="text-lg">←</span> ถอยทัพ</button>
+                <h2 id="lesson-title-display"
+                    class="rpg-title text-3xl text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                    ชื่อด่าน</h2>
+            </div>
+
+            <div
+                class="rpg-box bg-white/80 backdrop-blur-md border-[3px] border-white/40 p-6 md:p-8 mb-6 text-center flex-1 flex flex-col shadow-2xl rounded-3xl">
+                <p id="lesson-desc-display" class="text-gray-800 mb-4 text-lg font-bold drop-shadow-sm">
+                    รายละเอียดเนื้อหา...</p>
+
+                <!-- กล่องนำเสนอเนื้อหา (Text Content) -->
+                <div id="lesson-content-display"
+                    class="text-gray-800 text-left text-base leading-relaxed mb-6 whitespace-pre-wrap bg-white/60 p-5 rounded-2xl shadow-inner hidden border border-green-200 backdrop-blur-sm">
+                </div>
+
+                <div id="video-container"
+                    class="w-full aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-2xl mb-8 relative flex items-center justify-center border-4 border-gray-800">
+                    <iframe id="lesson-video-frame" class="w-full h-full hidden" src="" frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen></iframe>
+                    <span id="video-placeholder" class="text-gray-400 font-semibold flex flex-col items-center gap-2">
+                        <span class="text-4xl">🎬</span>
+                        ไม่มีวิดีโอสำหรับด่านนี้
+                    </span>
+                </div>
+
+                <div class="mt-auto flex flex-col sm:flex-row gap-4 justify-center items-center w-full">
+                    <button id="lesson-worksheet-btn" onclick="openWorksheetModal()"
+                        class="hidden w-full sm:w-auto btn-action bg-blue-500 hover:bg-blue-600 text-white font-black py-4 px-8 rounded-xl text-xl shadow-md">
+                        <span class="relative z-10 flex items-center justify-center gap-2 drop-shadow-md">📝
+                            เปิดทำใบงาน</span>
+                    </button>
+
+                    <button onclick="startBossBattle()"
+                        class="w-full sm:w-auto btn-arcade py-4 px-10 text-xl animate-pulse">
+                        <span class="relative z-10 flex items-center justify-center gap-2 text-2xl drop-shadow-md">⚔️
+                            เข้าปะทะบอส
+                            (ทำทดสอบ)</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== Worksheet UI ==================== -->
+        <section id="page-worksheet"
+            class="flex-1 hidden flex flex-col relative z-20 p-4 md:p-8 h-full overflow-y-auto">
+            <div class="flex items-center justify-between mb-4 gap-2">
+                <button onclick="closeWorksheetModal()"
+                    class="btn-action text-blue-800 font-black flex items-center gap-1 bg-blue-100 hover:bg-blue-200 px-5 py-2.5 rounded-xl shadow-sm transition"><span
+                        class="text-lg">←</span> กลับสู่บทเรียน</button>
+                <h2 class="rpg-title text-2xl text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                    📝 ทำใบงาน</h2>
+            </div>
+
+            <!-- แบ่งเป็นสองฝั่ง (Split Screen) -->
+            <div class="flex flex-col lg:flex-row gap-6 w-full h-full flex-1 min-h-0">
+                <!-- ฝั่งซ้าย: เนื้อหา -->
+                <div
+                    class="flex-1 rpg-box bg-white/90 backdrop-blur-md border-[3px] border-white/40 p-4 md:p-6 shadow-2xl rounded-3xl flex flex-col overflow-y-auto min-h-[30vh]">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2 border-b-2 border-gray-200 pb-2">📖 สรุปเนื้อหาใบงาน
+                    </h3>
+                    <div id="worksheet-content"
+                        class="text-gray-700 text-base leading-relaxed whitespace-pre-wrap flex-1">
+                        กำลังโหลด...
+                    </div>
+                </div>
+
+                <!-- ฝั่งขวา: พิมพ์คำตอบ -->
+                <div
+                    class="flex-1 rpg-box bg-blue-50/90 backdrop-blur-md border-[3px] border-blue-200 p-4 md:p-6 shadow-2xl rounded-3xl flex flex-col">
+                    <h3
+                        class="text-xl font-bold text-blue-800 mb-2 border-b-2 border-blue-200 pb-2 flex items-center gap-2">
+                        ✏️ พื้นที่ตอบคำถาม / ส่งงาน
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-4 font-bold">พิมพ์สรุปความรู้
+                        หรือตอบคำถามจากเนื้อหาด้านซ้ายที่นี่เลย</p>
+
+                    <textarea id="worksheet-input"
+                        class="w-full flex-1 rounded-xl p-4 text-gray-800 text-lg border-2 border-blue-300 focus:outline-none focus:ring-4 focus:ring-blue-200 resize-none shadow-inner"
+                        placeholder="พิมพ์ส่งงาน หรือ สรุปความรู้ได้ที่นี่..."></textarea>
+
+                    <div class="mt-4 flex flex-col gap-3">
+                        <button onclick="submitWorksheet()"
+                            class="w-full btn-arcade py-4 text-xl flex items-center justify-center gap-2">
+                            <span>✅ บันทึกและรับรูปใบงาน</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas สำหรับ Generate รูปภาพ (ซ่อนไว้) -->
+            <canvas id="worksheet-canvas" width="1200" height="800" class="hidden"></canvas>
+
+            <!-- Modal โชว์รูปภาพตอนเสร็จ -->
+            <div id="worksheet-result-modal"
+                class="hidden absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                <div class="bg-gray-100 rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl flex flex-col items-center">
+                    <h3 class="text-3xl font-black text-green-600 mb-2">🎉 บันทึกใบงานสำเร็จ!</h3>
+                    <p class="text-gray-600 font-bold mb-6 text-center">สามารถโหลดไฟล์รูปไว้เก็บเป็นผลงาน
+                        และกดเปิดคลาสรูมเพื่อส่งแนบรูปได้เลย</p>
+
+                    <!-- Preview ภาพใบงาน -->
+                    <div
+                        class="w-full bg-white p-2 rounded-xl border-4 border-gray-300 mb-6 shadow-inner relative max-h-[40vh] overflow-hidden flex justify-center items-center">
+                        <img id="worksheet-preview-img" src="" class="max-h-[40vh] w-auto object-contain rounded-lg">
+                    </div>
+
+                    <div class="w-full flex flex-col gap-3">
+                        <button onclick="downloadWorksheetImage()"
+                            class="w-full btn-action bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 text-xl rounded-xl shadow-md flex items-center justify-center gap-2">
+                            ⬇️ เซฟรูปใบงานเก็บไว้ส่ง
+                        </button>
+
+                        <a href="https://classroom.google.com/" target="_blank"
+                            class="w-full bg-white border-4 border-green-600 text-green-700 hover:bg-green-50 font-bold py-4 text-xl rounded-xl shadow-md flex items-center justify-center gap-2 transition transform hover:-translate-y-1 active:translate-y-1">
+                            <svg viewBox="0 0 24 24" class="w-8 h-8 fill-current text-green-600">
+                                <path
+                                    d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z" />
+                            </svg>
+                            เข้า Classroom เพื่อส่งงาน
+                        </a>
+
+                        <button onclick="closeWorksheetResult()"
+                            class="mt-2 text-gray-500 hover:text-gray-800 font-bold underline">
+                            ปิดหน้าต่างเพื่อพิมพ์ใหม่
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== หน้า 5: Boss Battle (Quiz) ==================== -->
+        <section id="page-boss-battle"
+            class="hidden fixed inset-0 w-screen h-screen z-50 overflow-y-auto custom-scrollbar">
+            <div class="max-w-4xl mx-auto w-full min-h-full flex flex-col p-4 md:p-6 pb-12">
+                <div
+                    class="flex justify-between items-center mb-4 bg-gray-900/90 text-white p-4 rounded-2xl backdrop-blur-md shadow-lg border border-gray-700">
+                    <div class="font-bold flex items-center gap-2">⏱️ เวลา: <span id="timer-display"
+                            class="text-red-400 text-2xl font-black drop-shadow-[0_0_5px_rgba(248,113,113,0.8)]">05:00</span>
+                    </div>
+                    <div class="font-bold flex items-center gap-2">🔥 ดาเมจทวีคูณ: <span id="combo-display"
+                            class="text-yellow-400 text-2xl font-black drop-shadow-[0_0_5px_rgba(250,204,21,0.8)]">x1.0</span>
+                    </div>
+                </div>
+
+                <!-- โซนตัวบอสและผู้เล่น (Batle Area) -->
+                <div id="battle-area"
+                    class="rpg-box p-4 md:p-6 mb-4 md:mb-6 relative overflow-hidden bg-gray-900/60 backdrop-blur-sm border-4 border-gray-700 shadow-[0_10px_30px_rgba(0,0,0,0.8)] transition-transform duration-100 flex justify-between items-end min-h-[200px] sm:min-h-[250px] md:min-h-[300px] shrink-0">
+
+                    <!-- ฉากหลังการต่อสู้ (Epic Background) -->
+                    <div class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60 transition-all duration-1000"
+                        style="background-image: url('https://i.postimg.cc/FzQY8SYS/chakt-w-lakhr-t-xs-k-bbxs.png');">
+                    </div>
+
+                    <!-- หมอก / เอฟเฟกต์บรรยากาศ -->
+                    <div class="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent"></div>
+                    <div class="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent h-1/2"></div>
+
+                    <!-- ละอองเวทมนตร์ (Embers / Fireflies) -->
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+                        <div
+                            class="absolute bottom-10 left-10 w-2 h-2 bg-yellow-400 rounded-full blur-[2px] animate-ember-1">
+                        </div>
+                        <div
+                            class="absolute bottom-20 left-1/4 w-1 h-1 bg-orange-400 rounded-full blur-[1px] animate-ember-2">
+                        </div>
+                        <div
+                            class="absolute bottom-5 right-1/3 w-2 h-2 bg-red-400 rounded-full blur-[2px] animate-ember-3">
+                        </div>
+                        <div
+                            class="absolute bottom-1/4 right-10 w-1.5 h-1.5 bg-yellow-300 rounded-full blur-[1px] animate-ember-4">
+                        </div>
+                        <div class="absolute bottom-1/3 left-1/3 w-2 h-2 bg-orange-500 rounded-full blur-[2px] animate-ember-1"
+                            style="animation-delay: 1.5s;"></div>
+                        <div class="absolute bottom-10 right-1/4 w-1 h-1 bg-red-300 rounded-full blur-[1px] animate-ember-2"
+                            style="animation-delay: 2s;"></div>
+                    </div> <!-- โซนผู้เล่น (ซ้าย) -->
+                    <div id="player-zone"
+                        class="w-2/5 flex flex-col items-center relative z-10 origin-bottom transition-transform duration-300">
+                        <!-- HP Player -->
+                        <div
+                            class="w-full bg-gray-950 rounded-full h-6 md:h-8 mb-2 overflow-hidden border-2 border-green-800/80 shadow-inner relative">
+                            <div id="player-hp-bar"
+                                class="bg-gradient-to-r from-green-600 via-green-500 to-emerald-400 h-full rounded-full transition-all duration-300 w-full relative">
+                                <div class="absolute inset-0 bg-white/20 w-full"></div>
+                            </div>
+                            <span id="player-hp-text"
+                                class="absolute inset-0 flex items-center justify-center text-white text-[10px] md:text-sm font-black drop-shadow-md z-10 tracking-wider">100
+                                / 100</span>
+                        </div>
+                        <!-- รูปผู้เล่น -->
+                        <div class="relative w-24 h-24 md:w-32 md:h-32 flex items-center justify-center">
+                            <div id="player-image"
+                                class="text-7xl md:text-8xl drop-shadow-[0_5px_15px_rgba(34,197,94,0.6)] select-none transition-transform">
+                                🧙‍♂️
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VS text -->
+                    <div
+                        class="text-3xl md:text-5xl font-black text-yellow-500 italic drop-shadow-[0_0_10px_rgba(234,179,8,0.8)] pb-10 select-none z-10 animate-pulse-slow">
+                        VS
+                    </div>
+
+                    <!-- โซนบอส (ขวา) -->
+                    <div id="boss-zone"
+                        class="w-2/5 flex flex-col items-center relative z-10 origin-bottom transition-transform duration-300">
+                        <!-- HP Boss -->
+                        <div
+                            class="w-full bg-red-950 rounded-full h-6 md:h-8 mb-2 overflow-hidden border-2 border-red-800/80 shadow-inner relative">
+                            <div id="boss-hp-bar"
+                                class="bg-gradient-to-r from-red-600 via-red-500 to-orange-500 h-full rounded-full transition-all duration-300 w-full relative">
+                                <div class="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+                            </div>
+                            <span id="boss-hp-text"
+                                class="absolute inset-0 flex items-center justify-center text-white text-[10px] md:text-sm font-black drop-shadow-md z-10 tracking-wider">100
+                                / 100</span>
+                        </div>
+                        <!-- รูปบอส -->
+                        <div class="relative w-24 h-24 md:w-32 md:h-32 flex items-center justify-center">
+                            <div id="boss-image"
+                                class="text-7xl md:text-8xl drop-shadow-[0_10px_20px_rgba(239,68,68,0.6)] animate-bounce select-none transition-transform">
+                                🐉
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- พื้นที่สำหรับ Damage Popups -->
+                    <div id="damage-popup-container"
+                        class="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-20"></div>
+                </div>
+
+                <!-- โซนคำถาม -->
+                <div
+                    class="rpg-box border-4 border-[#8B5A2B] bg-[#fdf5e6] shadow-[inset_0_0_20px_rgba(139,90,43,0.3)] p-6 md:p-8 flex-auto flex flex-col shrink-0 relative min-h-[300px]">
+                    <!-- เลียนแบบหมุดตอกที่มุม (เสริมความเป็นป้ายประกาศ/กระดาษเก่า) -->
+                    <div
+                        class="absolute top-2 left-2 w-3 h-3 rounded-full bg-gray-800 border border-gray-600 shadow-sm">
+                    </div>
+                    <div
+                        class="absolute top-2 right-2 w-3 h-3 rounded-full bg-gray-800 border border-gray-600 shadow-sm">
+                    </div>
+                    <div
+                        class="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-gray-800 border border-gray-600 shadow-sm">
+                    </div>
+                    <div
+                        class="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-gray-800 border border-gray-600 shadow-sm">
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4 relative z-10">
+                        <div
+                            class="text-sm font-bold text-amber-900 bg-amber-100 px-4 py-1.5 rounded-full border-2 border-amber-300 shadow-sm">
+                            คำถามที่ <span id="question-number" class="text-amber-700 text-lg">1</span>/<span
+                                id="total-questions">10</span></div>
+                        <div id="battle-status"
+                            class="text-sm font-bold text-green-700 hidden bg-green-100 px-3 py-1 rounded-full border border-green-300 shadow-sm">
+                            ✅ ตอบถูก!</div>
+                    </div>
+
+                    <h3 id="question-text" class="text-xl md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">
+                        กำลังร่ายเวทย์อัญเชิญคำถาม...
+                    </h3>
+
+                    <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
+                        <!-- ปุ่มตัวเลือกจะถูกสร้างด้วย JS -->
+                    </div>
+
+                    <div id="battle-items-container"
+                        class="mt-4 flex gap-2 justify-center border-t border-gray-200/50 pt-3">
+                        <button id="btn-use-potion" onclick="useItemInBattle('potion')"
+                            class="px-3 py-1.5 bg-red-100 text-red-800 border-2 border-red-300 rounded-lg shadow-sm font-bold text-sm hover:bg-red-200 transition-colors hidden">
+                            🧪 ยาพยาบาล (<span id="btl-count-potion">0</span>)
+                        </button>
+                        <button id="btn-use-magnifier" onclick="useItemInBattle('magnifier')"
+                            class="px-3 py-1.5 bg-purple-100 text-purple-800 border-2 border-purple-300 rounded-lg shadow-sm font-bold text-sm hover:bg-purple-200 transition-colors hidden">
+                            🔍 ตัดชอยส์ (<span id="btl-count-magnifier">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- หน้าต่างสรุปผล (ซ่อนไว้ก่อน) -->
+                <div id="battle-result-modal"
+                    class="absolute inset-0 bg-gray-900/95 backdrop-blur-md rounded-3xl z-50 hidden flex-col items-center justify-center p-8 text-center border-4 border-yellow-500">
+                    <div id="result-emoji" class="text-8xl mb-4 animate-bounce">🏆</div>
+                    <h2 id="result-title" class="rpg-title text-5xl mb-3">ปราบลาสบอสสำเร็จ!</h2>
+                    <!-- ⭐ Star Rating -->
+                    <div id="result-stars" class="flex items-center justify-center gap-2 mb-4 text-5xl">
+                        <span class="opacity-30">⭐</span>
+                        <span class="opacity-30">⭐</span>
+                        <span class="opacity-30">⭐</span>
+                    </div>
+                    <p id="result-desc"
+                        class="text-2xl font-black text-white mb-8 bg-black/50 px-6 py-2 rounded-xl border-2 border-green-500/50">
+                        ได้รับ <span id="result-xp"
+                            class="text-green-400 font-bold drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]">+100 XP</span>
+                    </p>
+                    <button onclick="finishBattle()" class="btn-arcade py-4 px-10 text-xl font-black">
+                        กลับแผนที่ผจญภัย
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== NPC AI Tutor (Chat UI) ==================== -->
+        <!-- Floating Button -->
+        <div id="ai-tutor-fab" role="button" aria-label="AI Tutor"
+            class="fixed top-1/2 right-4 -mt-8 md:top-auto md:mt-0 md:bottom-6 md:right-6 w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.6)] flex items-center justify-center text-4xl z-[60] cursor-grab active:cursor-grabbing border-4 border-white/40 touch-none"
+            style="user-select: none; -webkit-user-select: none;">
+            <div
+                class="w-full h-full flex items-center justify-center rounded-full hover:scale-110 hover:rotate-12 transition-transform animate-bounce pointer-events-none drop-shadow-md">
+                🤖
+                <span
+                    class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse shadow-sm border-2 border-white pointer-events-none">AI</span>
+            </div>
+        </div>
+
+        <!-- Chat Modal -->
+        <div id="ai-tutor-modal"
+            class="fixed bottom-24 right-6 w-[350px] max-w-[calc(100vw-3rem)] h-[450px] max-h-[60vh] bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl z-[60] flex flex-col overflow-hidden transition-all duration-300 transform translate-y-full opacity-0 pointer-events-none">
+            <!-- Header -->
+            <div
+                class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex justify-between items-center shadow-md relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 opacity-20 text-6xl">✨</div>
+                <div class="flex items-center gap-3 relative z-10">
+                    <div
+                        class="text-3xl bg-white/20 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm shadow-sm border border-white/30">
+                        🤖</div>
+                    <div>
+                        <h3 class="font-bold text-lg leading-tight">ผู้พิทักษ์ความรู้</h3>
+                        <p class="text-xs text-indigo-100 font-medium tracking-wide">AI Tutor พร้อมให้คำปรึกษา</p>
+                    </div>
+                </div>
+                <button type="button" onclick="toggleAITutor()"
+                    class="text-white/80 hover:text-white text-2xl relative z-10 w-8 h-8 flex items-center justify-center bg-black/10 hover:bg-black/20 rounded-full transition-colors">&times;</button>
+            </div>
+
+            <!-- Chat Box (Scrollable) -->
+            <div id="ai-chat-box"
+                class="flex-1 p-4 overflow-y-auto flex flex-col gap-2 bg-gradient-to-b from-indigo-50/50 to-purple-50/30 scroll-smooth shadow-inner border-y border-white/50">
+                <!-- Messages will appear here -->
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 bg-white/80 backdrop-blur-md border-t border-indigo-100 flex gap-2">
+                <input type="text" id="ai-chat-input" placeholder="ถามข้ามาได้เลย..."
+                    onkeypress="handleAIKeyPress(event)"
+                    class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all shadow-inner font-medium text-gray-700">
+                <button onclick="sendAITutorMessage()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95">
+                    <span class="transform rotate-[-45deg] ml-1 mb-1 text-lg">🚀</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== Shop Modal ==================== -->
+        <div id="shop-modal"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+            <div
+                class="bg-gradient-to-br from-yellow-50 to-orange-100 rounded-3xl max-w-xl w-full border-4 border-yellow-500 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <!-- Header -->
+                <div
+                    class="bg-gradient-to-r from-yellow-400 to-orange-500 p-4 shrink-0 flex justify-between items-center border-b-4 border-orange-600 relative overflow-hidden">
+                    <div class="absolute -right-4 -bottom-4 opacity-30 text-7xl">🎁</div>
+                    <h3 class="text-3xl font-black text-white drop-shadow-md relative z-10 flex items-center gap-2">
+                        🎁 ร้านค้าลับ
+                    </h3>
+                    <button onclick="closeShopModal()"
+                        class="text-white hover:text-red-200 text-4xl leading-none font-bold relative z-10 drop-shadow-md">&times;</button>
+                </div>
+
+                <!-- Content -->
+                <div class="p-6 overflow-y-auto flex-1 text-center">
+                    <div class="bg-white/80 p-3 rounded-2xl border-2 border-yellow-300 inline-block mb-6 shadow-sm">
+                        <span class="font-bold text-gray-700">เหรียญของคุณ: </span>
+                        <span class="text-2xl font-black text-yellow-600 drop-shadow-sm ml-2">🪙 <span
+                                id="shop-coins-display">0</span></span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Gacha -->
+                        <div
+                            class="bg-white rounded-2xl p-5 border-4 border-fuchsia-300 shadow flex flex-col items-center float-hover shop-card-glow transition-all">
+                            <div class="text-5xl mb-3 drop-shadow-md">🔮</div>
+                            <h4 class="font-bold text-xl text-fuchsia-800">สุ่มอวาตาร์</h4>
+                            <p class="text-xs text-gray-500 mt-1 mb-3">ได้อวาตาร์ตัวใหม่สุดแรร์!</p>
+                            <button onclick="buyGacha()"
+                                class="mt-auto px-4 py-2 bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-bold rounded-xl shadow-[0_4px_0_#9d174d] hover:brightness-110 active:translate-y-1 active:shadow-none transition-all w-full flex items-center justify-center gap-2">
+                                🪙 500
+                            </button>
+                        </div>
+
+                        <!-- Potion -->
+                        <div
+                            class="bg-white rounded-2xl p-5 border-4 border-red-300 shadow flex flex-col items-center float-hover shop-card-glow transition-all">
+                            <div class="text-5xl mb-3 drop-shadow-md">🧪</div>
+                            <h4 class="font-bold text-xl text-red-800">ยาเติมเลือด HP</h4>
+                            <p class="text-xs text-gray-500 mt-1 mb-3">ฟื้นฟู HP 30% ตอนสู้บอส</p>
+                            <button onclick="buyItemShop('potion', 100)"
+                                class="mt-auto px-4 py-2 bg-gradient-to-r from-red-400 to-red-500 text-white font-bold rounded-xl shadow-[0_4px_0_#991b1b] hover:brightness-110 active:translate-y-1 active:shadow-none transition-all w-full flex items-center justify-center gap-2">
+                                🪙 100
+                            </button>
+                        </div>
+
+                        <!-- Magnifier -->
+                        <div
+                            class="bg-white rounded-2xl p-5 border-4 border-blue-300 shadow flex flex-col items-center float-hover shop-card-glow transition-all sm:col-span-2 md:col-span-1">
+                            <div class="text-5xl mb-3 drop-shadow-md">🔍</div>
+                            <h4 class="font-bold text-xl text-blue-800">แว่นขยายตัดชอยส์</h4>
+                            <p class="text-xs text-gray-500 mt-1 mb-3">สุ่มตัดตัวเลือกที่ผิด 1 ข้อ</p>
+                            <button onclick="buyItemShop('magnifier', 150)"
+                                class="mt-auto px-4 py-2 bg-gradient-to-r from-blue-400 to-blue-500 text-white font-bold rounded-xl shadow-[0_4px_0_#1e3a8a] hover:brightness-110 active:translate-y-1 active:shadow-none transition-all w-full flex items-center justify-center gap-2">
+                                🪙 150
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== Inventory Modal ==================== -->
+        <div id="inventory-modal"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+            <div
+                class="bg-gradient-to-br from-indigo-50 to-purple-100 rounded-3xl max-w-sm w-full border-4 border-indigo-500 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                <!-- Header -->
+                <div
+                    class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 shrink-0 flex justify-between items-center border-b-4 border-indigo-800">
+                    <h3 class="text-2xl font-black text-white drop-shadow-md flex items-center gap-2">
+                        🎒 กระเป๋าไอเทม
+                    </h3>
+                    <button onclick="closeInventoryModal()"
+                        class="text-white hover:text-red-200 text-4xl leading-none font-bold drop-shadow-md">&times;</button>
+                </div>
+
+                <!-- Content -->
+                <div class="p-6 overflow-y-auto flex-1">
+                    <div class="space-y-4">
+                        <div
+                            class="bg-white rounded-2xl p-4 flex items-center gap-4 border-2 border-red-200 shadow-sm relative">
+                            <div class="text-4xl">🧪</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-red-800">ยาเติมเลือด HP</h4>
+                                <p class="text-xs text-gray-500">ใช้ในศึกปะทะบอส</p>
+                            </div>
+                            <div
+                                class="text-2xl font-black text-red-600 bg-red-50 w-12 h-12 rounded-full border border-red-200 flex items-center justify-center shadow-inner">
+                                x<span id="inv-potion-count">0</span>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-white rounded-2xl p-4 flex items-center gap-4 border-2 border-blue-200 shadow-sm relative">
+                            <div class="text-4xl">🔍</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-blue-800">แว่นขยาย</h4>
+                                <p class="text-xs text-gray-500">ใช้ตัดตัวเลือก</p>
+                            </div>
+                            <div
+                                class="text-2xl font-black text-blue-600 bg-blue-50 w-12 h-12 rounded-full border border-blue-200 flex items-center justify-center shadow-inner">
+                                x<span id="inv-magnifier-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 text-center">
+                        <p class="text-sm text-gray-500 font-medium">✨ ไอเทมจะเปิดให้ใช้งานอัตโนมัติเมื่อตอนต่อสู้กับบอส
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section id="page-world-boss" class="flex-1 hidden flex flex-col relative z-20 p-4 md:p-8 h-full overflow-y-auto">
+            <!-- 1) ล็อบบี้เลือกบอส -->
+            <div id="wb-lobby" class="flex-1 flex flex-col w-full h-full">
+                <div class="flex items-center justify-between mb-6 gap-2">
+                    <button onclick="showPage('lobby')" class="btn-action text-purple-800 font-black flex items-center gap-1 bg-purple-100 hover:bg-purple-200 px-5 py-2.5 rounded-xl shadow-sm transition">
+                        <span class="text-lg">←</span> กลับห้องโถงหลัก
+                    </button>
+                    <h2 class="rpg-title text-3xl text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">📸 รังของเวิลด์บอส (AI Camera)</h2>
+                </div>
+
+                <!-- 📖 คู่มือวิธีเล่นสั้นๆ สไตล์ผู้กล้าไร้สาย -->
+                <div class="rpg-box bg-slate-900/90 text-white p-5 rounded-3xl border-4 border-amber-600/80 shadow-lg w-full max-w-4xl mx-auto mb-6 shrink-0">
+                    <h4 class="font-black text-amber-400 text-base md:text-lg flex items-center gap-2 mb-2 drop-shadow-md">
+                        📖 คู่มือวิถีผู้กล้าเตรียมความพร้อม (AI Camera Guide)
+                    </h4>
+                    <ul class="space-y-1.5 text-[11px] md:text-xs text-slate-200 font-bold">
+                        <li class="flex items-start gap-1.5">
+                            <span class="text-amber-500 font-black">1.</span>
+                            <span>📸 <b>กดอนุญาตสิทธิ์กล้อง</b> และยืนออกกำลังกายในห้องที่มีแสงไฟสว่างเพียงพอ</span>
+                        </li>
+                        <li class="flex items-start gap-1.5">
+                            <span class="text-amber-500 font-black">2.</span>
+                            <span>🚶‍♂️ <b>ประหยัดพื้นที่ ยืนใกล้กล้องขึ้นได้:</b> ขอเพียงกล้องเห็น <b>หัวไหล่ สะโพก และหัวเข่า</b> ก็ลุยศึกได้เลย! (ไม่ต้องเห็นข้อเท้า ช่วยประหยัดเนื้อที่การยืน)</span>
+                        </li>
+                        <li class="flex items-start gap-1.5">
+                            <span class="text-amber-500 font-black">3.</span>
+                            <span>⚡ <b>จู่โจมบอส:</b> ยืนนิ่งๆ ในกรอบ Bounding Box เพื่อเริ่ม และออกกำลังกายให้เร็วที่สุดเพื่อทำลายสถิติ!</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Grid รายการบอส -->
+                <div id="wb-boss-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto mb-8">
+                    <!-- จะเรนเดอร์บอสการ์ดด้วย JS -->
+                </div>
+
+                <!-- Leaderboard สำหรับบอสตัวที่เลือก -->
+                <div id="wb-leaderboard-container" class="w-full max-w-2xl mx-auto hidden transition-all duration-300">
+                    <div class="rpg-box rpg-box-yellow overflow-hidden flex flex-col relative bg-white/95 shadow-2xl">
+                        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 text-white flex justify-between items-center border-b-4 border-purple-800 shrink-0">
+                            <h3 id="wb-leaderboard-title" class="font-black text-xl flex items-center gap-2 drop-shadow-md">🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10)</h3>
+                        </div>
+                        <div class="p-4 overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-purple-100 text-purple-900 border-b-2 border-purple-200 text-sm">
+                                        <th class="p-3 font-bold text-center">อันดับ</th>
+                                        <th class="p-3 font-bold">ผู้กล้า</th>
+                                        <th class="p-3 font-bold text-center">ชั้นเรียน</th>
+                                        <th class="p-3 font-bold text-right">เวลาดีที่สุด (วินาที)</th>
+                                        <th class="p-3 font-bold text-center">วันที่พิชิต</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wb-leaderboard-body" class="divide-y divide-gray-200 text-gray-700 text-sm font-semibold">
+                                    <!-- เรนเดอร์ด้วย JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2) หน้าจอต่อสู้ (Battle Screen) -->
+            <div id="wb-battle" class="hidden flex-1 flex flex-col w-full h-full min-h-[500px]">
+                <div class="flex items-center justify-between mb-4 gap-2">
+                    <button onclick="confirmLeaveWorldBoss()" class="btn-action text-red-800 font-black flex items-center gap-1 bg-red-100 hover:bg-red-200 px-4 py-2 rounded-xl shadow-sm transition text-sm">
+                        <span>🏳️</span> ขอยอมแพ้ / ถอยทัพ
+                    </button>
+                    <div class="text-sm font-bold text-purple-200 bg-purple-950/80 px-4 py-1.5 rounded-full border border-purple-800/80 shadow-md">
+                        📸 ระบบตรวจจับท่าทางด้วย AI (MediaPipe Pose)
+                    </div>
+                </div>
+
+                <!-- ฉากการต่อสู้หลัก -->
+                <div class="flex flex-col lg:flex-row gap-6 w-full flex-1">
+                    <!-- ฝั่งซ้าย: วิดีโอกล้อง AI และโครงกระดูก -->
+                    <div class="flex-1 flex flex-col items-center justify-center relative">
+                        <div class="relative w-full max-w-xl aspect-[4/3] rounded-3xl border-4 border-purple-600 bg-slate-950 shadow-[0_0_30px_rgba(139,92,246,0.3)] overflow-hidden flex items-center justify-center">
+                            <!-- วิดีโอเว็บแคมซ่อนไว้เพื่อไปวาดบน Canvas -->
+                            <video id="wb-video" class="hidden" autoplay playsinline></video>
+                            <!-- Canvas สำหรับวาดภาพกล้องและ skeleton -->
+                            <canvas id="wb-canvas" class="w-full h-full object-cover transform -scale-x-100"></canvas>
+                            
+                            <!-- ตัวบอกสถานะ Bounding Box / สัญญาณเตือนผู้ใช้ -->
+                            <div id="wb-status-overlay" class="absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/75 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse">
+                                ⏳ กำลังเตรียมความพร้อมระบบกล้อง AI...
+                            </div>
+
+                            <!-- เลเบลแจ้งเตือนท่าทางกึ่งกลางหน้าจอ -->
+                            <div id="wb-guide-prompt" class="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full bg-indigo-950/90 text-white border-2 border-indigo-400 font-black text-sm md:text-lg shadow-xl hidden animate-bounce flex items-center gap-2">
+                                <span>🚀</span> ยืนตรงรอรับสัญญาณเริ่มต้น!
+                            </div>
+
+                            <!-- ปุ่มจำลองการขยับร่างกาย (แสดงเฉพาะในโหมดจำลอง) -->
+                            <div id="wb-simulator-controls" class="absolute bottom-6 left-0 right-0 flex justify-center gap-4 px-4 hidden z-30">
+                                <button id="wb-sim-btn-action" onclick="handleSimulatorAction()" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black rounded-2xl border-b-4 border-indigo-900 active:border-b-0 cursor-pointer text-sm shadow-lg flex items-center gap-2 transition transform hover:scale-[1.05]">
+                                    <span id="wb-sim-btn-text">🏋️‍♂️ ย่อตัวลง (Squat)</span>
+                                    <kbd class="bg-indigo-950 px-1.5 py-0.5 rounded text-[10px] hidden md:inline ml-1 font-mono">Spacebar</kbd>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ฝั่งขวา: ข้อมูลบอส, ตัวนับจำนวนครั้ง, ตัวจับเวลา -->
+                    <div class="w-full lg:w-96 flex flex-col gap-4">
+                        <!-- บอสการ์ดต่อสู้ -->
+                        <div class="rpg-box bg-slate-900 border-4 border-purple-500/80 p-5 rounded-3xl flex flex-col items-center justify-center text-center shadow-xl relative overflow-hidden">
+                            <div class="absolute inset-0 bg-gradient-to-t from-purple-950/30 to-slate-900 pointer-events-none"></div>
+                            <!-- รูปบอส -->
+                            <div id="wb-battle-boss-avatar" class="text-6xl md:text-7xl drop-shadow-[0_10px_20px_rgba(239,68,68,0.6)] select-none transition-transform duration-300 z-10 animate-bounce">🐉</div>
+                            <h3 id="wb-battle-boss-name" class="text-xl md:text-2xl font-black text-white mt-3 drop-shadow-md z-10">เวิลด์บอสสุดแกร่ง</h3>
+                            
+                            <!-- หลอดเลือด HP บอส -->
+                            <div class="w-full bg-red-950 rounded-full h-6 md:h-7 mt-3 overflow-hidden border-2 border-red-800 shadow-inner relative z-10">
+                                <div id="wb-battle-boss-hp-bar" class="bg-gradient-to-r from-red-600 via-red-500 to-orange-500 h-full rounded-full transition-all duration-100 w-full relative">
+                                    <div class="absolute inset-0 bg-white/20 w-full animate-pulse"></div>
+                                </div>
+                                <span id="wb-battle-boss-hp-text" class="absolute inset-0 flex items-center justify-center text-white text-xs font-black drop-shadow-md z-10 tracking-wider">100 / 100 HP</span>
+                            </div>
+                        </div>
+
+                        <!-- ตัวจับเวลาเศษทศนิยม (Stopwatch) -->
+                        <div class="rpg-box bg-slate-900 border-4 border-blue-500/80 p-4 rounded-3xl flex flex-col items-center justify-center text-center shadow-xl">
+                            <div class="text-[10px] font-black text-blue-300 uppercase tracking-wider mb-1">⏱️ สถิติเวลาปัจจุบัน (วินาที)</div>
+                            <div id="wb-battle-timer" class="text-4xl md:text-5xl font-black text-white font-mono tracking-widest drop-shadow-md">0.00</div>
+                        </div>
+
+                        <!-- ตัวนับจำนวนครั้ง (Reps) -->
+                        <div class="rpg-box bg-slate-900 border-4 border-emerald-500/80 p-4 rounded-3xl flex flex-col items-center justify-center text-center shadow-xl">
+                            <div class="text-[10px] font-black text-emerald-300 uppercase tracking-wider mb-1">🎯 จำนวนครั้งสะสม</div>
+                            <div id="wb-battle-reps" class="text-4xl md:text-5xl font-black text-emerald-400 font-mono tracking-wider drop-shadow-md">0 / 10</div>
+                            <div id="wb-battle-pose-guide" class="text-xs font-bold text-gray-300 mt-2 bg-emerald-950/40 border border-emerald-800/40 px-3 py-1.5 rounded-xl">
+                                ท่าทาง: รอการตรวจจับ...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3) ป๊อปอัปชัยชนะ (Victory Gacha Style Overlay) -->
+            <div id="wb-victory-modal" class="absolute inset-0 bg-black/95 backdrop-blur-md z-[100] hidden items-center justify-center p-4 flex-col text-center">
+                <!-- ตกแต่งเอฟเฟกต์เรืองแสงชัยชนะ -->
+                <div class="text-8xl mb-4 animate-bounce drop-shadow-[0_10px_20px_rgba(234,179,8,0.7)]" id="wb-victory-emoji">🏆</div>
+                <h2 class="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-500 drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] mb-3 leading-tight animate-pulse">ปราบเวิลด์บอสสำเร็จ!</h2>
+                <h4 id="wb-victory-boss-name" class="text-lg md:text-2xl text-white font-bold mb-6">ผู้สยบ: บอสไททัน</h4>
+
+                <div class="w-full max-w-md bg-slate-900/90 border-4 border-amber-500 rounded-3xl p-6 shadow-2xl relative overflow-hidden mb-8">
+                    <!-- เอฟเฟกต์พื้นหลังหรูหรา -->
+                    <div class="absolute inset-0 bg-gradient-to-b from-amber-500/10 to-transparent"></div>
+                    
+                    <div class="relative z-10 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                            <span class="text-gray-400 text-sm font-bold">เวลาที่ทำได้:</span>
+                            <div class="flex items-center gap-1">
+                                <span id="wb-victory-time" class="text-3xl font-black text-yellow-400 font-mono">15.42</span>
+                                <span class="text-white text-sm font-bold">วินาที</span>
+                            </div>
+                        </div>
+
+                        <!-- ป้ายสถิติใหม่ (แสดงเมื่อเป็นสถิติที่ดีที่สุดใหม่) -->
+                        <div id="wb-victory-best-badge" class="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black text-xs md:text-sm py-1.5 px-4 rounded-full border border-yellow-300 shadow-md animate-pulse hidden">
+                            🔥 สถิติใหม่ที่ดีที่สุดของคุณ! (NEW PERSONAL BEST)
+                        </div>
+
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-2 pt-2">
+                            <span class="text-gray-400 text-sm font-bold">เวลาที่ดีที่สุดก่อนหน้านี้:</span>
+                            <span id="wb-victory-prev-best" class="text-lg font-black text-gray-300 font-mono">18.50s</span>
+                        </div>
+
+                        <div class="text-center font-black text-amber-300 uppercase tracking-widest text-sm mt-2 mb-1">🎁 ของรางวัลที่ได้รับ</div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-yellow-950/40 border border-yellow-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
+                                <span class="text-2xl">🪙</span>
+                                <span id="wb-victory-reward-coins" class="text-lg font-black text-yellow-400">+100 เหรียญ</span>
+                            </div>
+                            <div class="bg-indigo-950/40 border border-indigo-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
+                                <span class="text-2xl">⭐</span>
+                                <span id="wb-victory-reward-xp" class="text-lg font-black text-indigo-400">+100 XP</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="closeWorldBossVictory()" class="px-8 py-3.5 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black text-xl rounded-full shadow-[0_0_25px_rgba(234,179,8,0.5)] hover:scale-105 transition flex items-center gap-2 border-b-4 border-orange-700 active:border-b-0 cursor-pointer">
+                    <span>กลับสู่ล็อบบี้บอส</span> <span>🚪</span>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- (Map, Leaderboard, และ Certificate ถูกย้ายไปรวมใน Dashboard แล้ว) -->
+
+        <!-- ==================== หน้า 3: PVP Arena (New Mode) ==================== -->
+        <section id="page-pvp" class="flex-1 hidden absolute inset-0 w-full h-full overflow-hidden bg-transparent">
+            <!-- PVP Mode Selection (Lobby) -->
+            <div id="pvp-mode-selection" class="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/65 backdrop-blur-md px-4 py-8 overflow-y-auto hidden">
+                <div class="z-10 text-center mb-8 shrink-0 flex flex-col items-center">
+                    <!-- Title Wrapper with Drop Shadow filter to preserve gradient colors perfectly -->
+                    <div class="filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)] drop-shadow-[0_0_20px_rgba(245,158,11,0.35)]">
+                        <h2 class="text-4xl md:text-5xl lg:text-6xl font-black tracking-wider">
+                            <span class="text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-yellow-400 to-amber-500">ท้าสู้กับเพื่อน</span>
+                            <span class="text-transparent bg-clip-text bg-gradient-to-b from-red-400 via-rose-500 to-red-600 ml-2">PVP</span>
+                        </h2>
+                    </div>
+                    
+                    <!-- RPG Swords Golden Divider -->
+                    <div class="flex items-center justify-center gap-3 my-3">
+                        <div class="h-[3px] w-12 md:w-20 bg-gradient-to-r from-transparent via-amber-500 to-amber-300 rounded-full opacity-60"></div>
+                        <span class="text-xl filter drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]">⚔️</span>
+                        <div class="h-[3px] w-12 md:w-20 bg-gradient-to-l from-transparent via-amber-500 to-amber-300 rounded-full opacity-60"></div>
+                    </div>
+                    
+                    <!-- Subtitle in a Premium Ancient RPG Banner Badge -->
+                    <div class="px-6 py-2 bg-amber-950/40 border border-amber-500/20 backdrop-blur-sm rounded-full shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                        <p class="text-sm md:text-base font-black text-amber-200 tracking-wide flex items-center gap-2">
+                            <span>🔥</span> ท้าประลองความรู้แบบ Real-time 1v1 <span>🔥</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-6 w-full max-w-3xl justify-center items-stretch z-10 px-4">
+                    <!-- Option 1: Quick Match -->
+                    <div class="flex-1 pvp-card-quick p-8 flex flex-col justify-between items-center text-center">
+                        <div class="flex flex-col items-center">
+                            <!-- Glowing Magical Arcane Circular Icon -->
+                            <div class="pvp-icon-glow-blue">
+                                <span class="text-5xl filter drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]">⚡</span>
+                            </div>
+                            <h3 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-indigo-200 to-cyan-300 mb-3" style="text-shadow: 0 0 10px rgba(59,130,246,0.3);">สุ่มท้าสู้ด่วน</h3>
+                            <p class="text-sm text-indigo-200/90 font-medium mb-8 leading-relaxed">ท้าประลองปัญญาการศึกษา ICT กับคู่แข่งทั่วไปในระบบแบบสุ่มจับคู่ รวดเร็ว ทันใจ พร้อมรบ!</p>
+                        </div>
+                        <!-- 3D arcade button styled as ui-jelly-btn / RPG jelly styled button -->
+                        <button onclick="startPvpMatchmaking(null)" class="w-full py-3.5 bg-gradient-to-b from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white font-black text-lg rounded-2xl border-b-4 border-indigo-900 hover:border-indigo-800 shadow-[0_8px_16px_rgba(30,41,59,0.5)] hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] active:translate-y-0.5 active:border-b-2 active:shadow-none transition-all flex items-center justify-center gap-2">
+                            ⚔️ เข้าประลองด่วน
+                        </button>
+                    </div>
+
+                    <!-- Option 2: Private Room -->
+                    <div class="flex-1 pvp-card-private p-8 flex flex-col justify-between items-center text-center">
+                        <div class="flex flex-col items-center w-full">
+                            <!-- Glowing Fiery Red Circular Icon -->
+                            <div class="pvp-icon-glow-red">
+                                <span class="text-5xl filter drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">🔒</span>
+                            </div>
+                            <h3 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-300 via-rose-200 to-amber-300 mb-3" style="text-shadow: 0 0 10px rgba(239,68,68,0.3);">ห้องส่วนตัวด้วยรหัส</h3>
+                            <p class="text-sm text-rose-200/90 font-medium mb-6 leading-relaxed">กรอกเลขรหัส 4 หลักเพื่อสร้างห้องหรือเข้าร่วมเล่นกับเพื่อนประลองกันแบบส่วนตัวตัวต่อตัว!</p>
+                        </div>
+                        
+                        <div class="w-full mb-5">
+                            <input type="text" id="pvp-room-pin" maxlength="4" placeholder="กรอกรหัสห้อง 4 หลัก" 
+                                   class="w-full pvp-pin-input px-4 py-3.5 text-center font-black text-2xl placeholder-amber-500/30 outline-none transition-all">
+                         </div>
+
+                        <button onclick="startPvpMatchmaking(document.getElementById('pvp-room-pin').value)" class="w-full py-3.5 bg-gradient-to-b from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 text-white font-black text-lg rounded-2xl border-b-4 border-rose-950 hover:border-rose-800 shadow-[0_8px_16px_rgba(28,15,15,0.5)] hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] active:translate-y-0.5 active:border-b-2 active:shadow-none transition-all flex items-center justify-center gap-2">
+                            ⚔️ เข้าห้องท้าสู้ส่วนตัว
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-10 shrink-0 z-10">
+                    <button onclick="showPage('lobby')" class="px-8 py-3 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white font-black rounded-full border-2 border-slate-600 hover:border-slate-500 shadow-[0_5px_15px_rgba(0,0,0,0.4)] hover:shadow-[0_0_15px_rgba(148,163,184,0.3)] transition-all hover:scale-105 active:scale-95 flex items-center gap-2 text-base">
+                        <span>🚪</span> กลับสู่หน้า Lobby หลัก
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Matchmaking -->
+            <div id="pvp-matchmaking" class="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/80 backdrop-blur-sm hidden">
+                <div class="text-6xl animate-spin mb-4">⏳</div>
+                <h2 class="text-3xl font-black text-white mb-2 text-center px-4">กำลังค้นหาห้องประลอง...</h2>
+                <p id="pvp-match-status" class="text-xl text-yellow-300 font-bold mb-6 text-center px-4">ระบบกำลังจับคู่ให้คุณ</p>
+                <button onclick="cancelMatchmaking()" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full transition-colors shadow-lg border-2 border-red-400">
+                    ยกเลิกการค้นหา
+                </button>
+            </div>
+
+            <!-- PVP Lobby Room -->
+            <div id="pvp-lobby" class="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/85 backdrop-blur-md px-4 py-6 overflow-y-auto hidden">
+                <div class="z-10 text-center mb-6 shrink-0">
+                    <h2 class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-500 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" style="text-shadow: 2px 2px 0 rgba(0,0,0,0.5);">
+                        ห้องเตรียมพร้อมประลอง ⚔️
+                    </h2>
+                    <p id="pvp-lobby-subtitle" class="text-sm md:text-base text-gray-300 font-bold mt-1">รอผู้เล่นทั้งสองฝั่งกดยืนยันเพื่อเริ่มประลองความรู้</p>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-6 w-full max-w-2xl justify-center items-stretch z-10 px-4 mb-6">
+                    <!-- Player 1 Card -->
+                    <div id="pvp-lobby-p1" class="flex-1 bg-gradient-to-b from-red-500/10 to-red-900/20 border border-red-500/30 rounded-3xl p-6 flex flex-col items-center text-center shadow-lg transition-all duration-300">
+                        <div id="pvp-lobby-p1-avatar" class="text-6xl mb-2 filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]">🧙‍♂️</div>
+                        <h4 id="pvp-lobby-p1-name" class="text-xl font-bold text-white mb-2">ผู้เล่น 1</h4>
+                        <div id="pvp-lobby-p1-status" class="px-4 py-1 rounded-full text-xs font-black bg-red-600/30 text-red-300 border border-red-500/40">
+                            🔴 กำลังเตรียมตัว
+                        </div>
+                    </div>
+
+                    <!-- VS Divider -->
+                    <div class="flex items-center justify-center text-3xl font-black text-yellow-400 drop-shadow-md py-2 md:py-0">VS</div>
+
+                    <!-- Player 2 Card -->
+                    <div id="pvp-lobby-p2" class="flex-1 bg-gradient-to-b from-indigo-500/10 to-indigo-900/20 border border-indigo-500/30 rounded-3xl p-6 flex flex-col items-center text-center shadow-lg transition-all duration-300">
+                        <div id="pvp-lobby-p2-avatar" class="text-6xl mb-2 filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)] animate-pulse">❓</div>
+                        <h4 id="pvp-lobby-p2-name" class="text-xl font-bold text-gray-400 mb-2">กำลังหาคู่ประลอง...</h4>
+                        <div id="pvp-lobby-p2-status" class="px-4 py-1 rounded-full text-xs font-black bg-gray-700/50 text-gray-400 border border-gray-600/40">
+                            ⏳ รอผู้เล่น
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center gap-4 z-10 w-full max-w-sm px-4 shrink-0">
+                    <!-- Ready Action Button -->
+                    <button id="pvp-btn-ready" onclick="togglePvpReady()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl rounded-2xl border-b-4 border-emerald-800 hover:border-emerald-700 shadow-lg active:translate-y-0.5 active:border-b-2 transition-all flex justify-center items-center gap-2">
+                        <span>🎮</span> ฉันพร้อมแล้ว!
+                    </button>
+                    
+                    <!-- Cancel Matchmaking / Leave Lobby -->
+                    <button id="pvp-btn-leave-lobby" onclick="cancelMatchmaking()" class="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-full border border-gray-600 transition-colors shadow-lg flex items-center gap-2">
+                        <span>🚪</span> ออกจากห้องประลอง
+                    </button>
+                </div>
+            </div>
+
+            <!-- Arena UI -->
+            <div id="pvp-arena" class="flex flex-col h-full w-full hidden relative">
+                <!-- Header: VS Info -->
+                <div class="flex justify-between items-center p-4 bg-black/50 border-b-2 border-indigo-500 shrink-0 relative z-10 shadow-lg">
+                    <!-- Player 1 -->
+                    <div class="flex items-center gap-3">
+                        <div id="pvp-p1-avatar" class="w-14 h-14 md:w-16 md:h-16 bg-blue-900 rounded-full border-4 border-blue-400 flex items-center justify-center text-3xl md:text-4xl shadow-[0_0_15px_rgba(59,130,246,0.6)]">🧙‍♂️</div>
+                        <div class="flex flex-col">
+                            <span id="pvp-p1-name" class="font-bold text-blue-200 text-base md:text-lg">Player 1</span>
+                            <div class="w-24 md:w-48 h-4 bg-gray-800 rounded-full border border-gray-600 mt-1 relative overflow-hidden">
+                                <div id="pvp-p1-hp-bar" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300 w-full"></div>
+                            </div>
+                            <span id="pvp-p1-hp-text" class="text-xs text-white text-center mt-1 font-bold">100 / 100</span>
+                        </div>
+                    </div>
+                    
+                    <!-- VS Logo -->
+                    <div class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 font-black italic text-4xl md:text-5xl text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.8)] animate-pulse">
+                        VS
+                    </div>
+
+                    <!-- Player 2 -->
+                    <div class="flex items-center gap-3 flex-row-reverse text-right">
+                        <div id="pvp-p2-avatar" class="w-14 h-14 md:w-16 md:h-16 bg-red-900 rounded-full border-4 border-red-400 flex items-center justify-center text-3xl md:text-4xl shadow-[0_0_15px_rgba(239,68,68,0.6)]">🧛‍♂️</div>
+                        <div class="flex flex-col items-end">
+                            <span id="pvp-p2-name" class="font-bold text-red-200 text-base md:text-lg">Player 2</span>
+                            <div class="w-24 md:w-48 h-4 bg-gray-800 rounded-full border border-gray-600 mt-1 relative overflow-hidden">
+                                <div id="pvp-p2-hp-bar" class="absolute top-0 right-0 h-full bg-gradient-to-l from-red-600 to-red-400 transition-all duration-300 w-full"></div>
+                            </div>
+                            <span id="pvp-p2-hp-text" class="text-xs text-white text-center mt-1 font-bold">100 / 100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PVP Content (Question) -->
+                <div class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 relative z-10 overflow-y-auto">
+                    <!-- Status message -->
+                    <div id="pvp-battle-status" class="hidden px-6 py-2 rounded-full text-lg font-bold mb-4 shadow-lg text-center animate-bounce"></div>
+
+                    <!-- Question Box -->
+                    <div class="bg-white/95 backdrop-blur-md p-6 md:p-8 rounded-3xl shadow-[0_0_30px_rgba(99,102,241,0.3)] border-4 border-indigo-400 w-full max-w-3xl flex flex-col text-center transition-all duration-300">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-bold text-sm border border-indigo-200">ข้อที่ <span id="pvp-question-number">1</span>/5</span>
+                            <span id="pvp-timer-display" class="bg-gray-800 text-white px-3 py-1 rounded-full font-bold font-mono tracking-widest text-lg shadow-inner">00:30</span>
+                        </div>
+                        <h3 id="pvp-question-text" class="text-xl md:text-3xl font-black text-gray-800 mb-6 drop-shadow-sm leading-relaxed min-h-[4rem]">กำลังโหลดคำถาม...</h3>
+                        <div id="pvp-options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Options will be generated here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Footer buttons (Leave) -->
+                <div class="absolute bottom-4 left-4 z-20">
+                    <button onclick="confirmLeavePVP()" class="px-4 py-2 bg-black/60 hover:bg-red-900/80 text-white/80 hover:text-white rounded-full border border-white/30 transition-all flex items-center gap-2 text-sm font-bold backdrop-blur-md shadow-lg">
+                        <span>🏳️</span> ขอยอมแพ้ / ออกจากห้อง
+                    </button>
+                </div>
+            </div>
+            
+            <!-- PVP Result Modal -->
+            <div id="pvp-result-modal" class="absolute inset-0 bg-black/90 backdrop-blur-md z-[100] hidden items-center justify-center p-4 flex-col text-center">
+                <div class="text-8xl mb-6 animate-bounce" id="pvp-result-emoji">🏆</div>
+                <h2 id="pvp-result-title" class="text-5xl md:text-7xl font-black text-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] mb-4 leading-tight">ชัยชนะ!</h2>
+                <div id="pvp-result-desc" class="text-xl md:text-2xl text-yellow-300 font-bold mb-8 bg-black/50 px-8 py-4 rounded-3xl border-2 border-yellow-500/50 shadow-inner">คุณปราบคู่ต่อสู้ได้สำเร็จ!</div>
+                <button onclick="closePVPResult()" class="px-8 py-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-black text-xl md:text-2xl rounded-full shadow-[0_0_20px_rgba(234,179,8,0.6)] hover:scale-105 transition-transform flex items-center gap-3">
+                    <span>กลับไปหน้า Lobby</span> <span>🚪</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== หน้า World Boss (AI Camera) ==================== -->
+
+    <!-- ดึงไฟล์ JS Logic ที่เราสร้างแยกไว้ -->
+    <?!= include('JS_Utils'); ?>
+    <?!= include('JS_Auth'); ?>
+    <?!= include('JS_Map'); ?>
+    <?!= include('JS_Battle'); ?>
+    <?!= include('JS_Admin'); ?>
+    <?!= include('JS_AITutor'); ?>
+    <?!= include('JS_DailyQuest'); ?>
+    <?!= include('JS_Profile'); ?>
+    <?!= include('JS_PVP'); ?>
+    <?!= include('JS_WorldBoss'); ?>
+</body>
+
+</html>
