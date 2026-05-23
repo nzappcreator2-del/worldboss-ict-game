@@ -534,6 +534,9 @@
         let motionHistory = [];
         let previousMarioState = 'IDLE';
         let stateConfidenceCounter = 0;
+        let runConfidenceCounter = 0;
+        let jumpConfidenceCounter = 0;
+        let crouchConfidenceCounter = 0;
         let detectedActiveState = 'IDLE';
         let marioStatsIntervalId = null; // setInterval ID สำหรับ checkRealMarioStats (ป้องกัน loop bug)
 
@@ -1031,7 +1034,7 @@
                     lastNoseLandmark = pt;
                     
                     noseYHistory.push(pt.y);
-                    if (noseYHistory.length > 5) noseYHistory.shift();
+                    if (noseYHistory.length > 8) noseYHistory.shift();
                     const avgNoseY = noseYHistory.reduce((a, b) => a + b, 0) / noseYHistory.length;
                     
                     // ระบบ Calibrate และสแกนตำแหน่งในช่วง PREPARING / COUNTDOWN
@@ -1091,12 +1094,12 @@
                             }
                         }
 
-                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (ปรับปรุงเกณฑ์ให้อ่อนโยนสูงสุด กระโดดและย่อง่ายเป็นธรรมชาติสำหรับเด็กๆ)
-                        let jumpThreshold = 0.025;
-                        let crouchThreshold = 0.03;
+                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (จูนเกณฑ์ให้หนาขึ้น 10-15% เพื่อป้องกัน Ghost Jump)
+                        let jumpThreshold = 0.03;
+                        let crouchThreshold = 0.035;
                         if (baseBodyLength > 0) {
-                            jumpThreshold = Math.max(0.015, 0.05 * baseBodyLength);
-                            crouchThreshold = Math.max(0.02, 0.06 * baseBodyLength);
+                            jumpThreshold = Math.max(0.022, 0.065 * baseBodyLength);
+                            crouchThreshold = Math.max(0.028, 0.075 * baseBodyLength);
                         }
                         
                         // 1. ตรวจวัดความแกว่งไกวของการทำท่าวิ่งหรือเดิน (แกว่งข้อมือและศอกสะสม)
@@ -1123,11 +1126,11 @@
                                     let rdy = Math.abs(rightWristYHistory[i] - rightWristYHistory[i-1]);
                                     let rdx = Math.abs(rightWristXHistory[i] - rightWristXHistory[i-1]);
                                     
-                                    // 🛡️ Noise Deadzone: กรองสัญญาณสั่นไหวเล็กน้อยของกล้องเว็บแคม (ถ้าสั่นเบาๆ มองเป็นหยุดนิ่งสนิททันที)
-                                    if (dy < 0.007) dy = 0;
-                                    if (dx < 0.007) dx = 0;
-                                    if (rdy < 0.007) rdy = 0;
-                                    if (rdx < 0.007) rdx = 0;
+                                    // 🛡️ Noise Deadzone: กรองสัญญาณสั่นไหวเล็กน้อยของกล้องเว็บแคม (ปรับตึงขึ้นเป็น 0.010 ขจัด Jitter ของกล้องโรงเรียนหมดจด)
+                                    if (dy < 0.010) dy = 0;
+                                    if (dx < 0.010) dx = 0;
+                                    if (rdy < 0.010) rdy = 0;
+                                    if (rdx < 0.010) rdx = 0;
                                     
                                     wristActivity += dy + dx + rdy + rdx;
                                 }
@@ -1145,8 +1148,8 @@
                                     let dy = Math.abs(leftElbowYHistory[i] - leftElbowYHistory[i-1]);
                                     let rdy = Math.abs(rightElbowYHistory[i] - rightElbowYHistory[i-1]);
                                     
-                                    if (dy < 0.007) dy = 0;
-                                    if (rdy < 0.007) rdy = 0;
+                                    if (dy < 0.010) dy = 0;
+                                    if (rdy < 0.010) rdy = 0;
                                     
                                     elbowActivity += dy + rdy;
                                 }
@@ -1161,7 +1164,7 @@
                             if (motionHistory.length >= 2) {
                                 for (let i = 1; i < motionHistory.length; i++) {
                                     let dy = Math.abs(motionHistory[i] - motionHistory[i-1]);
-                                    if (dy < 0.004) dy = 0;
+                                    if (dy < 0.005) dy = 0;
                                     shoulderActivity += dy;
                                 }
                             }
@@ -1193,27 +1196,58 @@
                             activeStateCandidate = 'JUMPING';
                         } else if (avgNoseY > baseNoseY + crouchThreshold) {
                             activeStateCandidate = 'CROUCHING';
-                        } else if (isBellyZoneActive && totalActivity > 0.025 && wristActivity > 0.005) { 
-                            // ขยับมือทำท่าวิ่งบริเวณเอวหรือพุง และมือกำลังเคลื่อนไหว (ถ้ามือนิ่งหรือปล่อยห้อยลงต่ำ มาริโอ้จะเบรกหยุดทันที!)
+                        } else if (isBellyZoneActive && totalActivity > 0.040 && wristActivity > 0.010) { 
+                            // จูนเกณฑ์การทำท่าวิ่งให้ตึงและแน่นขึ้น (ขจัดปัญหายืนถูเสื้อถูแขนแล้วมาริโอ้วิ่งกระตุกเอง)
                             activeStateCandidate = 'RUNNING';
                         } else {
                             activeStateCandidate = 'IDLE';
                         }
                         
-                        // --- 🛡️ ระบบการกรองสถานะกรองสัญญาณรบกวน (State Confidence Filter) ---
-                        // เมื่อต้องการหยุดยืน (IDLE), กระโดด (JUMPING) หรือก้มย่อ (CROUCHING) ต้องการการตอบสนองที่ไวเปรียบเสมือนแสง (พบ 1 เฟรมปล่อยคำสั่งทันที!)
-                        // มีเพียงการเริ่มวิ่ง (RUNNING) เท่านั้นที่นับเฟรมสะสมต่อเนื่องกัน 2 เฟรม ป้องกันปุ่มวิ่งขัดจังหวะจาก Noise
-                        if (activeStateCandidate === 'IDLE' || activeStateCandidate === 'JUMPING' || activeStateCandidate === 'CROUCHING') {
-                            detectedActiveState = activeStateCandidate;
-                            stateConfidenceCounter = 0;
-                        } else if (activeStateCandidate === 'RUNNING') {
-                            if (detectedActiveState === 'RUNNING') {
-                                stateConfidenceCounter = 0;
+                        // --- 🛡️ ระบบการกรองสถานะกรองสัญญาณรบกวนระดับสูง (Advanced State Confidence Decider) ---
+                        // เพื่อป้องกันความไวเกินจนโดดเองหรือวิ่งเอง (Ghost Actions)
+                        // - กระโดด (JUMPING) และ ย่อ (CROUCHING): ต้องสม่ำเสมออย่างน้อย 2 เฟรมต่อเนื่อง
+                        // - วิ่ง (RUNNING): ต้องก้าววิ่งสม่ำเสมออย่างน้อย 4 เฟรมต่อเนื่อง (ประมาณ 130ms ขจัดปัญหา Ghost Run จาก Jitter)
+                        // - หยุดนิ่ง (IDLE): ให้ตอบสนองรวดเร็ว 1 เฟรมทันที เพื่อให้มาริโอ้เบรกหยุดได้อย่างคล่องตัวและกระชับที่สุด
+                        
+                        if (activeStateCandidate === 'IDLE') {
+                            detectedActiveState = 'IDLE';
+                            runConfidenceCounter = 0;
+                            jumpConfidenceCounter = 0;
+                            crouchConfidenceCounter = 0;
+                        } else if (activeStateCandidate === 'JUMPING') {
+                            runConfidenceCounter = 0;
+                            crouchConfidenceCounter = 0;
+                            if (detectedActiveState === 'JUMPING') {
+                                jumpConfidenceCounter = 0;
                             } else {
-                                stateConfidenceCounter++;
-                                if (stateConfidenceCounter >= 2) {
+                                jumpConfidenceCounter++;
+                                if (jumpConfidenceCounter >= 2) {
+                                    detectedActiveState = 'JUMPING';
+                                    jumpConfidenceCounter = 0;
+                                }
+                            }
+                        } else if (activeStateCandidate === 'CROUCHING') {
+                            runConfidenceCounter = 0;
+                            jumpConfidenceCounter = 0;
+                            if (detectedActiveState === 'CROUCHING') {
+                                crouchConfidenceCounter = 0;
+                            } else {
+                                crouchConfidenceCounter++;
+                                if (crouchConfidenceCounter >= 2) {
+                                    detectedActiveState = 'CROUCHING';
+                                    crouchConfidenceCounter = 0;
+                                }
+                            }
+                        } else if (activeStateCandidate === 'RUNNING') {
+                            jumpConfidenceCounter = 0;
+                            crouchConfidenceCounter = 0;
+                            if (detectedActiveState === 'RUNNING') {
+                                runConfidenceCounter = 0;
+                            } else {
+                                runConfidenceCounter++;
+                                if (runConfidenceCounter >= 4) {
                                     detectedActiveState = 'RUNNING';
-                                    stateConfidenceCounter = 0;
+                                    runConfidenceCounter = 0;
                                 }
                             }
                         }
