@@ -1,3 +1,17 @@
+// 🎵 ป้องกัน Autoplay Rejection พังการทำงานของเกมหลัก (Safe Audio Wrapper)
+(function() {
+  const originalPlay = Audio.prototype.play;
+  Audio.prototype.play = function() {
+    const promise = originalPlay.apply(this, arguments);
+    if (promise !== undefined) {
+      promise.catch(error => {
+        console.warn("🔊 ระบบการเล่นเสียงถูกระงับชั่วคราวเนื่องจาก Autoplay Policy ของเบราว์เซอร์:", error);
+      });
+    }
+    return promise;
+  };
+})();
+
 var requestAnimFrame = (function(){
   return window.requestAnimationFrame       ||
     window.webkitRequestAnimationFrame ||
@@ -21,9 +35,9 @@ var player = new Mario.Player([0,0]);
 //Cool!
 //TODO: Automatically scale the game to work and look good on widescreen.
 //TODO: fiddling with scaled sprites looks BETTER, but not perfect. Hmm.
-canvas.width = 762;
-canvas.height = 720;
-ctx.scale(3,3);
+canvas.width = 256;
+canvas.height = 240;
+// ctx.scale(3,3);
 document.body.appendChild(canvas);
 
 //viewport

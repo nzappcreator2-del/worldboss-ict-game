@@ -15,6 +15,12 @@ canvas {
   object-fit: contain;
   margin: 0 auto;
   background-color: #000;
+
+  /* 🎮 ทำให้ภาพพิกเซล 8-บิตคมชัดแบบเครื่องฟามิคอมจริง ไม่แตกเบลอ */
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 p {
