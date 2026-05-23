@@ -32,7 +32,7 @@
     <style>
         body {
             background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 60%, #020617 100%);
-            overflow-x: hidden;
+            overflow: hidden;
             font-family: 'Prompt', sans-serif;
         }
 
@@ -134,49 +134,49 @@
         </button>
     </header>
 
-    <!-- ⚔️ สนามรบหลัก: แบ่งเป็นฝั่งซ้าย (กล้อง/AI) และฝั่งขวา (เกมมาริโอ้ของจริง / บอส 2) -->
-    <main class="w-full max-w-7xl mx-auto px-4 py-4 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+    <!-- ⚔️ สนามรบหลัก: ปรับอัตราส่วน Grid (ซ้ายกล้องพอประมาณ 3/12, ขวาจอเกมมาริโอ้ใหญ่เต็มตา 9/12) -->
+    <main class="w-full max-w-7xl mx-auto px-4 py-2 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         
-        <!-- ฝั่งซ้าย (6/12): หน้าจอประมวลผลกล้องเว็บแคม (จับท่าทางผู้เล่นครึ่งตัวบน) -->
-        <section class="lg:col-span-6 flex flex-col items-center relative w-full">
-            <div class="relative w-full aspect-[4/3] rounded-3xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
+        <!-- ฝั่งซ้าย (3/12): หน้าจอประมวลผลกล้องเว็บแคม (จับท่าทางนักเรียนพอประมาณ) -->
+        <section class="lg:col-span-3 flex flex-col items-center relative w-full">
+            <div class="relative w-full aspect-[4/3] max-w-[280px] rounded-3xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                 <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
                 <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
                 
                 <!-- ตัวกะพริบสถานะ/แจ้งเตือนคำสั่งเบื้องบนกล้อง -->
                 <div id="wb-status-overlay" 
-                     class="absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse">
+                     class="absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[11px] md:text-xs shadow-md animate-pulse">
                     ⏳ กำลังเปิดสะพานเชื่อมอวกาศและโมเดล AI (MediaPipe)...
                 </div>
 
                 <!-- ป้ายนับเวลา 3 2 1 บดขยี้ขนาดใหญ่กึ่งกลางกล้อง -->
                 <div id="wb-countdown-box" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden z-20">
-                    <span id="wb-countdown-text" class="font-mali text-9xl md:text-[11rem] text-yellow-400 font-extrabold text-shadow drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] animate-ping">3</span>
+                    <span id="wb-countdown-text" class="font-mali text-8xl md:text-[8rem] text-yellow-400 font-extrabold text-shadow drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] animate-ping">3</span>
                 </div>
             </div>
             
             <!-- คำแนะนำการจัดท่าสำหรับเด็กข้ามช่อง (อัปเดต Smart Proximity) -->
-            <p id="wb-pose-proximity-guide" class="text-[10px] md:text-xs text-red-300 font-bold text-center mt-3 bg-red-950/40 border border-red-900/40 py-2 px-4 rounded-xl">
-                💡 ประหยัดพื้นที่ ยืนใกล้กล้องขึ้นได้! ขอเพียงกล้องเห็น <span class="text-yellow-300 font-extrabold">หัว ไหล่ และสะโพก (ครึ่งตัวบน)</span> ก็สนุกกับมาริโอ้ได้ทันที!
+            <p id="wb-pose-proximity-guide" class="text-[10px] text-red-300 font-bold text-center mt-2.5 bg-red-950/40 border border-red-900/40 py-1.5 px-3 rounded-xl">
+                💡 ยืนระยะพอประมาณ! ขอเพียงกล้องเห็น <span class="text-yellow-300 font-extrabold">หัว ไหล่ และหน้าอก (ครึ่งตัวบน)</span> ก็ควบคุมมาริโอ้ได้ทันที!
             </p>
         </section>
 
-        <!-- ฝั่งขวา (6/12): ตัวเกมมาริโอ้จริง ๆ (Same-Origin iframe) แทนที่การ์ดบอสเก่า -->
-        <section class="lg:col-span-6 w-full flex flex-col gap-6">
+        <!-- ฝั่งขวา (9/12): ตัวเกมมาริโอ้ดั้งเดิม NES ของจริง ขยายใหญ่เต็มตา (ไม่มีสกรอลบาร์) -->
+        <section class="lg:col-span-9 w-full flex flex-col gap-3">
             
-            <!-- การ์ดฝังหน้าจอเกมมาริโอ้ตัวจริงจาก GitHub -->
-            <div class="glass-panel rounded-3xl p-4 md:p-5 neon-border-purple relative overflow-hidden flex flex-col items-center">
+            <!-- จอภาพเกมมาริโอ้ NES ของจริง -->
+            <div class="glass-panel rounded-3xl p-3 md:p-4 neon-border-purple relative overflow-hidden flex flex-col items-center">
                 <div class="absolute inset-0 bg-gradient-to-tr from-red-950/10 via-slate-900/40 to-transparent pointer-events-none"></div>
                 
-                <div class="w-full flex justify-between items-center z-10 mb-2 px-1">
+                <div class="w-full flex justify-between items-center z-10 mb-1.5 px-1">
                     <span id="wb-boss-tag" class="bg-red-950/80 text-red-300 text-[10px] font-black uppercase px-3 py-1 rounded-full border border-red-800/80 tracking-wider shadow-inner">WORLD BOSS: BOWSER 🐢</span>
-                    <span id="mario-game-status" class="text-xs font-black text-yellow-400 animate-pulse">🎮 กำลังโหลดเวิลด์บอสมาริโอ้ของจริง...</span>
+                    <span id="mario-game-status" class="text-xs font-black text-yellow-400 animate-pulse">🎮 สมรภูมิมาริโอ้เครื่องแฟมิคอมดั้งเดิม!</span>
                 </div>
                 
-                <!-- หน้าจอแสดงผลเกม: ฝัง Iframe หรือบอส 2 ปกติ -->
-                <div class="w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden border-4 border-slate-800 shadow-2xl relative">
-                    <!-- Iframe ฝังตัวเกมมาริโอ้จริงๆ ของ robertkleffner/mariohtml5 -->
-                    <iframe id="mario-iframe" class="w-full h-full border-none" src="mario-game/main.html"></iframe>
+                <!-- จอภาพเกมมาริโอ้ NES (ปรับเป็น aspect-[4/3] ตามต้นฉบับ NES 640x480 และขยายความสูงสูงสุด) -->
+                <div class="w-full aspect-[4/3] max-h-[500px] bg-black rounded-2xl overflow-hidden border-4 border-slate-800 shadow-2xl relative">
+                    <!-- Iframe ฝังตัวเกมมาริโอ้ดั้งเดิม Famicom / NES -->
+                    <iframe id="mario-iframe" class="w-full h-full border-none overflow-hidden" scrolling="no" src="mario-game/main.html"></iframe>
                     
                     <!-- โหมดแสดงของบอส 2 Titan (ถ้าเลือกบอส 2 จะแสดงหน้านี้ทับจอ) -->
                     <div id="wb-titan-placeholder" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center hidden">
@@ -189,7 +189,7 @@
                 </div>
 
                 <!-- แถบพลังชีวิตบอสโลกคุปป้า (HP Bar) -->
-                <div class="w-full mt-4 bg-slate-950/80 border border-slate-800 rounded-full h-8 overflow-hidden relative shadow-inner z-10">
+                <div class="w-full mt-3 bg-slate-950/80 border border-slate-800 rounded-full h-7 overflow-hidden relative shadow-inner z-10">
                     <div id="wb-battle-boss-hp-bar" 
                          class="h-full bg-gradient-to-r from-red-600 via-rose-500 to-pink-500 transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.5)]" 
                          style="width: 100%;"></div>
@@ -201,15 +201,15 @@
             <div class="grid grid-cols-2 gap-4">
                 
                 <!-- กล่องจับเวลา (Stopwatch) -->
-                <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-red-500">
-                    <span class="text-[10px] md:text-xs text-red-400 font-extrabold uppercase tracking-wider">⏱️ เวลาที่ใช้</span>
-                    <span class="font-outfit text-3xl md:text-4xl font-black text-white mt-1.5 neon-text-purple tracking-tight"><span id="wb-battle-timer">0.00</span>s</span>
+                <div class="glass-panel p-3 md:p-4 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-red-500">
+                    <span class="text-[10px] text-red-400 font-extrabold uppercase tracking-wider">⏱️ เวลาที่ใช้</span>
+                    <span class="font-outfit text-2xl md:text-3xl font-black text-white mt-1 neon-text-purple tracking-tight"><span id="wb-battle-timer">0.00</span>s</span>
                 </div>
 
                 <!-- กล่องนับจำนวนครั้งสะสม (Reps Count) -->
-                <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-emerald-500">
-                    <span class="text-[10px] md:text-xs text-emerald-400 font-extrabold uppercase tracking-wider">🎯 จำนวนครั้ง</span>
-                    <span class="font-outfit text-3xl md:text-4xl font-black text-emerald-300 mt-1.5 tracking-tight"><span id="wb-battle-reps">0 / 10</span></span>
+                <div class="glass-panel p-3 md:p-4 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-emerald-500">
+                    <span class="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wider">🎯 จำนวนครั้ง</span>
+                    <span class="font-outfit text-2xl md:text-3xl font-black text-emerald-300 mt-1 tracking-tight"><span id="wb-battle-reps">0 / 10</span></span>
                 </div>
 
             </div>
@@ -219,7 +219,7 @@
     </main>
 
     <!-- 🔮 ส่วนล่าง: ป้ายลิขสิทธิ์สไตล์ RPG -->
-    <footer class="w-full text-center py-4 text-[10px] font-bold text-red-950/80 mt-4 select-none">
+    <footer class="w-full text-center py-3 text-[10px] font-bold text-red-950/80 mt-2 select-none">
         ICT Talent Connext ED - Dragon Boss Arena © 2026
     </footer>
 
@@ -386,16 +386,14 @@
         // สลับ UI บอส 1 และบอส 2
         if (bossId === 'WB001') {
             document.getElementById('wb-boss-tag').innerText = "WORLD BOSS: BOWSER 🐢";
-            document.getElementById('mario-game-status').innerText = "🎮 วิ่ง, กระโดด, ย่อตัวมุดท่อ เพื่อเอาชนะด่าน!";
+            document.getElementById('mario-game-status').innerText = "🎮 วิ่ง, กระโดด, นั่งย่อ เพื่อผจญภัยในเกมนักต่อสู้มาริโอ้ NES!";
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             document.getElementById('mario-iframe').classList.remove('hidden');
-            document.getElementById('wb-pose-proximity-guide').innerHTML = `💡 ยืนกึ่งกลางกล้องครึ่งตัวบน ซอยเท้าวิ่ง 🏃 กระโดด 🦘 และก้มตัวหมอบ 🕳️ เพื่อบังคับมาริโอ้ตัวจริง!`;
         } else {
             document.getElementById('wb-boss-tag').innerText = "WORLD BOSS: STONE TITAN 👹";
             document.getElementById('mario-game-status').innerText = "🎮 เอี้ยวคอควบคุมหลบระเบิดเก็บเพชร!";
             document.getElementById('mario-iframe').classList.add('hidden');
             document.getElementById('wb-titan-placeholder').classList.remove('hidden');
-            document.getElementById('wb-pose-proximity-guide').innerHTML = `💡 ยืนกึ่งกลางกล้อง ขยับเอี้ยวศีรษะหลบสิ่งกีดขวางได้อย่างเต็มที่!`;
         }
 
         // 3) ตัวแปรเกมสเตท (Game Loop States)
@@ -431,8 +429,9 @@
         let wbSpeedScaleInterval = null;
         let localGameAnimId = null;
 
-        // --- 🍄 บอสตัวที่ 1 (ผจญภัยไปกับมาริโอ้) - Real Mario Game Bridge ---
+        // --- 🍄 บอสตัวที่ 1 (ผจญภัยไปกับมาริโอ้) - Real Mario Game NES Bridge ---
         let lastMarioCoinsCount = 0;
+        let lastMarioScore = 0;
         let baseNoseY = -1;
         let baseShoulderY = -1;
         let noseYHistory = [];
@@ -448,94 +447,113 @@
         let lastNoseLandmark = null;
         let particleSparkles = []; // พาร์ติเคิลเรืองแสงนีออน
 
-        // ฟังก์ชันส่งสัญญาณ Keyboard Events ไปบังคับมาริโอ้ใน iframe
+        // ฟังก์ชันส่งสัญญาณ Keyboard Events ไปบังคับมาริโอ้ใน iframe (Same-Origin)
         function controlRealMarioGame(marioState) {
             const iframe = document.getElementById('mario-iframe');
             if (!iframe || !iframe.contentWindow) return;
             
             const iframeWin = iframe.contentWindow;
-            if (!iframeWin.Enjine || !iframeWin.Enjine.KeyboardInput || !iframeWin.Enjine.KeyboardInput.Pressed) return;
             
-            const pressed = iframeWin.Enjine.KeyboardInput.Pressed;
-            
-            // 37: Left, 39: Right, 83: S (Jump/Start), 40: Down (Crouch), 65: A (Run)
-            // เคลียร์ปุ่มควบคุมหลักเฉพาะเมื่อมีการเปลี่ยนสเตทเพื่อไม่ให้เดินสะดุด
-            if (marioState !== previousMarioState) {
-                pressed[37] = false;
-                pressed[39] = false;
-                pressed[83] = false;
-                pressed[40] = false;
-                pressed[65] = false;
-                previousMarioState = marioState;
-            }
-
-            // จัดการ Action เมนู (Auto-Start / Auto-Select ด่าน)
-            // หากเด็กกระโดดหรือวิ่ง ในขณะที่ยังอยู่ในหน้า Title หรือด่านแผนที่
-            // เราจะกดยืนยันปุ่ม S ให้โดยอัตโนมัติ
-            if (marioState === 'RUNNING' || marioState === 'JUMPING') {
-                if (iframeWin.Mario && iframeWin.Mario.MarioCharacter) {
-                    // แกล้งกดเริ่มเกมหรือยืนยันให้
-                    pressed[83] = true;
+            // ตรวจสอบและใช้งานฟังก์ชัน pressMarioKey จากสะพานเชื่อม API ใหม่
+            if (typeof iframeWin.pressMarioKey === 'function') {
+                // ถ้าสเตทขยับเปลี่ยน ล้างปุ่มที่กดไว้เดิมทั้งหมดก่อนเพื่อความสะอาด
+                if (marioState !== previousMarioState) {
+                    const keysToRelease = [37, 39, 38, 40, 83, 65]; // Left, Right, Up, Down, S (Jump), A (Run/Fire)
+                    keysToRelease.forEach(code => iframeWin.pressMarioKey(code, false));
+                    previousMarioState = marioState;
                 }
-            }
-            
-            if (marioState === 'RUNNING') {
-                pressed[39] = true; // วิ่งขวา
-                pressed[65] = true; // วิ่งเร็วพิเศษ!
-            } else if (marioState === 'JUMPING') {
-                pressed[83] = true; // กระโดด S
-                pressed[39] = true; // กระโดดเฉียงไปข้างหน้า
-            } else if (marioState === 'CROUCHING') {
-                pressed[40] = true; // หมอบ / มุดท่อ
-            } else if (marioState === 'IDLE') {
-                // หยุดยืนเฉยๆ
-                pressed[39] = false;
-                pressed[65] = false;
-                pressed[83] = false;
-                pressed[40] = false;
+
+                // หากเด็กทำท่า วิ่ง หรือ กระโดด และยังเป็นหน้าจอไตเติลเมนูอยู่ 
+                // ให้จำลองการกดปุ่ม S (83) เพื่อเข้าเกม (Auto-Start)
+                if (iframeWin.Mario && iframeWin.Mario.MarioCharacter && iframeWin.Mario.MarioCharacter.LevelString === "none") {
+                    if (marioState === 'RUNNING' || marioState === 'JUMPING') {
+                        iframeWin.pressMarioKey(83, true); // กด S เพื่อเริ่มเกม
+                        setTimeout(() => {
+                            iframeWin.pressMarioKey(83, false);
+                        }, 100);
+                        speakThai("เริ่มเกมมาริโอ้คลาสสิกแล้วค่ะ");
+                        return;
+                    }
+                }
+
+                if (marioState === 'RUNNING') {
+                    // วิ่งขวา (39) + วิ่งเร็วพิเศษ Sprint (65 - ปุ่ม A ใน Infinite Mario)
+                    iframeWin.pressMarioKey(39, true);
+                    iframeWin.pressMarioKey(65, true);
+                } else if (marioState === 'JUMPING') {
+                    // กระโดด (83 - ปุ่ม S ใน Infinite Mario) + เคลื่อนขวา (39) + วิ่งเร็ว (65)
+                    iframeWin.pressMarioKey(39, true);
+                    iframeWin.pressMarioKey(83, true);
+                    iframeWin.pressMarioKey(65, true);
+                } else if (marioState === 'CROUCHING') {
+                    // นั่งย่อหมอบ (40) + สั่งยิงกระสุนปืนไฟ (65 - ปุ่ม A ใน Infinite Mario)
+                    iframeWin.pressMarioKey(40, true);
+                    iframeWin.pressMarioKey(65, true);
+                }
+            } else {
+                // FALLBACK: ใช้โครงสร้างเดิม (กรณีที่ API Bridge ยังโหลดไม่เสร็จ)
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (marioState !== previousMarioState) {
+                    const keysToRelease = [37, 39, 38, 32, 40, 16, 17];
+                    keysToRelease.forEach(code => {
+                        const upEvent = new iframeWin.KeyboardEvent('keyup', { keyCode: code, which: code, bubbles: true });
+                        iframeDoc.body.dispatchEvent(upEvent);
+                    });
+                    previousMarioState = marioState;
+                }
+
+                if (marioState === 'RUNNING') {
+                    const downRight = new iframeWin.KeyboardEvent('keydown', { keyCode: 39, which: 39, bubbles: true });
+                    const downShift = new iframeWin.KeyboardEvent('keydown', { keyCode: 16, which: 16, bubbles: true });
+                    iframeDoc.body.dispatchEvent(downRight);
+                    iframeDoc.body.dispatchEvent(downShift);
+                } else if (marioState === 'JUMPING') {
+                    const downJump = new iframeWin.KeyboardEvent('keydown', { keyCode: 32, which: 32, bubbles: true });
+                    const downRight = new iframeWin.KeyboardEvent('keydown', { keyCode: 39, which: 39, bubbles: true });
+                    iframeDoc.body.dispatchEvent(downJump);
+                    iframeDoc.body.dispatchEvent(downRight);
+                } else if (marioState === 'CROUCHING') {
+                    const downCrouch = new iframeWin.KeyboardEvent('keydown', { keyCode: 40, which: 40, bubbles: true });
+                    const downFire = new iframeWin.KeyboardEvent('keydown', { keyCode: 17, which: 17, bubbles: true });
+                    iframeDoc.body.dispatchEvent(downCrouch);
+                    iframeDoc.body.dispatchEvent(downFire);
+                }
             }
         }
 
-        // ลูปรออ่านเหรียญและสถิติจาก iframe เกมมาริโอ้จริง
+        // ลูปรอเช็กผลและสถิติคะแนนข้าม iframe จากเกมมาริโอ้จริง
         function checkRealMarioStats() {
             if (wbGameState !== 'BATTLE') return;
 
             const iframe = document.getElementById('mario-iframe');
-            if (iframe && iframe.contentWindow && iframe.contentWindow.Mario && iframe.contentWindow.Mario.MarioCharacter) {
-                const marioChar = iframe.contentWindow.Mario.MarioCharacter;
-                
-                // ตรวจหาจำนวนเหรียญในเกมจริง
-                if (marioChar.Coins !== undefined && marioChar.Coins !== lastMarioCoinsCount) {
-                    const diff = marioChar.Coins - lastMarioCoinsCount;
-                    if (diff > 0) {
-                        // แจ้งลดเลือดบอสคุปป้า Bowser!
-                        handleRepDetected();
-                    }
-                    lastMarioCoinsCount = marioChar.Coins;
-                }
+            if (iframe && iframe.contentWindow) {
+                const iframeWin = iframe.contentWindow;
 
-                // เช็กสถานะการผ่านด่านสำเร็จ (Win State)
-                if (iframeWinActiveStateName(iframe.contentWindow) === 'WinState') {
-                    triggerVictoryPhase();
-                    return;
+                // 1. ดึงแต้มเหรียญทองสะสมจาก score.coinScore ใน Global
+                if (iframeWin.currentScoreInstance) {
+                    const currentCoins = iframeWin.currentScoreInstance.coinScore;
+                    if (currentCoins !== undefined && currentCoins !== lastMarioCoinsCount) {
+                        const diff = currentCoins - lastMarioCoinsCount;
+                        if (diff > 0) {
+                            // เพิ่ม Reps และลดเลือดบอส Bowser
+                            handleRepDetected();
+                        }
+                        lastMarioCoinsCount = currentCoins;
+                    }
+
+                    // 2. ดึงคะแนน (Score) จากการเหยียบ Goomba / ชนบล็อก
+                    const currentScore = iframeWin.currentScoreInstance.score;
+                    if (currentScore !== undefined && currentScore !== lastMarioScore) {
+                        const diffScore = currentScore - lastMarioScore;
+                        if (diffScore >= 100) { // เหยียบ Goomba ได้ 100-200 แต้ม
+                            handleRepDetected(); // ดาเมจบอส!
+                        }
+                        lastMarioScore = currentScore;
+                    }
                 }
             }
 
             setTimeout(checkRealMarioStats, 100);
-        }
-
-        // ฟังก์ชันเสริมสำหรับเช็กสเตทปัจจุบันของเกมมาริโอ้
-        function iframeWinActiveStateName(win) {
-            try {
-                if (win.Enjine && win.Enjine.Application && win.Enjine.Application.State) {
-                    const state = win.Enjine.Application.State;
-                    if (state instanceof win.Mario.WinState) return 'WinState';
-                    if (state instanceof win.Mario.LoseState) return 'LoseState';
-                    if (state instanceof win.Mario.TitleState) return 'TitleState';
-                    if (state instanceof win.Mario.LevelState) return 'LevelState';
-                }
-            } catch(e) {}
-            return 'Other';
         }
 
         // 4) เริ่มโหลดโมเดลหรือเริ่มกล้องทันที
@@ -563,7 +581,6 @@
                     };
                 });
                 
-                // โหลดโมเดลสำหรับทั้งสองโหมด
                 console.log("🧠 World Boss Pose Engine Init - MediaPipe Active for World Boss System");
                 
                 if (!wbPose) {
@@ -609,10 +626,10 @@
                 
                 if (bossId === 'WB001') {
                     statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อ Calibrate ค่าจมูกปกติ!`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse z-30";
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse z-30";
                 } else {
                     statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse z-30";
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse z-30";
                 }
                 
             } catch (err) {
@@ -629,7 +646,7 @@
                 }
                 
                 statusOverlay.innerHTML = `❌ ไม่สามารถเชื่อมต่อเว็บแคมได้: ${errorHelp}`;
-                statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md z-30";
+                statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md z-30";
                 alert("❌ เกิดข้อผิดพลาดในการเปิดกล้องเว็บแคม:\n\n" + errorHelp);
             }
         }
@@ -651,7 +668,7 @@
             
             if (stunDuration > 0) {
                 stunDuration--;
-                knight.activeEmoji = "🛡️"; // คืนรูปปกติถ้าไม่มึน
+                knight.activeEmoji = "🛡️"; 
             } else {
                 knight.activeEmoji = "🛡️";
             }
@@ -820,7 +837,7 @@
             const maxY = 0.95;
             
             if (bossId === 'WB001') {
-                // --- 🍄 บอสตัวที่ 1: ผจญภัยไปกับมาริโอ้ของจริง (ควบคุม iframe ด้วยกล้องครึ่งตัว) ---
+                // --- 🍄 บอสตัวที่ 1: ผจญภัยไปกับมาริโอ้ดั้งเดิม NES (ควบคุมผ่านกล้องครึ่งตัว) ---
                 const pt = landmarks ? landmarks[0] : null; // จมูก
                 const leftShoulder = landmarks ? landmarks[11] : null;
                 const rightShoulder = landmarks ? landmarks[12] : null;
@@ -833,7 +850,7 @@
                     const avgNoseY = noseYHistory.reduce((a, b) => a + b, 0) / noseYHistory.length;
                     
                     if (wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
-                        isPositionOk = true; // มองเห็นจมูกคือพร้อม
+                        isPositionOk = true; 
                         
                         if (baseNoseY === -1) {
                             baseNoseY = avgNoseY;
@@ -867,7 +884,7 @@
                             }
                         }
                         
-                        // วิเคราะห์ขยับตัว (กระโดด / ย่อ / วิ่ง / หยุดนิ่ง)
+                        // วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / วิ่ง / หยุดนิ่ง)
                         let activeState = 'IDLE';
                         if (avgNoseY > baseNoseY + 0.08) {
                             activeState = 'CROUCHING';
@@ -877,10 +894,10 @@
                             activeState = 'RUNNING';
                         }
                         
-                        // ส่งคำสั่ง Keyboard ไปยังเกมมาริโอ้จริงใน iframe!
+                        // บังคับเกมมาริโอ้ NES จริงๆ ใน iframe!
                         controlRealMarioGame(activeState);
                         
-                        // วาด HUD บนกล้องเพื่อจำลอง
+                        // วาดป้าย HUD สเตทตรวจจับบนจอภาพกล้อง
                         wbCanvasCtx.save();
                         let statusText = '🧍 หยุดยืน (Idle)';
                         let statusColor = '#94a3b8';
@@ -888,14 +905,14 @@
                             statusText = '🦘 กำลังกระโดด! (JUMP)';
                             statusColor = '#38bdf8';
                         } else if (activeState === 'CROUCHING') {
-                            statusText = '🕳️ กำลังก้มตัว! (CROUCH)';
+                            statusText = '🕳️ กำลังก้มย่อ! (CROUCH)';
                             statusColor = '#fb923c';
                         } else if (activeState === 'RUNNING') {
                             statusText = '🏃 กำลังวิ่งลุยด่าน! (RUN)';
                             statusColor = '#39ff14';
                         }
                         
-                        wbCanvasCtx.font = 'bold 24px Prompt, sans-serif';
+                        wbCanvasCtx.font = 'bold 22px Prompt, sans-serif';
                         wbCanvasCtx.fillStyle = statusColor;
                         wbCanvasCtx.shadowColor = statusColor;
                         wbCanvasCtx.shadowBlur = 10;
@@ -923,7 +940,7 @@
                     const statusOverlay = document.getElementById('wb-status-overlay');
                     if (isPositionOk) {
                         statusOverlay.innerHTML = `✅ คาลิเบรตจมูกสำเร็จ! ยืนนิ่งเตรียมรบ... (READY)`;
-                        statusOverlay.className = "absolute top-4 left-4 right-4 py-4 px-6 rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
+                        statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 border border-white text-center font-black text-white text-xs md:text-sm shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse z-30";
                         
                         if (!wbStandingTimer) {
                             wbStandingTimer = setTimeout(() => {
@@ -931,8 +948,8 @@
                             }, 1500);
                         }
                     } else {
-                        statusOverlay.innerHTML = `⚠️ ยืนมองกล้อง จัดให้จมูกและใบหน้าอยู่กึ่งกลางกล่องนำทางครึ่งตัวด้านบน`;
-                        statusOverlay.className = "absolute top-4 left-4 right-4 py-3 px-4 rounded-3xl bg-gradient-to-r from-red-500 to-amber-600 border-4 border-white text-center font-bold text-white text-xs md:text-lg shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30 animate-pulse";
+                        statusOverlay.innerHTML = `⚠️ ยืนมองกล้อง จัดให้จมูกและใบหน้าอยู่กึ่งกลางกล่องนำทางครึ่งตัว`;
+                        statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-gradient-to-r from-red-500 to-amber-600 border border-white text-center font-bold text-white text-[10px] md:text-xs shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30 animate-pulse";
                         
                         if (wbStandingTimer) {
                             clearTimeout(wbStandingTimer);
@@ -943,7 +960,7 @@
                 
             } else {
                 // --- 👹 บอสตัวที่ 2: Stone Titan ---
-                const pt = landmarks ? landmarks[0] : null; // จมูก
+                const pt = landmarks ? landmarks[0] : null; 
                 if (pt && pt.visibility > 0.5) {
                     lastNoseLandmark = pt;
                     
@@ -960,7 +977,7 @@
                     drawStoneTitanScene();
                 }
                 
-                // วาด Bounding Box ไกด์ไลน์ช่วง PREPARING ของบอส 2
+                // Bounding Box ไกด์ไลน์ช่วง PREPARING ของบอส 2
                 if (wbGameState === 'PREPARING') {
                     wbCanvasCtx.lineWidth = 5;
                     wbCanvasCtx.shadowBlur = 15;
@@ -1121,17 +1138,17 @@
             wbStartTime = performance.now();
             wbSpeedMultiplier = 1.0;
 
-            // รีเฟรชหรือกดปุ่ม S ให้มาริโอ้เริ่มเล่นเองใน Iframe
+            // รันฟังก์ชันจำลองเริ่มเกมมาริโอ้จริงใน iframe
             const iframe = document.getElementById('mario-iframe');
             if (iframe && iframe.contentWindow) {
-                // ส่งคีย์เริ่มเกมให้
                 controlRealMarioGame('JUMPING');
                 setTimeout(() => { controlRealMarioGame('IDLE'); }, 300);
             }
 
-            // เริ่มฟังก์ชันลูปรอเช็กคะแนนในเกมจริง
+            // เริ่มการตรวจสอบแต้มและเหรียญของเกมมาริโอ้จริง
             if (bossId === 'WB001') {
                 lastMarioCoinsCount = 0;
+                lastMarioScore = 0;
                 checkRealMarioStats();
             }
             
@@ -1343,11 +1360,12 @@
             
             if (bossId === 'WB001') {
                 lastMarioCoinsCount = 0;
+                lastMarioScore = 0;
                 baseNoseY = -1;
                 baseShoulderY = -1;
                 noseYHistory.length = 0;
                 motionHistory.length = 0;
-                // รีโหลด iframe เกมมาริโอ้เพื่อรีสตาร์ทบอส
+                // รีโหลด iframe เกมมาริโอ้ดั้งเดิม NES
                 const iframe = document.getElementById('mario-iframe');
                 if (iframe) iframe.src = iframe.src;
             } else {
@@ -1388,10 +1406,10 @@
                 statusOverlay.classList.remove('hidden');
                 if (bossId === 'WB001') {
                     statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเตรียม Calibrate...`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse";
                 } else {
                     statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเริ่มท้าทาย...`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/80 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse";
                 }
             }
             

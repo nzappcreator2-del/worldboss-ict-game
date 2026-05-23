@@ -8,6 +8,7 @@ Mario.Character = function() {
     this.Large = false;
     this.Fire = false;
     this.Coins = 0;
+    this.EnemyKills = 0;
     this.Lives = 3;
     this.LevelString = "none";
     this.GroundInertia = 0.89;
@@ -534,7 +535,7 @@ Mario.Character.prototype.Stomp = function(object) {
     this.SubMove(0, targetY - this.Y);
     
     if (object instanceof Mario.Enemy || object instanceof Mario.BulletBill) {
-        
+        this.EnemyKills = (this.EnemyKills || 0) + 1;
         Enjine.Resources.PlaySound("kick");
         this.XJumpSpeed = 0;
         this.YJumpSpeed = -1.9;

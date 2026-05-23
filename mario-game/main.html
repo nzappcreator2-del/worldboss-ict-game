@@ -58,6 +58,26 @@
 
         <script src="code/music.js"></script>
 
-        <script>$(document).ready(function() { new Enjine.Application().Initialize(new Mario.LoadingState(), 320, 240) });</script>
+        <script>
+            // 🌉 สะพานเชื่อม API สำหรับเวิลด์บอส (World Boss API Bridge)
+            window.pressMarioKey = function(keyCode, isDown) {
+                if (window.Enjine && window.Enjine.KeyboardInput) {
+                    window.Enjine.KeyboardInput.Pressed[keyCode] = isDown;
+                }
+            };
+
+            window.currentScoreInstance = {
+                get coinScore() {
+                    return (window.Mario && window.Mario.MarioCharacter) ? window.Mario.MarioCharacter.Coins : 0;
+                },
+                get score() {
+                    return (window.Mario && window.Mario.MarioCharacter) ? ((window.Mario.MarioCharacter.EnemyKills || 0) * 100) : 0;
+                }
+            };
+
+            $(document).ready(function() { 
+                new Enjine.Application().Initialize(new Mario.LoadingState(), 320, 240); 
+            });
+        </script>
 	</body>
 </html>
