@@ -41,13 +41,13 @@
             background: rgba(15, 23, 42, 0.75);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(139, 92, 246, 0.25);
+            border: 1px solid rgba(239, 68, 68, 0.25);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
 
         .neon-border-purple {
-            border: 2px solid rgba(139, 92, 246, 0.4);
-            box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
         }
 
         .neon-border-emerald {
@@ -56,7 +56,7 @@
         }
 
         .neon-text-purple {
-            text-shadow: 0 0 10px rgba(167, 139, 250, 0.6);
+            text-shadow: 0 0 10px rgba(248, 113, 113, 0.6);
         }
 
         .neon-text-red {
@@ -121,11 +121,11 @@
 
     <!-- 🔮 ส่วนหัว: แสดงข้อมูลของนักเรียนและห้องเรียน -->
     <header class="w-full max-w-7xl mx-auto px-4 pt-4 md:pt-6 flex justify-between items-center z-10">
-        <div class="glass-panel py-2 px-4 md:px-6 rounded-2xl flex items-center gap-3 border border-purple-500/20">
+        <div class="glass-panel py-2 px-4 md:px-6 rounded-2xl flex items-center gap-3 border border-red-500/20">
             <span class="text-2xl md:text-3xl">🛡️</span>
             <div>
-                <h2 id="ui-student-name" class="font-extrabold text-sm md:text-base text-purple-200 tracking-wide">ผู้กล้า: กำลังดาวน์โหลด...</h2>
-                <p id="ui-student-class" class="text-[10px] md:text-xs font-bold text-indigo-400">ชั้นประถมศึกษาปีที่ -</p>
+                <h2 id="ui-student-name" class="font-extrabold text-sm md:text-base text-red-200 tracking-wide">ผู้กล้า: กำลังดาวน์โหลด...</h2>
+                <p id="ui-student-class" class="text-[10px] md:text-xs font-bold text-red-400">ชั้นประถมศึกษาปีที่ -</p>
             </div>
         </div>
         <button onclick="confirmLeaveGame()" 
@@ -137,7 +137,7 @@
     <!-- ⚔️ สนามรบหลัก: แบ่งเป็นฝั่งซ้าย (กล้อง/AI) และฝั่งขวา (มอนสเตอร์/บอส) -->
     <main class="w-full max-w-7xl mx-auto px-4 py-4 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         
-        <!-- ฝั่งซ้าย (6/12): หน้าจอประมวลผลกล้องและเส้นไกด์ไลน์กระดูกสีเรืองแสง -->
+        <!-- ฝั่งซ้าย (7/12): หน้าจอประมวลผลกล้องและเส้นไกด์ไลน์กระดูกสีเรืองแสง -->
         <section class="lg:col-span-7 flex flex-col items-center relative w-full">
             <div class="relative w-full aspect-[4/3] rounded-3xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                 <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
@@ -145,7 +145,7 @@
                 
                 <!-- ตัวกะพริบสถานะ/แจ้งเตือนคำสั่งเบื้องบนกล้อง -->
                 <div id="wb-status-overlay" 
-                     class="absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-purple-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse">
+                     class="absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse">
                     ⏳ กำลังเปิดสะพานเชื่อมอวกาศและโมเดล AI (MediaPipe)...
                 </div>
 
@@ -156,8 +156,8 @@
             </div>
             
             <!-- คำแนะนำการจัดท่าสำหรับเด็กข้ามช่อง (อัปเดต Smart Proximity) -->
-            <p class="text-[10px] md:text-xs text-indigo-300 font-bold text-center mt-3 bg-indigo-950/40 border border-indigo-900/40 py-2 px-4 rounded-xl">
-                💡 ประหยัดพื้นที่ ยืนใกล้กล้องขึ้นได้! ขอเพียงกล้องเห็น <span class="text-yellow-300 font-extrabold">หัว ไหล่ สะโพก และหัวเข่า</span> ก็ลุยศึกบอสโลกได้ทันที!
+            <p id="wb-pose-proximity-guide" class="text-[10px] md:text-xs text-red-300 font-bold text-center mt-3 bg-red-950/40 border border-red-900/40 py-2 px-4 rounded-xl">
+                💡 ประหยัดพื้นที่ ยืนใกล้กล้องขึ้นได้! ขอเพียงกล้องเห็น <span class="text-yellow-300 font-extrabold">หัว ไหล่ และสะโพก (ครึ่งตัวบน)</span> ก็สนุกกับมาริโอ้ได้ทันที!
             </p>
         </section>
 
@@ -166,20 +166,20 @@
             
             <!-- การ์ดมอนสเตอร์/บอสตัวฉกาจ -->
             <div class="glass-panel rounded-3xl p-6 md:p-8 neon-border-purple relative overflow-hidden flex flex-col items-center">
-                <div class="absolute inset-0 bg-gradient-to-tr from-purple-950/10 via-slate-900/40 to-transparent pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-tr from-red-950/10 via-slate-900/40 to-transparent pointer-events-none"></div>
                 
                 <!-- ป้ายบอสโลก -->
                 <span class="bg-red-950/80 text-red-300 text-[10px] font-black uppercase px-3 py-1 rounded-full border border-red-800/80 tracking-wider shadow-inner z-10">WORLD BOSS ACTIVE</span>
                 
                 <!-- อวาตาร์มอนสเตอร์ยักษ์ใหญ่ -->
-                <div id="wb-battle-boss-avatar" class="text-8xl md:text-9xl my-4 drop-shadow-[0_10px_20px_rgba(139,92,246,0.3)] select-none select-none transition transform duration-150">👹</div>
+                <div id="wb-battle-boss-avatar" class="text-8xl md:text-9xl my-4 drop-shadow-[0_10px_20px_rgba(239,68,68,0.3)] select-none transition transform duration-150">👾</div>
                 
                 <!-- ข้อมูลชื่อบอส -->
-                <h3 id="wb-battle-boss-name" class="font-black text-2xl md:text-3xl text-white text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">มังกรแดงอัคคี</h3>
+                <h3 id="wb-battle-boss-name" class="font-black text-2xl md:text-3xl text-white text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">ผจญภัยไปกับมาริโอ้</h3>
                 
                 <!-- ไกด์แสดงท่าทาง -->
                 <p id="wb-battle-pose-guide" class="text-xs md:text-sm font-bold text-yellow-300 mt-2 bg-yellow-950/40 border border-yellow-800/40 px-4 py-1.5 rounded-xl text-center animate-pulse">
-                    🏋️‍♂️ โปรดย่อตัวลงสควอทให้เห็นมุมข้อพับ!
+                    🏃 วิ่งอยู่กับที่เพื่อเดินหน้า, 🦘 กระโดดเพื่อหลบท่อ/เก็บเหรียญ, 🕳️ ย่อตัวลงเพื่อมุดท่อ!
                 </p>
 
                 <!-- แถบพลังชีวิตมอนสเตอร์ (Boss HP Bar) -->
@@ -195,8 +195,8 @@
             <div class="grid grid-cols-2 gap-4">
                 
                 <!-- กล่องจับเวลา (Stopwatch) -->
-                <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-purple-500">
-                    <span class="text-[10px] md:text-xs text-indigo-400 font-extrabold uppercase tracking-wider">⏱️ เวลาที่ใช้</span>
+                <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col items-center justify-center border-l-4 border-l-red-500">
+                    <span class="text-[10px] md:text-xs text-red-400 font-extrabold uppercase tracking-wider">⏱️ เวลาที่ใช้</span>
                     <span class="font-outfit text-3xl md:text-4xl font-black text-white mt-1.5 neon-text-purple tracking-tight"><span id="wb-battle-timer">0.00</span>s</span>
                 </div>
 
@@ -213,7 +213,7 @@
     </main>
 
     <!-- 🔮 ส่วนล่าง: ป้ายลิขสิทธิ์สไตล์ RPG -->
-    <footer class="w-full text-center py-4 text-[10px] font-bold text-indigo-950/80 mt-4 select-none">
+    <footer class="w-full text-center py-4 text-[10px] font-bold text-red-950/80 mt-4 select-none">
         ICT Talent Connext ED - Dragon Boss Arena © 2026
     </footer>
 
@@ -223,8 +223,8 @@
     <div id="wb-victory-modal" 
          class="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden">
         
-        <div class="glass-panel rounded-3xl max-w-lg w-full p-8 text-center neon-border-purple relative overflow-hidden flex flex-col items-center shadow-[0_0_50px_rgba(139,92,246,0.3)]">
-            <div class="absolute inset-0 bg-gradient-to-b from-purple-950/20 via-transparent to-black/90 pointer-events-none"></div>
+        <div class="glass-panel rounded-3xl max-w-lg w-full p-8 text-center neon-border-purple relative overflow-hidden flex flex-col items-center shadow-[0_0_50px_rgba(239,68,68,0.3)]">
+            <div class="absolute inset-0 bg-gradient-to-b from-red-950/20 via-transparent to-black/90 pointer-events-none"></div>
             
             <!-- ไอคอนชัยชนะ -->
             <span class="text-7xl md:text-8xl animate-bounce my-2 drop-shadow-[0_5px_10px_rgba(251,191,36,0.5)] select-none">🏆</span>
@@ -232,9 +232,9 @@
             <h1 class="font-black text-3xl md:text-4xl bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight mt-2 font-prompt">
                 ปราบเวิลด์บอสสำเร็จ!
             </h1>
-            <p id="wb-victory-boss-name" class="text-purple-300 font-black tracking-wider text-xs md:text-sm uppercase mt-1">ผู้สยบ: มังกรแดงอัคคี</p>
+            <p id="wb-victory-boss-name" class="text-red-300 font-black tracking-wider text-xs md:text-sm uppercase mt-1">ผู้สยบ: ผจญภัยไปกับมาริโอ้</p>
             
-            <div class="w-full bg-slate-950/80 border border-purple-500/30 rounded-2xl p-5 mt-5 relative z-10">
+            <div class="w-full bg-slate-950/80 border border-red-500/30 rounded-2xl p-5 mt-5 relative z-10">
                 <div class="flex flex-col gap-4 text-sm font-bold">
                     <div class="flex justify-between items-center border-b border-slate-900 pb-2">
                         <span class="text-slate-400">⏱️ เวลาที่ทำได้:</span>
@@ -256,13 +256,13 @@
                         </div>
                     </div>
 
-                    <div class="text-center font-black text-purple-300 uppercase tracking-widest text-xs mt-1">🎁 ของรางวัลที่ได้รับ</div>
+                    <div class="text-center font-black text-red-300 uppercase tracking-widest text-xs mt-1">🎁 ของรางวัลที่ได้รับ</div>
                     <div class="grid grid-cols-2 gap-3 mt-1">
                         <div class="bg-yellow-950/40 border border-yellow-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
                             <span class="text-xl">🪙</span>
                             <span id="wb-victory-reward-coins" class="text-xs font-black text-yellow-400">+50 เหรียญ</span>
                         </div>
-                        <div class="bg-indigo-950/40 border border-indigo-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
+                        <div class="bg-red-950/40 border border-red-800/40 p-3 rounded-2xl flex flex-col items-center shadow-inner">
                             <span class="text-xl">⭐</span>
                             <span id="wb-victory-reward-xp" class="text-xs font-black text-indigo-400">+50 XP</span>
                         </div>
@@ -291,8 +291,8 @@
         const className = decodeURIComponent(urlParams.get('className') || 'ป.5/1');
         
         const bossId = urlParams.get('bossId') || 'WB001';
-        const bossName = decodeURIComponent(urlParams.get('bossName') || 'มังกรทดสอบ');
-        const poseType = urlParams.get('poseType') || 'squat'; // squat หรือ jumping_jack
+        const bossName = decodeURIComponent(urlParams.get('bossName') || 'ผจญภัยไปกับมาริโอ้');
+        const poseType = urlParams.get('poseType') || 'mario_fitness'; // mario_fitness หรือ jumping_jack
         const targetReps = parseInt(urlParams.get('targetReps') || '10');
         const maxHp = parseInt(urlParams.get('maxHp') || '100');
         const rewardCoins = parseInt(urlParams.get('rewardCoins') || '50');
@@ -300,7 +300,7 @@
         
         const webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
 
-        // 🔊 ระบบสังเคราะห์เสียง (ปิดการทำงานชั่วคราวตามโจทย์ผู้ใช้)
+        // 🔊 ระบบสังเคราะห์เสียง
         const enableVoice = false;
         const enableSound = false;
 
@@ -375,7 +375,7 @@
         document.getElementById('ui-student-class').innerText = `ชั้นเรียน: ${className}`;
         
         document.getElementById('wb-battle-boss-name').innerText = bossName;
-        document.getElementById('wb-battle-boss-avatar').innerText = bossId === 'WB001' ? '👾' : '👹';
+        document.getElementById('wb-battle-boss-avatar').innerText = bossId === 'WB001' ? '👨‍🔧' : '👹';
         document.getElementById('wb-battle-boss-hp-text').innerText = `${maxHp} / ${maxHp} HP`;
         document.getElementById('wb-battle-reps').innerText = `0 / ${targetReps}`;
 
@@ -409,9 +409,11 @@
         // อ้างอิงข้อความแนะนำตัวออกกำลังกาย
         const poseGuideEl = document.getElementById('wb-battle-pose-guide');
         if (bossId === 'WB001') {
-            poseGuideEl.innerText = "👾 สไลม์เยลลี่: ปัดแตะปุ่มพลังงานนีออน 4 มุมหน้าจอที่สุ่มสว่างขึ้นมา!";
+            poseGuideEl.innerText = "🍄 ผจญภัยมาริโอ้: 🏃 วิ่งอยู่กับที่เพื่อเดินหน้า, 🦘 กระโดดเพื่อหลบท่อ/เก็บเหรียญ, 🕳️ ย่อตัวลงเพื่อมุดท่อ!";
+            document.getElementById('wb-pose-proximity-guide').innerHTML = `💡 ประหยัดพื้นที่ ยืนใกล้กล้องขึ้นได้! ขอเพียงกล้องเห็น <span class="text-yellow-300 font-extrabold">หัว ไหล่ และสะโพก (ครึ่งตัวบน)</span> ก็สนุกกับมาริโอ้ได้ทันที!`;
         } else {
             poseGuideEl.innerText = "🛡️ ไททันหิน: โยกหัวขยับอัศวินหลบระเบิด 💣 และเก็บเพชร 💎 เพื่อสร้างดาเมจ!";
+            document.getElementById('wb-pose-proximity-guide').innerHTML = `💡 ยืนกึ่งกลางกล้อง ขยับเอี้ยวศีรษะหลบสิ่งกีดขวางได้อย่างเต็มที่!`;
         }
 
         // --- ⚡ ตัวแปรพิเศษสำหรับระบบบอส 1 & 2 รูปแบบใหม่ ---
@@ -419,17 +421,32 @@
         let wbSpeedScaleInterval = null;
         let localGameAnimId = null;
 
-        // --- 👾 บอสตัวที่ 1 (Neon Slime) - Motion Detection ---
-        let prevFrameData = null;
-        let activeSlimeTarget = 1; // 1=บนซ้าย, 2=บนขวา, 3=ล่างซ้าย, 4=ล่างขวา
-        const slimeButtons = [
-            { id: 1, x: 100, y: 100, r: 60, label: "บนซ้าย", color: "#39ff14", shadow: "#39ff14" },
-            { id: 2, x: 540, y: 100, r: 60, label: "บนขวา", color: "#ff007f", shadow: "#ff007f" },
-            { id: 3, x: 100, y: 380, r: 60, label: "ล่างซ้าย", color: "#00f0ff", shadow: "#00f0ff" },
-            { id: 4, x: 540, y: 380, r: 60, label: "ล่างขวา", color: "#ffb700", shadow: "#ffb700" }
-        ];
-        let slimeTouchCooldown = 0; // ป้องกันการปัดเบิ้ล
-        let particleSparkles = []; // พาร์ติเคิลเรืองแสงนีออน
+        // --- 🍄 บอสตัวที่ 1 (ผจญภัยไปกับมาริโอ้) - Mario Fitness Engine ---
+        let marioObj = {
+            x: 100,
+            y: 350,
+            baseY: 350,
+            vy: 0,
+            gravity: 1.6,
+            jumpForce: -20,
+            isJumping: false,
+            isCrouching: false,
+            state: 'IDLE', // IDLE, RUNNING, JUMPING, CROUCHING, STUNNED
+            emoji: '👨‍🔧',
+            frame: 0
+        };
+        const marioObstacles = [];
+        const marioCoins = [];
+        let marioDistance = 0;
+        let lastMarioObstacleSpawn = 0;
+        let marioStunDuration = 0; // เฟรมสะดุดล้ม
+        let marioTotalCoinsCollected = 0;
+
+        // คาลิเบรตครึ่งตัว
+        let baseNoseY = -1;
+        let baseShoulderY = -1;
+        let noseYHistory = [];
+        let motionHistory = [];
 
         // --- 👹 บอสตัวที่ 2 (Stone Titan) - Nose/Head Tracker ---
         const knight = { x: 320, y: 240, r: 35, emoji: "🛡️", activeEmoji: "🛡️" };
@@ -438,6 +455,7 @@
         let stunDuration = 0; // เฟรมมึนงง
         let lastItemSpawnTime = 0;
         let lastNoseLandmark = null;
+        let particleSparkles = []; // พาร์ติเคิลเรืองแสงนีออน
 
         // 4) เริ่มโหลดโมเดลหรือเริ่มกล้องทันที
         window.addEventListener('DOMContentLoaded', () => {
@@ -465,58 +483,54 @@
                     };
                 });
                 
-                // สลับเอนจิ้นตามบอสที่เลือก
-                if (bossId === 'WB001') {
-                    // 🎮 บอสตัวที่ 1 (Neon Slime): ใช้ Frame Differencing ธรรมดา (เบาเครื่อง 100%)
-                    console.log("🎮 World Boss 1 Active - Motion Detection Engine (No MediaPipe Pose)");
-                    
-                    const statusOverlay = document.getElementById('wb-status-overlay');
-                    statusOverlay.innerHTML = `⚠️ ยืนให้อยู่ในกล้องและนิ่ง 1.5 วินาที เพื่อเตรียมตัวต่อสู้!`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-indigo-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse z-30";
-                    
-                    wbGameState = 'PREPARING';
-                    activeSlimeTarget = Math.floor(Math.random() * 4) + 1;
-                    
-                    localGameLoop();
-                } else {
-                    // 🧠 บอสตัวที่ 2 (Stone Titan): ใช้ MediaPipe Nose Tracking 1 จุด
-                    console.log("🧠 World Boss 2 Active - Nose-Tracking Pose Engine");
-                    
-                    if (!wbPose) {
-                        wbPose = new Pose({
-                            locateFile: (file) => {
-                                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-                            }
-                        });
-                        
-                        wbPose.setOptions({
-                            modelComplexity: 1,
-                            smoothLandmarks: true,
-                            minDetectionConfidence: 0.5,
-                            minTrackingConfidence: 0.5
-                        });
-                        
-                        wbPose.onResults(onPoseResults);
-                    }
-                    
-                    wbCamera = new Camera(wbVideoEl, {
-                        onFrame: async () => {
-                            if (wbGameState === 'BATTLE' || wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
-                                try {
-                                    await wbPose.send({ image: wbVideoEl });
-                                } catch(e) {
-                                    console.error('Pose parsing error:', e);
-                                }
-                            }
-                        },
-                        width: 640,
-                        height: 480
+                // โหลดโมเดลสำหรับทั้งสองโหมด
+                console.log("🧠 World Boss Pose Engine Init - MediaPipe Active for World Boss System");
+                
+                if (!wbPose) {
+                    wbPose = new Pose({
+                        locateFile: (file) => {
+                            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                        }
                     });
                     
-                    wbCamera.start();
+                    wbPose.setOptions({
+                        modelComplexity: 1,
+                        smoothLandmarks: true,
+                        minDetectionConfidence: 0.5,
+                        minTrackingConfidence: 0.5
+                    });
                     
-                    wbGameState = 'PREPARING';
-                    const statusOverlay = document.getElementById('wb-status-overlay');
+                    wbPose.onResults(onPoseResults);
+                }
+                
+                if (wbCamera) {
+                    try { await wbCamera.stop(); } catch(e) {}
+                    wbCamera = null;
+                }
+                
+                wbCamera = new Camera(wbVideoEl, {
+                    onFrame: async () => {
+                        if (wbGameState === 'BATTLE' || wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
+                            try {
+                                await wbPose.send({ image: wbVideoEl });
+                            } catch(e) {
+                                console.error('Pose parsing error:', e);
+                            }
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                wbCamera.start();
+                
+                wbGameState = 'PREPARING';
+                const statusOverlay = document.getElementById('wb-status-overlay');
+                
+                if (bossId === 'WB001') {
+                    statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อตั้งค่าตำแหน่งปกติ!`;
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse z-30";
+                } else {
                     statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
                     statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse z-30";
                 }
@@ -527,7 +541,7 @@
                 
                 let errorHelp = "เบราว์เซอร์ปฏิเสธสิทธิ์เข้าถึงกล้อง";
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    errorHelp = "โปรดกดยอมรับให้เว็บไซต์นี้แชร์กล้องในการสแกนสควอทของน้องๆ ครับ";
+                    errorHelp = "โปรดกดยอมรับให้เว็บไซต์นี้แชร์กล้องในการสแกนการเคลื่อนไหวของน้องๆ ครับ";
                 } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                     errorHelp = "ไม่พบอุปกรณ์กล้องเว็บแคมเชื่อมต่ออยู่กับเครื่องนี้ครับ";
                 } else {
@@ -540,177 +554,300 @@
             }
         }
 
-        // --- 🎮 [ลูปสำหรับบอสตัวที่ 1] บอสเยลลี่นีออนดึ๋งดั๋ง ---
-        function localGameLoop() {
-            if (wbGameState === 'VICTORY') return;
+        // --- 🍄 [ตรรกะสำหรับบอสตัวที่ 1] ผจญภัยไปกับมาริโอ้ ---
+        function processMarioLogic() {
+            if (wbGameState !== 'BATTLE') return;
             
-            wbCanvasCtx.save();
-            wbCanvasCtx.drawImage(wbVideoEl, 0, 0, 640, 480);
-            
-            const width = wbCanvasEl.width;
-            const height = wbCanvasEl.height;
-            
-            let isPositionOk = false;
-            
-            // ดึงข้อมูลพิกเซลเพื่อคำนวณ Frame Differencing
-            const currentFrameData = wbCanvasCtx.getImageData(0, 0, width, height).data;
-            
-            if (prevFrameData) {
-                if (wbGameState === 'PREPARING') {
-                    // ตรวจความพร้อมด้วยความนิ่งในเบื้องต้น
-                    let totalDiff = 0;
-                    let sampleCount = 0;
-                    for (let i = 0; i < currentFrameData.length; i += 200) {
-                        const currGray = (currentFrameData[i] + currentFrameData[i+1] + currentFrameData[i+2]) / 3;
-                        const prevGray = (prevFrameData[i] + prevFrameData[i+1] + prevFrameData[i+2]) / 3;
-                        totalDiff += Math.abs(currGray - prevGray);
-                        sampleCount++;
-                    }
-                    const avgDiff = sampleCount > 0 ? (totalDiff / sampleCount) : 0;
-                    isPositionOk = (avgDiff < 5.0);
-                } else if (wbGameState === 'BATTLE' && slimeTouchCooldown <= 0) {
-                    // ตรวจการสัมผัสปุ่ม Active Target
-                    const activeBtn = slimeButtons.find(b => b.id === activeSlimeTarget);
-                    if (activeBtn) {
-                        const motion = detectMotionInCircle(currentFrameData, prevFrameData, activeBtn.x, activeBtn.y, activeBtn.r);
-                        if (motion > 15) {
-                            triggerSlimeTouch(activeBtn);
-                        }
-                    }
-                }
-            }
-            
-            prevFrameData = currentFrameData;
-            if (slimeTouchCooldown > 0) slimeTouchCooldown--;
-            
-            // วาดปุ่มนีออนทั้ง 4 ปุ่มลงบนจอภาพ
-            slimeButtons.forEach(btn => {
-                const isActive = (btn.id === activeSlimeTarget);
-                wbCanvasCtx.beginPath();
-                wbCanvasCtx.arc(btn.x, btn.y, btn.r, 0, 2 * Math.PI);
+            // 1. ฟิสิกส์แนวตั้ง (กระโดด)
+            if (marioObj.isJumping) {
+                marioObj.y += marioObj.vy;
+                marioObj.vy += marioObj.gravity;
                 
-                if (isActive && wbGameState === 'BATTLE') {
-                    wbCanvasCtx.strokeStyle = btn.color;
-                    wbCanvasCtx.shadowColor = btn.shadow;
-                    wbCanvasCtx.shadowBlur = 25 + Math.sin(performance.now() / 100) * 10;
-                    wbCanvasCtx.lineWidth = 8;
-                    wbCanvasCtx.stroke();
-                    
-                    wbCanvasCtx.fillStyle = btn.color + "25"; // โปร่งแสง
-                    wbCanvasCtx.fill();
-                    
-                    const ringRadius = btn.r + 15 + Math.sin(performance.now() / 150) * 10;
-                    wbCanvasCtx.beginPath();
-                    wbCanvasCtx.arc(btn.x, btn.y, ringRadius, 0, 2 * Math.PI);
-                    wbCanvasCtx.strokeStyle = btn.color + "88";
-                    wbCanvasCtx.lineWidth = 3;
-                    wbCanvasCtx.stroke();
-                    
-                    wbCanvasCtx.font = "bold 20px Prompt, sans-serif";
-                    wbCanvasCtx.fillStyle = "#ffffff";
-                    wbCanvasCtx.shadowColor = "#000000";
-                    wbCanvasCtx.shadowBlur = 6;
-                    wbCanvasCtx.textAlign = "center";
-                    wbCanvasCtx.fillText("ตบตรงนี้! 💥", btn.x, btn.y + 6);
-                } else {
-                    wbCanvasCtx.strokeStyle = "rgba(255, 255, 255, 0.25)";
-                    wbCanvasCtx.shadowBlur = 0;
-                    wbCanvasCtx.lineWidth = 4;
-                    wbCanvasCtx.stroke();
-                    wbCanvasCtx.fillStyle = "rgba(255,255,255,0.05)";
-                    wbCanvasCtx.fill();
-                }
-            });
-            
-            // อัปเดตและวาดละอองเรืองแสง
-            updateAndDrawSparkles(wbCanvasCtx);
-            
-            // แสดงสถานะการเตรียมนิ่งในบอสตัวที่ 1
-            if (wbGameState === 'PREPARING') {
-                const statusOverlay = document.getElementById('wb-status-overlay');
-                if (isPositionOk) {
-                    statusOverlay.innerHTML = `✅ ยืนนิ่งเตรียมรบ! (READY)`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-4 px-6 rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border-4 border-white text-center font-black text-white text-2xl md:text-4xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
-                    
-                    if (!wbStandingTimer) {
-                        wbStandingTimer = setTimeout(() => {
-                            startCountdownPhase();
-                        }, 1500);
-                    }
-                } else {
-                    statusOverlay.innerHTML = `⚠️ ยืนอยู่ในกล้องและนิ่ง 1.5 วินาที`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-3 px-4 rounded-3xl bg-gradient-to-r from-amber-500 to-yellow-600 border-4 border-white text-center font-bold text-white text-base md:text-2xl shadow-[0_0_15px_rgba(245,158,11,0.5)] z-30 animate-pulse";
-                    
-                    if (wbStandingTimer) {
-                        clearTimeout(wbStandingTimer);
-                        wbStandingTimer = null;
-                    }
+                if (marioObj.y >= marioObj.baseY) {
+                    marioObj.y = marioObj.baseY;
+                    marioObj.vy = 0;
+                    marioObj.isJumping = false;
                 }
             }
             
-            drawOverlayUI(isPositionOk, width, height);
+            // 2. คำนวณความเร็วฉากตามสเตท (ถ้าสะดุดล้มจะนิ่ง)
+            let speed = 0;
+            if (marioStunDuration > 0) {
+                marioStunDuration--;
+                marioObj.state = 'STUNNED';
+            } else {
+                if (marioObj.state === 'RUNNING') {
+                    speed = 5 * wbSpeedMultiplier;
+                } else if (marioObj.state === 'JUMPING') {
+                    speed = 2.5 * wbSpeedMultiplier;
+                } else if (marioObj.state === 'CROUCHING') {
+                    speed = 1.8 * wbSpeedMultiplier;
+                } else {
+                    speed = 0; // IDLE
+                }
+            }
+            
+            marioDistance += speed;
+            if (speed > 0) {
+                marioObj.frame = (marioObj.frame + 1) % 20;
+            }
+            
+            // 3. สปอนอุปสรรคและเหรียญทอง
+            const now = performance.now();
+            const spawnInterval = 2000 / wbSpeedMultiplier;
+            
+            if (now - lastMarioObstacleSpawn > spawnInterval && marioStunDuration <= 0 && speed > 0) {
+                lastMarioObstacleSpawn = now;
+                const rand = Math.random();
+                
+                if (rand < 0.35) {
+                    // เหรียญทอง 🪙
+                    marioCoins.push({
+                        x: 640,
+                        y: 250,
+                        r: 15,
+                        collected: false
+                    });
+                } else if (rand < 0.65) {
+                    // ท่อเขียว 🧱
+                    marioObstacles.push({
+                        x: 640,
+                        y: 350,
+                        w: 40,
+                        h: 50,
+                        emoji: '🧱',
+                        type: 'pipe',
+                        passed: false
+                    });
+                } else if (rand < 0.85) {
+                    // เห็ดโกมบ้า 👾
+                    marioObstacles.push({
+                        x: 640,
+                        y: 360,
+                        w: 35,
+                        h: 40,
+                        emoji: '👾',
+                        type: 'goomba',
+                        passed: false
+                    });
+                } else {
+                    // เมฆขวางลอยต่ำ ☁️ (ต้องก้มหลบ)
+                    marioObstacles.push({
+                        x: 640,
+                        y: 285,
+                        w: 40,
+                        h: 40,
+                        emoji: '☁️',
+                        type: 'crouch_block',
+                        passed: false
+                    });
+                }
+            }
+            
+            // 4. เช็กเก็บเหรียญทอง
+            for (let i = marioCoins.length - 1; i >= 0; i--) {
+                const c = marioCoins[i];
+                c.x -= speed;
+                
+                const marioW = 45;
+                const marioH = marioObj.isCrouching ? 30 : 55;
+                const marioX = marioObj.x;
+                const marioY = marioObj.y;
+                
+                if (marioX < c.x + c.r*2 && marioX + marioW > c.x - c.r*2 &&
+                    marioY < c.y + c.r*2 && marioY + marioH > c.y - c.r*2) {
+                    
+                    marioCoins.splice(i, 1);
+                    marioTotalCoinsCollected++;
+                    
+                    // เอฟเฟกต์สีทอง
+                    for (let k = 0; k < 12; k++) {
+                        particleSparkles.push({
+                            x: c.x,
+                            y: c.y,
+                            vx: (Math.random() - 0.5) * 8,
+                            vy: (Math.random() - 0.5) * 8,
+                            r: Math.random() * 3 + 1.5,
+                            color: '#fbbf24',
+                            alpha: 1.0,
+                            decay: Math.random() * 0.05 + 0.03
+                        });
+                    }
+                    handleRepDetected();
+                    continue;
+                }
+                if (c.x < -30) marioCoins.splice(i, 1);
+            }
+            
+            // 5. เช็กชนอุปสรรค
+            for (let i = marioObstacles.length - 1; i >= 0; i--) {
+                const obs = marioObstacles[i];
+                obs.x -= speed;
+                
+                const marioW = 45;
+                const marioH = marioObj.isCrouching ? 30 : 55;
+                const marioX = marioObj.x;
+                const marioY = marioObj.isCrouching ? marioObj.y + 25 : marioObj.y;
+                
+                const isColliding = (marioX < obs.x + obs.w && marioX + marioW > obs.x &&
+                                     marioY < obs.y + obs.h && marioY + marioH > obs.y);
+                
+                if (isColliding && marioStunDuration <= 0) {
+                    marioStunDuration = 45; // ล้มมึน 1.5 วินาที
+                    marioObstacles.splice(i, 1);
+                    
+                    for (let k = 0; k < 20; k++) {
+                        particleSparkles.push({
+                            x: obs.x + obs.w/2,
+                            y: obs.y + obs.h/2,
+                            vx: (Math.random() - 0.5) * 10,
+                            vy: (Math.random() - 0.5) * 10,
+                            r: Math.random() * 4 + 2,
+                            color: '#ef4444',
+                            alpha: 1.0,
+                            decay: Math.random() * 0.04 + 0.02
+                        });
+                    }
+                    
+                    wbCanvasEl.classList.add('animate-shake');
+                    setTimeout(() => {
+                        wbCanvasEl.classList.remove('animate-shake');
+                    }, 300);
+                    
+                    speakThai("อุ๊ย สะดุดค่ะ");
+                    continue;
+                }
+                
+                // หลบพ้น
+                if (obs.x + obs.w < marioX && !obs.passed) {
+                    obs.passed = true;
+                    
+                    for (let k = 0; k < 10; k++) {
+                        particleSparkles.push({
+                            x: marioObj.x + 22,
+                            y: marioObj.y + 25,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6,
+                            r: Math.random() * 3 + 1.5,
+                            color: '#39ff14',
+                            alpha: 1.0,
+                            decay: Math.random() * 0.05 + 0.03
+                        });
+                    }
+                    handleRepDetected();
+                }
+                if (obs.x < -50) marioObstacles.splice(i, 1);
+            }
+        }
+
+        function drawMarioScene() {
+            // 1. วาดฉากดินและหญ้านีออนย้อนยุค
+            wbCanvasCtx.save();
+            wbCanvasCtx.fillStyle = '#451a03';
+            wbCanvasCtx.fillRect(0, 400, 640, 80);
+            
+            wbCanvasCtx.fillStyle = '#22c55e';
+            wbCanvasCtx.fillRect(0, 400, 640, 10);
+            
+            wbCanvasCtx.beginPath();
+            wbCanvasCtx.moveTo(0, 400);
+            wbCanvasCtx.lineTo(640, 400);
+            wbCanvasCtx.strokeStyle = '#39ff14';
+            wbCanvasCtx.lineWidth = 3;
+            wbCanvasCtx.shadowColor = '#39ff14';
+            wbCanvasCtx.shadowBlur = 10;
+            wbCanvasCtx.stroke();
             wbCanvasCtx.restore();
             
-            localGameAnimId = requestAnimationFrame(localGameLoop);
-        }
-
-        // คำนวณความต่างในวงกลมปุ่มปัดเพื่อประหยัดทรัพยากร
-        function detectMotionInCircle(curr, prev, cx, cy, r) {
-            let diffSum = 0;
-            let count = 0;
+            // 2. วาดอุปสรรค
+            marioObstacles.forEach(obs => {
+                wbCanvasCtx.save();
+                wbCanvasCtx.font = "38px Arial";
+                wbCanvasCtx.textAlign = "center";
+                wbCanvasCtx.textBaseline = "top";
+                wbCanvasCtx.fillText(obs.emoji, obs.x + obs.w/2, obs.y);
+                wbCanvasCtx.restore();
+            });
             
-            const startX = Math.max(0, cx - r);
-            const startY = Math.max(0, cy - r);
-            const endX = Math.min(640, cx + r);
-            const endY = Math.min(480, cy + r);
+            // 3. วาดเหรียญ 🪙
+            marioCoins.forEach(c => {
+                wbCanvasCtx.save();
+                wbCanvasCtx.font = "28px Arial";
+                wbCanvasCtx.textAlign = "center";
+                wbCanvasCtx.textBaseline = "middle";
+                wbCanvasCtx.shadowColor = '#fbbf24';
+                wbCanvasCtx.shadowBlur = 8;
+                wbCanvasCtx.fillText('🪙', c.x, c.y);
+                wbCanvasCtx.restore();
+            });
             
-            const rSquare = r * r;
-            
-            for (let y = startY; y < endY; y += 4) {
-                for (let x = startX; x < endX; x += 4) {
-                    const dx = x - cx;
-                    const dy = y - cy;
-                    if (dx * dx + dy * dy <= rSquare) {
-                        const idx = (y * 640 + x) * 4;
-                        if (idx < curr.length) {
-                            const currGray = (curr[idx] + curr[idx+1] + curr[idx+2]) / 3;
-                            const prevGray = (prev[idx] + prev[idx+1] + prev[idx+2]) / 3;
-                            const diff = Math.abs(currGray - prevGray);
-                            diffSum += diff;
-                            count++;
-                        }
-                    }
+            // 4. วาดตัวละครมาริโอ้
+            wbCanvasCtx.save();
+            let marioEmoji = '🧍';
+            if (marioStunDuration > 0) {
+                marioEmoji = '💫';
+            } else {
+                if (marioObj.isJumping) {
+                    marioEmoji = '🦘';
+                } else if (marioObj.isCrouching) {
+                    marioEmoji = '🕳️';
+                } else if (marioObj.state === 'RUNNING') {
+                    marioEmoji = marioObj.frame % 10 < 5 ? '🏃' : '👨‍🔧';
+                } else {
+                    marioEmoji = '👨‍🔧';
                 }
             }
-            return count > 0 ? (diffSum / count) : 0;
-        }
-
-        // ผลสัมฤทธิ์เมื่อแตะปุ่มสไลม์สำเร็จ
-        function triggerSlimeTouch(btn) {
-            slimeTouchCooldown = 12; // เฟรมหน่วง
             
-            // ละอองระเบิดสีสันนีออนรอบจุด
-            for (let i = 0; i < 20; i++) {
-                particleSparkles.push({
-                    x: btn.x,
-                    y: btn.y,
-                    vx: (Math.random() - 0.5) * 12,
-                    vy: (Math.random() - 0.5) * 12,
-                    r: Math.random() * 4 + 2,
-                    color: btn.color,
-                    alpha: 1.0,
-                    decay: Math.random() * 0.04 + 0.02
-                });
+            // โล่กระโดดเรืองแสง
+            wbCanvasCtx.beginPath();
+            const radius = marioObj.isCrouching ? 20 : 25;
+            const centerY = marioObj.isCrouching ? marioObj.y + 25 : marioObj.y + 22;
+            wbCanvasCtx.arc(marioObj.x + 22, centerY, radius, 0, 2 * Math.PI);
+            
+            wbCanvasCtx.strokeStyle = marioStunDuration > 0 ? 'rgba(239, 68, 68, 0.8)' : 'rgba(57, 255, 20, 0.8)';
+            wbCanvasCtx.shadowColor = marioStunDuration > 0 ? '#ef4444' : '#39ff14';
+            wbCanvasCtx.shadowBlur = 15;
+            wbCanvasCtx.lineWidth = 3;
+            wbCanvasCtx.stroke();
+            
+            wbCanvasCtx.fillStyle = marioStunDuration > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(57, 255, 20, 0.15)';
+            wbCanvasCtx.fill();
+            
+            wbCanvasCtx.font = "38px Arial";
+            wbCanvasCtx.textAlign = "center";
+            wbCanvasCtx.textBaseline = "top";
+            wbCanvasCtx.shadowBlur = 0;
+            wbCanvasCtx.fillText(marioEmoji, marioObj.x + 22, marioObj.y);
+            wbCanvasCtx.restore();
+            
+            // 5. วาดป้ายสเตทออกกำลังกายของเด็กเรืองแสงด้านบน
+            wbCanvasCtx.save();
+            let statusText = '🧍 หยุดยืน (Idle)';
+            let statusColor = '#94a3b8';
+            
+            if (marioStunDuration > 0) {
+                statusText = '💫 สะดุดล้ม! (Stumbled)';
+                statusColor = '#ef4444';
+            } else {
+                if (marioObj.isJumping) {
+                    statusText = '🦘 กำลังกระโดด! (Jumping)';
+                    statusColor = '#38bdf8';
+                } else if (marioObj.isCrouching) {
+                    statusText = '🕳️ กำลังก้มหมอบ! (Crouching)';
+                    statusColor = '#fb923c';
+                } else if (marioObj.state === 'RUNNING') {
+                    statusText = '🏃 กำลังวิ่งอยู่กับที่! (Running)';
+                    statusColor = '#39ff14';
+                }
             }
             
-            // สุ่มปุ่มปัดต่อไป
-            let nextTarget;
-            do {
-                nextTarget = Math.floor(Math.random() * 4) + 1;
-            } while (nextTarget === activeSlimeTarget);
-            activeSlimeTarget = nextTarget;
-            
-            handleRepDetected();
+            wbCanvasCtx.font = 'bold 20px Prompt, sans-serif';
+            wbCanvasCtx.fillStyle = statusColor;
+            wbCanvasCtx.shadowColor = statusColor;
+            wbCanvasCtx.shadowBlur = 8;
+            wbCanvasCtx.textAlign = 'center';
+            wbCanvasCtx.fillText(statusText, 320, 30);
+            wbCanvasCtx.restore();
         }
 
         // --- 👹 [ตรรกะสำหรับบอสตัวที่ 2] อัศวินหลบระเบิดและเก็บอัญมณี ---
@@ -735,7 +872,7 @@
                 knight.activeEmoji = "🛡️";
             }
             
-            // สปอนไอเท็มอัญมณีและระเบิดอ้างอิงตาม Speed Scaling
+            // สปอนไอเท็มอัญมณีและระเบิด
             const now = performance.now();
             const spawnInterval = 1800 / wbSpeedMultiplier;
             
@@ -839,7 +976,6 @@
 
         // วาดตัวละครอัศวินและวัตถุหลบหลีกใน Stone Titan
         function drawStoneTitanScene() {
-            // วาดโล่เรืองแสงล้อมรอบอัศวิน
             wbCanvasCtx.save();
             wbCanvasCtx.beginPath();
             wbCanvasCtx.arc(knight.x, knight.y, knight.r + 5, 0, 2 * Math.PI);
@@ -852,7 +988,6 @@
             wbCanvasCtx.fillStyle = stunDuration > 0 ? "rgba(239, 68, 68, 0.15)" : "rgba(139, 92, 246, 0.15)";
             wbCanvasCtx.fill();
             
-            // วาด Emoji อัศวิน
             wbCanvasCtx.font = "40px Arial";
             wbCanvasCtx.textAlign = "center";
             wbCanvasCtx.textBaseline = "middle";
@@ -881,10 +1016,9 @@
             });
         }
 
-        // --- 🧠 [คอลแบ็กของ MediaPipe Pose] สำหรับบอสตัวที่ 2 ---
+        // --- 🧠 [คอลแบ็กของ MediaPipe Pose] ประมวลผลสำหรับทั้ง 2 บอส ---
         function onPoseResults(results) {
             if (!wbCanvasCtx || wbGameState === 'VICTORY') return;
-            if (bossId === 'WB001') return; // บอส 1 รันใน localGameLoop แทน
             
             const width = wbCanvasEl.width;
             const height = wbCanvasEl.height;
@@ -896,65 +1030,180 @@
             const landmarks = results.poseLandmarks;
             let isPositionOk = false;
             
-            // ขอบเขตความปลอดภัยของจมูก
             const minX = 0.1;
             const maxX = 0.9;
             const minY = 0.05;
             const maxY = 0.95;
             
-            if (landmarks && landmarks[0] && landmarks[0].visibility > 0.5) {
-                lastNoseLandmark = landmarks[0];
-                const pt = landmarks[0];
+            if (bossId === 'WB001') {
+                // --- 🍄 บอสตัวที่ 1: ผจญภัยไปกับมาริโอ้ (ครึ่งตัว) ---
+                const pt = landmarks ? landmarks[0] : null; // จมูก
+                const leftShoulder = landmarks ? landmarks[11] : null;
+                const rightShoulder = landmarks ? landmarks[12] : null;
                 
-                if (pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY) {
-                    isPositionOk = true;
+                if (pt && pt.visibility > 0.5) {
+                    lastNoseLandmark = pt;
+                    
+                    noseYHistory.push(pt.y);
+                    if (noseYHistory.length > 5) noseYHistory.shift();
+                    const avgNoseY = noseYHistory.reduce((a, b) => a + b, 0) / noseYHistory.length;
+                    
+                    if (wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
+                        isPositionOk = true; // มองเห็นจมูกคือพร้อม
+                        
+                        if (baseNoseY === -1) {
+                            baseNoseY = avgNoseY;
+                        } else {
+                            baseNoseY = baseNoseY * 0.9 + avgNoseY * 0.1;
+                        }
+                        
+                        if (leftShoulder && rightShoulder) {
+                            const avgS = (leftShoulder.y + rightShoulder.y) / 2;
+                            if (baseShoulderY === -1) {
+                                baseShoulderY = avgS;
+                            } else {
+                                baseShoulderY = baseShoulderY * 0.9 + avgS * 0.1;
+                            }
+                        }
+                    }
+                    
+                    if (wbGameState === 'BATTLE') {
+                        let runningMotion = 0;
+                        if (leftShoulder && rightShoulder) {
+                            const currentShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+                            motionHistory.push(currentShoulderY);
+                            if (motionHistory.length > 8) motionHistory.shift();
+                            
+                            if (motionHistory.length >= 2) {
+                                let diffSum = 0;
+                                for (let i = 1; i < motionHistory.length; i++) {
+                                    diffSum += Math.abs(motionHistory[i] - motionHistory[i-1]);
+                                }
+                                runningMotion = diffSum;
+                            }
+                        }
+                        
+                        // วิเคราะห์ขยับตัว (กระโดด / ย่อ / วิ่ง / หยุดนิ่ง)
+                        // พิกัดจมูกสูงขึ้น (Y น้อยลง) -> กระโดด
+                        // พิกัดจมูกต่ำลง (Y มากขึ้น) -> ย่อ
+                        if (avgNoseY > baseNoseY + 0.08) {
+                            marioObj.state = 'CROUCHING';
+                            marioObj.isCrouching = true;
+                        } else if (avgNoseY < baseNoseY - 0.08) {
+                            marioObj.state = 'JUMPING';
+                            if (!marioObj.isJumping) {
+                                marioObj.vy = marioObj.jumpForce;
+                                marioObj.isJumping = true;
+                                playBeep('rep');
+                            }
+                        } else {
+                            marioObj.isCrouching = false;
+                            if (runningMotion > 0.004) {
+                                marioObj.state = 'RUNNING';
+                            } else {
+                                marioObj.state = 'IDLE';
+                            }
+                        }
+                        processMarioLogic();
+                    }
                 }
                 
                 if (wbGameState === 'BATTLE') {
-                    processStoneTitanLogic();
+                    drawMarioScene();
                 }
-            }
-            
-            if (wbGameState === 'BATTLE') {
-                drawStoneTitanScene();
+                
+                // วาด Bounding Box ไกด์ไลน์ช่วง PREPARING ของบอส 1
+                if (wbGameState === 'PREPARING') {
+                    wbCanvasCtx.lineWidth = 5;
+                    wbCanvasCtx.shadowBlur = 15;
+                    wbCanvasCtx.shadowColor = isPositionOk ? '#10b981' : '#f59e0b';
+                    wbCanvasCtx.strokeStyle = isPositionOk ? '#10b981' : '#f59e0b';
+                    
+                    // กรอบครึ่งตัวด้านบน
+                    wbCanvasCtx.strokeRect(
+                        0.2 * width, 
+                        0.1 * height, 
+                        0.6 * width, 
+                        0.6 * height
+                    );
+                    
+                    const statusOverlay = document.getElementById('wb-status-overlay');
+                    if (isPositionOk) {
+                        statusOverlay.innerHTML = `✅ คาลิเบรตจมูกสำเร็จ! ยืนนิ่งเตรียมรบ... (READY)`;
+                        statusOverlay.className = "absolute top-4 left-4 right-4 py-4 px-6 rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
+                        
+                        if (!wbStandingTimer) {
+                            wbStandingTimer = setTimeout(() => {
+                                startCountdownPhase();
+                            }, 1500);
+                        }
+                    } else {
+                        statusOverlay.innerHTML = `⚠️ ขยับให้จมูกและใบหน้าอยู่กึ่งกลางกล่องนำทางครึ่งตัวด้านบน`;
+                        statusOverlay.className = "absolute top-4 left-4 right-4 py-3 px-4 rounded-3xl bg-gradient-to-r from-red-500 to-amber-600 border-4 border-white text-center font-bold text-white text-xs md:text-lg shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30 animate-pulse";
+                        
+                        if (wbStandingTimer) {
+                            clearTimeout(wbStandingTimer);
+                            wbStandingTimer = null;
+                        }
+                    }
+                }
+                
+            } else {
+                // --- 👹 บอสตัวที่ 2: Stone Titan ---
+                const pt = landmarks ? landmarks[0] : null; // จมูก
+                if (pt && pt.visibility > 0.5) {
+                    lastNoseLandmark = pt;
+                    
+                    if (pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY) {
+                        isPositionOk = true;
+                    }
+                    
+                    if (wbGameState === 'BATTLE') {
+                        processStoneTitanLogic();
+                    }
+                }
+                
+                if (wbGameState === 'BATTLE') {
+                    drawStoneTitanScene();
+                }
+                
+                // วาด Bounding Box ไกด์ไลน์ช่วง PREPARING ของบอส 2
+                if (wbGameState === 'PREPARING') {
+                    wbCanvasCtx.lineWidth = 5;
+                    wbCanvasCtx.shadowBlur = 15;
+                    wbCanvasCtx.shadowColor = isPositionOk ? '#10b981' : '#f59e0b';
+                    wbCanvasCtx.strokeStyle = isPositionOk ? '#10b981' : '#f59e0b';
+                    wbCanvasCtx.strokeRect(
+                        minX * width, 
+                        minY * height, 
+                        (maxX - minX) * width, 
+                        (maxY - minY) * height
+                    );
+                    
+                    const statusOverlay = document.getElementById('wb-status-overlay');
+                    if (isPositionOk) {
+                        statusOverlay.innerHTML = `✅ ยืนนิ่งเตรียมรบ! (READY)`;
+                        statusOverlay.className = "absolute top-4 left-4 right-4 py-4 px-6 rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
+                        
+                        if (!wbStandingTimer) {
+                            wbStandingTimer = setTimeout(() => {
+                                startCountdownPhase();
+                            }, 1500);
+                        }
+                    } else {
+                        statusOverlay.innerHTML = `⚠️ ยืนหันหน้าหากล้อง ให้หน้าอยู่กึ่งกลางภาพเพื่อจับพิกัด`;
+                        statusOverlay.className = "absolute top-4 left-4 right-4 py-3 px-4 rounded-3xl bg-gradient-to-r from-amber-500 to-yellow-600 border-4 border-white text-center font-bold text-white text-xs md:text-lg shadow-[0_0_15px_rgba(245,158,11,0.5)] z-30 animate-pulse";
+                        
+                        if (wbStandingTimer) {
+                            clearTimeout(wbStandingTimer);
+                            wbStandingTimer = null;
+                        }
+                    }
+                }
             }
             
             // วาดละอองเรืองแสง
             updateAndDrawSparkles(wbCanvasCtx);
-            
-            // วาด Bounding Box ไกด์ไลน์เขียว/เหลืองเฉพาะในช่วง PREPARING ของบอส 2
-            if (wbGameState === 'PREPARING') {
-                wbCanvasCtx.lineWidth = 5;
-                wbCanvasCtx.shadowBlur = 15;
-                wbCanvasCtx.shadowColor = isPositionOk ? '#10b981' : '#f59e0b';
-                wbCanvasCtx.strokeStyle = isPositionOk ? '#10b981' : '#f59e0b';
-                wbCanvasCtx.strokeRect(
-                    minX * width, 
-                    minY * height, 
-                    (maxX - minX) * width, 
-                    (maxY - minY) * height
-                );
-                
-                const statusOverlay = document.getElementById('wb-status-overlay');
-                if (isPositionOk) {
-                    statusOverlay.innerHTML = `✅ ยืนนิ่งเตรียมรบ! (READY)`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-4 px-6 rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border-4 border-white text-center font-black text-white text-2xl md:text-3xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
-                    
-                    if (!wbStandingTimer) {
-                        wbStandingTimer = setTimeout(() => {
-                            startCountdownPhase();
-                        }, 1500);
-                    }
-                } else {
-                    statusOverlay.innerHTML = `⚠️ ยืนหันหน้าหากล้อง ให้หน้าอยู่กึ่งกลางภาพเพื่อจับพิกัด`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-3 px-4 rounded-3xl bg-gradient-to-r from-amber-500 to-yellow-600 border-4 border-white text-center font-bold text-white text-xs md:text-lg shadow-[0_0_15px_rgba(245,158,11,0.5)] z-30 animate-pulse";
-                    
-                    if (wbStandingTimer) {
-                        clearTimeout(wbStandingTimer);
-                        wbStandingTimer = null;
-                    }
-                }
-            }
             
             drawOverlayUI(isPositionOk, width, height);
             wbCanvasCtx.restore();
@@ -991,8 +1240,8 @@
                 if (wbSpeedMultiplier > 1.0) {
                     wbCanvasCtx.save();
                     wbCanvasCtx.font = 'bold 18px Prompt, sans-serif';
-                    wbCanvasCtx.fillStyle = '#ff007f';
-                    wbCanvasCtx.shadowColor = '#ff007f';
+                    wbCanvasCtx.fillStyle = '#f87171';
+                    wbCanvasCtx.shadowColor = '#f87171';
                     wbCanvasCtx.shadowBlur = 10;
                     wbCanvasCtx.textAlign = 'left';
                     wbCanvasCtx.fillText(`🔥 ท้าทายความเร็ว: x${wbSpeedMultiplier.toFixed(1)}`, 25, 45);
@@ -1000,9 +1249,9 @@
                 }
                 
                 wbCanvasCtx.font = '900 85px Mali, Prompt, sans-serif';
-                wbCanvasCtx.fillStyle = '#39ff14';
+                wbCanvasCtx.fillStyle = '#22c55e';
                 wbCanvasCtx.shadowBlur = 15;
-                wbCanvasCtx.shadowColor = '#39ff14';
+                wbCanvasCtx.shadowColor = '#22c55e';
                 wbCanvasCtx.textAlign = 'right';
                 wbCanvasCtx.fillText(`${wbRepsCount}`, width - 25, 120);
                 
@@ -1018,8 +1267,8 @@
                 wbCanvasCtx.font = `900 ${eff.size}px Mali, Prompt, sans-serif`;
                 
                 if (typeof eff.damage === 'string') {
-                    wbCanvasCtx.fillStyle = `rgba(255, 0, 127, ${eff.alpha})`;
-                    wbCanvasCtx.shadowColor = '#ff007f';
+                    wbCanvasCtx.fillStyle = `rgba(239, 68, 68, ${eff.alpha})`;
+                    wbCanvasCtx.shadowColor = '#ef4444';
                 } else {
                     wbCanvasCtx.fillStyle = `rgba(239, 68, 68, ${eff.alpha})`;
                     wbCanvasCtx.shadowColor = '#ef4444';
@@ -1047,7 +1296,7 @@
             
             const statusOverlay = document.getElementById('wb-status-overlay');
             statusOverlay.innerHTML = `🔥 เตรียมตัวรบใน...`;
-            statusOverlay.className = "absolute top-4 left-4 right-4 py-3.5 px-6 rounded-2xl bg-amber-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-2xl z-30";
+            statusOverlay.className = "absolute top-4 left-4 right-4 py-3.5 px-6 rounded-2xl bg-red-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-2xl z-30";
             
             speakThai("เตรียมตัวให้พร้อม เริ่มการนับถอยหลังค่ะ");
             
@@ -1078,7 +1327,7 @@
         function startActiveBattlePhase() {
             wbGameState = 'BATTLE';
             
-            // 🛡️ ซ่อนป้ายสถานะทันทีเมื่อเข้าสู่การต่อสู้จริง (BATTLE) เพื่อให้หน้าจอกล้องโปร่งโล่ง ไม่มีอะไรบดบังภาพน้องๆ บนมือถือ
+            // ซ่อนป้ายสถานะเพื่อความโล่งตา
             const statusOverlay = document.getElementById('wb-status-overlay');
             if (statusOverlay) {
                 statusOverlay.classList.add('hidden');
@@ -1114,7 +1363,7 @@
             }, 15000);
         }
 
-        // 7) ตรวจพบแต้มสะสม
+        // 7) ตรวจพบแต้มสะสม (ผ่านอุปสรรค / เก็บเหรียญ)
         function handleRepDetected() {
             if (wbGameState !== 'BATTLE') return;
             
@@ -1160,7 +1409,7 @@
             
             const finalTime = Math.round(wbElapsedTime * 100) / 100;
             
-            // --- 🛡️ Defensive Programming: ตรวจเช็คความปลอดภัยของ Element ป้องกันหน้าจอค้าง ---
+            // --- 🛡️ ป้องกันค้าง ---
             const elBossName = document.getElementById('wb-victory-boss-name');
             if (elBossName) elBossName.innerText = `ผู้สยบ: ${bossName}`;
             
@@ -1177,15 +1426,12 @@
             if (victoryModal) {
                 victoryModal.classList.remove('hidden');
             } else {
-                // ⚠️ กรณีหาหน้าต่างสรุปชัยชนะหลักไม่พบในหน้าจอ (เช่น HTML เสียหายบนโฮสต์)
-                // จะมีระบบสำรองแจ้งกล่องข้อความเตือนเพื่อให้เด็กๆ เล่นผ่านด่านไปได้โดยไม่ค้าง
-                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ เวลาที่ใช้: ${finalTime.toFixed(2)} วินาที\n🪙 +${rewardCoins} เหรียญ | ⭐ +${rewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ... สามารถกดตกลงเพื่อเล่นรอบถัดไปได้เลย)`);
+                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ เวลาที่ใช้: ${finalTime.toFixed(2)} วินาที\n🪙 +${rewardCoins} เหรียญ | ⭐ +${rewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ...)`);
             }
             
             playBeep('victory');
-            speakThai("ยินดีด้วยค่ะ ชนะแล้ว!");
+            speakThai("ยินดีด้วยค่ะ ชนะแล้ว");
             
-            // ป้องกันข้อผิดพลาดหากอินเทอร์เน็ตโหลดไลบรารี confetti ไม่ทัน
             try {
                 if (typeof confetti === 'function') {
                     confetti({
@@ -1195,7 +1441,7 @@
                     });
                 }
             } catch (e) {
-                console.warn("ไม่สามารถยิงพลุ Confetti ได้:", e);
+                console.warn("confetti fail:", e);
             }
 
             if (webAppUrl) {
@@ -1292,7 +1538,6 @@
 
         // 🔄 ฟังก์ชันสำหรับเล่นใหม่อีกครั้ง (Play Again)
         function playAgain() {
-            // เคลียร์และซ่อน Victory Modal
             const victoryModal = document.getElementById('wb-victory-modal');
             if (victoryModal) victoryModal.classList.add('hidden');
             
@@ -1305,8 +1550,22 @@
             particleSparkles = [];
             
             if (bossId === 'WB001') {
-                prevFrameData = null;
-                activeSlimeTarget = Math.floor(Math.random() * 4) + 1;
+                marioObstacles.length = 0;
+                marioCoins.length = 0;
+                marioDistance = 0;
+                marioTotalCoinsCollected = 0;
+                marioStunDuration = 0;
+                marioObj.x = 100;
+                marioObj.y = 350;
+                marioObj.vy = 0;
+                marioObj.isJumping = false;
+                marioObj.isCrouching = false;
+                marioObj.state = 'IDLE';
+                marioObj.frame = 0;
+                baseNoseY = -1;
+                baseShoulderY = -1;
+                noseYHistory.length = 0;
+                motionHistory.length = 0;
             } else {
                 gems.length = 0;
                 hazards.length = 0;
@@ -1314,7 +1573,7 @@
                 lastNoseLandmark = null;
             }
             
-            // รีเซ็ตตัวคูณความเร็วและเคลียร์ timers ทั้งหมดป้องกันการซ้ำซ้อน
+            // รีเซ็ตตัวคูณความเร็วและเคลียร์ timers
             wbSpeedMultiplier = 1.0;
             if (wbTimerInterval) clearInterval(wbTimerInterval);
             wbTimerInterval = null;
@@ -1325,10 +1584,9 @@
             if (wbSpeedScaleInterval) clearInterval(wbSpeedScaleInterval);
             wbSpeedScaleInterval = null;
             
-            // สั่งหยุดกล้องปัจจุบันก่อน เพื่อเคลียร์การใช้งานเว็บแคมเดิม
             stopCamera();
             
-            // รีเซ็ตข้อความและ UI ทั้งหมดให้กลับมาเป็นค่าเริ่มต้น
+            // รีเซ็ตค่า UI
             const elReps = document.getElementById('wb-battle-reps');
             if (elReps) elReps.innerText = `0 / ${targetReps}`;
             
@@ -1343,14 +1601,19 @@
             
             const statusOverlay = document.getElementById('wb-status-overlay');
             if (statusOverlay) {
-                statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเริ่มท้าทาย...`;
-                statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-purple-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                statusOverlay.classList.remove('hidden');
+                if (bossId === 'WB001') {
+                    statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเตรียม Calibrate...`;
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                } else {
+                    statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเริ่มท้าทาย...`;
+                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
+                }
             }
             
             const elBestBadge = document.getElementById('wb-victory-best-badge');
             if (elBestBadge) elBestBadge.classList.add('hidden');
             
-            // เริ่มต้นระบบกล้องเว็บแคมและเอนจิ้นเกมใหม่อัตโนมัติ
             initWebcamAndPose();
         }
     </script>
