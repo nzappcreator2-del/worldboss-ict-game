@@ -876,6 +876,11 @@
             const landmarks = results.poseLandmarks;
             let isPositionOk = false;
             
+            // 🛡️ วาดแกนกระดูกเรืองแสงเชื่อมต่อพิกัดร่างกายผู้เล่น เพื่อมอบ Visual Guidance และความแม่นยำในการคุมท่าทางขั้นสุดยอด!
+            if (landmarks && bossId === 'WB001') {
+                drawGlowingSkeleton(wbCanvasCtx, landmarks, width, height);
+            }
+            
             const minX = 0.1;
             const maxX = 0.9;
             const minY = 0.05;
@@ -1249,6 +1254,62 @@
                 ctx.fill();
                 ctx.restore();
             }
+        }
+        // 🛡️ ฟังก์ชันวาดเส้นเชื่อมต่อข้อต่อกระดูกแกนร่างกายเรืองแสง (Glowing Neon Skeleton connections & Joint dots)
+        function drawGlowingSkeleton(ctx, landmarks, width, height) {
+            if (!landmarks) return;
+            
+            // นิยามคู่การเชื่อมโยงข้อต่อแกนหลักของร่างกาย
+            const connections = [
+                [11, 12], // ไหล่ซ้าย -> ไหล่ขวา
+                [11, 13], [13, 15], // แขนซ้าย: ไหล่ -> ศอก -> ข้อมือ
+                [12, 14], [14, 16], // แขนขวา: ไหล่ -> ศอก -> ข้อมือ
+                [11, 23], [12, 24], // ลำตัวด้านข้าง: ไหล่ -> สะโพก
+                [23, 24]  // สะโพกซ้าย -> สะโพกขวา
+            ];
+            
+            ctx.save();
+            
+            // 1. วาดเส้นเชื่อมโยงกระดูกนีออนเขียวเรืองแสง
+            ctx.strokeStyle = '#39ff14'; // เขียวนีออนเรืองแสงสะท้อนแสงเด่นชัด
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.shadowColor = '#39ff14';
+            ctx.shadowBlur = 10;
+            
+            connections.forEach(([p1, p2]) => {
+                const pt1 = landmarks[p1];
+                const pt2 = landmarks[p2];
+                if (pt1 && pt2 && pt1.visibility > 0.5 && pt2.visibility > 0.5) {
+                    ctx.beginPath();
+                    ctx.moveTo(pt1.x * width, pt1.y * height);
+                    ctx.lineTo(pt2.x * width, pt2.y * height);
+                    ctx.stroke();
+                }
+            });
+            
+            // 2. วาดปุ่มจุดข้อต่อกลมเรืองแสง (Joint Dots)
+            const joints = [0, 11, 12, 13, 14, 15, 16, 23, 24];
+            joints.forEach(idx => {
+                const pt = landmarks[idx];
+                if (pt && pt.visibility > 0.5) {
+                    ctx.beginPath();
+                    ctx.arc(pt.x * width, pt.y * height, 6, 0, 2 * Math.PI);
+                    
+                    // จมูกเป็นสีเหลืองทอง, ข้อต่ออื่นๆ เป็นสีชมพูนีออนเรืองแสงสะดุดตา
+                    if (idx === 0) {
+                        ctx.fillStyle = '#fbbf24';
+                        ctx.shadowColor = '#fbbf24';
+                    } else {
+                        ctx.fillStyle = '#ff007f';
+                        ctx.shadowColor = '#ff007f';
+                    }
+                    ctx.shadowBlur = 12;
+                    ctx.fill();
+                }
+            });
+            
+            ctx.restore();
         }
 
         // วาดส่วนหัวข้อความและแต้มความเสียหาย
