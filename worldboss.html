@@ -1010,6 +1010,24 @@
                     }
                     
                     if (wbGameState === 'BATTLE') {
+                        // 🛡️ Continuous Real-time Dynamic Calibration: ปรับระดับพิกัดสรีระอ้างอิงตามระยะยืนจริงของนักเรียนในเฟรมนั้นๆ แบบเรียลไทม์!
+                        // ทำให้นักเรียนสามารถเดินหน้า-ถอยหลัง หรือหลุดจากมุมเดิมได้ โดยที่แกนพุงเอวและเกณฑ์กระโดดยังคงแม่นยำเป๊ะ 100%
+                        if (hasShoulders && hasHips) {
+                            const currentLen = (leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2;
+                            const currentS = (leftShoulder.y + rightShoulder.y) / 2;
+                            const currentH = (leftHip.y + rightHip.y) / 2;
+                            
+                            // ใช้ Exponential Moving Average กรองค่าให้นุ่มนวล ป้องกันจุดกระดูกสั่นสะดุด
+                            if (baseBodyLength > 0) {
+                                baseBodyLength = baseBodyLength * 0.95 + currentLen * 0.05;
+                                baseShoulderY = baseShoulderY * 0.95 + currentS * 0.05;
+                                baseHipY = baseHipY * 0.95 + currentH * 0.05;
+                                
+                                // ปรับค่าอ้างอิงของหัวและจมูกตามระดับไหล่และระยะยืนในเฟรมปัจจุบันทันที!
+                                baseNoseY = baseShoulderY - baseBodyLength * 0.38;
+                            }
+                        }
+
                         // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (ปรับปรุงเกณฑ์ให้อ่อนโยนสูงสุด กระโดดและย่อง่ายเป็นธรรมชาติสำหรับเด็กๆ)
                         let jumpThreshold = 0.025;
                         let crouchThreshold = 0.03;
