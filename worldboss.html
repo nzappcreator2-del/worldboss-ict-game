@@ -598,7 +598,60 @@
         // 4) เริ่มโหลดโมเดลหรือเริ่มกล้องทันที
         window.addEventListener('DOMContentLoaded', () => {
             initWebcamAndPose();
+            
+            // 🛡️ ปลดล็อกเสียงข้าม iframe อัตโนมัติเมื่อมีการคลิกสัมผัสหน้าจอแรกสุดของคุณครูหรือนักเรียน
+            const unlockAudio = () => {
+                unlockRealMarioAudio();
+                window.removeEventListener('click', unlockAudio);
+                window.removeEventListener('touchstart', unlockAudio);
+            };
+            window.addEventListener('click', unlockAudio);
+            window.addEventListener('touchstart', unlockAudio);
         });
+
+        // 🔊 ฟังก์ชันสะพานเชื่อมปลดล็อกสิทธิ์เสียงของเบราว์เซอร์ข้ามไปยังหน้า Emulator มาริโอ้
+        function unlockRealMarioAudio() {
+            const iframe = document.getElementById('mario-iframe');
+            if (iframe && iframe.contentWindow) {
+                const iframeWin = iframe.contentWindow;
+                try {
+                    // ปลดล็อกเพลงหลัก
+                    if (iframeWin.music) {
+                        const audios = [
+                            iframeWin.music.overworld, iframeWin.music.underground,
+                            iframeWin.music.clear, iframeWin.music.death
+                        ];
+                        audios.forEach(aud => {
+                            if (aud) {
+                                const p = aud.play();
+                                if (p instanceof Promise) {
+                                    p.then(() => aud.pause()).catch(() => {});
+                                } else {
+                                    aud.pause();
+                                }
+                            }
+                        });
+                    }
+                    // ปลดล็อกเสียงเอฟเฟกต์กระโดด/เหรียญ
+                    if (iframeWin.sounds) {
+                        Object.keys(iframeWin.sounds).forEach(key => {
+                            const aud = iframeWin.sounds[key];
+                            if (aud) {
+                                const p = aud.play();
+                                if (p instanceof Promise) {
+                                    p.then(() => aud.pause()).catch(() => {});
+                                } else {
+                                    aud.pause();
+                                }
+                            }
+                        });
+                    }
+                    console.log("🔊 [Audio Bridge] ปลดล็อกเสียง Emulator มาริโอ้ NES ข้ามแดนสำเร็จ!");
+                } catch(e) {
+                    console.error("Audio unlock fail:", e);
+                }
+            }
+        }
 
         async function initWebcamAndPose() {
             try {
@@ -645,12 +698,20 @@
                 }
                 
                 let lastPoseProcessTime = 0;
+                const cameraStartTime = performance.now(); // บันทึกเวลาเริ่มรันกล้องเพื่อทำระบบอุ่นเครื่อง AI
                 wbCamera = new Camera(wbVideoEl, {
                     onFrame: async () => {
                         if (wbGameState === 'BATTLE' || wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
                             const now = performance.now();
-                            // ควบคุม FPS การรัน AI ไม่ให้เกิน 30 FPS (หน่วงอย่างน้อย 33ms) ช่วยให้เกมสมูท 60 FPS ตลอดเวลา!
-                            if (now - lastPoseProcessTime < 33.3) return;
+                            
+                            // 🛡️ Setup Warm-up AI Delay: ในช่วง 4 วินาทีแรกของการโหลดหน้าจอ (ซึ่ง Emulator ใน iframe กำลังเซ็ตตัวและโหลดแอสเซทเพลงประกอบ)
+                            // เราจะสั่งรัน AI แบบจำกัดความเร็วต่ำพิเศษ 6.6 FPS (หน่วง 150ms) เพื่อป้องกัน CPU คอขวด 100% สะดุด ทำให้เริ่มเกมเพลงขึ้นได้สมูทและไม่ยืด!
+                            let throttleLimit = 33.3; // 30 FPS ปกติระหว่างสู้ศึกในด่าน
+                            if (now - cameraStartTime < 4000) {
+                                throttleLimit = 150.0; // 6.6 FPS รันเบาๆ ช่วงเตรียมระบบด่านและโหลดไฟล์เสียงประกอบ
+                            }
+                            
+                            if (now - lastPoseProcessTime < throttleLimit) return;
                             lastPoseProcessTime = now;
                             
                             try {
@@ -949,12 +1010,12 @@
                     }
                     
                     if (wbGameState === 'BATTLE') {
-                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (ลดค่าลงเพื่อให้กระโดดและย่อง่ายขึ้นอย่างมหาศาล)
-                        let jumpThreshold = 0.04;
-                        let crouchThreshold = 0.04;
+                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (ปรับปรุงเกณฑ์ให้อ่อนโยนสูงสุด กระโดดและย่อง่ายเป็นธรรมชาติสำหรับเด็กๆ)
+                        let jumpThreshold = 0.025;
+                        let crouchThreshold = 0.03;
                         if (baseBodyLength > 0) {
-                            jumpThreshold = Math.max(0.02, 0.08 * baseBodyLength);
-                            crouchThreshold = Math.max(0.025, 0.09 * baseBodyLength);
+                            jumpThreshold = Math.max(0.015, 0.05 * baseBodyLength);
+                            crouchThreshold = Math.max(0.02, 0.06 * baseBodyLength);
                         }
                         
                         // 1. ตรวจวัดความแกว่งไกวของการทำท่าวิ่งหรือเดิน (แกว่งข้อมือและศอกสะสม)
@@ -1036,14 +1097,15 @@
                         const avgShoulderYVal = (leftShoulder.y + rightShoulder.y) / 2;
                         const avgHipYVal = (leftHip.y + rightHip.y) / 2;
                         
-                        // ย่านเอวและพุงจะอยู่ต่ำกว่าอกเล็กน้อยลงไปถึงสะโพกและต้นขาส่วนบนเล็กน้อย
-                        const bellyMinY = avgShoulderYVal + currentBodyLen * 0.25;
-                        const bellyMaxY = avgHipYVal + currentBodyLen * 0.35;
+                        // กรองระดับความสูงข้อมือ: ต้องยกข้อศอกและข้อมือขึ้นสูงกว่าระดับสะโพกอย่างชัดเจน (พุงและเอว)
+                        // และต้องอยู่ต่ำกว่าไหล่ลงมาพอควร เพื่อป้องกันคนยืนปล่อยมือห้อยข้างตัว (ยืนเฉยๆ) ตกอยู่ในขอบเขตสะโพกแล้วมาริโอ้วิ่งเอง
+                        const bellyMinY = avgShoulderYVal + currentBodyLen * 0.15;
+                        const bellyMaxY = avgHipYVal - currentBodyLen * 0.05; // เหนือระดับสะโพกขึ้นมา 5% ลำตัว (ขจัดท่ายืนปล่อยห้อยแขน 100%)
                         
-                        const leftInBelly = (leftWrist.y >= bellyMinY && leftWrist.y <= bellyMaxY);
-                        const rightInBelly = (rightWrist.y >= bellyMinY && rightWrist.y <= bellyMaxY);
+                        const leftInBelly = leftWrist && leftWrist.visibility > 0.5 && (leftWrist.y >= bellyMinY && leftWrist.y <= bellyMaxY);
+                        const rightInBelly = rightWrist && rightWrist.visibility > 0.5 && (rightWrist.y >= bellyMinY && rightWrist.y <= bellyMaxY);
                         
-                        // ข้อมือทั้งซ้ายและขวาต้องอยู่ในโซนเอวหรือพุง
+                        // ข้อมือทั้งซ้ายและขวาต้องยกขึ้นมาอยู่ในโซนเอวหรือพุงอย่างเห็นชัดเจน
                         const isBellyZoneActive = leftInBelly && rightInBelly;
                         
                         if (avgNoseY < baseNoseY - jumpThreshold) {
