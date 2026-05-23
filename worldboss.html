@@ -188,7 +188,7 @@
                 <!-- 📺 จอภาพเกมมินิเกมขยายใหญ่สุดชนขอบเรืองแสง (ขยายเต็มหน้าจอ ไร้ขอบเปล่าประโยชน์) -->
                 <div id="wb-game-frame" class="w-full aspect-[4/3] lg:max-h-[82vh] bg-black rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl relative border-4 border-slate-800">
                     <!-- Iframe ฝังตัวเกมมาริโอ้ดั้งเดิม Famicom / NES -->
-                    <iframe id="mario-iframe" class="absolute inset-0 w-full h-full border-none overflow-hidden" scrolling="no" src="mario-game/index.html?v=1.4"></iframe>
+                    <iframe id="mario-iframe" class="absolute inset-0 w-full h-full border-none overflow-hidden" scrolling="no" src="mario-game/index.html?v=1.4" allow="autoplay; camera"></iframe>
                     
                     <!-- โหมดแสดงของบอส 2 Titan / Star Guardian -->
                     <div id="wb-titan-placeholder" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center hidden">
@@ -1551,9 +1551,18 @@
 
             // รันฟังก์ชันจำลองเริ่มเกมมาริโอ้จริงใน iframe
             const iframe = document.getElementById('mario-iframe');
-            if (iframe && iframe.contentWindow) {
-                controlRealMarioGame('JUMPING');
-                setTimeout(() => { controlRealMarioGame('IDLE'); }, 300);
+            if (iframe) {
+                // ดึงโฟกัสไปที่หน้าต่างมาริโอ้ เพื่อลดอาการหน่วงและปลดล็อกเสียงทันควัน
+                iframe.focus();
+                if (iframe.contentWindow) {
+                    // ส่งสัญญาณกดปุ่มจำลอง Space (32) เพื่อช่วย Audio Unlocker ภายใน iframe ปลดล็อกเสียง BGM
+                    if (typeof iframe.contentWindow.pressMarioKey === 'function') {
+                        iframe.contentWindow.pressMarioKey(32, true);
+                        setTimeout(() => { iframe.contentWindow.pressMarioKey(32, false); }, 100);
+                    }
+                    controlRealMarioGame('JUMPING');
+                    setTimeout(() => { controlRealMarioGame('IDLE'); }, 300);
+                }
             }
 
             // เริ่มการตรวจสอบแต้มและเหรียญของเกมมาริโอ้จริง

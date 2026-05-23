@@ -38,7 +38,51 @@
     <script type="text/javascript" src="js/game.js"></script>
     <script>
         // 🌉 สะพานเชื่อม API สำหรับเวิลด์บอส (World Boss API Bridge - SMB1 NES)
+        
+        // 🎵 ระบบ Audio Unlocker อัจฉริยะ ป้องกัน Autoplay policy บล็อกเสียงในครั้งแรกที่รัน
+        let audioUnlocked = false;
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            if (window.music && window.music.overworld) {
+                try {
+                    // กระตุ้น AudioContext ทั่วไปให้เปิดใช้งาน
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        const dummyCtx = new AudioCtx();
+                        if (dummyCtx.state === 'suspended') {
+                            dummyCtx.resume();
+                        }
+                    }
+                    
+                    // ปลดล็อกเพลงประกอบ Overworld
+                    const overworldPromise = window.music.overworld.play();
+                    if (overworldPromise !== undefined) {
+                        overworldPromise.then(() => {
+                            console.log("🔊 ปลดล็อกเสียงฉากหลังสำเร็จ!");
+                            audioUnlocked = true;
+                            // ถอด listeners ออกเมื่อเปิดเสียงสำเร็จแล้ว
+                            document.removeEventListener('click', unlockAudio);
+                            document.removeEventListener('touchstart', unlockAudio);
+                            document.removeEventListener('keydown', unlockAudio);
+                        }).catch(err => {
+                            console.warn("🔇 พยายามเปิดเสียงแต่โดนบล็อก:", err);
+                        });
+                    }
+                } catch(e) {
+                    console.error("Error unlocking Audio:", e);
+                }
+            }
+        }
+
+        // ลงทะเบียนรับสิทธิ์ Interaction ต่างๆ เพื่อช่วยปลดล็อกในจังหวะเริ่ม
+        document.addEventListener('click', unlockAudio);
+        document.addEventListener('touchstart', unlockAudio);
+        document.addEventListener('keydown', unlockAudio);
+
         window.pressMarioKey = function(keyCode, isDown) {
+            // เมื่อตรวจจับสัญญาณ Motion แรกสุดจาก Parent ให้กระตุ้นพยายามปลดล็อกเสียงอัตโนมัติทันที
+            unlockAudio();
+            
             if (window.input && typeof window.input.set === 'function') {
                 let key;
                 switch(keyCode) {
