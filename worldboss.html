@@ -434,7 +434,17 @@
         let lastMarioScore = 0;
         let baseNoseY = -1;
         let baseShoulderY = -1;
+        let baseHipY = -1;
+        let baseBodyLength = -1; // ความยาวลำตัวจริง (ไหล่ถึงสะโพก) สำหรับทำ Dynamic Thresholds
         let noseYHistory = [];
+        let leftWristYHistory = [];
+        let rightWristYHistory = [];
+        let leftWristXHistory = [];
+        let rightWristXHistory = [];
+        let leftElbowYHistory = [];
+        let rightElbowYHistory = [];
+        let leftHipYHistory = [];
+        let rightHipYHistory = [];
         let motionHistory = [];
         let previousMarioState = 'IDLE';
 
@@ -824,61 +834,144 @@
             const maxY = 0.95;
             
             if (bossId === 'WB001') {
-                // --- 🍄 บอสตัวที่ 1: ผจญภัยไปกับมาริโอ้ดั้งเดิม NES (ควบคุมผ่านกล้องครึ่งตัว) ---
+                // --- 🍄 บอสตัวที่ 1: ผจญภัยไปกับมาริโอ้ดั้งเดิม NES (ควบคุมผ่านกล้องครึ่งตัวถึงต้นขา) ---
                 const pt = landmarks ? landmarks[0] : null; // จมูก
                 const leftShoulder = landmarks ? landmarks[11] : null;
                 const rightShoulder = landmarks ? landmarks[12] : null;
+                const leftElbow = landmarks ? landmarks[13] : null;
+                const rightElbow = landmarks ? landmarks[14] : null;
+                const leftWrist = landmarks ? landmarks[15] : null;
+                const rightWrist = landmarks ? landmarks[16] : null;
+                const leftHip = landmarks ? landmarks[23] : null;
+                const rightHip = landmarks ? landmarks[24] : null;
                 
-                if (pt && pt.visibility > 0.5) {
+                // ตรวจเช็คทัศนวิสัยของข้อต่อสำคัญ (ครึ่งตัวถึงต้นขา ต้องเห็นสะโพกชัดเจน)
+                const hasNose = pt && pt.visibility > 0.5;
+                const hasShoulders = leftShoulder && rightShoulder && leftShoulder.visibility > 0.5 && rightShoulder.visibility > 0.5;
+                const hasHips = leftHip && rightHip && leftHip.visibility > 0.5 && rightHip.visibility > 0.5;
+                
+                if (hasNose) {
                     lastNoseLandmark = pt;
                     
                     noseYHistory.push(pt.y);
                     if (noseYHistory.length > 5) noseYHistory.shift();
                     const avgNoseY = noseYHistory.reduce((a, b) => a + b, 0) / noseYHistory.length;
                     
+                    // ระบบ Calibrate และสแกนตำแหน่งในช่วง PREPARING / COUNTDOWN
                     if (wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
-                        isPositionOk = true; 
-                        
-                        if (baseNoseY === -1) {
-                            baseNoseY = avgNoseY;
-                        } else {
-                            baseNoseY = baseNoseY * 0.9 + avgNoseY * 0.1;
-                        }
-                        
-                        if (leftShoulder && rightShoulder) {
+                        // เพื่อให้แม่นยำครึ่งตัวถึงต้นขา ผู้เล่นต้องจัดตัวให้กล้องเห็นสะโพกด้วย
+                        if (hasShoulders && hasHips) {
+                            isPositionOk = true; 
+                            
+                            if (baseNoseY === -1) {
+                                baseNoseY = avgNoseY;
+                            } else {
+                                baseNoseY = baseNoseY * 0.9 + avgNoseY * 0.1;
+                            }
+                            
                             const avgS = (leftShoulder.y + rightShoulder.y) / 2;
                             if (baseShoulderY === -1) {
                                 baseShoulderY = avgS;
                             } else {
                                 baseShoulderY = baseShoulderY * 0.9 + avgS * 0.1;
                             }
+                            
+                            const avgH = (leftHip.y + rightHip.y) / 2;
+                            if (baseHipY === -1) {
+                                baseHipY = avgH;
+                            } else {
+                                baseHipY = baseHipY * 0.9 + avgH * 0.1;
+                            }
+                            
+                            // คำนวณอัตราส่วนความยาวลำตัวจริง (ไหล่ถึงสะโพก)
+                            const currentLen = avgH - avgS;
+                            if (baseBodyLength === -1) {
+                                baseBodyLength = currentLen;
+                            } else {
+                                baseBodyLength = baseBodyLength * 0.9 + currentLen * 0.1;
+                            }
+                        } else {
+                            isPositionOk = false;
                         }
                     }
                     
                     if (wbGameState === 'BATTLE') {
-                        let runningMotion = 0;
+                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น
+                        let jumpThreshold = 0.08;
+                        let crouchThreshold = 0.08;
+                        if (baseBodyLength > 0) {
+                            jumpThreshold = Math.max(0.045, 0.16 * baseBodyLength);
+                            crouchThreshold = Math.max(0.05, 0.18 * baseBodyLength);
+                        }
+                        
+                        // 1. ตรวจวัดความแกว่งไกวของการทำท่าวิ่งหรือเดิน (แกว่งข้อมือและศอกสะสม)
+                        let wristActivity = 0;
+                        let elbowActivity = 0;
+                        let shoulderActivity = 0;
+                        
+                        if (leftWrist && rightWrist) {
+                            leftWristYHistory.push(leftWrist.y);
+                            rightWristYHistory.push(rightWrist.y);
+                            leftWristXHistory.push(leftWrist.x);
+                            rightWristXHistory.push(rightWrist.x);
+                            
+                            if (leftWristYHistory.length > 8) leftWristYHistory.shift();
+                            if (rightWristYHistory.length > 8) rightWristYHistory.shift();
+                            if (leftWristXHistory.length > 8) leftWristXHistory.shift();
+                            if (rightWristXHistory.length > 8) rightWristXHistory.shift();
+                            
+                            if (leftWristYHistory.length >= 2) {
+                                for (let i = 1; i < leftWristYHistory.length; i++) {
+                                    wristActivity += Math.abs(leftWristYHistory[i] - leftWristYHistory[i-1]);
+                                    wristActivity += Math.abs(leftWristXHistory[i] - leftWristXHistory[i-1]);
+                                    wristActivity += Math.abs(rightWristYHistory[i] - rightWristYHistory[i-1]);
+                                    wristActivity += Math.abs(rightWristXHistory[i] - rightWristXHistory[i-1]);
+                                }
+                            }
+                        }
+                        
+                        if (leftElbow && rightElbow) {
+                            leftElbowYHistory.push(leftElbow.y);
+                            rightElbowYHistory.push(rightElbow.y);
+                            if (leftElbowYHistory.length > 8) leftElbowYHistory.shift();
+                            if (rightElbowYHistory.length > 8) rightElbowYHistory.shift();
+                            
+                            if (leftElbowYHistory.length >= 2) {
+                                for (let i = 1; i < leftElbowYHistory.length; i++) {
+                                    elbowActivity += Math.abs(leftElbowYHistory[i] - leftElbowYHistory[i-1]);
+                                    elbowActivity += Math.abs(rightElbowYHistory[i] - rightElbowYHistory[i-1]);
+                                }
+                            }
+                        }
+                        
                         if (leftShoulder && rightShoulder) {
                             const currentShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
                             motionHistory.push(currentShoulderY);
                             if (motionHistory.length > 8) motionHistory.shift();
                             
                             if (motionHistory.length >= 2) {
-                                let diffSum = 0;
                                 for (let i = 1; i < motionHistory.length; i++) {
-                                    diffSum += Math.abs(motionHistory[i] - motionHistory[i-1]);
+                                    shoulderActivity += Math.abs(motionHistory[i] - motionHistory[i-1]);
                                 }
-                                runningMotion = diffSum;
                             }
                         }
                         
-                        // วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / วิ่ง / หยุดนิ่ง)
+                        // คะแนนความขยับสะสม (ขยับมือ ขยับข้อศอก และโยกไหล่สลับ)
+                        const totalActivity = (wristActivity * 1.5) + (elbowActivity * 1.0) + (shoulderActivity * 0.5);
+                        
+                        // 2. วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / แกว่งแขนวิ่ง / หยุดนิ่ง)
                         let activeState = 'IDLE';
-                        if (avgNoseY > baseNoseY + 0.08) {
-                            activeState = 'CROUCHING';
-                        } else if (avgNoseY < baseNoseY - 0.08) {
+                        
+                        if (avgNoseY < baseNoseY - jumpThreshold) {
                             activeState = 'JUMPING';
-                        } else if (runningMotion > 0.0035) {
+                        } else if (avgNoseY > baseNoseY + crouchThreshold) {
+                            activeState = 'CROUCHING';
+                        } else if (totalActivity > 0.035) {
+                            // ต้องมีการทำมือหรือขยับข้อมือ/ข้อศอกสลับแกว่งเป็นท่าวิ่งหรือเดินจริง ๆ
                             activeState = 'RUNNING';
+                        } else {
+                            // หากหยุดนิ่ง หรือความเคลื่อนไหวสะสมต่ำกว่าเกณฑ์ -> มาริโอ้หยุดนิ่งทันทีกึก 100%
+                            activeState = 'IDLE';
                         }
                         
                         // บังคับเกมมาริโอ้ NES จริงๆ ใน iframe!
@@ -909,24 +1002,24 @@
                     }
                 }
                 
-                // วาด Bounding Box ไกด์ไลน์ช่วง PREPARING ของบอส 1
+                // วาด Bounding Box ไกด์ไลน์ช่วง PREPARING ของบอส 1 (ขยายขนาดครอบคลุมครึ่งตัวถึงต้นขา)
                 if (wbGameState === 'PREPARING') {
                     wbCanvasCtx.lineWidth = 5;
                     wbCanvasCtx.shadowBlur = 15;
                     wbCanvasCtx.shadowColor = isPositionOk ? '#10b981' : '#f59e0b';
                     wbCanvasCtx.strokeStyle = isPositionOk ? '#10b981' : '#f59e0b';
                     
-                    // กรอบครึ่งตัวด้านบน
+                    // กรอบนำทางสแกนครึ่งตัวถึงต้นขา (ขยายลงล่างเพื่อจับแนวสะโพก)
                     wbCanvasCtx.strokeRect(
                         0.2 * width, 
-                        0.1 * height, 
+                        0.05 * height, 
                         0.6 * width, 
-                        0.6 * height
+                        0.85 * height
                     );
                     
                     const statusOverlay = document.getElementById('wb-status-overlay');
                     if (isPositionOk) {
-                        statusOverlay.innerHTML = `✅ คาลิเบรตจมูกสำเร็จ! ยืนนิ่งเตรียมรบ... (READY)`;
+                        statusOverlay.innerHTML = `✅ สแกนจัดระเบียบผ่าน! ยืนนิ่งเตรียมรบ... (READY)`;
                         statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 border border-white text-center font-black text-white text-xs md:text-sm shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse z-30";
                         
                         if (!wbStandingTimer) {
@@ -935,7 +1028,7 @@
                             }, 1500);
                         }
                     } else {
-                        statusOverlay.innerHTML = `⚠️ ยืนมองกล้อง จัดให้จมูกและใบหน้าอยู่กึ่งกลางกล่องนำทางครึ่งตัว`;
+                        statusOverlay.innerHTML = `⚠️ ยืนถอยออก ให้กล้องเห็นครบตั้งแต่ "หัว ไหล่ และสะโพก" (ครึ่งตัวถึงต้นขา)`;
                         statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-gradient-to-r from-red-500 to-amber-600 border border-white text-center font-bold text-white text-[10px] md:text-xs shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30 animate-pulse";
                         
                         if (wbStandingTimer) {
@@ -944,7 +1037,6 @@
                         }
                     }
                 }
-                
             } else {
                 // --- 👹 บอสตัวที่ 2: Stone Titan ---
                 const pt = landmarks ? landmarks[0] : null; 
@@ -1005,6 +1097,7 @@
             drawOverlayUI(isPositionOk, width, height);
             wbCanvasCtx.restore();
         }
+
 
         // --- 🎨 [ฟังก์ชันวาดร่วมกัน] ละอองเรืองแสงและพาร์ติเคิล ---
         function updateAndDrawSparkles(ctx) {
