@@ -175,31 +175,32 @@
         <!-- ตัวเกมมาริโอ้ดั้งเดิม NES ของจริง ขยายใหญ่เต็มตา (ไม่มีสกรอลบาร์) -->
         <section class="w-full flex flex-col gap-3">
             
-            <!-- จอภาพเกมมาริโอ้ NES ของจริง -->
-            <div id="wb-game-frame" class="glass-panel rounded-2xl lg:rounded-3xl p-1.5 lg:p-4 neon-border-purple relative overflow-hidden flex flex-col items-center">
-                <div class="absolute inset-0 bg-gradient-to-tr from-red-950/10 via-slate-900/40 to-transparent pointer-events-none"></div>
+            <!-- จอภาพเกมมินิเกมและข้อมูลสถิติ -->
+            <div class="glass-panel rounded-2xl lg:rounded-3xl p-3 md:p-5 relative overflow-hidden flex flex-col gap-3">
+                <div class="absolute inset-0 bg-gradient-to-tr from-purple-950/10 via-slate-900/10 to-transparent pointer-events-none"></div>
                 
-                <div class="w-full flex justify-between items-center z-10 mb-1 lg:mb-1.5 px-1">
+                <!-- แถบระบุข้อมูลด่านด้านบน -->
+                <div class="w-full flex justify-between items-center z-10 px-1">
                     <span id="wb-boss-tag" class="bg-red-950/80 text-red-300 text-[8px] lg:text-[10px] font-black uppercase px-2 lg:px-3 py-0.5 lg:py-1 rounded-full border border-red-800/80 tracking-wider shadow-inner">MINI-GAME: SUPER MARIO 🍄</span>
                     <span id="mario-game-status" class="hidden lg:inline text-xs font-black text-yellow-400 animate-pulse">🎮 สมรภูมิมาริโอ้เครื่องแฟมิคอมดั้งเดิม!</span>
                 </div>
                 
-                <!-- จอภาพเกมมาริโอ้ NES - ขยายใหญ่เต็มจอเต็มตา (ขยายขนาดสูงสุดสำหรับฉายโปรเจกเตอร์/ทีวีห้องเรียน) -->
-                <div class="w-full aspect-[4/3] lg:max-h-[85vh] bg-black rounded-xl lg:rounded-2xl overflow-hidden border-2 lg:border-4 border-slate-800 shadow-2xl relative">
+                <!-- 📺 จอภาพเกมมินิเกมขยายใหญ่สุดชนขอบเรืองแสง (ขยายเต็มหน้าจอ ไร้ขอบเปล่าประโยชน์) -->
+                <div id="wb-game-frame" class="w-full aspect-[4/3] lg:max-h-[82vh] bg-black rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl relative border-4 border-slate-800">
                     <!-- Iframe ฝังตัวเกมมาริโอ้ดั้งเดิม Famicom / NES -->
                     <iframe id="mario-iframe" class="absolute inset-0 w-full h-full border-none overflow-hidden" scrolling="no" src="mario-game/index.html?v=1.4"></iframe>
                     
-                    <!-- โหมดแสดงของบอส 2 Titan (ถ้าเลือกบอส 2 จะแสดงหน้านี้ทับจอ) -->
+                    <!-- โหมดแสดงของบอส 2 Titan / Star Guardian -->
                     <div id="wb-titan-placeholder" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center hidden">
-                        <div id="wb-battle-boss-avatar" class="text-8xl md:text-9xl my-4 drop-shadow-[0_10px_20px_rgba(239,68,68,0.3)] select-none">👹</div>
-                        <h3 id="wb-battle-boss-name" class="font-black text-2xl md:text-3xl text-white text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">ไททันหิน</h3>
-                        <p id="wb-battle-pose-guide" class="text-xs md:text-sm font-bold text-yellow-300 mt-2 bg-yellow-950/40 border border-yellow-800/40 px-4 py-1.5 rounded-xl text-center animate-pulse">
-                            🛡️ ไททันหิน: โยกหัวขยับอัศวินหลบระเบิด 💣 และเก็บเพชร 💎 เพื่อสร้างดาเมจ!
+                        <div id="wb-battle-boss-avatar" class="text-8xl md:text-9xl my-4 drop-shadow-[0_10px_20px_rgba(6,182,212,0.3)] select-none">🪐</div>
+                        <h3 id="wb-battle-boss-name" class="font-black text-2xl md:text-3xl text-white text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">ศึกผู้พิทักษ์ดวงดาว (Star Guardian)</h3>
+                        <p id="wb-battle-pose-guide" class="text-xs md:text-sm font-bold text-cyan-300 mt-2 bg-cyan-950/40 border border-cyan-800/40 px-4 py-1.5 rounded-xl text-center animate-pulse">
+                            🛡️ ผู้พิทักษ์ดวงดาว: โยกศีรษะและเอี้ยวคอ ↕️ ควบคุมอัศวินหลบลูกระเบิด 💣 และเก็บเพชรวิเศษ 💎
                         </p>
                     </div>
 
-                    <!-- 🎥 หน้าจอประมวลผลกล้องเว็บแคม - ลอยตัวทับมุมขวาบนอย่างสวยงาม ขนาดชัดเจนสำหรับจัดระยะเด็กหน้าห้องเรียน -->
-                    <div id="wb-webcam-section" class="absolute top-3 right-3 w-[150px] md:w-[220px] lg:w-[290px] aspect-[4/3] z-30 flex flex-col items-center">
+                    <!-- 🎥 หน้าจอประมวลผลกล้องเว็บแคม - ลอยตัวทับมุมขวาบนอย่างสวยงาม -->
+                    <div id="wb-webcam-section" class="absolute top-3 right-3 w-[140px] md:w-[200px] lg:w-[260px] aspect-[4/3] z-30 flex flex-col items-center">
                         <div id="wb-camera-frame" class="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                             <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
                             <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
@@ -218,8 +219,8 @@
                     </div>
                 </div>
 
-                <!-- แถบพลังชีวิตบอสโลกคุปป้า (HP Bar) -->
-                <div class="w-full mt-1.5 lg:mt-3 bg-slate-950/80 border border-slate-800 rounded-full h-5 lg:h-7 overflow-hidden relative shadow-inner z-10">
+                <!-- แถบพลังชีวิตบอสโลกคุปป้า (HP Bar) วางประกบใต้จอภาพเกมอย่างเป็นระเบียบ -->
+                <div class="w-full mt-1 bg-slate-950/80 border border-slate-800 rounded-full h-5 lg:h-7 overflow-hidden relative shadow-inner z-10">
                     <div id="wb-battle-boss-hp-bar" 
                          class="h-full bg-gradient-to-r from-red-600 via-rose-500 to-pink-500 transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.5)]" 
                          style="width: 100%;"></div>
