@@ -963,17 +963,26 @@
                             leftWristXHistory.push(leftWrist.x);
                             rightWristXHistory.push(rightWrist.x);
                             
-                            if (leftWristYHistory.length > 8) leftWristYHistory.shift();
-                            if (rightWristYHistory.length > 8) rightWristYHistory.shift();
-                            if (leftWristXHistory.length > 8) leftWristXHistory.shift();
-                            if (rightWristXHistory.length > 8) rightWristXHistory.shift();
+                            // ลดประวัติสะสมเหลือ 5 เฟรม เพื่อให้เบรกหยุดได้ไวและกระชับขึ้นเมื่อยืนนิ่ง!
+                            if (leftWristYHistory.length > 5) leftWristYHistory.shift();
+                            if (rightWristYHistory.length > 5) rightWristYHistory.shift();
+                            if (leftWristXHistory.length > 5) leftWristXHistory.shift();
+                            if (rightWristXHistory.length > 5) rightWristXHistory.shift();
                             
                             if (leftWristYHistory.length >= 2) {
                                 for (let i = 1; i < leftWristYHistory.length; i++) {
-                                    wristActivity += Math.abs(leftWristYHistory[i] - leftWristYHistory[i-1]);
-                                    wristActivity += Math.abs(leftWristXHistory[i] - leftWristXHistory[i-1]);
-                                    wristActivity += Math.abs(rightWristYHistory[i] - rightWristYHistory[i-1]);
-                                    wristActivity += Math.abs(rightWristXHistory[i] - rightWristXHistory[i-1]);
+                                    let dy = Math.abs(leftWristYHistory[i] - leftWristYHistory[i-1]);
+                                    let dx = Math.abs(leftWristXHistory[i] - leftWristXHistory[i-1]);
+                                    let rdy = Math.abs(rightWristYHistory[i] - rightWristYHistory[i-1]);
+                                    let rdx = Math.abs(rightWristXHistory[i] - rightWristXHistory[i-1]);
+                                    
+                                    // 🛡️ Noise Deadzone: กรองสัญญาณสั่นไหวเล็กน้อยของกล้องเว็บแคม (ถ้าสั่นเบาๆ มองเป็นหยุดนิ่งสนิททันที)
+                                    if (dy < 0.007) dy = 0;
+                                    if (dx < 0.007) dx = 0;
+                                    if (rdy < 0.007) rdy = 0;
+                                    if (rdx < 0.007) rdx = 0;
+                                    
+                                    wristActivity += dy + dx + rdy + rdx;
                                 }
                             }
                         }
@@ -981,13 +990,18 @@
                         if (leftElbow && rightElbow) {
                             leftElbowYHistory.push(leftElbow.y);
                             rightElbowYHistory.push(rightElbow.y);
-                            if (leftElbowYHistory.length > 8) leftElbowYHistory.shift();
-                            if (rightElbowYHistory.length > 8) rightElbowYHistory.shift();
+                            if (leftElbowYHistory.length > 5) leftElbowYHistory.shift();
+                            if (rightElbowYHistory.length > 5) rightElbowYHistory.shift();
                             
                             if (leftElbowYHistory.length >= 2) {
                                 for (let i = 1; i < leftElbowYHistory.length; i++) {
-                                    elbowActivity += Math.abs(leftElbowYHistory[i] - leftElbowYHistory[i-1]);
-                                    elbowActivity += Math.abs(rightElbowYHistory[i] - rightElbowYHistory[i-1]);
+                                    let dy = Math.abs(leftElbowYHistory[i] - leftElbowYHistory[i-1]);
+                                    let rdy = Math.abs(rightElbowYHistory[i] - rightElbowYHistory[i-1]);
+                                    
+                                    if (dy < 0.007) dy = 0;
+                                    if (rdy < 0.007) rdy = 0;
+                                    
+                                    elbowActivity += dy + rdy;
                                 }
                             }
                         }
@@ -995,11 +1009,13 @@
                         if (leftShoulder && rightShoulder) {
                             const currentShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
                             motionHistory.push(currentShoulderY);
-                            if (motionHistory.length > 8) motionHistory.shift();
+                            if (motionHistory.length > 5) motionHistory.shift();
                             
                             if (motionHistory.length >= 2) {
                                 for (let i = 1; i < motionHistory.length; i++) {
-                                    shoulderActivity += Math.abs(motionHistory[i] - motionHistory[i-1]);
+                                    let dy = Math.abs(motionHistory[i] - motionHistory[i-1]);
+                                    if (dy < 0.004) dy = 0;
+                                    shoulderActivity += dy;
                                 }
                             }
                         }
@@ -1014,7 +1030,7 @@
                             activeStateCandidate = 'JUMPING';
                         } else if (avgNoseY > baseNoseY + crouchThreshold) {
                             activeStateCandidate = 'CROUCHING';
-                        } else if (totalActivity > 0.045) { // จูน Threshold ให้การวิ่งชัดเจน ป้องกันยืนนิ่งแกว่งเบาๆ แล้ววิ่งเอง
+                        } else if (totalActivity > 0.025) { // ปรับ Threshold ให้การควบคุมเป็นธรรมชาติขึ้น หลังกรอง Noise แล้ว
                             activeStateCandidate = 'RUNNING';
                         } else {
                             activeStateCandidate = 'IDLE';
