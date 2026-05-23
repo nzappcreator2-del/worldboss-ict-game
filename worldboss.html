@@ -1026,11 +1026,27 @@
                         // 2. วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / แกว่งแขนวิ่ง / หยุดนิ่ง)
                         let activeStateCandidate = 'IDLE';
                         
+                        // วิเคราะห์ขอบเขตพื้นที่ระดับเอวและพุง (Belly & Waist Zone) ของผู้เล่นจริง
+                        const currentBodyLen = (leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2;
+                        const avgShoulderYVal = (leftShoulder.y + rightShoulder.y) / 2;
+                        const avgHipYVal = (leftHip.y + rightHip.y) / 2;
+                        
+                        // ย่านเอวและพุงจะอยู่ต่ำกว่าอกเล็กน้อยลงไปถึงสะโพกและต้นขาส่วนบนเล็กน้อย
+                        const bellyMinY = avgShoulderYVal + currentBodyLen * 0.25;
+                        const bellyMaxY = avgHipYVal + currentBodyLen * 0.35;
+                        
+                        const leftInBelly = (leftWrist.y >= bellyMinY && leftWrist.y <= bellyMaxY);
+                        const rightInBelly = (rightWrist.y >= bellyMinY && rightWrist.y <= bellyMaxY);
+                        
+                        // ข้อมือทั้งซ้ายและขวาต้องอยู่ในโซนเอวหรือพุง
+                        const isBellyZoneActive = leftInBelly && rightInBelly;
+                        
                         if (avgNoseY < baseNoseY - jumpThreshold) {
                             activeStateCandidate = 'JUMPING';
                         } else if (avgNoseY > baseNoseY + crouchThreshold) {
                             activeStateCandidate = 'CROUCHING';
-                        } else if (totalActivity > 0.025) { // ปรับ Threshold ให้การควบคุมเป็นธรรมชาติขึ้น หลังกรอง Noise แล้ว
+                        } else if (isBellyZoneActive && totalActivity > 0.025 && wristActivity > 0.005) { 
+                            // ขยับมือทำท่าวิ่งบริเวณเอวหรือพุง และมือกำลังเคลื่อนไหว (ถ้ามือนิ่งหรือปล่อยห้อยลงต่ำ มาริโอ้จะเบรกหยุดทันที!)
                             activeStateCandidate = 'RUNNING';
                         } else {
                             activeStateCandidate = 'IDLE';
