@@ -135,34 +135,38 @@
     </header>
 
     <!-- ⚔️ สนามรบหลัก: ปรับอัตราส่วน Grid (ซ้ายกล้องพอประมาณ 3/12, ขวาจอเกมมาริโอ้ใหญ่เต็มตา 9/12) -->
-    <main class="w-full max-w-7xl mx-auto px-4 py-2 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+    <main class="w-full max-w-7xl mx-auto px-4 py-2 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center relative">
         
-        <!-- ฝั่งซ้าย (3/12): หน้าจอประมวลผลกล้องเว็บแคม (จับท่าทางนักเรียนพอประมาณ) -->
-        <section class="lg:col-span-3 flex flex-col items-center relative w-full">
-            <div class="relative w-full aspect-[4/3] max-w-[280px] rounded-3xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
+        <!-- ฝั่งซ้าย (3/12): หน้าจอประมวลผลกล้องเว็บแคม - ลอยมุมขวาบนบนมือถือ, อยู่ Grid ปกติบนเดสก์ท็อป -->
+        <section id="wb-webcam-section" class="
+            absolute top-2 right-2 w-[120px] md:w-[150px] z-30
+            lg:relative lg:top-auto lg:right-auto lg:w-full lg:z-auto lg:col-span-3
+            flex flex-col items-center
+        ">
+            <div class="relative w-full aspect-[4/3] lg:max-w-[280px] rounded-2xl lg:rounded-3xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                 <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
                 <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
                 
-                <!-- ตัวกะพริบสถานะ/แจ้งเตือนคำสั่งเบื้องบนกล้อง -->
+                <!-- ตัวกะพริบสถานะ/แจ้งเตือนคำสั่งเบื้องบนกล้อง (ย่อขนาดบนมือถือ) -->
                 <div id="wb-status-overlay" 
-                     class="absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[11px] md:text-xs shadow-md animate-pulse">
-                    ⏳ กำลังเปิดสะพานเชื่อมอวกาศและโมเดล AI (MediaPipe)...
+                     class="absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse">
+                    ⏳ กำลังโหลด AI...
                 </div>
 
-                <!-- ป้ายนับเวลา 3 2 1 บดขยี้ขนาดใหญ่กึ่งกลางกล้อง -->
+                <!-- ป้ายนับเวลา 3 2 1 บดขยี้ขนาดใหญ่กึ่งกลางกล้อง (ย่อบนมือถือ) -->
                 <div id="wb-countdown-box" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden z-20">
-                    <span id="wb-countdown-text" class="font-mali text-8xl md:text-[8rem] text-yellow-400 font-extrabold text-shadow drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] animate-ping">3</span>
+                    <span id="wb-countdown-text" class="font-mali text-4xl lg:text-[8rem] text-yellow-400 font-extrabold text-shadow drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] animate-ping">3</span>
                 </div>
             </div>
             
-            <!-- คำแนะนำการจัดท่าสำหรับเด็กข้ามช่อง (อัปเดต Smart Proximity) -->
-            <p id="wb-pose-proximity-guide" class="text-[10px] text-red-300 font-bold text-center mt-2.5 bg-red-950/40 border border-red-900/40 py-1.5 px-3 rounded-xl">
+            <!-- คำแนะนำการจัดท่าสำหรับเด็กข้ามช่อง - ซ่อนบนมือถือ แสดงเฉพาะเดสก์ท็อป -->
+            <p id="wb-pose-proximity-guide" class="hidden lg:block text-[10px] text-red-300 font-bold text-center mt-2.5 bg-red-950/40 border border-red-900/40 py-1.5 px-3 rounded-xl">
                 💡 ยืนระยะพอประมาณ! ขอเพียงกล้องเห็น <span class="text-yellow-300 font-extrabold">หัว ไหล่ และหน้าอก (ครึ่งตัวบน)</span> ก็ควบคุมมาริโอ้ได้ทันที!
             </p>
         </section>
 
         <!-- ฝั่งขวา (9/12): ตัวเกมมาริโอ้ดั้งเดิม NES ของจริง ขยายใหญ่เต็มตา (ไม่มีสกรอลบาร์) -->
-        <section class="lg:col-span-9 w-full flex flex-col gap-3">
+        <section class="col-span-1 lg:col-span-9 w-full flex flex-col gap-3">
             
             <!-- จอภาพเกมมาริโอ้ NES ของจริง -->
             <div class="glass-panel rounded-3xl p-3 md:p-4 neon-border-purple relative overflow-hidden flex flex-col items-center">
@@ -174,7 +178,7 @@
                 </div>
                 
                 <!-- จอภาพเกมมาริโอ้ NES (ปรับเป็น aspect-[4/3] ตามต้นฉบับ NES 256x240 และขยายความสูงสูงสุด) -->
-                <div class="w-full aspect-[4/3] max-h-[500px] bg-black rounded-2xl overflow-hidden border-4 border-slate-800 shadow-2xl relative">
+                <div class="w-full aspect-[4/3] max-h-[70vh] lg:max-h-[500px] bg-black rounded-2xl overflow-hidden border-4 border-slate-800 shadow-2xl relative">
                     <!-- Iframe ฝังตัวเกมมาริโอ้ดั้งเดิม Famicom / NES -->
                     <iframe id="mario-iframe" class="absolute inset-0 w-full h-full border-none overflow-hidden" scrolling="no" src="mario-game/index.html?v=1.4"></iframe>
                     
@@ -623,10 +627,10 @@
                 
                 if (bossId === 'WB001') {
                     statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อ Calibrate ค่าจมูกปกติ!`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse z-30";
+                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
                 } else {
                     statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse z-30";
+                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
                 }
                 
             } catch (err) {
@@ -643,7 +647,7 @@
                 }
                 
                 statusOverlay.innerHTML = `❌ ไม่สามารถเชื่อมต่อเว็บแคมได้: ${errorHelp}`;
-                statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md z-30";
+                statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md z-30";
                 alert("❌ เกิดข้อผิดพลาดในการเปิดกล้องเว็บแคม:\n\n" + errorHelp);
             }
         }
@@ -1020,7 +1024,7 @@
                     const statusOverlay = document.getElementById('wb-status-overlay');
                     if (isPositionOk) {
                         statusOverlay.innerHTML = `✅ สแกนจัดระเบียบผ่าน! ยืนนิ่งเตรียมรบ... (READY)`;
-                        statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 border border-white text-center font-black text-white text-xs md:text-sm shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse z-30";
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 border border-white text-center font-black text-white text-[7px] lg:text-sm shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse z-30";
                         
                         if (!wbStandingTimer) {
                             wbStandingTimer = setTimeout(() => {
@@ -1029,7 +1033,7 @@
                         }
                     } else {
                         statusOverlay.innerHTML = `⚠️ ยืนถอยออก ให้กล้องเห็นครบตั้งแต่ "หัว ไหล่ และสะโพก" (ครึ่งตัวถึงต้นขา)`;
-                        statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-gradient-to-r from-red-500 to-amber-600 border border-white text-center font-bold text-white text-[10px] md:text-xs shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30 animate-pulse";
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-gradient-to-r from-red-500 to-amber-600 border border-white text-center font-bold text-white text-[7px] lg:text-xs shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30 animate-pulse";
                         
                         if (wbStandingTimer) {
                             clearTimeout(wbStandingTimer);
@@ -1072,7 +1076,7 @@
                     const statusOverlay = document.getElementById('wb-status-overlay');
                     if (isPositionOk) {
                         statusOverlay.innerHTML = `✅ ยืนนิ่งเตรียมรบ! (READY)`;
-                        statusOverlay.className = "absolute top-4 left-4 right-4 py-4 px-6 rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-4 lg:px-6 rounded-lg lg:rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 border lg:border-4 border-white text-center font-black text-white text-[7px] lg:text-3xl shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse z-30";
                         
                         if (!wbStandingTimer) {
                             wbStandingTimer = setTimeout(() => {
@@ -1081,7 +1085,7 @@
                         }
                     } else {
                         statusOverlay.innerHTML = `⚠️ ยืนหันหน้าหากล้อง ให้หน้าอยู่กึ่งกลางภาพเพื่อจับพิกัด`;
-                        statusOverlay.className = "absolute top-4 left-4 right-4 py-3 px-4 rounded-3xl bg-gradient-to-r from-amber-500 to-yellow-600 border-4 border-white text-center font-bold text-white text-xs md:text-lg shadow-[0_0_15px_rgba(245,158,11,0.5)] z-30 animate-pulse";
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-3 lg:px-4 rounded-lg lg:rounded-3xl bg-gradient-to-r from-amber-500 to-yellow-600 border lg:border-4 border-white text-center font-bold text-white text-[7px] lg:text-lg shadow-[0_0_15px_rgba(245,158,11,0.5)] z-30 animate-pulse";
                         
                         if (wbStandingTimer) {
                             clearTimeout(wbStandingTimer);
@@ -1179,7 +1183,7 @@
             
             const statusOverlay = document.getElementById('wb-status-overlay');
             statusOverlay.innerHTML = `🔥 เตรียมตัวรบใน...`;
-            statusOverlay.className = "absolute top-4 left-4 right-4 py-3.5 px-6 rounded-2xl bg-red-600 border-4 border-white text-center font-black text-white text-xl md:text-3xl shadow-2xl z-30";
+            statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-3.5 lg:px-6 rounded-lg lg:rounded-2xl bg-red-600 border lg:border-4 border-white text-center font-black text-white text-[7px] lg:text-3xl shadow-2xl z-30";
             
             speakThai("เตรียมตัวให้พร้อม เริ่มการนับถอยหลังค่ะ");
             
@@ -1486,10 +1490,10 @@
                 statusOverlay.classList.remove('hidden');
                 if (bossId === 'WB001') {
                     statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเตรียม Calibrate...`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse";
+                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse";
                 } else {
                     statusOverlay.innerHTML = `⏳ กำลังเปิดกล้องเว็บแคมใหม่เพื่อเริ่มท้าทาย...`;
-                    statusOverlay.className = "absolute top-4 left-4 right-4 py-2 px-3 rounded-xl bg-black/80 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[10px] md:text-xs shadow-md animate-pulse";
+                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/80 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse";
                 }
             }
             
