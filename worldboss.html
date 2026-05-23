@@ -949,12 +949,12 @@
                     }
                     
                     if (wbGameState === 'BATTLE') {
-                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น
-                        let jumpThreshold = 0.08;
-                        let crouchThreshold = 0.08;
+                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (ลดค่าลงเพื่อให้กระโดดและย่อง่ายขึ้นอย่างมหาศาล)
+                        let jumpThreshold = 0.04;
+                        let crouchThreshold = 0.04;
                         if (baseBodyLength > 0) {
-                            jumpThreshold = Math.max(0.045, 0.16 * baseBodyLength);
-                            crouchThreshold = Math.max(0.05, 0.18 * baseBodyLength);
+                            jumpThreshold = Math.max(0.02, 0.08 * baseBodyLength);
+                            crouchThreshold = Math.max(0.025, 0.09 * baseBodyLength);
                         }
                         
                         // 1. ตรวจวัดความแกว่งไกวของการทำท่าวิ่งหรือเดิน (แกว่งข้อมือและศอกสะสม)
@@ -1058,20 +1058,20 @@
                         }
                         
                         // --- 🛡️ ระบบการกรองสถานะกรองสัญญาณรบกวน (State Confidence Filter) ---
-                        // ท่ากระโดด (JUMPING) และท่าย่อ (CROUCHING) ต้องการการตอบสนองที่ไวเป็นเลิศ (พบ 1 เฟรมปล่อยทันที!)
-                        // แต่ท่าวิ่ง (RUNNING) และท่ายืนนิ่ง (IDLE) ต้องการความแม่นยำสม่ำเสมอ เพื่อลบอาการสวิงไปสวิงมา (พบ 2 เฟรมติดต่อกัน)
-                        if (activeStateCandidate === detectedActiveState) {
+                        // เมื่อต้องการหยุดยืน (IDLE), กระโดด (JUMPING) หรือก้มย่อ (CROUCHING) ต้องการการตอบสนองที่ไวเปรียบเสมือนแสง (พบ 1 เฟรมปล่อยคำสั่งทันที!)
+                        // มีเพียงการเริ่มวิ่ง (RUNNING) เท่านั้นที่นับเฟรมสะสมต่อเนื่องกัน 2 เฟรม ป้องกันปุ่มวิ่งขัดจังหวะจาก Noise
+                        if (activeStateCandidate === 'IDLE' || activeStateCandidate === 'JUMPING' || activeStateCandidate === 'CROUCHING') {
+                            detectedActiveState = activeStateCandidate;
                             stateConfidenceCounter = 0;
-                        } else {
-                            stateConfidenceCounter++;
-                            let requiredFrames = 2; // สเตตัสทั่วไปใช้ 2 เฟรมต่อเนื่องกัน
-                            if (activeStateCandidate === 'JUMPING' || activeStateCandidate === 'CROUCHING') {
-                                requiredFrames = 1; // กระโดดและย่อ ปล่อยปุ่มตอบสนองในเฟรมแรกทันที!
-                            }
-                            
-                            if (stateConfidenceCounter >= requiredFrames) {
-                                detectedActiveState = activeStateCandidate;
+                        } else if (activeStateCandidate === 'RUNNING') {
+                            if (detectedActiveState === 'RUNNING') {
                                 stateConfidenceCounter = 0;
+                            } else {
+                                stateConfidenceCounter++;
+                                if (stateConfidenceCounter >= 2) {
+                                    detectedActiveState = 'RUNNING';
+                                    stateConfidenceCounter = 0;
+                                }
                             }
                         }
                         
