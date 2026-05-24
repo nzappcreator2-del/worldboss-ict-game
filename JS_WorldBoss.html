@@ -173,14 +173,16 @@
             
             let pbDisplay = '⏳ ยังไม่มีสถิติ';
             if (isWb002) {
-                // ดึงสถิติ PB แยกของทั้ง 3 ช่วงเวลามาแสดงในบอร์ดเดี่ยวให้ครบครันอย่างเป็นระเบียบ
+                // ดึงสถิติ PB แยกของทั้ง 4 ช่วงเวลามาแสดงในบอร์ดเดี่ยวให้ครบครันอย่างเป็นระเบียบ
+                const pb10 = localStorage.getItem('wb_best_time_' + userId + '_WB002_10');
                 const pb15 = localStorage.getItem('wb_best_time_' + userId + '_WB002_15');
                 const pb20 = localStorage.getItem('wb_best_time_' + userId + '_WB002_20');
                 const pb30 = localStorage.getItem('wb_best_time_' + userId + '_WB002_30');
                 
                 pbDisplay = '<span class="text-[10px] text-cyan-300 block font-black leading-normal text-left">' +
+                    '⏱️ 10s: ' + (pb10 ? parseFloat(pb10).toFixed(1) + 'm' : '-') + ' | ' +
                     '⏱️ 15s: ' + (pb15 ? parseFloat(pb15).toFixed(1) + 'm' : '-') + '<br>' +
-                    '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(1) + 'm' : '-') + '<br>' +
+                    '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(1) + 'm' : '-') + ' | ' +
                     '⏱️ 30s: ' + (pb30 ? parseFloat(pb30).toFixed(1) + 'm' : '-') +
                 '</span>';
             } else {
@@ -277,10 +279,10 @@
      * 🏆 ดึงตารางอันดับของบอสแต่ละตัว
      */
     function showWorldBossLeaderboard(bossId) {
-        // 🔮 หากส่ง ID ตัวแทน "WB002" มา ให้สลับดึงของระดับ 15 วินาที (WB002_15) เป็นค่าเริ่มต้น
+        // 🔮 หากส่ง ID ตัวแทน "WB002" มา ให้สลับดึงของระดับ 10 วินาที (WB002_10) เป็นค่าเริ่มต้น
         let activeId = bossId;
         if (bossId === 'WB002') {
-            activeId = 'WB002_15';
+            activeId = 'WB002_10';
         }
         
         const isWb002 = String(activeId).indexOf('WB002') === 0;
@@ -292,6 +294,7 @@
         if (tabsEl) {
             if (isWb002) {
                 tabsEl.innerHTML = '<div class="flex justify-center flex-wrap gap-2 mb-4 font-prompt">' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_10\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_10' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 10 วินาที</button>' +
                     '<button onclick="showWorldBossLeaderboard(\'WB002_15\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_15' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 15 วินาที</button>' +
                     '<button onclick="showWorldBossLeaderboard(\'WB002_20\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_20' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 20 วินาที</button>' +
                     '<button onclick="showWorldBossLeaderboard(\'WB002_30\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_30' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 30 วินาที</button>' +

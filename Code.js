@@ -134,19 +134,26 @@ function setupDatabase() {
   const bossSheet = ss.getSheetByName('WorldBoss_Config');
   if (bossSheet && bossSheet.getLastRow() <= 1) {
     bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
+    bossSheet.appendRow(['WB002_10', 'สมรภูมิยอดนักวิ่งลมกรด (10 วินาที)', 'speed_runner', 10, 100, 80, 80, true]);
     bossSheet.appendRow(['WB002_15', 'สมรภูมิยอดนักวิ่งลมกรด (15 วินาที)', 'speed_runner', 15, 150, 100, 100, true]);
     bossSheet.appendRow(['WB002_20', 'สมรภูมิยอดนักวิ่งลมกรด (20 วินาที)', 'speed_runner', 20, 200, 150, 150, true]);
     bossSheet.appendRow(['WB002_30', 'สมรภูมิยอดนักวิ่งลมกรด (30 วินาที)', 'speed_runner', 30, 300, 200, 200, true]);
     bossSheet.appendRow(['WB002_1', 'สมรภูมิยอดนักวิ่งลมกรด (ทดสอบ 1 วินาที)', 'speed_runner', 1, 10, 5, 5, true]);
   } else if (bossSheet) {
-    // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
+    // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 และเช็คว่ามี WB002_10 แล้วหรือยัง
     try {
       const bossData = bossSheet.getDataRange().getValues();
+      let hasWb002_10 = false;
       for (let i = 1; i < bossData.length; i++) {
         if (bossData[i][0] === 'WB001' && (bossData[i][1] === 'ผจญภัยไปกับมาริโอ้' || bossData[i][1] === 'ผจญภัยไปกับมาริโอ้ ')) {
           bossSheet.getRange(i + 1, 2).setValue('ผจญภัยกับมาริโอ้');
-          break;
         }
+        if (bossData[i][0] === 'WB002_10') {
+          hasWb002_10 = true;
+        }
+      }
+      if (!hasWb002_10) {
+        bossSheet.appendRow(['WB002_10', 'สมรภูมิยอดนักวิ่งลมกรด (10 วินาที)', 'speed_runner', 10, 100, 80, 80, true]);
       }
     } catch (e) {
       console.error('Error during WorldBoss_Config setup migration:', e);

@@ -199,6 +199,9 @@
                         </p>
                     </div>
 
+                    <!-- 🏃‍♂️ หน้าจอวาดเกมวิ่ง Speed Runner โดยเฉพาะ เต็มกรอบ 100% (Aspect 4:3 ยึดไม่ตกขอบ) -->
+                    <canvas id="wb-runner-canvas" class="absolute inset-0 w-full h-full bg-slate-950 hidden" width="640" height="480"></canvas>
+
                     <!-- 🎥 หน้าจอประมวลผลกล้องเว็บแคม - ลอยตัวทับมุมขวาบนอย่างสวยงาม -->
                     <div id="wb-webcam-section" class="absolute top-3 right-3 w-[140px] md:w-[200px] lg:w-[260px] aspect-[4/3] z-30 flex flex-col items-center">
                         <div id="wb-camera-frame" class="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
@@ -356,49 +359,60 @@
                 กรุณาเลือกระดับเวลาที่คุณต้องการวิ่งอยู่กับที่ผ่านกล้องเพื่อสะสมระยะทางให้ไกลที่สุดและบันทึกขึ้นตารางอันดับ!
             </p>
             
-            <!-- การ์ดตัวเลือกเวลา 4 แบบ -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full mt-6 z-10">
-                <!-- ตัวเลือกที่ 1: 15 วินาที -->
+            <!-- การ์ดตัวเลือกเวลา 5 แบบ จัดเรียงเรียบหรูสไตล์ RPG -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 w-full mt-6 z-10">
+                <!-- ตัวเลือกที่ 1: 10 วินาที -->
+                <button onclick="selectRunnerDuration(10)" 
+                        class="p-3 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-sm md:text-base group-hover:animate-bounce">⏱️ ท้าทาย 10 วินาที</span>
+                    <span class="text-[9px] text-slate-400 font-bold mt-1">บอส: 100 HP</span>
+                    <div class="flex gap-1.5 mt-2 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800">
+                        <span class="text-[10px] font-black text-yellow-400">🪙 +80</span>
+                        <span class="text-[10px] font-black text-indigo-400">⭐ +80 XP</span>
+                    </div>
+                </button>
+
+                <!-- ตัวเลือกที่ 2: 15 วินาที -->
                 <button onclick="selectRunnerDuration(15)" 
-                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
-                    <span class="text-cyan-400 font-black text-lg group-hover:animate-bounce">⏱️ ท้าทาย 15 วินาที</span>
-                    <span class="text-[10px] text-slate-400 font-bold mt-1">เป้าหมายพลังบอส: 150 HP</span>
-                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
-                        <span class="text-xs font-black text-yellow-400">🪙 +100</span>
-                        <span class="text-xs font-black text-indigo-400">⭐ +100 XP</span>
+                        class="p-3 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-sm md:text-base group-hover:animate-bounce">⏱️ ท้าทาย 15 วินาที</span>
+                    <span class="text-[9px] text-slate-400 font-bold mt-1">บอส: 150 HP</span>
+                    <div class="flex gap-1.5 mt-2 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800">
+                        <span class="text-[10px] font-black text-yellow-400">🪙 +100</span>
+                        <span class="text-[10px] font-black text-indigo-400">⭐ +100 XP</span>
                     </div>
                 </button>
                 
-                <!-- ตัวเลือกที่ 2: 20 วินาที -->
+                <!-- ตัวเลือกที่ 3: 20 วินาที -->
                 <button onclick="selectRunnerDuration(20)" 
-                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
-                    <span class="text-cyan-400 font-black text-lg group-hover:animate-bounce">⏱️ ท้าทาย 20 วินาที</span>
-                    <span class="text-[10px] text-slate-400 font-bold mt-1">เป้าหมายพลังบอส: 200 HP</span>
-                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
-                        <span class="text-xs font-black text-yellow-400">🪙 +150</span>
-                        <span class="text-xs font-black text-indigo-400">⭐ +150 XP</span>
+                        class="p-3 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-sm md:text-base group-hover:animate-bounce">⏱️ ท้าทาย 20 วินาที</span>
+                    <span class="text-[9px] text-slate-400 font-bold mt-1">บอส: 200 HP</span>
+                    <div class="flex gap-1.5 mt-2 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800">
+                        <span class="text-[10px] font-black text-yellow-400">🪙 +150</span>
+                        <span class="text-[10px] font-black text-indigo-400">⭐ +150 XP</span>
                     </div>
                 </button>
                 
-                <!-- ตัวเลือกที่ 3: 30 วินาที -->
+                <!-- ตัวเลือกที่ 4: 30 วินาที -->
                 <button onclick="selectRunnerDuration(30)" 
-                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
-                    <span class="text-cyan-400 font-black text-lg group-hover:animate-bounce">⏱️ ท้าทาย 30 วินาที</span>
-                    <span class="text-[10px] text-slate-400 font-bold mt-1">เป้าหมายพลังบอส: 300 HP</span>
-                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
-                        <span class="text-xs font-black text-yellow-400">🪙 +200</span>
-                        <span class="text-xs font-black text-indigo-400">⭐ +200 XP</span>
+                        class="p-3 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-sm md:text-base group-hover:animate-bounce">⏱️ ท้าทาย 30 วินาที</span>
+                    <span class="text-[9px] text-slate-400 font-bold mt-1">บอส: 300 HP</span>
+                    <div class="flex gap-1.5 mt-2 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800">
+                        <span class="text-[10px] font-black text-yellow-400">🪙 +200</span>
+                        <span class="text-[10px] font-black text-indigo-400">⭐ +200 XP</span>
                     </div>
                 </button>
                 
-                <!-- ตัวเลือกที่ 4: โหมดทดสอบ 1 วินาที -->
+                <!-- ตัวเลือกที่ 5: โหมดทดสอบ 1 วินาที (ปรับขนาดเกลี่ยให้เต็มความกว้างใน md) -->
                 <button onclick="selectRunnerDuration(1)" 
-                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-amber-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
-                    <span class="text-amber-400 font-black text-lg group-hover:animate-pulse">🔧 ทดสอบ 1 วินาที</span>
-                    <span class="text-[10px] text-slate-400 font-bold mt-1">เน้นทดสอบระบบสถิติด่วน</span>
-                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
-                        <span class="text-xs font-black text-amber-400">🪙 +5</span>
-                        <span class="text-xs font-black text-indigo-400">⭐ +5 XP</span>
+                        class="p-3 col-span-2 md:col-span-1 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-amber-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-amber-400 font-black text-sm md:text-base group-hover:animate-pulse">🔧 ทดสอบ 1 วินาที</span>
+                    <span class="text-[9px] text-slate-400 font-bold mt-1">เน้นทดสอบสถิติด่วน</span>
+                    <div class="flex gap-1.5 mt-2 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800">
+                        <span class="text-[10px] font-black text-amber-400">🪙 +5</span>
+                        <span class="text-[10px] font-black text-indigo-400">⭐ +5 XP</span>
                     </div>
                 </button>
             </div>
@@ -518,11 +532,25 @@
             document.getElementById('mario-game-status').innerText = "🎮 วิ่ง, กระโดด, นั่งย่อ เพื่อผจญภัยกับมาริโอ้ NES!";
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             document.getElementById('mario-iframe').classList.remove('hidden');
+            document.getElementById('mario-iframe').src = "mario-game/index.html?v=1.4"; // บังคับรีโหลดเพื่อให้มั่นใจว่ามาริโอ้ NES ตื่นขึ้นจริง
+            
+            // ซ่อน Canvas เกมวิ่งในบอสตัวอื่น
+            const runnerCanvas = document.getElementById('wb-runner-canvas');
+            if (runnerCanvas) {
+                runnerCanvas.classList.add('hidden');
+                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 hidden";
+            }
             
             // ใช้ขอบนีออนธีมมาริโอ้สีแดง
             if (gameFrame) {
                 gameFrame.classList.remove('neon-border-purple', 'neon-border-space');
                 gameFrame.classList.add('neon-border-mario');
+                gameFrame.style.display = '';
+                gameFrame.style.flexDirection = '';
+                gameFrame.style.alignItems = '';
+                gameFrame.style.justifyContent = '';
+                gameFrame.style.gap = '';
+                gameFrame.style.padding = '';
             }
             if (cameraFrame) {
                 cameraFrame.classList.remove('neon-border-purple', 'neon-border-space');
@@ -538,6 +566,7 @@
                 webcamSection.style.height = '';
                 webcamSection.style.aspectRatio = '';
                 webcamSection.style.zIndex = '';
+                webcamSection.style.flexShrink = '';
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '';
@@ -545,40 +574,63 @@
                 cameraFrame.style.borderRadius = '';
                 cameraFrame.style.border = '';
             }
-        } else if (bossId.indexOf('WB002') === 0) {
+        } else if (bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack') {
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SPEED RUNNER 🏃‍♂️💨";
             document.getElementById('mario-game-status').innerText = "🎮 ยอดนักวิ่งลมกรด: วิ่งอยู่กับที่ผ่านกล้องเพื่อเร่งความเร็วสะสมระยะทางให้ได้ไกลที่สุด!";
             document.getElementById('mario-iframe').classList.add('hidden');
-            document.getElementById('wb-titan-placeholder').classList.add('hidden'); // ซ่อน placeholder ไปเลยเพราะเราจะใช้ Canvas วาดเต็มจอ
+            document.getElementById('mario-iframe').src = "about:blank"; // กำหนดเป็นหน้าว่าง เพื่อตัดเสียงดนตรี Bowser มาริโอ้ค้างคา 100%
+            document.getElementById('wb-titan-placeholder').classList.add('hidden');
             
-            // ใช้ขอบนีออนธีมสเปซสีไซอัน
+            // แสดง Canvas สำหรับวาดลู่วิ่งนีออนตรงกลางจอใหญ่ และปรับสเกลพอดี
+            const runnerCanvas = document.getElementById('wb-runner-canvas');
+            if (runnerCanvas) {
+                runnerCanvas.classList.remove('hidden');
+                runnerCanvas.className = "relative w-auto h-auto max-w-full max-h-full aspect-[4/3] bg-slate-950 rounded-xl overflow-hidden flex-1 shadow-inner object-contain";
+            }
+            
+            // ใช้ขอบนีออนธีมสเปซสีไซอัน และปรับ Layout เป็น Split Screen ด้วย Flexbox
             if (gameFrame) {
                 gameFrame.classList.remove('neon-border-purple', 'neon-border-mario');
                 gameFrame.classList.add('neon-border-space');
+                gameFrame.style.display = 'flex';
+                gameFrame.style.flexDirection = window.innerWidth >= 1024 ? 'row' : 'column-reverse'; // หน้าจอใหญ่เรียงแนวนอน หน้าจอเล็กเรียงแนวตั้ง
+                gameFrame.style.alignItems = 'center';
+                gameFrame.style.justifyContent = 'center';
+                gameFrame.style.gap = '16px';
+                gameFrame.style.padding = '12px';
             }
             
-            // ขยายกรอบเว็บแคมและ Canvas ให้ใหญ่เต็มกรอบสีดำตรงกลางอย่างอลังการ!
+            // ปรับตำแหน่งเว็บแคมให้อยู่ด้านข้างของลู่วิ่ง (ไม่ทับซ้อนหน้าจอหลัก) เพื่อความสะอาดตาในการวิ่ง!
             if (webcamSection) {
-                webcamSection.style.position = 'absolute';
-                webcamSection.style.top = '0';
-                webcamSection.style.right = '0';
-                webcamSection.style.width = '100%';
-                webcamSection.style.height = '100%';
-                webcamSection.style.aspectRatio = 'auto';
-                webcamSection.style.zIndex = '10';
+                webcamSection.style.position = 'relative';
+                webcamSection.style.top = 'auto';
+                webcamSection.style.right = 'auto';
+                webcamSection.style.width = window.innerWidth >= 1024 ? '240px' : '150px';
+                webcamSection.style.height = 'auto';
+                webcamSection.style.aspectRatio = '4/3';
+                webcamSection.style.zIndex = '30';
+                webcamSection.style.flexShrink = '0';
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '100%';
                 cameraFrame.style.height = '100%';
-                cameraFrame.style.borderRadius = '0';
-                cameraFrame.style.border = 'none';
-                cameraFrame.classList.remove('neon-border-purple');
+                cameraFrame.style.borderRadius = '12px';
+                cameraFrame.style.border = '';
+                cameraFrame.classList.remove('neon-border-purple', 'neon-border-mario');
+                cameraFrame.classList.add('neon-border-space'); // นีออนสีไซอันสดใสเข้าคู่ธีม
             }
         } else {
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: STAR GUARDIAN 🌌";
             document.getElementById('mario-game-status').innerText = "🎮 เอี้ยวคอ/โยกศีรษะ ควบคุมผู้พิทักษ์ดวงดาวหลบระเบิดเก็บเพชรวิเศษ!";
             document.getElementById('mario-iframe').classList.add('hidden');
             document.getElementById('wb-titan-placeholder').classList.remove('hidden');
+            
+            // ซ่อน Canvas เกมวิ่งในบอสตัวอื่น
+            const runnerCanvas = document.getElementById('wb-runner-canvas');
+            if (runnerCanvas) {
+                runnerCanvas.classList.add('hidden');
+                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 hidden";
+            }
             
             // อัปเดตข้อมูลบนบอสการ์ดในหน้าเล่นเกม
             const avatarEl = document.getElementById('wb-battle-boss-avatar');
@@ -596,6 +648,12 @@
             if (gameFrame) {
                 gameFrame.classList.remove('neon-border-purple', 'neon-border-mario');
                 gameFrame.classList.add('neon-border-space');
+                gameFrame.style.display = '';
+                gameFrame.style.flexDirection = '';
+                gameFrame.style.alignItems = '';
+                gameFrame.style.justifyContent = '';
+                gameFrame.style.gap = '';
+                gameFrame.style.padding = '';
             }
             if (cameraFrame) {
                 cameraFrame.classList.remove('neon-border-purple', 'neon-border-mario');
@@ -611,6 +669,7 @@
                 webcamSection.style.height = '';
                 webcamSection.style.aspectRatio = '';
                 webcamSection.style.zIndex = '';
+                webcamSection.style.flexShrink = '';
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '';
@@ -642,6 +701,13 @@
         const wbVideoEl = document.getElementById('wb-video');
         const wbCanvasEl = document.getElementById('wb-canvas');
         const wbCanvasCtx = wbCanvasEl.getContext('2d');
+        
+        const runnerCanvasEl = document.getElementById('wb-runner-canvas');
+        const runnerCanvasCtx = runnerCanvasEl ? runnerCanvasEl.getContext('2d') : null;
+        if (runnerCanvasEl) {
+            runnerCanvasEl.width = 640;
+            runnerCanvasEl.height = 480;
+        }
         
         let wbStream = null;
 
@@ -1476,121 +1542,150 @@
                             document.getElementById('wb-battle-boss-hp-bar').style.width = `${Math.min(100, bossHpPercent)}%`;
                             document.getElementById('wb-battle-boss-hp-text').innerText = `ระยะทางวิ่ง: ${wbTotalDistance.toFixed(1)} / ${targetDistance.toFixed(0)} เมตร`;
                             
-                            // 🎨 [เฟสที่ 5: วาด Canvas แอนิเมชันลู่วิ่ง Parallax และเกจความเร็ว Speedometer]
-                            // 1. วาดวิดีโอกล้องเบลอจางๆ ทับอีกชั้น เพื่อให้เห็นตัวเองสแกนท่าร่าง
-                            wbCanvasCtx.fillStyle = 'rgba(8, 10, 24, 0.45)'; // ย้อมสีโทนน้ำเงินเข้มกระจก
-                            wbCanvasCtx.fillRect(0, 0, width, height);
-                            
-                            // 2. วาดขอบฟ้าและสนามหญ้าขอบลู่วิ่ง
-                            wbCanvasCtx.fillStyle = '#065f46'; // เขียวเข้ม
-                            wbCanvasCtx.fillRect(0, 200, width, 280);
-                            
-                            // 3. วาดรูปทรงลู่วิ่ง 3D Perspective (สี่เหลี่ยมคางหมู)
-                            wbCanvasCtx.beginPath();
-                            wbCanvasCtx.moveTo(240, 200); // ขอบฟ้าซ้าย
-                            wbCanvasCtx.lineTo(400, 200); // ขอบฟ้าขวา
-                            wbCanvasCtx.lineTo(600, 480); // ล่างขวา
-                            wbCanvasCtx.lineTo(40, 480);  // ล่างซ้าย
-                            wbCanvasCtx.closePath();
-                            wbCanvasCtx.fillStyle = '#b91c1c'; // ลู่วิ่งสีแดงอิฐ
-                            wbCanvasCtx.fill();
-                            wbCanvasCtx.strokeStyle = '#f87171'; // ขอบลู่วิ่งเรืองแสง
-                            wbCanvasCtx.lineWidth = 3;
-                            wbCanvasCtx.stroke();
-                            
-                            // 4. วาดเส้นประเลนวิ่งเคลื่อนไหว (Scrolling curb & lines)
-                            roadOffset += wbCurrentRunningSpeed * 2.8;
-                            if (roadOffset > 100) roadOffset = 0;
-                            
-                            wbCanvasCtx.save();
-                            wbCanvasCtx.strokeStyle = '#ffffff';
-                            wbCanvasCtx.lineWidth = 2.5;
-                            wbCanvasCtx.setLineDash([15, 20]);
-                            wbCanvasCtx.lineDashOffset = -roadOffset;
-                            
-                            // เส้นขอบทางขาว-แดงสลับเลื่อนถอยหลัง
-                            // วาดเส้นประเลนขวา
-                            wbCanvasCtx.beginPath();
-                            wbCanvasCtx.moveTo(320, 200);
-                            wbCanvasCtx.lineTo(480, 480);
-                            wbCanvasCtx.stroke();
-                            
-                            // วาดเส้นประเลนซ้าย
-                            wbCanvasCtx.beginPath();
-                            wbCanvasCtx.moveTo(320, 200);
-                            wbCanvasCtx.lineTo(160, 480);
-                            wbCanvasCtx.stroke();
-                            wbCanvasCtx.restore();
-                            
-                            // 5. วาดตัวละคร Emoji 🏃‍♂️ วิ่งสลับขาตามเวลา
-                            wbCanvasCtx.save();
-                            wbCanvasCtx.font = '85px Arial';
-                            wbCanvasCtx.shadowColor = '#06b6d4'; // ออร่าสีฟ้านีออนไซเบอร์
-                            wbCanvasCtx.shadowBlur = Math.min(25, wbCurrentRunningSpeed * 4);
-                            wbCanvasCtx.textAlign = 'center';
-                            wbCanvasCtx.textBaseline = 'middle';
-                            
-                            // ขยับสั่นตัวขึ้นลงตาม sine wave เพื่อให้มีมิติการวิ่งจริง
-                            const runAnimOffset = wbCurrentRunningSpeed > 0 ? Math.sin(performance.now() * 0.015 * wbCurrentRunningSpeed) * 10 : 0;
-                            wbCanvasCtx.fillText('🏃‍♂️', 320, 390 + runAnimOffset);
-                            wbCanvasCtx.restore();
-                            
-                            // 6. วาด Gradient Neon Speedometer Gauge (ขวาบน)
-                            wbCanvasCtx.save();
-                            const centerX = 540;
-                            const centerY = 100;
-                            const radius = 60;
-                            
-                            // วาดขอบวงกลมเกจ
-                            wbCanvasCtx.beginPath();
-                            wbCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, Math.PI * 2.2);
-                            wbCanvasCtx.strokeStyle = '#1e293b';
-                            wbCanvasCtx.lineWidth = 10;
-                            wbCanvasCtx.lineCap = 'round';
-                            wbCanvasCtx.stroke();
-                            
-                            // วาดเกจเรืองแสงตามสปีดจริง
-                            const speedPercent = Math.min(1.0, wbCurrentRunningSpeed / 6.5);
-                            const endAngle = Math.PI * 0.8 + (Math.PI * 1.4 * speedPercent);
-                            
-                            const grad = wbCanvasCtx.createRadialGradient(centerX, centerY, radius - 10, centerX, centerY, radius + 10);
-                            grad.addColorStop(0, '#06b6d4');
-                            grad.addColorStop(1, '#06b6d4');
-                            
-                            wbCanvasCtx.beginPath();
-                            wbCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, endAngle);
-                            wbCanvasCtx.strokeStyle = grad;
-                            wbCanvasCtx.shadowColor = '#06b6d4';
-                            wbCanvasCtx.shadowBlur = 15;
-                            wbCanvasCtx.lineWidth = 10;
-                            wbCanvasCtx.lineCap = 'round';
-                            wbCanvasCtx.stroke();
-                            
-                            // เขียนเข็มชี้เกจความเร็ว
-                            wbCanvasCtx.restore();
-                            wbCanvasCtx.save();
-                            wbCanvasCtx.font = 'bold 16px Prompt, sans-serif';
-                            wbCanvasCtx.fillStyle = '#06b6d4';
-                            wbCanvasCtx.shadowColor = '#06b6d4';
-                            wbCanvasCtx.shadowBlur = 8;
-                            wbCanvasCtx.textAlign = 'center';
-                            wbCanvasCtx.fillText(`${(wbCurrentRunningSpeed * 3.6).toFixed(1)} km/h`, centerX, centerY + 10); // แสดงเป็น km/h จำลองเพื่อความสวยงาม
-                            
-                            wbCanvasCtx.font = '900 10px Prompt, sans-serif';
-                            wbCanvasCtx.fillStyle = '#94a3b8';
-                            wbCanvasCtx.shadowBlur = 0;
-                            wbCanvasCtx.fillText('SPEEDOMETER', centerX, centerY - 15);
-                            wbCanvasCtx.restore();
-                            
-                            // 7. วาดตัวเลขระยะทางสะสมขนาดใหญ่เรืองแสง (กลางบน)
-                            wbCanvasCtx.save();
-                            wbCanvasCtx.font = '900 48px Prompt, sans-serif';
-                            wbCanvasCtx.fillStyle = '#fbbf24'; // สีทอง
-                            wbCanvasCtx.shadowColor = '#fbbf24';
-                            wbCanvasCtx.shadowBlur = 20;
-                            wbCanvasCtx.textAlign = 'center';
-                            wbCanvasCtx.fillText(`${wbTotalDistance.toFixed(1)} m`, 320, 100);
-                            wbCanvasCtx.restore();
+                            // 🎨 [เฟสที่ 5: วาด Canvas แอนิเมชันลู่วิ่ง Parallax และเกจความเร็ว Speedometer บนจอวิ่งแยกต่างหาก]
+                            if (runnerCanvasCtx) {
+                                runnerCanvasCtx.save();
+                                runnerCanvasCtx.clearRect(0, 0, width, height);
+                                
+                                // 1. วาดฉากหลังอวกาศ/ท้องฟ้าสีเข้มพรีเมียม
+                                runnerCanvasCtx.fillStyle = '#080a18';
+                                runnerCanvasCtx.fillRect(0, 0, width, height);
+                                
+                                // 2. วาดขอบฟ้าและสนามหญ้าขอบลู่วิ่ง
+                                runnerCanvasCtx.fillStyle = '#065f46'; // เขียวเข้ม
+                                runnerCanvasCtx.fillRect(0, 200, width, 280);
+                                
+                                // 3. วาดรูปทรงลู่วิ่ง 3D Perspective (สี่เหลี่ยมคางหมู)
+                                runnerCanvasCtx.beginPath();
+                                runnerCanvasCtx.moveTo(240, 200); // ขอบฟ้าซ้าย
+                                runnerCanvasCtx.lineTo(400, 200); // ขอบฟ้าขวา
+                                runnerCanvasCtx.lineTo(600, 480); // ล่างขวา
+                                runnerCanvasCtx.lineTo(40, 480);  // ล่างซ้าย
+                                runnerCanvasCtx.closePath();
+                                runnerCanvasCtx.fillStyle = '#b91c1c'; // ลู่วิ่งสีแดงอิฐ
+                                runnerCanvasCtx.fill();
+                                runnerCanvasCtx.strokeStyle = '#f87171'; // ขอบลู่วิ่งเรืองแสง
+                                runnerCanvasCtx.lineWidth = 3;
+                                runnerCanvasCtx.stroke();
+                                
+                                // 4. วาดเส้นประเลนวิ่งเคลื่อนไหว (Scrolling curb & lines)
+                                roadOffset += wbCurrentRunningSpeed * 2.8;
+                                if (roadOffset > 100) roadOffset = 0;
+                                
+                                runnerCanvasCtx.save();
+                                runnerCanvasCtx.strokeStyle = '#ffffff';
+                                runnerCanvasCtx.lineWidth = 2.5;
+                                runnerCanvasCtx.setLineDash([15, 20]);
+                                runnerCanvasCtx.lineDashOffset = -roadOffset;
+                                
+                                // เส้นขอบทางขาว-แดงสลับเลื่อนถอยหลัง
+                                // วาดเส้นประเลนขวา
+                                runnerCanvasCtx.beginPath();
+                                runnerCanvasCtx.moveTo(320, 200);
+                                runnerCanvasCtx.lineTo(480, 480);
+                                runnerCanvasCtx.stroke();
+                                
+                                // วาดเส้นประเลนซ้าย
+                                runnerCanvasCtx.beginPath();
+                                runnerCanvasCtx.moveTo(320, 200);
+                                runnerCanvasCtx.lineTo(160, 480);
+                                runnerCanvasCtx.stroke();
+                                runnerCanvasCtx.restore();
+                                
+                                // 5. วาดตัวละคร Emoji 🏃‍♂️ วิ่งสลับขาตามเวลา
+                                runnerCanvasCtx.save();
+                                runnerCanvasCtx.font = '85px Arial';
+                                runnerCanvasCtx.shadowColor = '#06b6d4'; // ออร่าสีฟ้านีออนไซเบอร์
+                                runnerCanvasCtx.shadowBlur = Math.min(25, wbCurrentRunningSpeed * 4);
+                                runnerCanvasCtx.textAlign = 'center';
+                                runnerCanvasCtx.textBaseline = 'middle';
+                                
+                                // ขยับสั่นตัวขึ้นลงตาม sine wave เพื่อให้มีมิติการวิ่งจริง
+                                const runAnimOffset = wbCurrentRunningSpeed > 0 ? Math.sin(performance.now() * 0.015 * wbCurrentRunningSpeed) * 10 : 0;
+                                runnerCanvasCtx.fillText('🏃‍♂️', 320, 390 + runAnimOffset);
+                                runnerCanvasCtx.restore();
+                                
+                                // 6. วาด Gradient Neon Speedometer Gauge (ขวาบน)
+                                runnerCanvasCtx.save();
+                                const centerX = 540;
+                                const centerY = 100;
+                                const radius = 60;
+                                
+                                // วาดขอบวงกลมเกจ
+                                runnerCanvasCtx.beginPath();
+                                runnerCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, Math.PI * 2.2);
+                                runnerCanvasCtx.strokeStyle = '#1e293b';
+                                runnerCanvasCtx.lineWidth = 10;
+                                runnerCanvasCtx.lineCap = 'round';
+                                runnerCanvasCtx.stroke();
+                                
+                                // วาดเกจเรืองแสงตามสปีดจริง
+                                const speedPercent = Math.min(1.0, wbCurrentRunningSpeed / 6.5);
+                                const endAngle = Math.PI * 0.8 + (Math.PI * 1.4 * speedPercent);
+                                
+                                const grad = runnerCanvasCtx.createRadialGradient(centerX, centerY, radius - 10, centerX, centerY, radius + 10);
+                                grad.addColorStop(0, '#06b6d4');
+                                grad.addColorStop(1, '#06b6d4');
+                                
+                                runnerCanvasCtx.beginPath();
+                                runnerCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, endAngle);
+                                runnerCanvasCtx.strokeStyle = grad;
+                                runnerCanvasCtx.shadowColor = '#06b6d4';
+                                runnerCanvasCtx.shadowBlur = 15;
+                                runnerCanvasCtx.lineWidth = 10;
+                                runnerCanvasCtx.lineCap = 'round';
+                                runnerCanvasCtx.stroke();
+                                
+                                // เขียนเข็มชี้เกจความเร็ว
+                                runnerCanvasCtx.restore();
+                                runnerCanvasCtx.save();
+                                runnerCanvasCtx.font = 'bold 16px Prompt, sans-serif';
+                                runnerCanvasCtx.fillStyle = '#06b6d4';
+                                runnerCanvasCtx.shadowColor = '#06b6d4';
+                                runnerCanvasCtx.shadowBlur = 8;
+                                runnerCanvasCtx.textAlign = 'center';
+                                runnerCanvasCtx.fillText(`${(wbCurrentRunningSpeed * 3.6).toFixed(1)} km/h`, centerX, centerY + 10); // แสดงเป็น km/h จำลองเพื่อความสวยงาม
+                                
+                                runnerCanvasCtx.font = '900 10px Prompt, sans-serif';
+                                runnerCanvasCtx.fillStyle = '#94a3b8';
+                                runnerCanvasCtx.shadowBlur = 0;
+                                runnerCanvasCtx.fillText('SPEEDOMETER', centerX, centerY - 15);
+                                runnerCanvasCtx.restore();
+                                
+                                // 7. วาดตัวเลขระยะทางสะสมขนาดใหญ่เรืองแสง (กลางบน)
+                                runnerCanvasCtx.save();
+                                runnerCanvasCtx.font = '900 48px Prompt, sans-serif';
+                                runnerCanvasCtx.fillStyle = '#fbbf24'; // สีทอง
+                                runnerCanvasCtx.shadowColor = '#fbbf24';
+                                runnerCanvasCtx.shadowBlur = 20;
+                                runnerCanvasCtx.textAlign = 'center';
+                                runnerCanvasCtx.fillText(`${wbTotalDistance.toFixed(1)} m`, 320, 100);
+                                runnerCanvasCtx.restore();
+                                
+                                // 8. วาดสเตทตรวจจับความเคลื่อนไหวบนจอใหญ่อย่างชัดเจน
+                                runnerCanvasCtx.save();
+                                let statusText = '🧍 หยุดยืน (Idle)';
+                                let statusColor = '#94a3b8';
+                                if (detectedActiveState === 'JUMPING') {
+                                    statusText = '🦘 กำลังกระโดด! (JUMP)';
+                                    statusColor = '#38bdf8';
+                                } else if (detectedActiveState === 'CROUCHING') {
+                                    statusText = '🕳️ กำลังก้มย่อ! (CROUCH)';
+                                    statusColor = '#fb923c';
+                                } else if (detectedActiveState === 'RUNNING') {
+                                    statusText = '🏃 กำลังวิ่งลุยด่าน! (RUN)';
+                                    statusColor = '#39ff14';
+                                }
+                                runnerCanvasCtx.font = 'bold 20px Prompt, sans-serif';
+                                runnerCanvasCtx.fillStyle = statusColor;
+                                runnerCanvasCtx.shadowColor = statusColor;
+                                runnerCanvasCtx.shadowBlur = 10;
+                                runnerCanvasCtx.textAlign = 'center';
+                                runnerCanvasCtx.fillText(statusText, 320, 160);
+                                runnerCanvasCtx.restore();
+                                
+                                runnerCanvasCtx.restore();
+                            }
                         }
                     }
                 }
@@ -2230,7 +2325,12 @@
             let chosenCoins = 100;
             let chosenXp = 100;
             
-            if (durationSec === 20) {
+            if (durationSec === 10) {
+                chosenBossId = 'WB002_10';
+                chosenHp = 100;
+                chosenCoins = 80;
+                chosenXp = 80;
+            } else if (durationSec === 20) {
                 chosenBossId = 'WB002_20';
                 chosenHp = 200;
                 chosenCoins = 150;
