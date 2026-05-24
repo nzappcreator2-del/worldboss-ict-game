@@ -95,12 +95,11 @@
         
         // แสดงข้อความโหลดรอ
         const listContainer = document.getElementById('wb-boss-list');
-        listContainer.innerHTML = `
-            <div class="col-span-full flex flex-col items-center justify-center p-12 text-white">
-                <div class="inline-block w-10 h-10 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                <p class="font-bold text-purple-200">🔮 กำลังเปิดประตูมิติและอัญเชิญมินิเกม...</p>
-            </div>
-        `;
+        listContainer.innerHTML = 
+            '<div class="col-span-full flex flex-col items-center justify-center p-12 text-white">' +
+                '<div class="inline-block w-10 h-10 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin mb-4"></div>' +
+                '<p class="font-bold text-purple-200">🔮 กำลังเปิดประตูมิติและอัญเชิญมินิเกม...</p>' +
+            '</div>';
         
         // เรียกดึงข้อมูลการตั้งค่าบอสทั้งหมดจาก Google Sheets API
         if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -136,25 +135,24 @@
     function renderWorldBossLobby(bosses) {
         const listContainer = document.getElementById('wb-boss-list');
         if (bosses.length === 0) {
-            listContainer.innerHTML = `
-                <div class="col-span-full text-center text-gray-300 p-8 rpg-box bg-slate-900 border-4 border-slate-700 rounded-3xl">
-                    ⚔️ ขณะนี้เวิลด์บอสทั้งหมดกำลังพักฟื้นพลัง! โปรดกลับมาท้าทายใหม่ในภายหลัง
-                </div>
-            `;
+            listContainer.innerHTML = 
+                '<div class="col-span-full text-center text-gray-300 p-8 rpg-box bg-slate-900 border-4 border-slate-700 rounded-3xl">' +
+                    '⚔️ ขณะนี้เวิลด์บอสทั้งหมดกำลังพักฟื้นพลัง! โปรดกลับมาท้าทายใหม่ในภายหลัง' +
+                '</div>';
             return;
         }
         
         let html = '';
         bosses.forEach(boss => {
             // ค้นหาสถิติเวลาส่วนตัวใน LocalStorage เพื่อเอามาโชว์ทันทีแบบรวดเร็ว
-            const localPB = localStorage.getItem(`wb_best_time_${currentUser ? currentUser.id : 'local'}_${boss.id}`);
+            const localPB = localStorage.getItem('wb_best_time_' + (currentUser ? currentUser.id : 'local') + '_' + boss.id);
             const isWb002 = String(boss.id).indexOf('WB002') === 0;
             let pbDisplay = '⏳ ยังไม่มีสถิติ';
             if (localPB) {
                 if (isWb002) {
-                    pbDisplay = `🔥 ระยะทางไกลสุด: <span class="text-yellow-400 font-black">${parseFloat(localPB).toFixed(2)} เมตร</span>`;
+                    pbDisplay = '🔥 ระยะทางไกลสุด: <span class="text-yellow-400 font-black">' + parseFloat(localPB).toFixed(2) + ' เมตร</span>';
                 } else {
-                    pbDisplay = `🔥 เวลาที่ดีที่สุด: <span class="text-yellow-400 font-black">${parseFloat(localPB).toFixed(2)}s</span>`;
+                    pbDisplay = '🔥 เวลาที่ดีที่สุด: <span class="text-yellow-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
                 }
             }
             
@@ -195,52 +193,48 @@
             const bossToStart = { ...boss, name: displayName };
             const targetLabel = isWb002 ? ('วิ่งจำกัดเวลา ' + boss.targetReps + ' วินาที') : (boss.targetReps + ' ครั้ง');
             
-            html += `
-                <div class="rpg-box bg-slate-900/95 text-white p-6 rounded-3xl border-4 ${cardBorderColor} flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:scale-[1.01]">
-                    <div class="absolute inset-0 bg-gradient-to-tr from-slate-950/40 via-slate-900/40 to-transparent pointer-events-none"></div>
-                    <div class="relative z-10 flex gap-4 items-start">
-                        <div class="text-6xl drop-shadow-md select-none">${emoji}</div>
-                        <div class="flex-1">
-                            <span class="${badgeBg} text-[10px] font-black uppercase px-2.5 py-1 rounded-full border tracking-wider shadow-inner">MINI-GAME</span>
-                            <h3 class="font-black text-xl md:text-2xl mt-1.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${textGlow}">${displayName}</h3>
-                            <p class="text-gray-400 font-bold text-xs mt-1.5 flex items-center gap-1">
-                                <span>🎯 เงื่อนไข:</span> 
-                                <span class="text-emerald-400 font-extrabold bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">${poseLabel} ${targetLabel}</span>
-                            </p>
-                            <p class="text-xs text-gray-300 font-medium mt-3 leading-relaxed border-t border-slate-800/50 pt-2.5">
-                                ${bossDesc}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <!-- ของรางวัลและการแสดงผลสถิติ -->
-                    <div class="relative z-10 mt-6 grid grid-cols-2 gap-3 border-t border-b border-slate-800 py-3 mb-6 bg-slate-950/40 px-3 rounded-2xl border border-slate-800/30">
-                        <div class="flex flex-col">
-                            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">รางวัลเมื่อพิชิต</span>
-                            <div class="flex items-center gap-1.5 mt-0.5">
-                                <span class="text-sm">🪙</span><span class="text-xs font-black text-yellow-400">+${boss.rewardCoins}</span>
-                                <span class="text-sm">⭐</span><span class="text-xs font-black text-indigo-400">+${boss.rewardXp} XP</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col text-right justify-center">
-                            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">บันทึกของท่าน</span>
-                            <div class="text-xs font-bold text-gray-300 mt-0.5">${pbDisplay}</div>
-                        </div>
-                    </div>
-                    
-                    <!-- ปุ่มเริ่มเล่น และปุ่มอันดับ -->
-                    <div class="relative z-10 flex gap-3">
-                        <button onclick="startWorldBossBattle(${JSON.stringify(bossToStart).replace(/"/g, '&quot;')})" 
-                                class="flex-1 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-center rounded-xl shadow-lg border-b-4 border-indigo-800 active:border-b-0 cursor-pointer transform hover:scale-[1.02] transition">
-                            ⚔️ เล่นเกมส์
-                        </button>
-                        <button onclick="showWorldBossLeaderboard('${boss.id}')" 
-                                class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl border-b-4 border-slate-950 active:border-b-0 cursor-pointer transition flex items-center justify-center">
-                            🏆 อันดับ
-                        </button>
-                    </div>
-                </div>
-            `;
+            html += '<div class="rpg-box bg-slate-900/95 text-white p-6 rounded-3xl border-4 ' + cardBorderColor + ' flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:scale-[1.01]">' +
+                '<div class="absolute inset-0 bg-gradient-to-tr from-slate-950/40 via-slate-900/40 to-transparent pointer-events-none"></div>' +
+                '<div class="relative z-10 flex gap-4 items-start">' +
+                    '<div class="text-6xl drop-shadow-md select-none">' + emoji + '</div>' +
+                    '<div class="flex-1">' +
+                        '<span class="' + badgeBg + ' text-[10px] font-black uppercase px-2.5 py-1 rounded-full border tracking-wider shadow-inner">MINI-GAME</span>' +
+                        '<h3 class="font-black text-xl md:text-2xl mt-1.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ' + textGlow + '">' + displayName + '</h3>' +
+                        '<p class="text-gray-400 font-bold text-xs mt-1.5 flex items-center gap-1">' +
+                            '<span>🎯 เงื่อนไข:</span>' + 
+                            '<span class="text-emerald-400 font-extrabold bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">' + poseLabel + ' ' + targetLabel + '</span>' +
+                        '</p>' +
+                        '<p class="text-xs text-gray-300 font-medium mt-3 leading-relaxed border-t border-slate-800/50 pt-2.5">' +
+                            bossDesc +
+                        '</p>' +
+                    '</div>' +
+                '</div>' +
+                '<!-- ของรางวัลและการแสดงผลสถิติ -->' +
+                '<div class="relative z-10 mt-6 grid grid-cols-2 gap-3 border-t border-b border-slate-800 py-3 mb-6 bg-slate-950/40 px-3 rounded-2xl border border-slate-800/30">' +
+                    '<div class="flex flex-col">' +
+                        '<span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">รางวัลเมื่อพิชิต</span>' +
+                        '<div class="flex items-center gap-1.5 mt-0.5">' +
+                            '<span class="text-sm">🪙</span><span class="text-xs font-black text-yellow-400">+' + boss.rewardCoins + '</span>' +
+                            '<span class="text-sm">⭐</span><span class="text-xs font-black text-indigo-400">+' + boss.rewardXp + ' XP</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="flex flex-col text-right justify-center">' +
+                        '<span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">บันทึกของท่าน</span>' +
+                        '<div class="text-xs font-bold text-gray-300 mt-0.5">' + pbDisplay + '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<!-- ปุ่มเริ่มเล่น และปุ่มอันดับ -->' +
+                '<div class="relative z-10 flex gap-3">' +
+                    '<button onclick="startWorldBossBattle(' + JSON.stringify(bossToStart).replace(/"/g, '&quot;') + ')" ' +
+                            'class="flex-1 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-center rounded-xl shadow-lg border-b-4 border-indigo-800 active:border-b-0 cursor-pointer transform hover:scale-[1.02] transition">' +
+                        '⚔️ เล่นเกมส์' +
+                    '</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'' + boss.id + '\')" ' +
+                            'class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl border-b-4 border-slate-950 active:border-b-0 cursor-pointer transition flex items-center justify-center">' +
+                        '🏆 อันดับ' +
+                    '</button>' +
+                '</div>' +
+            '</div>';
         });
         
         listContainer.innerHTML = html;
@@ -255,17 +249,16 @@
         container.classList.remove('hidden');
         
         const titleEl = document.getElementById('wb-leaderboard-title');
-        titleEl.innerHTML = `🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10) - กำลังดึงข้อมูล...`;
+        titleEl.innerHTML = '🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10) - กำลังดึงข้อมูล...';
         
         const bodyEl = document.getElementById('wb-leaderboard-body');
-        bodyEl.innerHTML = `
-            <tr>
-                <td colspan="5" class="p-6 text-center text-gray-500 font-bold">
-                    <div class="inline-block w-6 h-6 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mr-2 align-middle"></div>
-                    กำลังดาวน์โหลดทำเนียบผู้กล้าจากหอเกียรติยศหลังบ้าน...
-                </td>
-            </tr>
-        `;
+        bodyEl.innerHTML = 
+            '<tr>' +
+                '<td colspan="5" class="p-6 text-center text-gray-500 font-bold">' +
+                    '<div class="inline-block w-6 h-6 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mr-2 align-middle"></div>' +
+                    'กำลังดาวน์โหลดทำเนียบผู้กล้าจากหอเกียรติยศหลังบ้าน...' +
+                '</td>' +
+            '</tr>';
         
         // ม้วนหน้าจอลงมาที่ตารางผู้นำอย่างนุ่มนวล
         container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -274,66 +267,61 @@
             google.script.run
                 .withSuccessHandler(function(res) {
                     if (res.success) {
-                        titleEl.innerHTML = `🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10) - ${res.bossName || 'World Boss'}`;
+                        titleEl.innerHTML = '🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10) - ' + (res.bossName || 'World Boss');
                         if (!res.data || res.data.length === 0) {
-                            bodyEl.innerHTML = `
-                                <tr>
-                                    <td colspan="5" class="p-8 text-center text-gray-500 italic">
-                                        ยังไม่มีผู้กล้าคนใดพิชิตบอสตัวนี้สำเร็จ! 🚀<br>
-                                        <span class="text-xs text-purple-400 font-bold font-prompt">จงเป็นคนแรกที่เอาชนะและฝากชื่อจารึกไว้ในประวัติศาสตร์!</span>
-                                    </td>
-                                </tr>
-                            `;
+                            bodyEl.innerHTML = 
+                                '<tr>' +
+                                    '<td colspan="5" class="p-8 text-center text-gray-500 italic">' +
+                                        'ยังไม่มีผู้กล้าคนใดพิชิตบอสตัวนี้สำเร็จ! 🚀<br>' +
+                                        '<span class="text-xs text-purple-400 font-bold font-prompt">จงเป็นคนแรกที่เอาชนะและฝากชื่อจารึกไว้ในประวัติศาสตร์!</span>' +
+                                    '</td>' +
+                                '</tr>';
                             return;
                         }
                         
                         let html = '';
                         res.data.forEach((row, index) => {
-                            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`;
+                            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
                             
                             // ไฮไลต์แถวของตัวเอง
                             const isMe = currentUser && String(row.userId) === String(currentUser.id);
                             const rowClass = isMe ? 'bg-yellow-100/90 font-extrabold border-l-4 border-yellow-500 text-yellow-950' : 'hover:bg-purple-50/50';
                             
-                            html += `
-                                <tr class="${rowClass} transition duration-150">
-                                    <td class="p-3 text-center text-base">${medal}</td>
-                                    <td class="p-3 font-black">${row.name} ${isMe ? ' (คุณ)' : ''}</td>
-                                    <td class="p-3 text-center">${row.className}</td>
-                                    <td class="p-3 text-right text-purple-700 font-mono font-black">${row.bestTime.toFixed(2)} ${isWb002 ? 'เมตร' : 'วินาที'}</td>
-                                    <td class="p-3 text-center text-xs text-gray-400 font-bold">${row.date}</td>
-                                </tr>
-                            `;
+                            html += '<tr class="' + rowClass + ' transition duration-150">' +
+                                '<td class="p-3 text-center text-base">' + medal + '</td>' +
+                                '<td class="p-3 font-black">' + row.name + (isMe ? ' (คุณ)' : '') + '</td>' +
+                                '<td class="p-3 text-center">' + row.className + '</td>' +
+                                '<td class="p-3 text-right text-purple-700 font-mono font-black">' + row.bestTime.toFixed(2) + ' ' + (isWb002 ? 'เมตร' : 'วินาที') + '</td>' +
+                                '<td class="p-3 text-center text-xs text-gray-400 font-bold">' + row.date + '</td>' +
+                            '</tr>';
                         });
                         bodyEl.innerHTML = html;
                     } else {
-                        bodyEl.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">❌ โหลดข้อมูลผิดพลาด: ${res.error}</td></tr>`;
+                        bodyEl.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">❌ โหลดข้อมูลผิดพลาด: ' + res.error + '</td></tr>';
                     }
                 })
                 .withFailureHandler(function(err) {
-                    bodyEl.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">❌ เกิดข้อผิดพลาดในการติดต่อเซิร์ฟเวอร์</td></tr>`;
+                    bodyEl.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">❌ เกิดข้อผิดพลาดในการติดต่อเซิร์ฟเวอร์</td></tr>';
                 })
                 .getWorldBossLeaderboard(bossId);
         } else {
             // โหมดทดสอบ Local/Offline Sandbox
             setTimeout(() => {
-                titleEl.innerHTML = `🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10) - บอสจำลอง`;
+                titleEl.innerHTML = '🏆 ทำเนียบสถิติที่ดีที่สุด (Top 10) - บอสจำลอง';
                 const mockLB = [
                     { userId: 'U1', name: 'สมชาย นักรบสายย่อ', className: 'ป.5/2', bestTime: 12.35, date: '2026-05-22' },
                     { userId: 'U2', name: 'สมหญิง สปีดสควอท', className: 'ป.4/1', bestTime: 14.88, date: '2026-05-22' }
                 ];
                 let html = '';
                 mockLB.forEach((row, index) => {
-                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : `${index + 1}`;
-                    html += `
-                        <tr class="hover:bg-purple-50/50">
-                            <td class="p-3 text-center">${medal}</td>
-                            <td class="p-3 font-bold">${row.name}</td>
-                            <td class="p-3 text-center">${row.className}</td>
-                            <td class="p-3 text-right text-purple-700 font-mono font-bold">${row.bestTime.toFixed(2)} ${isWb002 ? 'เมตร' : 'วินาที'}</td>
-                            <td class="p-3 text-center text-xs text-gray-400">${row.date}</td>
-                        </tr>
-                    `;
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : (index + 1);
+                    html += '<tr class="hover:bg-purple-50/50">' +
+                        '<td class="p-3 text-center">' + medal + '</td>' +
+                        '<td class="p-3 font-bold">' + row.name + '</td>' +
+                        '<td class="p-3 text-center">' + row.className + '</td>' +
+                        '<td class="p-3 text-right text-purple-700 font-mono font-bold">' + row.bestTime.toFixed(2) + ' ' + (isWb002 ? 'เมตร' : 'วินาที') + '</td>' +
+                        '<td class="p-3 text-center text-xs text-gray-400">' + row.date + '</td>' +
+                    '</tr>';
                 });
                 bodyEl.innerHTML = html;
             }, 500);
@@ -356,12 +344,11 @@
             // แสดงสถานะสปินเนอร์เพื่อความสวยงามในขณะรอสร้างประตูเชื่อมต่อ
             const listContainer = document.getElementById('wb-boss-list');
             const originalContent = listContainer.innerHTML;
-            listContainer.innerHTML = `
-                <div class="col-span-full flex flex-col items-center justify-center p-12 text-white">
-                    <div class="inline-block w-10 h-10 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                    <p class="font-bold text-purple-200">🔮 กำลังเปิดประตูมิติสมรภูมิรบภายนอกและเชื่อมต่อ API...</p>
-                </div>
-            `;
+            listContainer.innerHTML = 
+                '<div class="col-span-full flex flex-col items-center justify-center p-12 text-white">' +
+                    '<div class="inline-block w-10 h-10 border-4 border-purple-300 border-t-purple-600 rounded-full animate-spin mb-4"></div>' +
+                    '<p class="font-bold text-purple-200">🔮 กำลังเปิดประตูมิติสมรภูมิรบภายนอกและเชื่อมต่อ API...</p>' +
+                '</div>';
             
             google.script.run
                 .withSuccessHandler(function(webAppUrl) {
@@ -966,16 +953,16 @@
         const finalTime = Math.round(wbElapsedTime * 100) / 100;
         
         // อัปเดตแสดงหน้า Victory Modal
-        document.getElementById('wb-victory-boss-name').innerText = `ผู้สยบ: ${wbCurrentBoss.name}`;
+        document.getElementById('wb-victory-boss-name').innerText = 'ผู้สยบ: ' + wbCurrentBoss.name;
         document.getElementById('wb-victory-time').innerText = finalTime.toFixed(2);
         
         // เตรียมโมเดลข้อมูลเหรียญและ XP
-        document.getElementById('wb-victory-reward-coins').innerText = `+${wbCurrentBoss.rewardCoins} เหรียญ`;
-        document.getElementById('wb-victory-reward-xp').innerText = `+${wbCurrentBoss.rewardXp} XP`;
+        document.getElementById('wb-victory-reward-coins').innerText = '+' + wbCurrentBoss.rewardCoins + ' เหรียญ';
+        document.getElementById('wb-victory-reward-xp').innerText = '+' + wbCurrentBoss.rewardXp + ' XP';
         
         // ตั้งค่าเตรียมหน้าต่างสถิติใหม่
         document.getElementById('wb-victory-best-badge').classList.add('hidden');
-        document.getElementById('wb-victory-prev-best').innerText = `กำลังบันทึกคะแนน...`;
+        document.getElementById('wb-victory-prev-best').innerText = 'กำลังบันทึกคะแนน...';
         
         const victoryModal = document.getElementById('wb-victory-modal');
         victoryModal.classList.remove('hidden');
@@ -996,13 +983,13 @@
                         }
                         
                         // บันทึกลง LocalStorage ช่วยจำ PB รวดเร็ว
-                        localStorage.setItem(`wb_best_time_${currentUser.id}_${wbCurrentBoss.id}`, res.bestTime);
+                        localStorage.setItem('wb_best_time_' + currentUser.id + '_' + wbCurrentBoss.id, res.bestTime);
                         
                         // แจ้งเตือนสถิติเดิม
                         if (res.previousBest !== null && res.previousBest !== undefined) {
-                            document.getElementById('wb-victory-prev-best').innerText = `${res.previousBest.toFixed(2)} วินาที`;
+                            document.getElementById('wb-victory-prev-best').innerText = res.previousBest.toFixed(2) + ' วินาที';
                         } else {
-                            document.getElementById('wb-victory-prev-best').innerText = `ยังไม่มีสถิติเดิม`;
+                            document.getElementById('wb-victory-prev-best').innerText = 'ยังไม่มีสถิติเดิม';
                         }
                         
                         // ถ้าทำลายสถิติเก่าหรือได้สถิติแรก ให้ชูป้ายฉลองเกียรติยศ
@@ -1019,18 +1006,18 @@
                             } catch(e) {}
                         }
                     } else {
-                        document.getElementById('wb-victory-prev-best').innerText = `ผิดพลาด: ${res.error}`;
+                        document.getElementById('wb-victory-prev-best').innerText = 'ผิดพลาด: ' + res.error;
                     }
                 })
                 .withFailureHandler(function(err) {
-                    document.getElementById('wb-victory-prev-best').innerText = `เชื่อมต่อล้มเหลว`;
+                    document.getElementById('wb-victory-prev-best').innerText = 'เชื่อมต่อล้มเหลว';
                     customAlert('ไม่สามารถเซฟข้อมูลขึ้น Sheets ได้ สถิติจะถูกจัดเก็บบนเครื่องชั่วคราว', 'warning');
                 })
                 .submitWorldBossScore(currentUser.id, wbCurrentBoss.id, finalTime);
         } else {
             // โหมดจำลองความเร็วออฟไลน์
             setTimeout(() => {
-                document.getElementById('wb-victory-prev-best').innerText = `18.50 วินาที`;
+                document.getElementById('wb-victory-prev-best').innerText = '18.50 วินาที';
                 document.getElementById('wb-victory-best-badge').classList.remove('hidden');
                 
                 // จำลองเพิ่ม XP ใน Local
@@ -1039,7 +1026,7 @@
                     currentUser.xp += wbCurrentBoss.rewardXp;
                     if (typeof updateDashboardInfo === 'function') updateDashboardInfo();
                 }
-                localStorage.setItem(`wb_best_time_local_${wbCurrentBoss.id}`, finalTime);
+                localStorage.setItem('wb_best_time_local_' + wbCurrentBoss.id, finalTime);
             }, 800);
         }
     }
