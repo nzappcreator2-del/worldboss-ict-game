@@ -1350,11 +1350,11 @@
                                     let rdy = Math.abs(rightWristYHistory[i] - rightWristYHistory[i-1]);
                                     let rdx = Math.abs(rightWristXHistory[i] - rightWristXHistory[i-1]);
                                     
-                                    // 🛡️ Noise Deadzone: กรองสัญญาณสั่นไหวเล็กน้อยของกล้องเว็บแคม (ปรับตึงขึ้นเป็น 0.010 ขจัด Jitter ของกล้องโรงเรียนหมดจด)
-                                    if (dy < 0.010) dy = 0;
-                                    if (dx < 0.010) dx = 0;
-                                    if (rdy < 0.010) rdy = 0;
-                                    if (rdx < 0.010) rdx = 0;
+                                    // 🛡️ Noise Deadzone: กรองสัญญาณสั่นไหวเล็กน้อยของกล้องเว็บแคม (ปรับตึงขึ้นเป็น 0.015 ขจัด Jitter ของกล้องโรงเรียนหมดจด)
+                                    if (dy < 0.015) dy = 0;
+                                    if (dx < 0.015) dx = 0;
+                                    if (rdy < 0.015) rdy = 0;
+                                    if (rdx < 0.015) rdx = 0;
                                     
                                     wristActivity += dy + dx + rdy + rdx;
                                 }
@@ -1372,8 +1372,9 @@
                                     let dy = Math.abs(leftElbowYHistory[i] - leftElbowYHistory[i-1]);
                                     let rdy = Math.abs(rightElbowYHistory[i] - rightElbowYHistory[i-1]);
                                     
-                                    if (dy < 0.010) dy = 0;
-                                    if (rdy < 0.010) rdy = 0;
+                                    // 🛡️ กรอง Jitter ปานกลางของข้อศอก
+                                    if (dy < 0.015) dy = 0;
+                                    if (rdy < 0.015) rdy = 0;
                                     
                                     elbowActivity += dy + rdy;
                                 }
@@ -1388,7 +1389,7 @@
                             if (motionHistory.length >= 2) {
                                 for (let i = 1; i < motionHistory.length; i++) {
                                     let dy = Math.abs(motionHistory[i] - motionHistory[i-1]);
-                                    if (dy < 0.005) dy = 0;
+                                    if (dy < 0.008) dy = 0;
                                     shoulderActivity += dy;
                                 }
                             }
@@ -1408,7 +1409,7 @@
                         // กรองระดับความสูงข้อมือ: ต้องยกข้อศอกและข้อมือขึ้นสูงกว่าระดับสะโพกอย่างชัดเจน (พุงและเอว)
                         // และต้องอยู่ต่ำกว่าไหล่ลงมาพอควร เพื่อป้องกันคนยืนปล่อยมือห้อยข้างตัว (ยืนเฉยๆ) ตกอยู่ในขอบเขตสะโพกแล้วมาริโอ้วิ่งเอง
                         const bellyMinY = avgShoulderYVal + currentBodyLen * 0.15;
-                        const bellyMaxY = avgHipYVal - currentBodyLen * 0.05; // เหนือระดับสะโพกขึ้นมา 5% ลำตัว (ขจัดท่ายืนปล่อยห้อยแขน 100%)
+                        const bellyMaxY = avgHipYVal - currentBodyLen * 0.15; // เหนือระดับสะโพกขึ้นมา 15% ลำตัว (ขจัดท่ายืนปล่อยห้อยแขน 100%)
                         
                         const leftInBelly = leftWrist && leftWrist.visibility > 0.5 && (leftWrist.y >= bellyMinY && leftWrist.y <= bellyMaxY);
                         const rightInBelly = rightWrist && rightWrist.visibility > 0.5 && (rightWrist.y >= bellyMinY && rightWrist.y <= bellyMaxY);
@@ -1420,7 +1421,7 @@
                             activeStateCandidate = 'JUMPING';
                         } else if (avgNoseY > baseNoseY + crouchThreshold) {
                             activeStateCandidate = 'CROUCHING';
-                        } else if (isBellyZoneActive && totalActivity > 0.040 && wristActivity > 0.010) { 
+                        } else if (isBellyZoneActive && totalActivity > 0.075 && wristActivity > 0.018) { 
                             // จูนเกณฑ์การทำท่าวิ่งให้ตึงและแน่นขึ้น (ขจัดปัญหายืนถูเสื้อถูแขนแล้วมาริโอ้วิ่งกระตุกเอง)
                             activeStateCandidate = 'RUNNING';
                         } else {

@@ -12,6 +12,25 @@
     <link rel="stylesheet" href="css/game.css?v=1.2">
   </head>
   <body>
+    <!-- 🎮 หน้าจอ Loading Screen 8-bit อลังการ ป้องกันความหน่วงและปลดล็อกเสียงใน iframe -->
+    <div id="mario-loading-screen" style="position: absolute; inset: 0; background-color: #000; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; font-family: 'Prompt', 'Mali', sans-serif; display: flex; color: #fff; text-align: center; border: 4px solid #ef4444; box-sizing: border-box; overflow: hidden; padding: 20px;">
+        <div style="font-size: 26px; font-weight: 900; color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.4); margin-bottom: 5px; font-family: monospace; letter-spacing: 3px;">SUPER MARIO</div>
+        <div style="font-size: 10px; font-weight: bold; color: #64748b; margin-bottom: 25px; tracking-wider; font-family: monospace; text-transform: uppercase;">WORLD BOSS: FITNESS EDITION</div>
+        
+        <!-- แถบจำลองการโหลดอัจฉริยะ -->
+        <div id="loading-bar-container" style="width: 180px; height: 14px; border: 2px solid #ef4444; padding: 2px; background-color: #0f172a; margin-bottom: 15px; box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);">
+            <div id="loading-bar-fill" style="width: 12%; height: 100%; background-color: #ef4444; transition: width 0.3s ease;"></div>
+        </div>
+        
+        <div id="loading-status-text" style="font-size: 9px; font-weight: bold; color: #ef4444; letter-spacing: 1px; font-family: monospace;">LOADING GAME ENGINE...</div>
+        
+        <!-- ปุ่มกดกะพริบสไตล์เกม NES ยุค 80s ปลดล็อกเสียงและฟิสิกส์ 100% -->
+        <button id="mario-start-btn" style="display: none; padding: 12px 28px; font-size: 14px; font-weight: 900; color: #fff; background-color: #ef4444; border: 3px solid #fff; border-radius: 8px; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,0.5); box-shadow: 0 0 15px rgba(239,68,68,0.5); font-family: 'Prompt', sans-serif; transition: all 0.2s;" onclick="startMarioGameReal()">
+            🎮 PRESS START GAME 🕹️
+        </button>
+        <div id="mario-click-tip" style="display: none; font-size: 8px; color: #94a3b8; margin-top: 10px; font-family: sans-serif;">*กรุณาคลิกเพื่อปลดล็อกเสียงประกอบและการควบคุม</div>
+    </div>
+
     <script type="text/javascript" src="js/util.js"></script>
     <script type="text/javascript" src="js/input.js"></script>
     <script type="text/javascript" src="js/resources.js"></script>
@@ -37,51 +56,296 @@
     <script type="text/javascript" src="js/levels/11tunnel.js"></script>
     <script type="text/javascript" src="js/game.js"></script>
     <script>
-        // 🌉 สะพานเชื่อม API สำหรับเวิลด์บอส (World Boss API Bridge - SMB1 NES)
+        // 🌉 สะพานเชื่อม API สำหรับเวิลด์บอส (World Boss API Bridge - SMB1 NES) & Preloader อัจฉริยะ
         
-        // 🎵 ระบบ Audio Unlocker อัจฉริยะ ป้องกัน Autoplay policy บล็อกเสียงในครั้งแรกที่รัน
         let audioUnlocked = false;
-        function unlockAudio() {
+        let assetsLoaded = false;
+        let gameStarted = false;
+
+        // 🎵 ลิสต์ไฟล์รูปภาพและเสียงประกอบทั้งหมดที่จะพรีโหลด
+        const imagesToLoad = [
+            'sprites/player.png',
+            'sprites/enemy.png',
+            'sprites/tiles.png',
+            'sprites/playerl.png',
+            'sprites/items.png',
+            'sprites/enemyr.png'
+        ];
+
+        const audioMusicFiles = {
+            overworld: 'sounds/aboveground_bgm.ogg',
+            underground: 'sounds/underground_bgm.ogg',
+            clear: 'sounds/stage_clear.wav',
+            death: 'sounds/mariodie.wav'
+        };
+
+        const audioSoundFiles = {
+            smallJump: 'sounds/jump-small.wav',
+            bigJump: 'sounds/jump-super.wav',
+            breakBlock: 'sounds/breakblock.wav',
+            bump: 'sounds/bump.wav',
+            coin: 'sounds/coin.wav',
+            fireball: 'sounds/fireball.wav',
+            flagpole: 'sounds/flagpole.wav',
+            kick: 'sounds/kick.wav',
+            pipe: 'sounds/pipe.wav',
+            itemAppear: 'sounds/itemAppear.wav',
+            powerup: 'sounds/powerup.wav',
+            stomp: 'sounds/stomp.wav'
+        };
+
+        // สร้าง Object เสียงระดับ Global ใน window ทันทีเพื่อเริ่มต้น Preload
+        window.music = {};
+        window.sounds = {};
+
+        // คํานวณจำนวนทรัพยากรทั้งหมด
+        const totalImages = imagesToLoad.length;
+        const totalMusic = Object.keys(audioMusicFiles).length;
+        const totalSounds = Object.keys(audioSoundFiles).length;
+        const totalItems = totalImages + totalMusic + totalSounds; // 6 + 4 + 12 = 22
+
+        let loadedItems = 0;
+        let isPreloadFinished = false;
+
+        // ฟังก์ชันบวกการโหลดสำเร็จและแสดงผลความคืบหน้า
+        function onItemLoaded(itemName) {
+            if (isPreloadFinished) return;
+            loadedItems++;
+            
+            const percent = Math.min(100, Math.floor((loadedItems / totalItems) * 100));
+            console.log(`📦 Loaded [${loadedItems}/${totalItems}] (${percent}%): ${itemName}`);
+            
+            // อัปเดต UI Loading Screen
+            const barFill = document.getElementById('loading-bar-fill');
+            if (barFill) barFill.style.width = percent + '%';
+            
+            const statusText = document.getElementById('loading-status-text');
+            if (statusText) {
+                statusText.innerText = `LOADING RESOURCES: ${percent}% (${loadedItems}/${totalItems})`;
+            }
+
+            if (loadedItems >= totalItems) {
+                finishPreload();
+            }
+        }
+
+        // กรณีโหลดช้าหรือบางไฟล์เสียงไม่ยอมยิง Event ให้ Timeout เพื่อความปลอดภัยของ UX
+        const preloadTimeout = setTimeout(() => {
+            if (!isPreloadFinished) {
+                console.warn("⚠️ Preload timeout reached. Forcing game start readiness.");
+                // บังคับเต็ม 100% เลยเพื่อไม่ให้ผู้เล่นค้างที่หน้าจอนี้
+                loadedItems = totalItems;
+                const barFill = document.getElementById('loading-bar-fill');
+                if (barFill) barFill.style.width = '100%';
+                finishPreload();
+            }
+        }, 4000); // หน่วงเวลาสูงสุด 4 วินาที
+
+        function finishPreload() {
+            if (isPreloadFinished) return;
+            isPreloadFinished = true;
+            clearTimeout(preloadTimeout);
+            
+            assetsLoaded = true;
+            console.log("🎮 [Preloader] All resources are loaded and ready!");
+            
+            const statusText = document.getElementById('loading-status-text');
+            if (statusText) statusText.innerText = 'PREPARING LEVEL 1-1...';
+            
+            setTimeout(() => {
+                const barContainer = document.getElementById('loading-bar-container');
+                const startBtn = document.getElementById('mario-start-btn');
+                const clickTip = document.getElementById('mario-click-tip');
+                
+                if (barContainer) barContainer.style.display = 'none';
+                if (statusText) statusText.style.display = 'none';
+                
+                if (startBtn) {
+                    startBtn.style.display = 'block';
+                    if (clickTip) clickTip.style.display = 'block';
+                    
+                    // ตั้งลูปกะพริบขอบปุ่มสไตล์ NES
+                    let blink = true;
+                    setInterval(() => {
+                        blink = !blink;
+                        startBtn.style.borderColor = blink ? '#fff' : '#ef4444';
+                        startBtn.style.boxShadow = blink ? '0 0 15px rgba(239, 68, 68, 0.7)' : '0 0 8px rgba(239, 68, 68, 0.4)';
+                    }, 400);
+                }
+            }, 500);
+        }
+
+        // เริ่มต้นดาวน์โหลดรูปภาพ
+        imagesToLoad.forEach(src => {
+            const img = new Image();
+            img.onload = () => onItemLoaded(src);
+            img.onerror = () => onItemLoaded(`Error image: ${src}`);
+            img.src = src;
+        });
+
+        // เริ่มต้นดาวน์โหลดเพลงประกอบ (Music)
+        for (let key in audioMusicFiles) {
+            if (audioMusicFiles.hasOwnProperty(key)) {
+                const audio = new Audio();
+                audio.preload = "auto";
+                
+                const onAudioReady = () => {
+                    audio.removeEventListener('canplaythrough', onAudioReady);
+                    audio.removeEventListener('loadedmetadata', onAudioReady);
+                    onItemLoaded(audioMusicFiles[key]);
+                };
+                
+                audio.addEventListener('canplaythrough', onAudioReady);
+                audio.addEventListener('loadedmetadata', onAudioReady);
+                
+                // สำหรับความล้มเหลว
+                audio.onerror = () => onAudioReady();
+                
+                audio.src = audioMusicFiles[key];
+                audio.load();
+                window.music[key] = audio;
+            }
+        }
+
+        // เริ่มต้นดาวน์โหลดเสียงประกอบ (Sounds)
+        for (let key in audioSoundFiles) {
+            if (audioSoundFiles.hasOwnProperty(key)) {
+                const audio = new Audio();
+                audio.preload = "auto";
+                
+                const onAudioReady = () => {
+                    audio.removeEventListener('canplaythrough', onAudioReady);
+                    audio.removeEventListener('loadedmetadata', onAudioReady);
+                    onItemLoaded(audioSoundFiles[key]);
+                };
+                
+                audio.addEventListener('canplaythrough', onAudioReady);
+                audio.addEventListener('loadedmetadata', onAudioReady);
+                
+                audio.onerror = () => onAudioReady();
+                
+                audio.src = audioSoundFiles[key];
+                audio.load();
+                window.sounds[key] = audio;
+            }
+        }
+
+        // 🎵 ระบบ Audio Unlocker อัจฉริยะ ปลดล็อกสิทธิ์เสียงของเบราว์เซอร์ 100% ในทุกไฟล์
+        function unlockAllAudio() {
             if (audioUnlocked) return;
+            
+            // กระตุ้น AudioContext โกลบอล
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) {
+                    const dummyCtx = new AudioCtx();
+                    if (dummyCtx.state === 'suspended') {
+                        dummyCtx.resume();
+                    }
+                }
+            } catch(e) {
+                console.warn("AudioContext resume failure:", e);
+            }
+            
+            // วนลูปสั่งเล่นและหยุดสั้นๆ แบบปิดเสียงใน window.music
+            if (window.music) {
+                for (let key in window.music) {
+                    if (window.music.hasOwnProperty(key)) {
+                        const audio = window.music[key];
+                        try {
+                            const prevVol = audio.volume;
+                            audio.volume = 0;
+                            audio.play().then(() => {
+                                audio.pause();
+                                audio.volume = prevVol;
+                            }).catch(err => console.warn("Music unlock block:", err));
+                        } catch(e) {}
+                    }
+                }
+            }
+            
+            // วนลูปสั่งเล่นและหยุดสั้นๆ แบบปิดเสียงใน window.sounds
+            if (window.sounds) {
+                for (let key in window.sounds) {
+                    if (window.sounds.hasOwnProperty(key)) {
+                        const audio = window.sounds[key];
+                        try {
+                            const prevVol = audio.volume;
+                            audio.volume = 0;
+                            audio.play().then(() => {
+                                audio.pause();
+                                audio.volume = prevVol;
+                            }).catch(err => console.warn("Sound unlock block:", err));
+                        } catch(e) {}
+                    }
+                }
+            }
+            
+            // สั่งเริ่มเปิดเพลงด่านแรกอย่างคลาสสิก
             if (window.music && window.music.overworld) {
                 try {
-                    // กระตุ้น AudioContext ทั่วไปให้เปิดใช้งาน
-                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                    if (AudioCtx) {
-                        const dummyCtx = new AudioCtx();
-                        if (dummyCtx.state === 'suspended') {
-                            dummyCtx.resume();
-                        }
-                    }
+                    window.music.overworld.currentTime = 0;
+                    window.music.overworld.muted = false;
+                    window.music.overworld.loop = true;
                     
-                    // ปลดล็อกเพลงประกอบ Overworld
-                    const overworldPromise = window.music.overworld.play();
-                    if (overworldPromise !== undefined) {
-                        overworldPromise.then(() => {
-                            console.log("🔊 ปลดล็อกเสียงฉากหลังสำเร็จ!");
+                    const promise = window.music.overworld.play();
+                    if (promise !== undefined) {
+                        promise.then(() => {
+                            console.log("🔊 ปลดล็อกเสียงและเล่นดนตรีมาริโอ้ NES เรียบร้อยแล้ว!");
                             audioUnlocked = true;
-                            // ถอด listeners ออกเมื่อเปิดเสียงสำเร็จแล้ว
-                            document.removeEventListener('click', unlockAudio);
-                            document.removeEventListener('touchstart', unlockAudio);
-                            document.removeEventListener('keydown', unlockAudio);
+                            
+                            // ถอด listeners ออก
+                            document.removeEventListener('click', unlockAllAudio);
+                            document.removeEventListener('touchstart', unlockAllAudio);
+                            document.removeEventListener('keydown', unlockAllAudio);
                         }).catch(err => {
-                            console.warn("🔇 พยายามเปิดเสียงแต่โดนบล็อก:", err);
+                            console.warn("🔇 ปลดล็อกเสียงเบื้องต้นโดนปฏิเสธ:", err);
                         });
                     }
                 } catch(e) {
-                    console.error("Error unlocking Audio:", e);
+                    console.error("Error starting main theme:", e);
                 }
             }
         }
 
-        // ลงทะเบียนรับสิทธิ์ Interaction ต่างๆ เพื่อช่วยปลดล็อกในจังหวะเริ่ม
-        document.addEventListener('click', unlockAudio);
-        document.addEventListener('touchstart', unlockAudio);
-        document.addEventListener('keydown', unlockAudio);
+        // ลงทะเบียนรับสิทธิ์ Interaction ต่างๆ ช่วยผู้เล่นปลดล็อกในจังหวะเริ่ม
+        document.addEventListener('click', unlockAllAudio);
+        document.addEventListener('touchstart', unlockAllAudio);
+        document.addEventListener('keydown', unlockAllAudio);
+
+        // 🔮 ฟังก์ชันเรียกเมื่อภาพและทรัพยากรโหลดเสร็จสิ้น (รักษาโครงสร้างสะพานเชื่อม API สำหรับ game.js)
+        window.onMarioAssetsReady = function() {
+            // โค้ดใน game.js onReady จะวิ่งมาทางนี้ แต่ Preloader โหลดไปแล้ว จึงข้ามได้เลย
+            console.log("⚡ game.js resources ready signal received.");
+        };
+
+        // 🔮 สั่งเริ่มต้นเกมมาริโอ้อย่างเป็นทางการเมื่อคลิก PRESS START
+        window.startMarioGameReal = function() {
+            if (gameStarted) return;
+            gameStarted = true;
+            
+            // ปลดล็อกเสียงทั้งหมดทันทีใน Gesture Context เดียวกัน
+            unlockAllAudio();
+            
+            // เรียกใช้ฟังก์ชันเตรียมเริ่มลูปหลักใน game.js
+            if (typeof window.initMarioGameLoop === 'function') {
+                window.initMarioGameLoop();
+            }
+            
+            // ค่อยๆ เฟดหน้าจอโหลดออกให้ดูสมูท
+            const loadingScreen = document.getElementById('mario-loading-screen');
+            if (loadingScreen) {
+                loadingScreen.style.opacity = '0';
+                loadingScreen.style.transition = 'opacity 0.4s ease';
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                }, 400);
+            }
+        };
 
         window.pressMarioKey = function(keyCode, isDown) {
-            // เมื่อตรวจจับสัญญาณ Motion แรกสุดจาก Parent ให้กระตุ้นพยายามปลดล็อกเสียงอัตโนมัติทันที
-            unlockAudio();
+            // ปลดล็อกเสียงเมื่อผู้เล่นเริ่มขยับตัวด้วย
+            unlockAllAudio();
             
             if (window.input && typeof window.input.set === 'function') {
                 let key;
