@@ -1668,12 +1668,13 @@ function submitWorldBossScore(userId, bossId, timeSeconds) {
     sHeaders.forEach((h, idx) => sCol[h] = idx);
     
     let scoreRowIdx = -1;
-    let previousBest = Infinity;
+    const isWb002 = String(bossId).indexOf('WB002') === 0;
+    let previousBest = isWb002 ? 0 : Infinity;
     
     for (let i = 1; i < sData.length; i++) {
       if (String(sData[i][sCol.UserID]) === String(userId) && String(sData[i][sCol.BossID]) === String(bossId)) {
         scoreRowIdx = i + 1;
-        previousBest = Number(sData[i][sCol.BestTimeSeconds]) || Infinity;
+        previousBest = Number(sData[i][sCol.BestTimeSeconds]) || (isWb002 ? 0 : Infinity);
         break;
       }
     }
@@ -1689,13 +1690,16 @@ function submitWorldBossScore(userId, bossId, timeSeconds) {
       // ยังไม่เคยมีประวัติเล่นบอสตัวนี้ ให้บันทึกแถวใหม่
       scoresSheet.appendRow([userId, name, className, bossId, cleanTime, todayStr]);
       isPersonalBest = true;
-    } else if (cleanTime < previousBest) {
+    } else {
+      const condition = isWb002 ? (cleanTime > previousBest) : (cleanTime < previousBest);
+      if (condition) {
       // ทำเวลาได้เร็วขึ้น (ค่าเวลาน้อยลง = เร็วขึ้น) ให้ทำการเขียนทับ
       scoresSheet.getRange(scoreRowIdx, sCol.BestTimeSeconds + 1).setValue(cleanTime);
       scoresSheet.getRange(scoreRowIdx, sCol.Date + 1).setValue(todayStr);
       scoresSheet.getRange(scoreRowIdx, sCol.Name + 1).setValue(name); // อัปเดตเผื่อเปลี่ยนชื่อในภายหลัง
       scoresSheet.getRange(scoreRowIdx, sCol.Class + 1).setValue(className); // อัปเดตเผื่อเลื่อนชั้น/ย้ายห้องเรียน
       isPersonalBest = true;
+      }
     }
     
     // 4. มอบรางวัลลงตารางผู้ใช้งาน (Users)
@@ -1753,6 +1757,7 @@ function getWorldBossLeaderboard(bossId) {
     const col = {};
     headers.forEach((h, idx) => col[h] = idx);
     
+    const isWb002 = String(bossId).indexOf('WB002') === 0;
     const leaderboard = [];
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][col.BossID]) === String(bossId)) {
@@ -1760,14 +1765,18 @@ function getWorldBossLeaderboard(bossId) {
           userId: String(data[i][col.UserID]),
           name: String(data[i][col.Name]),
           className: String(data[i][col.Class]),
-          bestTime: Number(data[i][col.BestTimeSeconds]) || 9999,
+          bestTime: Number(data[i][col.BestTimeSeconds]) || (isWb002 ? 0 : 9999),
           date: String(data[i][col.Date])
         });
       }
     }
     
     // เรียงตามเวลาที่ดีที่สุด จากน้อยไปมาก (เวลาทำได้น้อยสุด = เร็วสุด = อันดับ 1)
-    leaderboard.sort((a, b) => a.bestTime - b.bestTime);
+    if (isWb002) {
+      leaderboard.sort((a, b) => b.bestTime - a.bestTime);
+    } else {
+      leaderboard.sort((a, b) => a.bestTime - b.bestTime);
+    }
     
     // เอาเฉพาะสิบคนแรก
     const top10 = leaderboard.slice(0, 10);

@@ -148,7 +148,15 @@
         bosses.forEach(boss => {
             // ค้นหาสถิติเวลาส่วนตัวใน LocalStorage เพื่อเอามาโชว์ทันทีแบบรวดเร็ว
             const localPB = localStorage.getItem(`wb_best_time_${currentUser ? currentUser.id : 'local'}_${boss.id}`);
-            const pbDisplay = localPB ? `🔥 เวลาที่ดีที่สุด: <span class="text-yellow-400 font-black">${parseFloat(localPB).toFixed(2)}s</span>` : '⏳ ยังไม่มีสถิติ';
+            const isWb002 = String(boss.id).indexOf('WB002') === 0;
+            let pbDisplay = '⏳ ยังไม่มีสถิติ';
+            if (localPB) {
+                if (isWb002) {
+                    pbDisplay = `🔥 ระยะทางไกลสุด: <span class="text-yellow-400 font-black">${parseFloat(localPB).toFixed(2)} เมตร</span>`;
+                } else {
+                    pbDisplay = `🔥 เวลาที่ดีที่สุด: <span class="text-yellow-400 font-black">${parseFloat(localPB).toFixed(2)}s</span>`;
+                }
+            }
             
             let displayName = boss.name;
             let poseLabel = '';
@@ -166,11 +174,11 @@
                 cardBorderColor = 'border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)]';
                 badgeBg = 'bg-red-950/80 text-red-300 border-red-800/80';
                 textGlow = 'text-red-400';
-            } else if (boss.id === 'WB002' || boss.poseType === 'jumping_jack') {
-                displayName = 'ศึกผู้พิทักษ์ดวงดาว (Star Guardian)';
-                poseLabel = '🌌 ผู้พิทักษ์ดวงดาว (Star Guardian)';
-                bossDesc = 'สวมบทอัศวินอวกาศ! ↕️ โยกศีรษะและเอี้ยวคอเพื่อควบคุมทิศทาง บินร่อนหลบลูกระเบิด 💣 และเก็บเพชรวิเศษ 💎 ยิ่งเร็วยิ่งทำสถิติได้ดี!';
-                emoji = '🌌';
+            } else if (isWb002 || boss.poseType === 'speed_runner') {
+                displayName = boss.name;
+                poseLabel = '🏃‍♂️ ยอดนักวิ่งลมกรด (Speed Runner)';
+                bossDesc = 'สวมบทนักวิ่งลมกรด! 🏃‍♂️ ขยับตัววิ่งอยู่กับที่ผ่านกล้องเพื่อเร่งความเร็วสะสมระยะทางจำลองให้ไกลที่สุดในเวลาจำกัดของคุณ!';
+                emoji = '🏃‍♂️';
                 cardBorderColor = 'border-cyan-500/80 shadow-[0_0_20px_rgba(6,182,212,0.25)]';
                 badgeBg = 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80';
                 textGlow = 'text-cyan-400';
@@ -196,7 +204,7 @@
                             <h3 class="font-black text-xl md:text-2xl mt-1.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${textGlow}">${displayName}</h3>
                             <p class="text-gray-400 font-bold text-xs mt-1.5 flex items-center gap-1">
                                 <span>🎯 เงื่อนไข:</span> 
-                                <span class="text-emerald-400 font-extrabold bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">${poseLabel} ${boss.targetReps} ครั้ง</span>
+                                <span class="text-emerald-400 font-extrabold bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">${poseLabel} ${isWb002 ? `วิ่งจำกัดเวลา ${boss.targetReps} วินาที` : `${boss.targetReps} ครั้ง`}</span>
                             </p>
                             <p class="text-xs text-gray-300 font-medium mt-3 leading-relaxed border-t border-slate-800/50 pt-2.5">
                                 ${bossDesc}
@@ -241,6 +249,7 @@
      * 🏆 ดึงตารางอันดับของบอสแต่ละตัว
      */
     function showWorldBossLeaderboard(bossId) {
+        const isWb002 = String(bossId).indexOf('WB002') === 0;
         const container = document.getElementById('wb-leaderboard-container');
         container.classList.remove('hidden');
         
@@ -290,7 +299,7 @@
                                     <td class="p-3 text-center text-base">${medal}</td>
                                     <td class="p-3 font-black">${row.name} ${isMe ? ' (คุณ)' : ''}</td>
                                     <td class="p-3 text-center">${row.className}</td>
-                                    <td class="p-3 text-right text-purple-700 font-mono font-black">${row.bestTime.toFixed(2)}</td>
+                                    <td class="p-3 text-right text-purple-700 font-mono font-black">${row.bestTime.toFixed(2)} ${isWb002 ? 'เมตร' : 'วินาที'}</td>
                                     <td class="p-3 text-center text-xs text-gray-400 font-bold">${row.date}</td>
                                 </tr>
                             `;
@@ -320,7 +329,7 @@
                             <td class="p-3 text-center">${medal}</td>
                             <td class="p-3 font-bold">${row.name}</td>
                             <td class="p-3 text-center">${row.className}</td>
-                            <td class="p-3 text-right text-purple-700 font-mono font-bold">${row.bestTime.toFixed(2)}</td>
+                            <td class="p-3 text-right text-purple-700 font-mono font-bold">${row.bestTime.toFixed(2)} ${isWb002 ? 'เมตร' : 'วินาที'}</td>
                             <td class="p-3 text-center text-xs text-gray-400">${row.date}</td>
                         </tr>
                     `;

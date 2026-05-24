@@ -134,7 +134,10 @@ function setupDatabase() {
   const bossSheet = ss.getSheetByName('WorldBoss_Config');
   if (bossSheet && bossSheet.getLastRow() <= 1) {
     bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
-    bossSheet.appendRow(['WB002', 'ศึกผู้พิทักษ์ดวงดาว (Star Guardian)', 'jumping_jack', 15, 150, 150, 150, true]);
+    bossSheet.appendRow(['WB002_15', 'สมรภูมิยอดนักวิ่งลมกรด (15 วินาที)', 'speed_runner', 15, 150, 100, 100, true]);
+    bossSheet.appendRow(['WB002_20', 'สมรภูมิยอดนักวิ่งลมกรด (20 วินาที)', 'speed_runner', 20, 200, 150, 150, true]);
+    bossSheet.appendRow(['WB002_30', 'สมรภูมิยอดนักวิ่งลมกรด (30 วินาที)', 'speed_runner', 30, 300, 200, 200, true]);
+    bossSheet.appendRow(['WB002_1', 'สมรภูมิยอดนักวิ่งลมกรด (ทดสอบ 1 วินาที)', 'speed_runner', 1, 10, 5, 5, true]);
   } else if (bossSheet) {
     // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
     try {
@@ -213,22 +216,23 @@ function ensureDatabaseSetup() {
 
     // 🛠️ ตรวจสอบชีต WorldBoss_Config ว่ามีค่า Default ครบถ้วนหรือไม่
     const bossSheet = ss.getSheetByName('WorldBoss_Config');
-    if (bossSheet && bossSheet.getLastRow() <= 1) {
-      bossSheet.appendRow(['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true]);
-      bossSheet.appendRow(['WB002', 'ศึกผู้พิทักษ์ดวงดาว (Star Guardian)', 'jumping_jack', 15, 150, 150, 150, true]);
-    } else if (bossSheet) {
-      // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 จาก "ผจญภัยไปกับมาริโอ้" เป็น "ผจญภัยกับมาริโอ้"
-      try {
-        const bossData = bossSheet.getDataRange().getValues();
-        for (let i = 1; i < bossData.length; i++) {
-          if (bossData[i][0] === 'WB001' && (bossData[i][1] === 'ผจญภัยไปกับมาริโอ้' || bossData[i][1] === 'ผจญภัยไปกับมาริโอ้ ')) {
-            bossSheet.getRange(i + 1, 2).setValue('ผจญภัยกับมาริโอ้');
-            break;
-          }
+    if (bossSheet) {
+      const bossData = bossSheet.getDataRange().getValues();
+      const existingBossIds = bossData.slice(1).map(row => String(row[0]));
+      
+      const defaultBosses = [
+        ['WB001', 'ผจญภัยกับมาริโอ้', 'mario_fitness', 10, 100, 100, 100, true],
+        ['WB002_15', 'สมรภูมิยอดนักวิ่งลมกรด (15 วินาที)', 'speed_runner', 15, 150, 100, 100, true],
+        ['WB002_20', 'สมรภูมิยอดนักวิ่งลมกรด (20 วินาที)', 'speed_runner', 20, 200, 150, 150, true],
+        ['WB002_30', 'สมรภูมิยอดนักวิ่งลมกรด (30 วินาที)', 'speed_runner', 30, 300, 200, 200, true],
+        ['WB002_1', 'สมรภูมิยอดนักวิ่งลมกรด (ทดสอบ 1 วินาที)', 'speed_runner', 1, 10, 5, 5, true]
+      ];
+      
+      defaultBosses.forEach(def => {
+        if (existingBossIds.indexOf(def[0]) === -1) {
+          bossSheet.appendRow(def);
         }
-      } catch (e) {
-        console.error('Error during WorldBoss_Config migration:', e);
-      }
+      });
     }
   }
 }

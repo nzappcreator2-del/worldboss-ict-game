@@ -515,6 +515,12 @@
         let wbSpeedScaleInterval = null;
         let localGameAnimId = null;
 
+        // --- 🏃‍♂️ ตัวแปรพิเศษสำหรับมินิเกมวิ่ง (Speed Runner) ---
+        let wbTotalDistance = 0.0;
+        let wbCurrentRunningSpeed = 0.0;
+        let lastFrameTime = performance.now();
+        let roadOffset = 0;
+
         // --- 🍄 บอสตัวที่ 1 (ผจญภัยไปกับมาริโอ้) - Real Mario Game NES Bridge ---
         let lastMarioCoinsCount = 0;
         let lastMarioScore = 0;
@@ -1004,7 +1010,8 @@
             let isPositionOk = false;
             
             // 🛡️ วาดแกนกระดูกเรืองแสงเชื่อมต่อพิกัดร่างกายผู้เล่น เพื่อมอบ Visual Guidance และความแม่นยำในการคุมท่าทางขั้นสุดยอด!
-            if (landmarks && bossId === 'WB001') {
+            const isWb002 = String(bossId).indexOf('WB002') === 0;
+            if (landmarks && (bossId === 'WB001' || isWb002)) {
                 drawGlowingSkeleton(wbCanvasCtx, landmarks, width, height);
             }
             
@@ -1013,7 +1020,7 @@
             const minY = 0.05;
             const maxY = 0.95;
             
-            if (bossId === 'WB001') {
+            if (bossId === 'WB001' || isWb002) {
                 // --- 🍄 บอสตัวที่ 1: ผจญภัยไปกับมาริโอ้ดั้งเดิม NES (ควบคุมผ่านกล้องครึ่งตัวถึงต้นขา) ---
                 const pt = landmarks ? landmarks[0] : null; // จมูก
                 const leftShoulder = landmarks ? landmarks[11] : null;
@@ -1252,31 +1259,188 @@
                             }
                         }
                         
-                        // บังคับเกมมาริโอ้ NES จริงๆ ใน iframe ด้วยสเตทที่เสถียรคมชัด!
-                        controlRealMarioGame(detectedActiveState);
-                        
-                        // วาดป้าย HUD สเตทตรวจจับบนจอภาพกล้อง
-                        wbCanvasCtx.save();
-                        let statusText = '🧍 หยุดยืน (Idle)';
-                        let statusColor = '#94a3b8';
-                        if (detectedActiveState === 'JUMPING') {
-                            statusText = '🦘 กำลังกระโดด! (JUMP)';
-                            statusColor = '#38bdf8';
-                        } else if (detectedActiveState === 'CROUCHING') {
-                            statusText = '🕳️ กำลังก้มย่อ! (CROUCH)';
-                            statusColor = '#fb923c';
-                        } else if (detectedActiveState === 'RUNNING') {
-                            statusText = '🏃 กำลังวิ่งลุยด่าน! (RUN)';
-                            statusColor = '#39ff14';
+                        if (bossId === 'WB001') {
+                            // บังคับเกมมาริโอ้ NES จริงๆ ใน iframe ด้วยสเตทที่เสถียรคมชัด!
+                            controlRealMarioGame(detectedActiveState);
+                            
+                            // วาดป้าย HUD สเตทตรวจจับบนจอภาพกล้อง
+                            wbCanvasCtx.save();
+                            let statusText = '🧍 หยุดยืน (Idle)';
+                            let statusColor = '#94a3b8';
+                            if (detectedActiveState === 'JUMPING') {
+                                statusText = '🦘 กำลังกระโดด! (JUMP)';
+                                statusColor = '#38bdf8';
+                            } else if (detectedActiveState === 'CROUCHING') {
+                                statusText = '🕳️ กำลังก้มย่อ! (CROUCH)';
+                                statusColor = '#fb923c';
+                            } else if (detectedActiveState === 'RUNNING') {
+                                statusText = '🏃 กำลังวิ่งลุยด่าน! (RUN)';
+                                statusColor = '#39ff14';
+                            }
+                            
+                            wbCanvasCtx.font = 'bold 22px Prompt, sans-serif';
+                            wbCanvasCtx.fillStyle = statusColor;
+                            wbCanvasCtx.shadowColor = statusColor;
+                            wbCanvasCtx.shadowBlur = 10;
+                            wbCanvasCtx.textAlign = 'center';
+                            wbCanvasCtx.fillText(statusText, 320, 45);
+                            wbCanvasCtx.restore();
+                        } else if (isWb002) {
+                            // 🏃‍♂️ [สมรภูมิยอดนักวิ่งลมกรด (Speed Runner)]
+                            // คำนวณ delta time
+                            const nowFrame = performance.now();
+                            const dt = Math.min(0.1, (nowFrame - lastFrameTime) / 1000); // แคปค่า dt สูงสุดไม่เกิน 100ms ป้องกันการกระตุกกระทันหัน
+                            lastFrameTime = nowFrame;
+                            
+                            // คำนวณความเร่งจากการซอยเท้า
+                            let speedFactor = 0.0;
+                            if (detectedActiveState === 'RUNNING' || totalActivity > 0.025) {
+                                // totalActivity ปกติอยู่ราว 0.05-0.8 ขยายสเกลคูณเป็นความเร็ว
+                                speedFactor = Math.min(6.8, (totalActivity * 8.8));
+                            } else if (detectedActiveState === 'JUMPING' || detectedActiveState === 'CROUCHING') {
+                                // ออกกำลังกายท่าอื่นก็ได้สปีดปานกลาง
+                                speedFactor = 3.5;
+                            }
+                            
+                            // ความเฉื่อยของความเร็ว (Inertia physics)
+                            wbCurrentRunningSpeed = wbCurrentRunningSpeed * 0.91 + speedFactor * 0.09;
+                            if (wbCurrentRunningSpeed < 0.02) wbCurrentRunningSpeed = 0;
+                            
+                            wbTotalDistance += wbCurrentRunningSpeed * dt;
+                            
+                            // กำหนด rep count เลียนแบบของเดิม (สำหรับเป็นตัวแปรเก็บบันทึก)
+                            wbRepsCount = Math.floor(wbTotalDistance);
+                            
+                            // แสดงสถิติเมตรที่วิ่งได้บนหน้าจอหลัก
+                            document.getElementById('wb-battle-reps').innerText = `${wbTotalDistance.toFixed(1)} เมตร`;
+                            const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
+                            if (elRepsMobile) elRepsMobile.innerText = `${wbTotalDistance.toFixed(1)} เมตร`;
+                            
+                            // ปรับเกจ HP บอสให้เข้าหา 100% ตามความไกลในการวิ่ง
+                            // เป้าหมายระยะทาง: ดึงตามเวลา (targetReps * 4 เมตร) เช่น 30 วินาที -> 120 เมตร
+                            const targetDistance = targetReps * 4.0;
+                            wbBossHp = Math.max(0, targetDistance - wbTotalDistance);
+                            
+                            const bossHpPercent = Math.max(0, (wbTotalDistance / targetDistance)) * 100;
+                            document.getElementById('wb-battle-boss-hp-bar').style.width = `${Math.min(100, bossHpPercent)}%`;
+                            document.getElementById('wb-battle-boss-hp-text').innerText = `ระยะทางวิ่ง: ${wbTotalDistance.toFixed(1)} / ${targetDistance.toFixed(0)} เมตร`;
+                            
+                            // 🎨 [เฟสที่ 5: วาด Canvas แอนิเมชันลู่วิ่ง Parallax และเกจความเร็ว Speedometer]
+                            // 1. วาดวิดีโอกล้องเบลอจางๆ ทับอีกชั้น เพื่อให้เห็นตัวเองสแกนท่าร่าง
+                            wbCanvasCtx.fillStyle = 'rgba(8, 10, 24, 0.45)'; // ย้อมสีโทนน้ำเงินเข้มกระจก
+                            wbCanvasCtx.fillRect(0, 0, width, height);
+                            
+                            // 2. วาดขอบฟ้าและสนามหญ้าขอบลู่วิ่ง
+                            wbCanvasCtx.fillStyle = '#065f46'; // เขียวเข้ม
+                            wbCanvasCtx.fillRect(0, 200, width, 280);
+                            
+                            // 3. วาดรูปทรงลู่วิ่ง 3D Perspective (สี่เหลี่ยมคางหมู)
+                            wbCanvasCtx.beginPath();
+                            wbCanvasCtx.moveTo(240, 200); // ขอบฟ้าซ้าย
+                            wbCanvasCtx.lineTo(400, 200); // ขอบฟ้าขวา
+                            wbCanvasCtx.lineTo(600, 480); // ล่างขวา
+                            wbCanvasCtx.lineTo(40, 480);  // ล่างซ้าย
+                            wbCanvasCtx.closePath();
+                            wbCanvasCtx.fillStyle = '#b91c1c'; // ลู่วิ่งสีแดงอิฐ
+                            wbCanvasCtx.fill();
+                            wbCanvasCtx.strokeStyle = '#f87171'; // ขอบลู่วิ่งเรืองแสง
+                            wbCanvasCtx.lineWidth = 3;
+                            wbCanvasCtx.stroke();
+                            
+                            // 4. วาดเส้นประเลนวิ่งเคลื่อนไหว (Scrolling curb & lines)
+                            roadOffset += wbCurrentRunningSpeed * 2.8;
+                            if (roadOffset > 100) roadOffset = 0;
+                            
+                            wbCanvasCtx.save();
+                            wbCanvasCtx.strokeStyle = '#ffffff';
+                            wbCanvasCtx.lineWidth = 2.5;
+                            wbCanvasCtx.setLineDash([15, 20]);
+                            wbCanvasCtx.lineDashOffset = -roadOffset;
+                            
+                            // เส้นขอบทางขาว-แดงสลับเลื่อนถอยหลัง
+                            // วาดเส้นประเลนขวา
+                            wbCanvasCtx.beginPath();
+                            wbCanvasCtx.moveTo(320, 200);
+                            wbCanvasCtx.lineTo(480, 480);
+                            wbCanvasCtx.stroke();
+                            
+                            // วาดเส้นประเลนซ้าย
+                            wbCanvasCtx.beginPath();
+                            wbCanvasCtx.moveTo(320, 200);
+                            wbCanvasCtx.lineTo(160, 480);
+                            wbCanvasCtx.stroke();
+                            wbCanvasCtx.restore();
+                            
+                            // 5. วาดตัวละคร Emoji 🏃‍♂️ วิ่งสลับขาตามเวลา
+                            wbCanvasCtx.save();
+                            wbCanvasCtx.font = '85px Arial';
+                            wbCanvasCtx.shadowColor = '#06b6d4'; // ออร่าสีฟ้านีออนไซเบอร์
+                            wbCanvasCtx.shadowBlur = Math.min(25, wbCurrentRunningSpeed * 4);
+                            wbCanvasCtx.textAlign = 'center';
+                            wbCanvasCtx.textBaseline = 'middle';
+                            
+                            // ขยับสั่นตัวขึ้นลงตาม sine wave เพื่อให้มีมิติการวิ่งจริง
+                            const runAnimOffset = wbCurrentRunningSpeed > 0 ? Math.sin(performance.now() * 0.015 * wbCurrentRunningSpeed) * 10 : 0;
+                            wbCanvasCtx.fillText('🏃‍♂️', 320, 390 + runAnimOffset);
+                            wbCanvasCtx.restore();
+                            
+                            // 6. วาด Gradient Neon Speedometer Gauge (ขวาบน)
+                            wbCanvasCtx.save();
+                            const centerX = 540;
+                            const centerY = 100;
+                            const radius = 60;
+                            
+                            // วาดขอบวงกลมเกจ
+                            wbCanvasCtx.beginPath();
+                            wbCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, Math.PI * 2.2);
+                            wbCanvasCtx.strokeStyle = '#1e293b';
+                            wbCanvasCtx.lineWidth = 10;
+                            wbCanvasCtx.lineCap = 'round';
+                            wbCanvasCtx.stroke();
+                            
+                            // วาดเกจเรืองแสงตามสปีดจริง
+                            const speedPercent = Math.min(1.0, wbCurrentRunningSpeed / 6.5);
+                            const endAngle = Math.PI * 0.8 + (Math.PI * 1.4 * speedPercent);
+                            
+                            const grad = wbCanvasCtx.createRadialGradient(centerX, centerY, radius - 10, centerX, centerY, radius + 10);
+                            grad.addColorStop(0, '#06b6d4');
+                            grad.addColorStop(1, '#06b6d4');
+                            
+                            wbCanvasCtx.beginPath();
+                            wbCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, endAngle);
+                            wbCanvasCtx.strokeStyle = grad;
+                            wbCanvasCtx.shadowColor = '#06b6d4';
+                            wbCanvasCtx.shadowBlur = 15;
+                            wbCanvasCtx.lineWidth = 10;
+                            wbCanvasCtx.lineCap = 'round';
+                            wbCanvasCtx.stroke();
+                            
+                            // เขียนเข็มชี้เกจความเร็ว
+                            wbCanvasCtx.restore();
+                            wbCanvasCtx.save();
+                            wbCanvasCtx.font = 'bold 16px Prompt, sans-serif';
+                            wbCanvasCtx.fillStyle = '#06b6d4';
+                            wbCanvasCtx.shadowColor = '#06b6d4';
+                            wbCanvasCtx.shadowBlur = 8;
+                            wbCanvasCtx.textAlign = 'center';
+                            wbCanvasCtx.fillText(`${(wbCurrentRunningSpeed * 3.6).toFixed(1)} km/h`, centerX, centerY + 10); // แสดงเป็น km/h จำลองเพื่อความสวยงาม
+                            
+                            wbCanvasCtx.font = '900 10px Prompt, sans-serif';
+                            wbCanvasCtx.fillStyle = '#94a3b8';
+                            wbCanvasCtx.shadowBlur = 0;
+                            wbCanvasCtx.fillText('SPEEDOMETER', centerX, centerY - 15);
+                            wbCanvasCtx.restore();
+                            
+                            // 7. วาดตัวเลขระยะทางสะสมขนาดใหญ่เรืองแสง (กลางบน)
+                            wbCanvasCtx.save();
+                            wbCanvasCtx.font = '900 48px Prompt, sans-serif';
+                            wbCanvasCtx.fillStyle = '#fbbf24'; // สีทอง
+                            wbCanvasCtx.shadowColor = '#fbbf24';
+                            wbCanvasCtx.shadowBlur = 20;
+                            wbCanvasCtx.textAlign = 'center';
+                            wbCanvasCtx.fillText(`${wbTotalDistance.toFixed(1)} m`, 320, 100);
+                            wbCanvasCtx.restore();
                         }
-                        
-                        wbCanvasCtx.font = 'bold 22px Prompt, sans-serif';
-                        wbCanvasCtx.fillStyle = statusColor;
-                        wbCanvasCtx.shadowColor = statusColor;
-                        wbCanvasCtx.shadowBlur = 10;
-                        wbCanvasCtx.textAlign = 'center';
-                        wbCanvasCtx.fillText(statusText, 320, 45);
-                        wbCanvasCtx.restore();
                     }
                 }
                 
@@ -1491,6 +1655,7 @@
 
         // วาดส่วนหัวข้อความและแต้มความเสียหาย
         function drawOverlayUI(isPositionOk, width, height) {
+            if (bossId.indexOf('WB002') === 0) return; // ยอดนักวิ่งลมกรด มีระบบวาด UI นีออนแยกแล้ว
             if (wbGameState === 'BATTLE') {
                 if (wbSpeedMultiplier > 1.0) {
                     wbCanvasCtx.save();
@@ -1677,29 +1842,49 @@
             
             stopCamera();
             
-            const finalTime = Math.round(wbElapsedTime * 100) / 100;
+            const isWb002 = bossId.indexOf('WB002') === 0;
+            
+            // สำหรับบอสยอดนักวิ่ง: เก็บระยะทาง เมตร แทนเวลาวิ่ง
+            let finalTime = Math.round(wbElapsedTime * 100) / 100;
+            let displayValue = finalTime.toFixed(2) + " วินาที";
+            
+            let finalRewardCoins = rewardCoins;
+            let finalRewardXp = rewardXp;
+            
+            if (isWb002) {
+                finalTime = Math.round(wbTotalDistance * 100) / 100;
+                displayValue = finalTime.toFixed(1) + " เมตร";
+                
+                // คำนวณรางวัลตามเมตรสะสม (ทุก 1 เมตร = +2 Coins / +2 XP)
+                finalRewardCoins = Math.round(wbTotalDistance * 2);
+                finalRewardXp = Math.round(wbTotalDistance * 2);
+            }
             
             const elBossName = document.getElementById('wb-victory-boss-name');
             if (elBossName) elBossName.innerText = `ผู้สยบ: ${bossName}`;
             
             const elTime = document.getElementById('wb-victory-time');
-            if (elTime) elTime.innerText = finalTime.toFixed(2);
+            if (elTime) elTime.innerText = displayValue;
+            
+            // อัปเดตฉลากข้อความหน่วยเวลาในหน้าโมดอล ชัยชนะ
+            const elUnitLabel = document.getElementById('wb-victory-time-unit');
+            if (elUnitLabel) elUnitLabel.innerText = isWb002 ? "เมตร" : "วินาที";
             
             const elCoins = document.getElementById('wb-victory-reward-coins');
-            if (elCoins) elCoins.innerText = `+${rewardCoins} เหรียญ`;
+            if (elCoins) elCoins.innerText = `+${finalRewardCoins} เหรียญ`;
             
             const elXp = document.getElementById('wb-victory-reward-xp');
-            if (elXp) elXp.innerText = `+${rewardXp} XP`;
+            if (elXp) elXp.innerText = `+${finalRewardXp} XP`;
             
             const victoryModal = document.getElementById('wb-victory-modal');
             if (victoryModal) {
                 victoryModal.classList.remove('hidden');
             } else {
-                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ เวลาที่ใช้: ${finalTime.toFixed(2)} วินาที\n🪙 +${rewardCoins} เหรียญ | ⭐ +${rewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ...)`);
+                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ สถิติ: ${displayValue}\n🪙 +${finalRewardCoins} เหรียญ | ⭐ +${finalRewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ...)`);
             }
             
             playBeep('victory');
-            speakThai("ยินดีด้วยค่ะ ชนะแล้ว");
+            speakThai(isWb002 ? "ยินดีด้วยค่ะ วิ่งได้ยอดเยี่ยมมาก" : "ยินดีด้วยค่ะ ชนะแล้ว");
             
             try {
                 if (typeof confetti === 'function') {
@@ -1735,7 +1920,7 @@
                     console.log('API Score saved result:', res);
                     if (res.success) {
                         if (res.previousBest !== null && res.previousBest !== undefined) {
-                            if (elPrevBest) elPrevBest.innerText = `${res.previousBest.toFixed(2)} วินาที`;
+                            if (elPrevBest) elPrevBest.innerText = isWb002 ? `${res.previousBest.toFixed(1)} เมตร` : `${res.previousBest.toFixed(2)} วินาที`;
                         } else {
                             if (elPrevBest) elPrevBest.innerText = `นี่เป็นประวัติสถิติแรก!`;
                         }
