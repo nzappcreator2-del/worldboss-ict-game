@@ -747,6 +747,9 @@
         let crouchConfidenceCounter = 0;
         let detectedActiveState = 'IDLE';
         let marioStatsIntervalId = null; // setInterval ID สำหรับ checkRealMarioStats (ป้องกัน loop bug)
+        let jumpThreshold = 0.03; // เกณฑ์การกระโดดเริ่มต้นระดับโกลบอล
+        let crouchThreshold = 0.035; // เกณฑ์การย่อตัวเริ่มต้นระดับโกลบอล
+
 
         // --- 👹 บอสตัวที่ 2 (Stone Titan) - Nose/Head Tracker ---
         const knight = { x: 320, y: 240, r: 35, emoji: "🛡️", activeEmoji: "🛡️" };
@@ -1211,7 +1214,8 @@
 
         // --- 🧠 [คอลแบ็กของ MediaPipe Pose] ประมวลผลสำหรับทั้ง 2 บอส ---
         function onPoseResults(results) {
-            if (!wbCanvasCtx || wbGameState === 'VICTORY') return;
+            try {
+                if (!wbCanvasCtx || wbGameState === 'VICTORY') return;
             
             const width = wbCanvasEl.width;
             const height = wbCanvasEl.height;
@@ -1317,8 +1321,8 @@
                         }
 
                         // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (จูนเกณฑ์ให้หนาขึ้น 10-15% เพื่อป้องกัน Ghost Jump)
-                        let jumpThreshold = 0.03;
-                        let crouchThreshold = 0.035;
+                        jumpThreshold = 0.03;
+                        crouchThreshold = 0.035;
                         if (baseBodyLength > 0) {
                             jumpThreshold = Math.max(0.022, 0.065 * baseBodyLength);
                             crouchThreshold = Math.max(0.028, 0.075 * baseBodyLength);
@@ -1431,7 +1435,9 @@
                         const hipDrop = avgHipYVal - baseHipY;
                         
                         // วิเคราะห์ขอบเขตพื้นที่ระดับเอวและพุง (Belly & Waist Zone) ของผู้เล่นจริง
-                        const currentBodyLen = baseBodyLength > 0 ? baseBodyLength : ((leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2);
+                        const currentBodyLen = baseBodyLength > 0 ? baseBodyLength : 
+                            (leftHip && rightHip && leftShoulder && rightShoulder) ? 
+                            ((leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2) : 0.35;
                         
                         // กรองระดับความสูงข้อมือ: ต้องยกข้อศอกและข้อมือขึ้นสูงกว่าระดับสะโพกอย่างชัดเจน (พุงและเอว)
                         // และต้องอยู่ต่ำกว่าไหล่ลงมาพอควร เพื่อป้องกันคนยืนปล่อยมือห้อยข้างตัว (ยืนเฉยๆ) ตกอยู่ในขอบเขตสะโพกแล้วมาริโอ้วิ่งเอง
@@ -1839,6 +1845,10 @@
             
             drawOverlayUI(isPositionOk, width, height);
             wbCanvasCtx.restore();
+            } catch (err) {
+                console.error("Critical error in onPoseResults loop:", err);
+                try { wbCanvasCtx.restore(); } catch(e) {}
+            }
         }
 
 
