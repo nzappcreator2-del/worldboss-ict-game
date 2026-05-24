@@ -1255,7 +1255,8 @@
                     lastNoseLandmark = pt;
                     
                     noseYHistory.push(pt.y);
-                    if (noseYHistory.length > 8) noseYHistory.shift();
+                    const maxNoseHistory = (wbGameState === 'BATTLE') ? 3 : 8;
+                    if (noseYHistory.length > maxNoseHistory) noseYHistory.shift();
                     const avgNoseY = noseYHistory.reduce((a, b) => a + b, 0) / noseYHistory.length;
                     
                     // ระบบ Calibrate และสแกนตำแหน่งในช่วง PREPARING / COUNTDOWN
@@ -1381,7 +1382,8 @@
                         if (leftShoulder && rightShoulder) {
                             const currentShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
                             motionHistory.push(currentShoulderY);
-                            if (motionHistory.length > 5) motionHistory.shift();
+                            const maxShoulderHistory = (wbGameState === 'BATTLE') ? 3 : 5;
+                            if (motionHistory.length > maxShoulderHistory) motionHistory.shift();
                             
                             if (motionHistory.length >= 2) {
                                 for (let i = 1; i < motionHistory.length; i++) {
@@ -1401,7 +1403,8 @@
                         // 1. วิเคราะห์สเตทสะโพกเฉลี่ยปัจจุบันย้อนหลัง เพื่อใช้ตรวจสอบโครงสร้างกระดูกสัมพันธ์สรีระจริง (Kinesiology AI)
                         const currentHipYVal = (leftHip.y + rightHip.y) / 2;
                         leftHipYHistory.push(currentHipYVal);
-                        if (leftHipYHistory.length > 5) leftHipYHistory.shift();
+                        const maxHipHistory = (wbGameState === 'BATTLE') ? 3 : 5;
+                        if (leftHipYHistory.length > maxHipHistory) leftHipYHistory.shift();
                         const avgHipYVal = leftHipYHistory.reduce((a, b) => a + b, 0) / leftHipYHistory.length;
                         
                         const avgShoulderYVal = motionHistory.length > 0 ? motionHistory.reduce((a, b) => a + b, 0) / motionHistory.length : (leftShoulder.y + rightShoulder.y) / 2;
@@ -1464,27 +1467,15 @@
                         } else if (activeStateCandidate === 'JUMPING') {
                             runConfidenceCounter = 0;
                             crouchConfidenceCounter = 0;
-                            if (detectedActiveState === 'JUMPING') {
-                                jumpConfidenceCounter = 0;
-                            } else {
-                                jumpConfidenceCounter++;
-                                if (jumpConfidenceCounter >= 2) {
-                                    detectedActiveState = 'JUMPING';
-                                    jumpConfidenceCounter = 0;
-                                }
-                            }
+                            // Instant Jumping Response: zero-debounce trigger for real-time physical jump inputs
+                            detectedActiveState = 'JUMPING';
+                            jumpConfidenceCounter = 0;
                         } else if (activeStateCandidate === 'CROUCHING') {
                             runConfidenceCounter = 0;
                             jumpConfidenceCounter = 0;
-                            if (detectedActiveState === 'CROUCHING') {
-                                crouchConfidenceCounter = 0;
-                            } else {
-                                crouchConfidenceCounter++;
-                                if (crouchConfidenceCounter >= 2) {
-                                    detectedActiveState = 'CROUCHING';
-                                    crouchConfidenceCounter = 0;
-                                }
-                            }
+                            // Instant Crouching Response: zero-debounce trigger for real-time physical crouch inputs
+                            detectedActiveState = 'CROUCHING';
+                            crouchConfidenceCounter = 0;
                         } else if (activeStateCandidate === 'RUNNING') {
                             jumpConfidenceCounter = 0;
                             crouchConfidenceCounter = 0;
