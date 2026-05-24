@@ -1401,13 +1401,26 @@
                         let activeStateCandidate = 'IDLE';
                         
                         // 1. วิเคราะห์สเตทสะโพกเฉลี่ยปัจจุบันย้อนหลัง เพื่อใช้ตรวจสอบโครงสร้างกระดูกสัมพันธ์สรีระจริง (Kinesiology AI)
-                        const currentHipYVal = (leftHip.y + rightHip.y) / 2;
-                        leftHipYHistory.push(currentHipYVal);
-                        const maxHipHistory = (wbGameState === 'BATTLE') ? 3 : 5;
-                        if (leftHipYHistory.length > maxHipHistory) leftHipYHistory.shift();
-                        const avgHipYVal = leftHipYHistory.reduce((a, b) => a + b, 0) / leftHipYHistory.length;
+                        let avgHipYVal = baseHipY > 0 ? baseHipY : 0.8;
+                        if (leftHip && rightHip) {
+                            const currentHipYVal = (leftHip.y + rightHip.y) / 2;
+                            leftHipYHistory.push(currentHipYVal);
+                            const maxHipHistory = (wbGameState === 'BATTLE') ? 3 : 5;
+                            if (leftHipYHistory.length > maxHipHistory) leftHipYHistory.shift();
+                            avgHipYVal = leftHipYHistory.reduce((a, b) => a + b, 0) / leftHipYHistory.length;
+                        } else if (baseHipY > 0) {
+                            avgHipYVal = baseHipY;
+                        }
                         
-                        const avgShoulderYVal = motionHistory.length > 0 ? motionHistory.reduce((a, b) => a + b, 0) / motionHistory.length : (leftShoulder.y + rightShoulder.y) / 2;
+                        let avgShoulderYVal = baseShoulderY > 0 ? baseShoulderY : 0.5;
+                        if (leftShoulder && rightShoulder) {
+                            const currentShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+                            if (motionHistory.length > 0) {
+                                avgShoulderYVal = motionHistory.reduce((a, b) => a + b, 0) / motionHistory.length;
+                            } else {
+                                avgShoulderYVal = currentShoulderY;
+                            }
+                        }
                         
                         // หาส่วนต่างการเคลื่อนไหวของข้อต่อกระดูกแบบเปรียบเทียบ (Absolute Lift/Drop)
                         const noseLift = baseNoseY - avgNoseY;
@@ -1416,9 +1429,6 @@
                         const shoulderDrop = avgShoulderYVal - baseShoulderY;
                         const hipLift = baseHipY - avgHipYVal;
                         const hipDrop = avgHipYVal - baseHipY;
-
-                        // 2. วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / แกว่งแขนวิ่ง / หยุดนิ่ง)
-                        let activeStateCandidate = 'IDLE';
                         
                         // วิเคราะห์ขอบเขตพื้นที่ระดับเอวและพุง (Belly & Waist Zone) ของผู้เล่นจริง
                         const currentBodyLen = baseBodyLength > 0 ? baseBodyLength : ((leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2);
