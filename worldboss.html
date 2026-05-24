@@ -750,6 +750,7 @@
         let jumpThreshold = 0.03; // เกณฑ์การกระโดดเริ่มต้นระดับโกลบอล
         let crouchThreshold = 0.035; // เกณฑ์การย่อตัวเริ่มต้นระดับโกลบอล
         let isRealMarioAudioUnlocked = false; // ตัวแปรบอกสถานะการปลดล็อกเสียงมาริโอ้ใน iframe
+        let marioJumpCarryTimeout = null; // ตัวแปรคอยหน่วงรักษาโมเมนตัมการพุ่งขวาตอนกระโดด
 
 
 
@@ -771,10 +772,36 @@
             
             // ตรวจสอบและใช้งานฟังก์ชัน pressMarioKey จากสะพานเชื่อม API ใหม่
             if (typeof iframeWin.pressMarioKey === 'function') {
+                // เคลียร์ตัวส่งแรงโมเมนตัมขวาเดิม หากมีความเคลื่อนไหวอื่นที่เจาะจงเข้ามาขัดจังหวะ
+                if (marioJumpCarryTimeout) {
+                    clearTimeout(marioJumpCarryTimeout);
+                    marioJumpCarryTimeout = null;
+                }
+
                 // ถ้าสเตทขยับเปลี่ยน ล้างปุ่มที่กดไว้เดิมทั้งหมดก่อนเพื่อความสะอาด
                 if (marioState !== previousMarioState) {
-                    const keysToRelease = [37, 39, 38, 40, 88, 90]; // Left, Right, Up, Down, X (Jump - 88), Z (Run/Fire - 90)
-                    keysToRelease.forEach(code => iframeWin.pressMarioKey(code, false));
+                    // ปล่อยปุ่มกระโดด (88), ก้มย่อ (40), ซ้าย (37), บน (38) ทันที
+                    const keysToRelease = [37, 38, 40, 88]; 
+                    
+                    // 🛡️ [Jump Momentum Carry] หากกระโดด (JUMPING) เสร็จและคืนกลับสู่สถานะหยุด (IDLE)
+                    // เราจะปล่อยปุ่มกระโดด 88 ทันที แต่จะกดปุ่มวิ่งขวา 39 และ 90 ค้างไว้ต่ออีก 250ms (เวลาช่วงลอยตัวตกลงพื้น)
+                    // ป้องกันอาการมาริโอ้สะดุดหยุดชะงักดิ่งลงแนวดิ่งในอากาศ ทำให้นุ่มนวลและควบคุมได้ดั่งใจสูงสุด
+                    if (previousMarioState === 'JUMPING' && marioState === 'IDLE') {
+                        keysToRelease.forEach(code => iframeWin.pressMarioKey(code, false));
+                        
+                        marioJumpCarryTimeout = setTimeout(() => {
+                            try {
+                                iframeWin.pressMarioKey(39, false);
+                                iframeWin.pressMarioKey(90, false);
+                                console.log("🍃 [Jump Momentum] สิ้นสุดแรงส่งแรงเฉื่อยพุ่งขวาของมาริโอ้");
+                            } catch (e) {}
+                        }, 250);
+                    } else {
+                        // กรณีเปลี่ยนผ่านท่าอื่น ๆ ให้ล้างปุ่มทั้งหมดทันทีรวมถึงปุ่มวิ่งขวา (39, 90) ด้วย
+                        keysToRelease.push(39, 90);
+                        keysToRelease.forEach(code => iframeWin.pressMarioKey(code, false));
+                    }
+                    
                     previousMarioState = marioState;
                 }
 
@@ -1335,12 +1362,13 @@
                             }
                         }
 
-                        // ปรับ Threshold แบบ Dynamic ตามอัตราส่วนระยะห่างกล้องจริงของผู้เล่น (จูนเกณฑ์ให้หนาขึ้น 10-15% เพื่อป้องกัน Ghost Jump)
-                        jumpThreshold = 0.03;
-                        crouchThreshold = 0.035;
+                        // ปรับ Threshold ให้มีความไวสูงขึ้นเป็นพิเศษแบบเกือบเรียลไทม์ (Super Real-Time Response Tuning)
+                        // ลดเกณฑ์ขั้นต่ำและตัวคูณความยาวลำตัวลง ~20-25% เพื่อขจัดดีเลย์ในการเริ่มกระโดดและก้มย่อ
+                        jumpThreshold = 0.022;
+                        crouchThreshold = 0.026;
                         if (baseBodyLength > 0) {
-                            jumpThreshold = Math.max(0.022, 0.065 * baseBodyLength);
-                            crouchThreshold = Math.max(0.028, 0.075 * baseBodyLength);
+                            jumpThreshold = Math.max(0.016, 0.048 * baseBodyLength);
+                            crouchThreshold = Math.max(0.020, 0.058 * baseBodyLength);
                         }
                         
                         // 1. ตรวจวัดความแกว่งไกวของการทำท่าวิ่งหรือเดิน (แกว่งข้อมือและศอกสะสม)
