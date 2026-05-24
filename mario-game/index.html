@@ -57,6 +57,7 @@
     <script type="text/javascript" src="js/game.js"></script>
     <script>
         // 🌉 สะพานเชื่อม API สำหรับเวิลด์บอส (World Boss API Bridge - SMB1 NES) & Preloader อัจฉริยะ
+        window.isMarioReady = false;
         
         let audioUnlocked = false;
         let assetsLoaded = false;
@@ -157,10 +158,11 @@
             clearTimeout(preloadTimeout);
             
             assetsLoaded = true;
-            console.log("All essential assets loaded successfully.");
+            window.isMarioReady = true; // ส่งสัญญาณความพร้อมระบบและเสียงประกอบไปยังหน้าแม่
+            console.log("All essential assets loaded successfully and cached.");
             
             const statusText = document.getElementById('loading-status-text');
-            if (statusText) statusText.innerText = 'PREPARING LEVEL 1-1...';
+            if (statusText) statusText.innerText = 'PREPARING LEVEL 1-1... READY!';
             
             // Lazy load remaining 13 audio assets in background dynamically
             setTimeout(lazyLoadRemainingAssets, 50);

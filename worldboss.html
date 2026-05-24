@@ -531,7 +531,7 @@
             document.getElementById('mario-game-status').innerText = "🎮 Super Mario Bros NES Fitness Edition!";
             document.getElementById('mario-iframe').classList.remove('hidden');
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
-            document.getElementById('mario-iframe').src = "mario-game/index.html?t=" + new Date().getTime();
+            document.getElementById('mario-iframe').src = "mario-game/index.html?v=1.5";
             
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
@@ -894,8 +894,8 @@
             if (iframe && iframe.contentWindow) {
                 const iframeWin = iframe.contentWindow;
                 try {
-                    // ตรวจสอบและปลดล็อกเสียงข้าม iframe เมื่อดนตรีพร้อม
-                    if (iframeWin.music && iframeWin.music.overworld) {
+                    // ตรวจสอบและปลดล็อกเสียงข้าม iframe เมื่อดนตรีหรือระบบใน iframe พร้อมแล้ว
+                    if (iframeWin.isMarioReady || (iframeWin.music && iframeWin.music.overworld)) {
                         // 1. เรียกฟังก์ชันการเล่นเสียงอย่างเป็นทางการของ iframe โดยตรงเพื่อเริ่มเพลง
                         if (typeof iframeWin.unlockAllAudio === 'function') {
                             iframeWin.unlockAllAudio();
@@ -2043,27 +2043,42 @@
             wbStartTime = performance.now();
             wbSpeedMultiplier = 1.0;
 
-            // รันฟังก์ชันจำลองเริ่มเกมมาริโอ้จริงใน iframe
+            // รันฟังก์ชันจำลองเริ่มเกมมาริโอ้จริงใน iframe แบบ Auto-Retry & Polling เพื่อความเสถียร 100%
             const iframe = document.getElementById('mario-iframe');
             if (iframe) {
                 // ดึงโฟกัสไปที่หน้าต่างมาริโอ้ เพื่อลดอาการหน่วงและปลดล็อกเสียงทันควัน
                 iframe.focus();
                 if (iframe.contentWindow) {
-                    // ปลดล็อกเพลงประกอบระดับโกลบอลผ่านสะพานเชื่อม
-                    unlockRealMarioAudio();
+                    const iframeWin = iframe.contentWindow;
                     
-                    // สั่งกดปุ่ม PRESS START ใน iframe อัตโนมัติ เพื่อข้ามหน้าจอโหลดและเริ่มเล่นทันที!
-                    if (typeof iframe.contentWindow.startMarioGameReal === 'function') {
-                        iframe.contentWindow.startMarioGameReal();
-                    }
+                    // ฟังก์ชันสั่งเริ่มเกมมาริโอ้อย่างปลอดภัยและปลดล็อกสิทธิ์เสียง
+                    const startMarioWithSafety = () => {
+                        try {
+                            if (iframeWin.isMarioReady || typeof iframeWin.startMarioGameReal === 'function') {
+                                // 1. เรียกปลดล็อกสิทธิ์เสียงระดับโกลบอลข้าม iframe
+                                unlockRealMarioAudio();
+                                
+                                // 2. สั่งเริ่มลูปเกมมาริโอ้จริง ( PRESS START )
+                                if (typeof iframeWin.startMarioGameReal === 'function') {
+                                    iframeWin.startMarioGameReal();
+                                }
+                                
+                                // 3. ส่งสัญญาณจำลองกระโดดเริ่มต้นสลัดตัวเพื่อกระตุ้นฟิสิกส์
+                                controlRealMarioGame('JUMPING');
+                                setTimeout(() => { controlRealMarioGame('IDLE'); }, 300);
+                                console.log("🎮 [Mario Controller] สมรภูมิมาริโอ้พร้อมแล้ว! สั่งเริ่มเล่นและเปิดเสียงดนตรีสมบูรณ์ 100%");
+                            } else {
+                                // หาก iframe เพิ่งจะเกิด Safe Refresh หรือระบบ Preload ยังไม่เสร็จสมบูรณ์ ให้ลองใหม่ใน 150ms
+                                console.log("⏳ [Mario Controller] กำลังรอหน้าจอโหลดมาริโอ้ใน iframe พร้อมรัน...");
+                                setTimeout(startMarioWithSafety, 150);
+                            }
+                        } catch (err) {
+                            console.warn("⏳ [Mario Controller] เกิดข้อขัดข้องชั่วขณะในรันไทม์ กำลังรอและเริ่มระบบใหม่...", err);
+                            setTimeout(startMarioWithSafety, 150);
+                        }
+                    };
                     
-                    // ส่งสัญญาณกดปุ่มจำลอง Space (32) เพื่อช่วย Audio Unlocker ภายใน iframe ปลดล็อกเสียง BGM
-                    if (typeof iframe.contentWindow.pressMarioKey === 'function') {
-                        iframe.contentWindow.pressMarioKey(32, true);
-                        setTimeout(() => { iframe.contentWindow.pressMarioKey(32, false); }, 100);
-                    }
-                    controlRealMarioGame('JUMPING');
-                    setTimeout(() => { controlRealMarioGame('IDLE'); }, 300);
+                    startMarioWithSafety();
                 }
             }
 
