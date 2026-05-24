@@ -522,26 +522,23 @@
         const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
         if (elRepsMobile) elRepsMobile.innerText = `0 / ${targetReps}`;
 
-        // สลับ UI บอส 1 และบอส 2 พร้อมเปลี่ยนขอบเรืองแสงแบบ Dynamic
         const gameFrame = document.getElementById('wb-game-frame');
         const cameraFrame = document.getElementById('wb-camera-frame');
         const webcamSection = document.getElementById('wb-webcam-section');
         
-        if (bossId === 'WB001') {
-            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SUPER MARIO 🍄";
-            document.getElementById('mario-game-status').innerText = "🎮 วิ่ง, กระโดด, นั่งย่อ เพื่อผจญภัยกับมาริโอ้ NES!";
-            document.getElementById('wb-titan-placeholder').classList.add('hidden');
+        if (bossId.indexOf('WB001') === 0 || poseType === 'mario_fitness') {
+            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SUPER MARIO FITNESS 🍄";
+            document.getElementById('mario-game-status').innerText = "🎮 Super Mario Bros NES Fitness Edition!";
             document.getElementById('mario-iframe').classList.remove('hidden');
-            document.getElementById('mario-iframe').src = "mario-game/index.html?v=1.4"; // บังคับรีโหลดเพื่อให้มั่นใจว่ามาริโอ้ NES ตื่นขึ้นจริง
+            document.getElementById('wb-titan-placeholder').classList.add('hidden');
+            document.getElementById('mario-iframe').src = "mario-game/index.html?t=" + new Date().getTime();
             
-            // ซ่อน Canvas เกมวิ่งในบอสตัวอื่น
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
                 runnerCanvas.classList.add('hidden');
                 runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 hidden";
             }
             
-            // ใช้ขอบนีออนธีมมาริโอ้สีแดง
             if (gameFrame) {
                 gameFrame.classList.remove('neon-border-purple', 'neon-border-space');
                 gameFrame.classList.add('neon-border-mario');
@@ -1401,28 +1398,53 @@
                         // 2. วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / แกว่งแขนวิ่ง / หยุดนิ่ง)
                         let activeStateCandidate = 'IDLE';
                         
+                        // 1. วิเคราะห์สเตทสะโพกเฉลี่ยปัจจุบันย้อนหลัง เพื่อใช้ตรวจสอบโครงสร้างกระดูกสัมพันธ์สรีระจริง (Kinesiology AI)
+                        const currentHipYVal = (leftHip.y + rightHip.y) / 2;
+                        leftHipYHistory.push(currentHipYVal);
+                        if (leftHipYHistory.length > 5) leftHipYHistory.shift();
+                        const avgHipYVal = leftHipYHistory.reduce((a, b) => a + b, 0) / leftHipYHistory.length;
+                        
+                        const avgShoulderYVal = motionHistory.length > 0 ? motionHistory.reduce((a, b) => a + b, 0) / motionHistory.length : (leftShoulder.y + rightShoulder.y) / 2;
+                        
+                        // หาส่วนต่างการเคลื่อนไหวของข้อต่อกระดูกแบบเปรียบเทียบ (Absolute Lift/Drop)
+                        const noseLift = baseNoseY - avgNoseY;
+                        const noseDrop = avgNoseY - baseNoseY;
+                        const shoulderLift = baseShoulderY - avgShoulderYVal;
+                        const shoulderDrop = avgShoulderYVal - baseShoulderY;
+                        const hipLift = baseHipY - avgHipYVal;
+                        const hipDrop = avgHipYVal - baseHipY;
+
+                        // 2. วิเคราะห์สเตทขยับตัว (กระโดด / ย่อ / แกว่งแขนวิ่ง / หยุดนิ่ง)
+                        let activeStateCandidate = 'IDLE';
+                        
                         // วิเคราะห์ขอบเขตพื้นที่ระดับเอวและพุง (Belly & Waist Zone) ของผู้เล่นจริง
-                        const currentBodyLen = (leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2;
-                        const avgShoulderYVal = (leftShoulder.y + rightShoulder.y) / 2;
-                        const avgHipYVal = (leftHip.y + rightHip.y) / 2;
+                        const currentBodyLen = baseBodyLength > 0 ? baseBodyLength : ((leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2);
                         
                         // กรองระดับความสูงข้อมือ: ต้องยกข้อศอกและข้อมือขึ้นสูงกว่าระดับสะโพกอย่างชัดเจน (พุงและเอว)
                         // และต้องอยู่ต่ำกว่าไหล่ลงมาพอควร เพื่อป้องกันคนยืนปล่อยมือห้อยข้างตัว (ยืนเฉยๆ) ตกอยู่ในขอบเขตสะโพกแล้วมาริโอ้วิ่งเอง
                         const bellyMinY = avgShoulderYVal + currentBodyLen * 0.15;
                         const bellyMaxY = avgHipYVal - currentBodyLen * 0.15; // เหนือระดับสะโพกขึ้นมา 15% ลำตัว (ขจัดท่ายืนปล่อยห้อยแขน 100%)
                         
-                        const leftInBelly = leftWrist && leftWrist.visibility > 0.5 && (leftWrist.y >= bellyMinY && leftWrist.y <= bellyMaxY);
-                        const rightInBelly = rightWrist && rightWrist.visibility > 0.5 && (rightWrist.y >= bellyMinY && rightWrist.y <= bellyMaxY);
+                        // ตรวจจับข้อมือซ้ายและขวาแยกกัน
+                        const leftInBelly = leftWrist && leftWrist.visibility > 0.5 && (leftWrist.y >= bellyMinY && leftWrist.y <= avgHipYVal + currentBodyLen * 0.05);
+                        const rightInBelly = rightWrist && rightWrist.visibility > 0.5 && (rightWrist.y >= bellyMinY && rightWrist.y <= avgHipYVal + currentBodyLen * 0.05);
                         
-                        // ข้อมือทั้งซ้ายและขวาต้องยกขึ้นมาอยู่ในโซนเอวหรือพุงอย่างเห็นชัดเจน
-                        const isBellyZoneActive = leftInBelly && rightInBelly;
+                        // แกว่งแขนวิ่งแบบธรรมชาติ (Natural Arm Swing): ขอเพียงแค่ข้อมือซ้ายหรือขวาข้างใดข้างหนึ่งอยู่ในโซนควบคุม และขยับแกว่งแขนสลับอย่างเป็นอิสระ
+                        const isNaturalArmSwing = (leftInBelly || rightInBelly) && (totalActivity > 0.065 && wristActivity > 0.015);
                         
-                        if (avgNoseY < baseNoseY - jumpThreshold) {
+                        // การตัดสินการกระโดด (JUMPING): สัมพันธ์กับไหล่และจมูกลอยสูงขึ้นพร้อมกัน ป้องกันการเงยหน้าโดดหลอน 100%
+                        const isJumpingByBody = (noseLift > jumpThreshold && shoulderLift > jumpThreshold * 0.5) || 
+                                                (shoulderLift > jumpThreshold * 0.7 && hipLift > jumpThreshold * 0.5);
+                                                
+                        // การตัดสินการย่อตัว (CROUCHING): สัมพันธ์กับไหล่และจมูกลดต่ำลงพร้อมกัน ป้องกันการก้มหัวย่อหลอน 100%
+                        const isCrouchingByBody = (noseDrop > crouchThreshold && shoulderDrop > crouchThreshold * 0.5) || 
+                                                  (shoulderDrop > crouchThreshold * 0.7 && hipDrop > crouchThreshold * 0.5);
+
+                        if (isJumpingByBody) {
                             activeStateCandidate = 'JUMPING';
-                        } else if (avgNoseY > baseNoseY + crouchThreshold) {
+                        } else if (isCrouchingByBody) {
                             activeStateCandidate = 'CROUCHING';
-                        } else if (isBellyZoneActive && totalActivity > 0.075 && wristActivity > 0.018) { 
-                            // จูนเกณฑ์การทำท่าวิ่งให้ตึงและแน่นขึ้น (ขจัดปัญหายืนถูเสื้อถูแขนแล้วมาริโอ้วิ่งกระตุกเอง)
+                        } else if (isNaturalArmSwing) { 
                             activeStateCandidate = 'RUNNING';
                         } else {
                             activeStateCandidate = 'IDLE';

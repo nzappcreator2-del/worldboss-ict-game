@@ -98,30 +98,30 @@
         window.music = {};
         window.sounds = {};
 
-        // คํานวณจำนวนทรัพยากรทั้งหมด
-        const totalImages = imagesToLoad.length;
-        const totalMusic = Object.keys(audioMusicFiles).length;
-        const totalSounds = Object.keys(audioSoundFiles).length;
-        const totalItems = totalImages + totalMusic + totalSounds; // 6 + 4 + 12 = 22
+        // Setup Essential vs Lazy Assets
+        const essentialImages = [...imagesToLoad];
+        const essentialMusic = ['overworld'];
+        const essentialSounds = ['smallJump', 'coin'];
+
+        // Essential loading targets count
+        const totalItems = essentialImages.length + essentialMusic.length + essentialSounds.length; // 6 + 1 + 2 = 9
 
         let loadedItems = 0;
         let isPreloadFinished = false;
 
-        // ฟังก์ชันบวกการโหลดสำเร็จและแสดงผลความคืบหน้า
         function onItemLoaded(itemName) {
             if (isPreloadFinished) return;
             loadedItems++;
             
             const percent = Math.min(100, Math.floor((loadedItems / totalItems) * 100));
-            console.log(`📦 Loaded [${loadedItems}/${totalItems}] (${percent}%): ${itemName}`);
+            console.log(`Essential Resource Loaded: [${loadedItems}/${totalItems}] (${percent}%): ${itemName}`);
             
-            // อัปเดต UI Loading Screen
             const barFill = document.getElementById('loading-bar-fill');
             if (barFill) barFill.style.width = percent + '%';
             
             const statusText = document.getElementById('loading-status-text');
             if (statusText) {
-                statusText.innerText = `LOADING RESOURCES: ${percent}% (${loadedItems}/${totalItems})`;
+                statusText.innerText = `LOADING GAME RESOURCES: ${percent}%`;
             }
 
             if (loadedItems >= totalItems) {
@@ -129,17 +129,15 @@
             }
         }
 
-        // กรณีโหลดช้าหรือบางไฟล์เสียงไม่ยอมยิง Event ให้ Timeout เพื่อความปลอดภัยของ UX
         const preloadTimeout = setTimeout(() => {
             if (!isPreloadFinished) {
-                console.warn("⚠️ Preload timeout reached. Forcing game start readiness.");
-                // บังคับเต็ม 100% เลยเพื่อไม่ให้ผู้เล่นค้างที่หน้าจอนี้
+                console.warn("Preload timeout reached. Forcing game ready state.");
                 loadedItems = totalItems;
                 const barFill = document.getElementById('loading-bar-fill');
                 if (barFill) barFill.style.width = '100%';
                 finishPreload();
             }
-        }, 4000); // หน่วงเวลาสูงสุด 4 วินาที
+        }, 3000);
 
         function finishPreload() {
             if (isPreloadFinished) return;
@@ -147,10 +145,13 @@
             clearTimeout(preloadTimeout);
             
             assetsLoaded = true;
-            console.log("🎮 [Preloader] All resources are loaded and ready!");
+            console.log("All essential assets loaded successfully.");
             
             const statusText = document.getElementById('loading-status-text');
             if (statusText) statusText.innerText = 'PREPARING LEVEL 1-1...';
+            
+            // Lazy load remaining 13 audio assets in background dynamically
+            setTimeout(lazyLoadRemainingAssets, 50);
             
             setTimeout(() => {
                 const barContainer = document.getElementById('loading-bar-container');
@@ -164,7 +165,6 @@
                     startBtn.style.display = 'block';
                     if (clickTip) clickTip.style.display = 'block';
                     
-                    // ตั้งลูปกะพริบขอบปุ่มสไตล์ NES
                     let blink = true;
                     setInterval(() => {
                         blink = !blink;
@@ -172,61 +172,87 @@
                         startBtn.style.boxShadow = blink ? '0 0 15px rgba(239, 68, 68, 0.7)' : '0 0 8px rgba(239, 68, 68, 0.4)';
                     }, 400);
                 }
-            }, 500);
+            }, 300);
         }
 
-        // เริ่มต้นดาวน์โหลดรูปภาพ
-        imagesToLoad.forEach(src => {
+        // Preload Essential Images
+        essentialImages.forEach(src => {
             const img = new Image();
-            img.onload = () => onItemLoaded(src);
-            img.onerror = () => onItemLoaded(`Error image: ${src}`);
+            img.onload = () => onItemLoaded(img.src);
+            img.onerror = () => onItemLoaded(`Error img: ${src}`);
             img.src = src;
         });
 
-        // เริ่มต้นดาวน์โหลดเพลงประกอบ (Music)
+        // Initialize and Preload Essential Music
         for (let key in audioMusicFiles) {
             if (audioMusicFiles.hasOwnProperty(key)) {
                 const audio = new Audio();
-                audio.preload = "auto";
-                
-                const onAudioReady = () => {
-                    audio.removeEventListener('canplaythrough', onAudioReady);
-                    audio.removeEventListener('loadedmetadata', onAudioReady);
-                    onItemLoaded(audioMusicFiles[key]);
-                };
-                
-                audio.addEventListener('canplaythrough', onAudioReady);
-                audio.addEventListener('loadedmetadata', onAudioReady);
-                
-                // สำหรับความล้มเหลว
-                audio.onerror = () => onAudioReady();
-                
-                audio.src = audioMusicFiles[key];
-                audio.load();
                 window.music[key] = audio;
+                
+                if (essentialMusic.includes(key)) {
+                    audio.preload = "auto";
+                    const onAudioReady = () => {
+                        audio.removeEventListener('canplaythrough', onAudioReady);
+                        audio.removeEventListener('loadedmetadata', onAudioReady);
+                        onItemLoaded(audioMusicFiles[key]);
+                    };
+                    audio.addEventListener('canplaythrough', onAudioReady);
+                    audio.addEventListener('loadedmetadata', onAudioReady);
+                    audio.onerror = () => onAudioReady();
+                    audio.src = audioMusicFiles[key];
+                    audio.load();
+                } else {
+                    // Lazy load structure
+                    audio.preload = "none";
+                    audio.src = audioMusicFiles[key];
+                }
             }
         }
 
-        // เริ่มต้นดาวน์โหลดเสียงประกอบ (Sounds)
+        // Initialize and Preload Essential Sounds
         for (let key in audioSoundFiles) {
             if (audioSoundFiles.hasOwnProperty(key)) {
                 const audio = new Audio();
-                audio.preload = "auto";
-                
-                const onAudioReady = () => {
-                    audio.removeEventListener('canplaythrough', onAudioReady);
-                    audio.removeEventListener('loadedmetadata', onAudioReady);
-                    onItemLoaded(audioSoundFiles[key]);
-                };
-                
-                audio.addEventListener('canplaythrough', onAudioReady);
-                audio.addEventListener('loadedmetadata', onAudioReady);
-                
-                audio.onerror = () => onAudioReady();
-                
-                audio.src = audioSoundFiles[key];
-                audio.load();
                 window.sounds[key] = audio;
+                
+                if (essentialSounds.includes(key)) {
+                    audio.preload = "auto";
+                    const onAudioReady = () => {
+                        audio.removeEventListener('canplaythrough', onAudioReady);
+                        audio.removeEventListener('loadedmetadata', onAudioReady);
+                        onItemLoaded(audioSoundFiles[key]);
+                    };
+                    audio.addEventListener('canplaythrough', onAudioReady);
+                    audio.addEventListener('loadedmetadata', onAudioReady);
+                    audio.onerror = () => onAudioReady();
+                    audio.src = audioSoundFiles[key];
+                    audio.load();
+                } else {
+                    // Lazy load structure
+                    audio.preload = "none";
+                    audio.src = audioSoundFiles[key];
+                }
+            }
+        }
+
+        // Lazy Loader function to fetch all remaining audio in the background safely
+        function lazyLoadRemainingAssets() {
+            console.log("Starting lazy loading for remaining assets...");
+            
+            for (let key in audioMusicFiles) {
+                if (audioMusicFiles.hasOwnProperty(key) && !essentialMusic.includes(key)) {
+                    const audio = window.music[key];
+                    audio.preload = "auto";
+                    audio.load();
+                }
+            }
+            
+            for (let key in audioSoundFiles) {
+                if (audioSoundFiles.hasOwnProperty(key) && !essentialSounds.includes(key)) {
+                    const audio = window.sounds[key];
+                    audio.preload = "auto";
+                    audio.load();
+                }
             }
         }
 
