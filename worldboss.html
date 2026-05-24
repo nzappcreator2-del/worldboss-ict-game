@@ -749,6 +749,8 @@
         let marioStatsIntervalId = null; // setInterval ID สำหรับ checkRealMarioStats (ป้องกัน loop bug)
         let jumpThreshold = 0.03; // เกณฑ์การกระโดดเริ่มต้นระดับโกลบอล
         let crouchThreshold = 0.035; // เกณฑ์การย่อตัวเริ่มต้นระดับโกลบอล
+        let isRealMarioAudioUnlocked = false; // ตัวแปรบอกสถานะการปลดล็อกเสียงมาริโอ้ใน iframe
+
 
 
         // --- 👹 บอสตัวที่ 2 (Stone Titan) - Nose/Head Tracker ---
@@ -873,27 +875,33 @@
         }
 
         // 4) เริ่มโหลดโมเดลหรือเริ่มกล้องทันที
+        const unlockAudio = () => {
+            unlockRealMarioAudio();
+        };
+
         window.addEventListener('DOMContentLoaded', () => {
             initWebcamAndPose();
             
             // 🛡️ ปลดล็อกเสียงข้าม iframe อัตโนมัติเมื่อมีการคลิกสัมผัสหน้าจอแรกสุดของคุณครูหรือนักเรียน
-            const unlockAudio = () => {
-                unlockRealMarioAudio();
-                window.removeEventListener('click', unlockAudio);
-                window.removeEventListener('touchstart', unlockAudio);
-            };
             window.addEventListener('click', unlockAudio);
             window.addEventListener('touchstart', unlockAudio);
         });
 
         // 🔊 ฟังก์ชันสะพานเชื่อมปลดล็อกสิทธิ์เสียงของเบราว์เซอร์ข้ามไปยังหน้า Emulator มาริโอ้
         function unlockRealMarioAudio() {
+            if (isRealMarioAudioUnlocked) return;
             const iframe = document.getElementById('mario-iframe');
             if (iframe && iframe.contentWindow) {
                 const iframeWin = iframe.contentWindow;
                 try {
-                    // ปลดล็อกเพลงหลัก
-                    if (iframeWin.music) {
+                    // ตรวจสอบและปลดล็อกเสียงข้าม iframe เมื่อดนตรีพร้อม
+                    if (iframeWin.music && iframeWin.music.overworld) {
+                        // 1. เรียกฟังก์ชันการเล่นเสียงอย่างเป็นทางการของ iframe โดยตรงเพื่อเริ่มเพลง
+                        if (typeof iframeWin.unlockAllAudio === 'function') {
+                            iframeWin.unlockAllAudio();
+                        }
+                        
+                        // 2. ปลดล็อก BGM และเสียงประกอบสำรอง (Fallback audio unlock)
                         const audios = [
                             iframeWin.music.overworld, iframeWin.music.underground,
                             iframeWin.music.clear, iframeWin.music.death
@@ -908,22 +916,29 @@
                                 }
                             }
                         });
-                    }
-                    // ปลดล็อกเสียงเอฟเฟกต์กระโดด/เหรียญ
-                    if (iframeWin.sounds) {
-                        Object.keys(iframeWin.sounds).forEach(key => {
-                            const aud = iframeWin.sounds[key];
-                            if (aud) {
-                                const p = aud.play();
-                                if (p instanceof Promise) {
-                                    p.then(() => aud.pause()).catch(() => {});
-                                } else {
-                                    aud.pause();
+                        
+                        // ปลดล็อกเสียงเอฟเฟกต์
+                        if (iframeWin.sounds) {
+                            Object.keys(iframeWin.sounds).forEach(key => {
+                                const aud = iframeWin.sounds[key];
+                                if (aud) {
+                                    const p = aud.play();
+                                    if (p instanceof Promise) {
+                                        p.then(() => aud.pause()).catch(() => {});
+                                    } else {
+                                        aud.pause();
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
+                        
+                        console.log("🔊 [Audio Bridge] ปลดล็อกเสียง Emulator มาริโอ้ NES ข้ามแดนสำเร็จ!");
+                        isRealMarioAudioUnlocked = true;
+                        
+                        // ถอด event listeners ออกเฉพาะเมื่อปลดล็อกสำเร็จสมบูรณ์เท่านั้น
+                        window.removeEventListener('click', unlockAudio);
+                        window.removeEventListener('touchstart', unlockAudio);
                     }
-                    console.log("🔊 [Audio Bridge] ปลดล็อกเสียง Emulator มาริโอ้ NES ข้ามแดนสำเร็จ!");
                 } catch(e) {
                     console.error("Audio unlock fail:", e);
                 }
@@ -2034,6 +2049,14 @@
                 // ดึงโฟกัสไปที่หน้าต่างมาริโอ้ เพื่อลดอาการหน่วงและปลดล็อกเสียงทันควัน
                 iframe.focus();
                 if (iframe.contentWindow) {
+                    // ปลดล็อกเพลงประกอบระดับโกลบอลผ่านสะพานเชื่อม
+                    unlockRealMarioAudio();
+                    
+                    // สั่งกดปุ่ม PRESS START ใน iframe อัตโนมัติ เพื่อข้ามหน้าจอโหลดและเริ่มเล่นทันที!
+                    if (typeof iframe.contentWindow.startMarioGameReal === 'function') {
+                        iframe.contentWindow.startMarioGameReal();
+                    }
+                    
                     // ส่งสัญญาณกดปุ่มจำลอง Space (32) เพื่อช่วย Audio Unlocker ภายใน iframe ปลดล็อกเสียง BGM
                     if (typeof iframe.contentWindow.pressMarioKey === 'function') {
                         iframe.contentWindow.pressMarioKey(32, true);

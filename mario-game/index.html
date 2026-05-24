@@ -141,6 +141,18 @@
 
         function finishPreload() {
             if (isPreloadFinished) return;
+            
+            // 🛡️ ระบบป้องกันความหนืดในจังหวะเข้าเล่นครั้งแรก (Browser First-load Safe Refresh)
+            // เมื่อการโหลดหลักแตะ 100% ถ้าตัวแปร query ยังไม่มี refreshed=1 จะรีเฟรชหน้าตัวเอง 1 รอบเงียบ ๆ
+            // เพื่อใช้ประโยชน์สูงสุดจาก Browser Caching ทำให้เล่นได้ลื่นไหลกระฉูด 100%
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.get('refreshed')) {
+                console.log("🔄 First load detected. Performing automatic safe refresh to resolve lags...");
+                urlParams.set('refreshed', '1');
+                window.location.search = urlParams.toString();
+                return; // หยุดทำงานเฟสเตรียมระบบชั่วคราวเพื่อรอรีเฟรชหน้าใหม่
+            }
+
             isPreloadFinished = true;
             clearTimeout(preloadTimeout);
             
@@ -333,6 +345,7 @@
                 }
             }
         }
+        window.unlockAllAudio = unlockAllAudio;
 
         // ลงทะเบียนรับสิทธิ์ Interaction ต่างๆ ช่วยผู้เล่นปลดล็อกในจังหวะเริ่ม
         document.addEventListener('click', unlockAllAudio);
