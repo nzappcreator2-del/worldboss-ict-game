@@ -411,7 +411,7 @@
         if (!wbPose) {
             wbPose = new Pose({
                 locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                    return 'https://cdn.jsdelivr.net/npm/@mediapipe/pose/' + file;
                 }
             });
             
@@ -470,13 +470,13 @@
             
             wbGameState = 'PREPARING';
             const statusOverlay = document.getElementById('wb-status-overlay');
-            statusOverlay.innerHTML = `⚠️ กรุณายืนถอยหลังห่างจากกล้อง ให้ระบบเห็น "หัว ไหล่ สะโพก และข้อเท้า"`;
+            statusOverlay.innerHTML = '⚠️ กรุณายืนถอยหลังห่างจากกล้อง ให้ระบบเห็น "หัว ไหล่ สะโพก และข้อเท้า"';
             statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/85 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
             
         } catch (err) {
             console.error('Camera access failed:', err);
             const statusOverlay = document.getElementById('wb-status-overlay');
-            statusOverlay.innerHTML = `❌ ไม่สามารถเชื่อมกล้องเว็บแคมได้: ${err.message || 'สิทธิ์การเข้าถึงกล้องถูกปฏิเสธ'}`;
+            statusOverlay.innerHTML = '❌ ไม่สามารถเชื่อมกล้องเว็บแคมได้: ' + (err.message || 'สิทธิ์การเข้าถึงกล้องถูกปฏิเสธ');
             statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/80 backdrop-blur-sm border-2 border-red-500 text-center font-bold text-white text-xs md:text-sm shadow-md";
             
             // 🔮 ตรวจหาอุปกรณ์มือถือ และการรองรับ Swal เสนอทางเลือกโหมดจำลอง (Simulator Mode) แบบ Fail-Safe
@@ -498,18 +498,17 @@
                     const swalInstance = typeof SwalRPG !== 'undefined' ? SwalRPG : Swal;
                     swalInstance.fire({
                         title: '<span style="color:#a78bfa; font-family:\'Prompt\',sans-serif; font-weight:900;">🔮 ตรวจไม่พบกล้องเว็บแคม</span>',
-                        html: `
-                            <div style="text-align: left; font-size: 13px; line-height: 1.6; color: #cbd5e1; font-family: 'Prompt', sans-serif;">
-                                <p class="font-bold text-amber-400 mb-2">🛡️ ผู้กล้าพบอุปสรรคในการสื่อสารกับ AI:</p>
-                                <ul style="list-style-type: disc; margin-left: 20px; margin-bottom: 15px;">
-                                    <li>เครื่องคอมพิวเตอร์ของคุณไม่มีกล้องเว็บแคมติดตั้งอยู่</li>
-                                    <li>เบราว์เซอร์บนสมาร์ตโฟนบล็อกสิทธิ์กล้องใน iframe ของ Google Apps Script</li>
-                                </ul>
-                                <p style="margin-top: 15px; color: #34d399; text-align: center; font-weight: 900; font-size: 14px;">
-                                    🎮 ต้องการเปิดใช้งาน "โหมดจำลองผู้กล้าเสมือน" (Simulator Mode) เพื่อเล่นเกมต่อโดยไม่ต้องใช้กล้องหรือไม่?
-                                </p>
-                            </div>
-                        `,
+                        html: 
+                            '<div style="text-align: left; font-size: 13px; line-height: 1.6; color: #cbd5e1; font-family: \'Prompt\', sans-serif;">' +
+                                '<p class="font-bold text-amber-400 mb-2">🛡️ ผู้กล้าพบอุปสรรคในการสื่อสารกับ AI:</p>' +
+                                '<ul style="list-style-type: disc; margin-left: 20px; margin-bottom: 15px;">' +
+                                    '<li>เครื่องคอมพิวเตอร์ของคุณไม่มีกล้องเว็บแคมติดตั้งอยู่</li>' +
+                                    '<li>เบราว์เซอร์บนสมาร์ตโฟนบล็อกสิทธิ์กล้องใน iframe ของ Google Apps Script</li>' +
+                                '</ul>' +
+                                '<p style="margin-top: 15px; color: #34d399; text-align: center; font-weight: 900; font-size: 14px;">' +
+                                    '🎮 ต้องการเปิดใช้งาน "โหมดจำลองผู้กล้าเสมือน" (Simulator Mode) เพื่อเล่นเกมต่อโดยไม่ต้องใช้กล้องหรือไม่?' +
+                                '</p>' +
+                            '</div>',
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonText: '🎮 สลับเล่นโหมดจำลอง',
@@ -705,8 +704,8 @@
                         wbCanvasCtx.font = 'black 14px Prompt, sans-serif';
                         wbCanvasCtx.shadowBlur = 4;
                         wbCanvasCtx.shadowColor = '#000000';
-                        wbCanvasCtx.fillText(`${Math.round(leftKnee)}°`, landmarks[25].x * width + 10, landmarks[25].y * height);
-                        wbCanvasCtx.fillText(`${Math.round(rightKnee)}°`, landmarks[26].x * width + 10, landmarks[26].y * height);
+                        wbCanvasCtx.fillText(Math.round(leftKnee) + '°', landmarks[25].x * width + 10, landmarks[25].y * height);
+                        wbCanvasCtx.fillText(Math.round(rightKnee) + '°', landmarks[26].x * width + 10, landmarks[26].y * height);
                         
                         if (wbPoseState === 'UP') {
                             poseGuideEl.innerText = "🏋️‍♂️ ท่า Squat: ย่อเข่าตัวลงมาต่ำกว่า 110 องศา";
@@ -785,7 +784,7 @@
         if (wbGameState === 'PREPARING') {
             const statusOverlay = document.getElementById('wb-status-overlay');
             if (isPositionOk) {
-                statusOverlay.innerHTML = `✅ ค้นหาระยะสำเร็จ! กรุณายืนนิ่งๆ ในช่องสีเขียวเพื่อรอสัญญาณศึก...`;
+                statusOverlay.innerHTML = '✅ ค้นหาระยะสำเร็จ! กรุณายืนนิ่งๆ ในช่องสีเขียวเพื่อรอสัญญาณศึก...';
                 statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-emerald-950/95 backdrop-blur-sm border-2 border-emerald-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
                 
                 // ถ้ายืนนิ่งอยู่ในกรอบติดต่อกัน 1.5 วินาที จะตัดเข้าสู่นับถอยหลังต่อสู้
@@ -795,7 +794,7 @@
                     }, 1500);
                 }
             } else {
-                statusOverlay.innerHTML = `⚠️ ขยับตัวถอยหลังให้อยู่กึ่งกลาง และให้เห็น ไหล่ สะโพก ข้อเท้า ครบถ้วน`;
+                statusOverlay.innerHTML = '⚠️ ขยับตัวถอยหลังให้อยู่กึ่งกลาง และให้เห็น ไหล่ สะโพก ข้อเท้า ครบถ้วน';
                 statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-black/90 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
                 
                 if (wbStandingTimer) {
@@ -821,12 +820,12 @@
         
         // 8) วาดพาร์ติเคิลแสดงดาเมจลอยขึ้นเหนือหัว (Floating Damage Slash Text)
         wbActiveSlashEffects.forEach((eff, idx) => {
-            wbCanvasCtx.font = `black ${eff.size}px Mali, Prompt, sans-serif`;
-            wbCanvasCtx.fillStyle = `rgba(239, 68, 68, ${eff.alpha})`;
+            wbCanvasCtx.font = 'black ' + eff.size + 'px Mali, Prompt, sans-serif';
+            wbCanvasCtx.fillStyle = 'rgba(239, 68, 68, ' + eff.alpha + ')';
             wbCanvasCtx.shadowBlur = 10;
             wbCanvasCtx.shadowColor = '#ef4444';
             wbCanvasCtx.textAlign = 'center';
-            wbCanvasCtx.fillText(`💥 -${eff.damage} HP`, eff.x, eff.y);
+            wbCanvasCtx.fillText('💥 -' + eff.damage + ' HP', eff.x, eff.y);
             
             // อัปเดตตำแหน่งลอยขึ้นและจางหาย
             eff.y -= 2;
@@ -851,7 +850,7 @@
         guidePrompt.style.display = 'flex';
         
         const statusOverlay = document.getElementById('wb-status-overlay');
-        statusOverlay.innerHTML = `🔥 เตรียมพร้อม! ประตูกำลังเปิด มินิเกมตรวจจับท่าทางกำลังจะเริ่มในทันที`;
+        statusOverlay.innerHTML = '🔥 เตรียมพร้อม! ประตูกำลังเปิด มินิเกมตรวจจับท่าทางกำลังจะเริ่มในทันที';
         statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-amber-950/95 backdrop-blur-sm border-2 border-amber-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse";
         
         runCountdownCycle();
@@ -860,7 +859,7 @@
     function runCountdownCycle() {
         const guidePrompt = document.getElementById('wb-guide-prompt');
         if (wbCountdownValue > 0) {
-            guidePrompt.innerHTML = `🚀 เริ่มบดขยี้ในอีก ${wbCountdownValue}...`;
+            guidePrompt.innerHTML = '🚀 เริ่มบดขยี้ในอีก ' + wbCountdownValue + '...';
             wbCountdownValue--;
             wbCountdownTimer = setTimeout(runCountdownCycle, 1000);
         } else {
@@ -877,7 +876,7 @@
         wbGameState = 'BATTLE';
         
         const statusOverlay = document.getElementById('wb-status-overlay');
-        statusOverlay.innerHTML = `⚔️ บอสปรากฏตัวแล้ว! ทำท่าทางออกกำลังกายให้เร็วและแม่นยำที่สุด! ⚔️`;
+        statusOverlay.innerHTML = '⚔️ บอสปรากฏตัวแล้ว! ทำท่าทางออกกำลังกายให้เร็วและแม่นยำที่สุด! ⚔️';
         statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-red-950/90 border-2 border-red-500 text-center font-black text-white text-xs md:text-sm shadow-md animate-pulse";
         
         // บันทึกเวลาเริ่มต้นเล่น
@@ -905,7 +904,7 @@
         if (wbRepsCount > wbTargetReps) wbRepsCount = wbTargetReps;
         
         // แสดงผลจำนวนรอบ
-        document.getElementById('wb-battle-reps').innerText = `${wbRepsCount} / ${wbTargetReps}`;
+        document.getElementById('wb-battle-reps').innerText = wbRepsCount + ' / ' + wbTargetReps;
         
         // คำนวณดาเมจ
         const damagePerRep = Math.round(wbBossMaxHp / wbTargetReps);
@@ -919,8 +918,8 @@
         }, 400);
         
         // อัปเดตแถบพลังชีวิตบอส
-        document.getElementById('wb-battle-boss-hp-bar').style.width = `${(wbBossHp / wbBossMaxHp) * 100}%`;
-        document.getElementById('wb-battle-boss-hp-text').innerText = `${wbBossHp} / ${wbBossMaxHp} HP`;
+        document.getElementById('wb-battle-boss-hp-bar').style.width = ((wbBossHp / wbBossMaxHp) * 100) + '%';
+        document.getElementById('wb-battle-boss-hp-text').innerText = wbBossHp + ' / ' + wbBossMaxHp + ' HP';
         
         // สปอนพาร์ติเคิลคำดาเมจเรืองแสงบน Canvas (สุ่มเยื้องกลางจอเล็กน้อยเพื่อให้อ่านง่าย)
         wbActiveSlashEffects.push({
@@ -1139,18 +1138,17 @@
             // แสดงผลป๊อปอัปพรีวิวกล้องแบบเรียลไทม์
             SwalRPG.fire({
                 title: '📷 กล้องพร้อมใช้งานแล้ว!',
-                html: `
-                    <div class="flex flex-col items-center gap-3">
-                        <p class="text-xs text-gray-500 font-bold font-prompt">ผู้กล้าสามารถปรับแต่งระยะและเช็คความชัดเจนของมุมกล้องได้ด้านล่างนี้</p>
-                        <div class="relative w-full max-w-sm rounded-2xl overflow-hidden border-4 border-emerald-500 shadow-md">
-                            <video id="wb-preview-video" autoplay playsinline muted 
-                                   class="w-full h-48 md:h-64 object-cover transform scale-x-[-1] bg-black"></video>
-                        </div>
-                        <span class="text-emerald-600 font-black text-sm animate-pulse flex items-center gap-1.5 mt-1 font-prompt">
-                            🟢 เชื่อมต่อเสร็จสมบูรณ์ กล้องทำงานได้อย่างดีเยี่ยม!
-                        </span>
-                    </div>
-                `,
+                html: 
+                    '<div class="flex flex-col items-center gap-3">' +
+                        '<p class="text-xs text-gray-500 font-bold font-prompt">ผู้กล้าสามารถปรับแต่งระยะและเช็คความชัดเจนของมุมกล้องได้ด้านล่างนี้</p>' +
+                        '<div class="relative w-full max-w-sm rounded-2xl overflow-hidden border-4 border-emerald-500 shadow-md">' +
+                            '<video id="wb-preview-video" autoplay playsinline muted ' +
+                                   'class="w-full h-48 md:h-64 object-cover transform scale-x-[-1] bg-black"></video>' +
+                        '</div>' +
+                        '<span class="text-emerald-600 font-black text-sm animate-pulse flex items-center gap-1.5 mt-1 font-prompt">' +
+                            '🟢 เชื่อมต่อเสร็จสมบูรณ์ กล้องทำงานได้อย่างดีเยี่ยม!' +
+                        '</span>' +
+                    '</div>',
                 confirmButtonText: '✅ เรียบร้อย พร้อมรบ!',
                 didOpen: () => {
                     const videoEl = document.getElementById('wb-preview-video');
@@ -1222,7 +1220,7 @@
         
         // แสดงข้อความโหมดจำลองเสมือนด้านบนกล้อง
         const statusOverlay = document.getElementById('wb-status-overlay');
-        statusOverlay.innerHTML = `🟢 โหมดฝึกฝนจำลองผู้กล้าเสมือน (Simulator Active) กด Spacebar เพื่อขยับ`;
+        statusOverlay.innerHTML = '🟢 โหมดฝึกฝนจำลองผู้กล้าเสมือน (Simulator Active) กด Spacebar เพื่อขยับ';
         statusOverlay.className = "absolute top-4 left-4 right-4 py-2.5 px-4 rounded-2xl bg-indigo-950/95 backdrop-blur-sm border-2 border-indigo-500 text-center font-bold text-white text-xs md:text-sm shadow-md animate-pulse z-20";
         
         // เปิดแสดงปุ่มจำลองสำหรับผู้ใช้อุปกรณ์พกพา/สัมผัส
@@ -1606,12 +1604,12 @@
         
         // 8) เรนเดอร์พาร์ติเคิลดาเมจลอยขึ้นฟ้า (Damage Floating Slash Text)
         wbActiveSlashEffects.forEach((eff, idx) => {
-            wbCanvasCtx.font = `black ${eff.size}px Mali, Prompt, sans-serif`;
-            wbCanvasCtx.fillStyle = `rgba(239, 68, 68, ${eff.alpha})`;
+            wbCanvasCtx.font = 'black ' + eff.size + 'px Mali, Prompt, sans-serif';
+            wbCanvasCtx.fillStyle = 'rgba(239, 68, 68, ' + eff.alpha + ')';
             wbCanvasCtx.shadowBlur = 10;
             wbCanvasCtx.shadowColor = '#ef4444';
             wbCanvasCtx.textAlign = 'center';
-            wbCanvasCtx.fillText(`💥 -${eff.damage} HP`, eff.x, eff.y);
+            wbCanvasCtx.fillText('💥 -' + eff.damage + ' HP', eff.x, eff.y);
             
             // อัปเดตตำแหน่งลอยขึ้นและจางหาย
             eff.y -= 2;
