@@ -337,6 +337,80 @@
         </div>
     </div>
 
+    <!-- ========================================================================= -->
+    <!-- ⏱️ หน้าต่างเลือกระดับเวลาท้าทายเกมวิ่ง (RUNNER TIME SELECTOR MODAL) -->
+    <!-- ========================================================================= -->
+    <div id="wb-runner-time-modal" 
+         class="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden">
+        
+        <div class="glass-panel rounded-3xl max-w-xl w-full p-6 md:p-8 text-center border-4 border-cyan-500/80 shadow-[0_0_50px_rgba(6,182,212,0.3)] relative overflow-hidden flex flex-col items-center">
+            <div class="absolute inset-0 bg-gradient-to-b from-cyan-950/20 via-transparent to-black/90 pointer-events-none"></div>
+            
+            <!-- ไอคอนนาฬิกาเรืองแสง -->
+            <span class="text-7xl md:text-8xl animate-pulse my-2 drop-shadow-[0_5px_15px_rgba(6,182,212,0.5)] select-none">⏱️</span>
+            
+            <h1 class="font-black text-2xl md:text-3xl bg-gradient-to-r from-cyan-300 via-cyan-400 to-teal-200 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight mt-2 font-prompt">
+                เลือกเวลาท้าทายมินิเกมวิ่ง
+            </h1>
+            <p class="text-gray-300 font-bold text-xs md:text-sm mt-2 max-w-md">
+                กรุณาเลือกระดับเวลาที่คุณต้องการวิ่งอยู่กับที่ผ่านกล้องเพื่อสะสมระยะทางให้ไกลที่สุดและบันทึกขึ้นตารางอันดับ!
+            </p>
+            
+            <!-- การ์ดตัวเลือกเวลา 4 แบบ -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full mt-6 z-10">
+                <!-- ตัวเลือกที่ 1: 15 วินาที -->
+                <button onclick="selectRunnerDuration(15)" 
+                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-lg group-hover:animate-bounce">⏱️ ท้าทาย 15 วินาที</span>
+                    <span class="text-[10px] text-slate-400 font-bold mt-1">เป้าหมายพลังบอส: 150 HP</span>
+                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
+                        <span class="text-xs font-black text-yellow-400">🪙 +100</span>
+                        <span class="text-xs font-black text-indigo-400">⭐ +100 XP</span>
+                    </div>
+                </button>
+                
+                <!-- ตัวเลือกที่ 2: 20 วินาที -->
+                <button onclick="selectRunnerDuration(20)" 
+                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-lg group-hover:animate-bounce">⏱️ ท้าทาย 20 วินาที</span>
+                    <span class="text-[10px] text-slate-400 font-bold mt-1">เป้าหมายพลังบอส: 200 HP</span>
+                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
+                        <span class="text-xs font-black text-yellow-400">🪙 +150</span>
+                        <span class="text-xs font-black text-indigo-400">⭐ +150 XP</span>
+                    </div>
+                </button>
+                
+                <!-- ตัวเลือกที่ 3: 30 วินาที -->
+                <button onclick="selectRunnerDuration(30)" 
+                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-cyan-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-cyan-400 font-black text-lg group-hover:animate-bounce">⏱️ ท้าทาย 30 วินาที</span>
+                    <span class="text-[10px] text-slate-400 font-bold mt-1">เป้าหมายพลังบอส: 300 HP</span>
+                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
+                        <span class="text-xs font-black text-yellow-400">🪙 +200</span>
+                        <span class="text-xs font-black text-indigo-400">⭐ +200 XP</span>
+                    </div>
+                </button>
+                
+                <!-- ตัวเลือกที่ 4: โหมดทดสอบ 1 วินาที -->
+                <button onclick="selectRunnerDuration(1)" 
+                        class="p-4 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-amber-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
+                    <span class="text-amber-400 font-black text-lg group-hover:animate-pulse">🔧 ทดสอบ 1 วินาที</span>
+                    <span class="text-[10px] text-slate-400 font-bold mt-1">เน้นทดสอบระบบสถิติด่วน</span>
+                    <div class="flex gap-2 mt-2 bg-slate-950/80 px-3 py-1 rounded-xl border border-slate-800">
+                        <span class="text-xs font-black text-amber-400">🪙 +5</span>
+                        <span class="text-xs font-black text-indigo-400">⭐ +5 XP</span>
+                    </div>
+                </button>
+            </div>
+            
+            <!-- ปุ่มยกเลิก/กลับสู่ล็อบบี้ -->
+            <button onclick="closeVictoryAndExit()" 
+                    class="mt-6 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-black text-xs md:text-sm rounded-xl cursor-pointer transition border border-slate-700 shadow-md">
+                🚪 ยกเลิกและกลับสู่ล็อบบี้
+            </button>
+        </div>
+    </div>
+
     <script>
         // 1) แกะค่าพารามิเตอร์ทั้งหมดที่ส่งผ่าน URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -345,13 +419,13 @@
         const userName = decodeURIComponent(urlParams.get('userName') || 'ผู้กล้าทดลอง');
         const className = decodeURIComponent(urlParams.get('className') || 'ป.5/1');
         
-        const bossId = urlParams.get('bossId') || 'WB001';
-        const bossName = decodeURIComponent(urlParams.get('bossName') || 'ผจญภัยไปกับมาริโอ้');
-        const poseType = urlParams.get('poseType') || 'mario_fitness'; 
-        const targetReps = parseInt(urlParams.get('targetReps') || '10');
-        const maxHp = parseInt(urlParams.get('maxHp') || '100');
-        const rewardCoins = parseInt(urlParams.get('rewardCoins') || '50');
-        const rewardXp = parseInt(urlParams.get('rewardXp') || '50');
+        let bossId = urlParams.get('bossId') || 'WB001';
+        let bossName = decodeURIComponent(urlParams.get('bossName') || 'ผจญภัยไปกับมาริโอ้');
+        let poseType = urlParams.get('poseType') || 'mario_fitness'; 
+        let targetReps = parseInt(urlParams.get('targetReps') || '10');
+        let maxHp = parseInt(urlParams.get('maxHp') || '100');
+        let rewardCoins = parseInt(urlParams.get('rewardCoins') || '50');
+        let rewardXp = parseInt(urlParams.get('rewardXp') || '50');
         
         const webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
 
@@ -437,6 +511,7 @@
         // สลับ UI บอส 1 และบอส 2 พร้อมเปลี่ยนขอบเรืองแสงแบบ Dynamic
         const gameFrame = document.getElementById('wb-game-frame');
         const cameraFrame = document.getElementById('wb-camera-frame');
+        const webcamSection = document.getElementById('wb-webcam-section');
         
         if (bossId === 'WB001') {
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SUPER MARIO 🍄";
@@ -452,6 +527,52 @@
             if (cameraFrame) {
                 cameraFrame.classList.remove('neon-border-purple', 'neon-border-space');
                 cameraFrame.classList.add('neon-border-mario');
+            }
+            
+            // คืนค่ารูปแบบลอยตัวดั้งเดิมสำหรับบอส 1
+            if (webcamSection) {
+                webcamSection.style.position = '';
+                webcamSection.style.top = '';
+                webcamSection.style.right = '';
+                webcamSection.style.width = '';
+                webcamSection.style.height = '';
+                webcamSection.style.aspectRatio = '';
+                webcamSection.style.zIndex = '';
+            }
+            if (cameraFrame) {
+                cameraFrame.style.width = '';
+                cameraFrame.style.height = '';
+                cameraFrame.style.borderRadius = '';
+                cameraFrame.style.border = '';
+            }
+        } else if (bossId.indexOf('WB002') === 0) {
+            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SPEED RUNNER 🏃‍♂️💨";
+            document.getElementById('mario-game-status').innerText = "🎮 ยอดนักวิ่งลมกรด: วิ่งอยู่กับที่ผ่านกล้องเพื่อเร่งความเร็วสะสมระยะทางให้ได้ไกลที่สุด!";
+            document.getElementById('mario-iframe').classList.add('hidden');
+            document.getElementById('wb-titan-placeholder').classList.add('hidden'); // ซ่อน placeholder ไปเลยเพราะเราจะใช้ Canvas วาดเต็มจอ
+            
+            // ใช้ขอบนีออนธีมสเปซสีไซอัน
+            if (gameFrame) {
+                gameFrame.classList.remove('neon-border-purple', 'neon-border-mario');
+                gameFrame.classList.add('neon-border-space');
+            }
+            
+            // ขยายกรอบเว็บแคมและ Canvas ให้ใหญ่เต็มกรอบสีดำตรงกลางอย่างอลังการ!
+            if (webcamSection) {
+                webcamSection.style.position = 'absolute';
+                webcamSection.style.top = '0';
+                webcamSection.style.right = '0';
+                webcamSection.style.width = '100%';
+                webcamSection.style.height = '100%';
+                webcamSection.style.aspectRatio = 'auto';
+                webcamSection.style.zIndex = '10';
+            }
+            if (cameraFrame) {
+                cameraFrame.style.width = '100%';
+                cameraFrame.style.height = '100%';
+                cameraFrame.style.borderRadius = '0';
+                cameraFrame.style.border = 'none';
+                cameraFrame.classList.remove('neon-border-purple');
             }
         } else {
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: STAR GUARDIAN 🌌";
@@ -479,6 +600,24 @@
             if (cameraFrame) {
                 cameraFrame.classList.remove('neon-border-purple', 'neon-border-mario');
                 cameraFrame.classList.add('neon-border-space');
+            }
+            
+            // คืนค่ารูปแบบลอยตัวดั้งเดิมสำหรับบอสทั่วไป
+            if (webcamSection) {
+                webcamSection.style.position = '';
+                webcamSection.style.top = '';
+                webcamSection.style.right = '';
+                webcamSection.style.width = '';
+                webcamSection.style.height = '';
+                webcamSection.style.aspectRatio = '';
+                webcamSection.style.zIndex = '';
+            }
+            if (cameraFrame) {
+                cameraFrame.style.width = '';
+                cameraFrame.style.height = '';
+                cameraFrame.style.borderRadius = '';
+                cameraFrame.style.border = '';
+                cameraFrame.classList.add('neon-border-purple');
             }
         }
 
@@ -799,15 +938,27 @@
                 
                 wbCamera.start();
                 
-                wbGameState = 'PREPARING';
+                const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
                 const statusOverlay = document.getElementById('wb-status-overlay');
                 
-                if (bossId === 'WB001') {
-                    statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อ Calibrate ค่าจมูกปกติ!`;
-                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                if (isWb002) {
+                    wbGameState = 'RUNNER_SELECT_TIME';
+                    const modal = document.getElementById('wb-runner-time-modal');
+                    if (modal) modal.classList.remove('hidden');
+                    
+                    if (statusOverlay) {
+                        statusOverlay.innerHTML = `⏱️ กรุณาเลือกเวลาท้าทายเพื่อเริ่มเกม...`;
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-cyan-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                    }
                 } else {
-                    statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
-                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                    wbGameState = 'PREPARING';
+                    if (bossId === 'WB001') {
+                        statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อ Calibrate ค่าจมูกปกติ!`;
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                    } else {
+                        statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                    }
                 }
                 
             } catch (err) {
@@ -1010,7 +1161,7 @@
             let isPositionOk = false;
             
             // 🛡️ วาดแกนกระดูกเรืองแสงเชื่อมต่อพิกัดร่างกายผู้เล่น เพื่อมอบ Visual Guidance และความแม่นยำในการคุมท่าทางขั้นสุดยอด!
-            const isWb002 = String(bossId).indexOf('WB002') === 0;
+            const isWb002 = String(bossId).indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
             if (landmarks && (bossId === 'WB001' || isWb002)) {
                 drawGlowingSkeleton(wbCanvasCtx, landmarks, width, height);
             }
@@ -1842,7 +1993,7 @@
             
             stopCamera();
             
-            const isWb002 = bossId.indexOf('WB002') === 0;
+            const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
             
             // สำหรับบอสยอดนักวิ่ง: เก็บระยะทาง เมตร แทนเวลาวิ่ง
             let finalTime = Math.round(wbElapsedTime * 100) / 100;
@@ -2068,6 +2219,71 @@
             if (elBestBadge) elBestBadge.classList.add('hidden');
             
             initWebcamAndPose();
+        }
+
+        /**
+         * ⏱️ ฟังก์ชันเลือกระดับเวลาสำหรับบอสวิ่ง Speed Runner แบบ Dynamic
+         */
+        function selectRunnerDuration(durationSec) {
+            let chosenBossId = 'WB002_15';
+            let chosenHp = 150;
+            let chosenCoins = 100;
+            let chosenXp = 100;
+            
+            if (durationSec === 20) {
+                chosenBossId = 'WB002_20';
+                chosenHp = 200;
+                chosenCoins = 150;
+                chosenXp = 150;
+            } else if (durationSec === 30) {
+                chosenBossId = 'WB002_30';
+                chosenHp = 300;
+                chosenCoins = 200;
+                chosenXp = 200;
+            } else if (durationSec === 1) {
+                chosenBossId = 'WB002_1';
+                chosenHp = 10;
+                chosenCoins = 5;
+                chosenXp = 5;
+            } else {
+                durationSec = 15; // default
+            }
+            
+            bossId = chosenBossId;
+            targetReps = durationSec;
+            maxHp = chosenHp;
+            rewardCoins = chosenCoins;
+            rewardXp = chosenXp;
+            wbBossHp = maxHp; // ตั้งค่าพลังชีวิตบอสเริ่มต้นใหม่
+            
+            // อัปเดต UI หน้าจอหลักแบบ Real-time
+            document.getElementById('wb-battle-reps').innerText = `0.0 / ${(targetReps * 4.0).toFixed(0)} เมตร`;
+            const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
+            if (elRepsMobile) elRepsMobile.innerText = `0.0 / ${(targetReps * 4.0).toFixed(0)} เมตร`;
+            
+            document.getElementById('wb-battle-boss-hp-text').innerText = `ระยะทางวิ่ง: 0.0 / ${(targetReps * 4.0).toFixed(0)} เมตร`;
+            document.getElementById('wb-battle-boss-hp-bar').style.width = '0%';
+            
+            // อัปเดตของรางวัลในการ์ดชัยชนะ (Victory screen rewards)
+            const elVictoryCoins = document.getElementById('wb-victory-reward-coins');
+            if (elVictoryCoins) elVictoryCoins.innerText = `+${rewardCoins} เหรียญ`;
+            const elVictoryXp = document.getElementById('wb-victory-reward-xp');
+            if (elVictoryXp) elVictoryXp.innerText = `+${rewardXp} XP`;
+            
+            // ซ่อน Modal การเลือกเวลา
+            const modal = document.getElementById('wb-runner-time-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            
+            // อัปเดตสถานะเพื่อเริ่มระบบ Calibrate และเริ่มเกมนับถอยหลังจริง
+            wbGameState = 'PREPARING';
+            
+            const statusOverlay = document.getElementById('wb-status-overlay');
+            if (statusOverlay) {
+                statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
+                statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+            }
         }
     </script>
 </body>
