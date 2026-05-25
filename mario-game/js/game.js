@@ -127,6 +127,11 @@ function main() {
 }
 
 function update(dt) {
+  // 🛡️ ป้องกันบั๊กการเคลื่อนไหวขณะทำควิซตอบคำถาม: ให้ข้ามฟิสิกส์ศัตรูและเวลานับถอยหลังของมาริโอ้
+  if (window.isMarioPaused) {
+    return;
+  }
+
   gameTime += dt;
 
   handleInput(dt);
