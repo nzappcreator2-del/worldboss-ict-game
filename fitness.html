@@ -733,11 +733,11 @@
             document.getElementById('mario-iframe').src = "about:blank"; // กำหนดเป็นหน้าว่าง เพื่อตัดเสียงดนตรี Bowser มาริโอ้ค้างคา 100%
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             
-            // แสดง Canvas สำหรับวาดลู่วิ่งนีออนให้กว้างเต็มหน้าต่างเกมขอบฟ้านีออน 100% ไร้ขอบดำด้านข้าง
+            // แสดง Canvas สำหรับวาดลู่วิ่งนีออนให้ขยายเต็มหน้าต่างเกมขอบฟ้านีออน โดยรักษาสัดส่วน 4:3 ไม่ยืดแบน
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
                 runnerCanvas.classList.remove('hidden');
-                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 shadow-inner";
+                runnerCanvas.className = "absolute inset-0 m-auto w-auto h-auto max-w-full max-h-full aspect-[4/3] bg-slate-950 shadow-2xl rounded-2xl border border-slate-800/60 object-contain";
             }
             
             // ใช้ขอบนีออนธีมสเปซสีไซอัน และปรับ Layout เป็น Split Screen ด้วย Flexbox
@@ -840,6 +840,7 @@
         let wbGameState = 'PREPARING'; // PREPARING, COUNTDOWN, BATTLE, VICTORY
         
         let wbRepsCount = 0;
+        let wbTotalQuestionsPlayed = 0; // ตัวนับจำนวนข้อที่ตอบไปทั้งหมด (ถูก + ผิด) สำหรับมินิเกม AI Safety
         let wbBossHp = maxHp;
         
         let wbStartTime = 0;
@@ -2583,20 +2584,19 @@
                 runnerCanvasCtx.fillStyle = '#22d3ee';
                 runnerCanvasCtx.shadowColor = '#06b6d4';
                 runnerCanvasCtx.shadowBlur = 6;
-                runnerCanvasCtx.fillText(`⚡ ความคืบหน้า: ${wbRepsCount} / 12 ข้อ  |  ⏱️ เวลา: ${wbElapsedTime.toFixed(2)}s`, width - 20, 30);
+                runnerCanvasCtx.fillText(`⚡ ทำไปแล้ว: ${wbTotalQuestionsPlayed} / 12 ข้อ (ถูก ${wbRepsCount} ข้อ)  |  ⏱️ เวลา: ${wbElapsedTime.toFixed(2)}s`, width - 20, 30);
             } else {
-                // โหมดจำกัดเวลาปกติ
-                const timeLeft = Math.max(0, targetReps - wbElapsedTime);
+                // โหมดจำกัดเวลาปกติ หรือเป้าหมายจำนวนข้ออื่นๆ ของบอส 2
                 runnerCanvasCtx.fillStyle = '#fb7185';
                 runnerCanvasCtx.shadowColor = '#f43f5e';
                 runnerCanvasCtx.shadowBlur = 6;
-                runnerCanvasCtx.fillText(`🔥 ตอบถูก: ${wbRepsCount} ข้อ  |  ⏱️ เหลือ: ${timeLeft.toFixed(1)}s`, width - 20, 30);
+                runnerCanvasCtx.fillText(`🔥 ทำไปแล้ว: ${wbTotalQuestionsPlayed} / ${targetReps} ข้อ (ถูก ${wbRepsCount} ข้อ)  |  ⏱️ เวลา: ${wbElapsedTime.toFixed(2)}s`, width - 20, 30);
             }
             runnerCanvasCtx.restore();
             
             // วาดหลอดพลังสะสมเลเซอร์ด้านล่างของ HUD (Y: 50, สูง 3px)
             runnerCanvasCtx.save();
-            const progressRatio = Math.min(1.0, wbRepsCount / targetReps);
+            const progressRatio = Math.min(1.0, wbTotalQuestionsPlayed / targetReps);
             const progressGrad = runnerCanvasCtx.createLinearGradient(0, 0, width * progressRatio, 0);
             progressGrad.addColorStop(0, '#8b5cf6');
             progressGrad.addColorStop(1, '#10b981');
@@ -3093,6 +3093,8 @@
                 }
             }
             if (droppedZone) {
+                wbTotalQuestionsPlayed++; // นับจำนวนข้อที่ตอบทั้งหมดทันที
+                
                 if (droppedZone === aiCurrentItem.category) {
                     // ตอบถูกต้อง!
                     handleRepDetected();
@@ -3115,9 +3117,17 @@
                         color: "#10b981"
                     });
                     
-                    spawnNewSafetyItem();
+                    // หน่วงเวลานิดนึงเพื่อให้เห็นข้อความตอบถูก ก่อนสุ่มหยิบข้อถัดไป
+                    setTimeout(() => {
+                        spawnNewSafetyItem();
+                        
+                        // เช็คเงื่อนไขจบด่านเมื่อเล่นครบข้อเป้าหมาย
+                        if (wbTotalQuestionsPlayed >= targetReps) {
+                            triggerVictoryPhase();
+                        }
+                    }, 600);
                 } else {
-                    // ตอบผิดพลาด!
+                    // ตอบผิดพลาด! ผิดและเสียโควตาข้อนั้นไปเลย ข้ามไปข้อถัดไปทันที
                     playBeep('countdown');
                     
                     wbActiveSlashEffects.push({
@@ -3129,13 +3139,20 @@
                         color: "#f43f5e"
                     });
                     
-                    // เด้งคำถามกลับไปที่จุดเดิมตรงกลางจอเพื่อความยุติธรรม
-                    aiCurrentItem.x = 320;
-                    aiCurrentItem.y = 180;
+                    // หน่วงเวลานิดนึงเพื่อให้เห็นข้อความตอบผิด ก่อนสุ่มหยิบข้อถัดไป
+                    setTimeout(() => {
+                        spawnNewSafetyItem();
+                        
+                        // เช็คเงื่อนไขจบด่านเมื่อเล่นครบข้อเป้าหมาย
+                        if (wbTotalQuestionsPlayed >= targetReps) {
+                            triggerVictoryPhase();
+                        }
+                    }, 600);
                 }
             } else {
+                // หากลากมาไม่ถึง หรือหลุดมือก่อนถึงโซนกล่องเป้าหมาย ให้เด้งกลับไปจุดศูนย์กลางเพื่อความยุติธรรม
                 aiCurrentItem.x = 320;
-                aiCurrentItem.y = 180;
+                aiCurrentItem.y = 195;
             }
         }
 
@@ -3723,6 +3740,7 @@
             
             // รีเซ็ตตัวแปรเกมหลักทั้งหมด
             wbRepsCount = 0;
+            wbTotalQuestionsPlayed = 0;
             wbBossHp = maxHp;
             wbElapsedTime = 0;
             wbGameState = 'PREPARING';
@@ -3850,6 +3868,8 @@
             rewardCoins = chosenCoins;
             rewardXp = chosenXp;
             wbBossHp = maxHp; // ตั้งค่าพลังชีวิตบอสเริ่มต้นใหม่
+            wbRepsCount = 0;
+            wbTotalQuestionsPlayed = 0;
             
             // อัปเดต UI หน้าจอหลักแบบ Real-time ให้เหมาะสมกับหน่วยคะแนนข้อแทนเมตร
             document.getElementById('wb-battle-reps').innerText = `0 / ${targetReps} ข้อ`;
