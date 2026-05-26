@@ -189,7 +189,7 @@
                 <!-- 📺 จอภาพเกมมินิเกมขยายใหญ่สุดชนขอบเรืองแสง (ขยายเต็มหน้าจอ ไร้ขอบเปล่าประโยชน์) -->
                 <div id="wb-game-frame" class="w-full aspect-[4/3] lg:max-h-[82vh] bg-black rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl relative border-4 border-slate-800">
                     <!-- Iframe ฝังตัวเกมมาริโอ้ดั้งเดิม Famicom / NES -->
-                    <iframe id="mario-iframe" class="absolute inset-0 w-full h-full border-none overflow-hidden" scrolling="no" src="mario-game/index.html?v=1.4" allow="autoplay; camera"></iframe>
+                    <iframe id="mario-iframe" class="absolute inset-0 w-full h-full border-none overflow-hidden hidden" scrolling="no" src="about:blank" allow="autoplay; camera"></iframe>
                     
                     <!-- โหมดแสดงของบอส 2 Titan / Star Guardian -->
                     <div id="wb-titan-placeholder" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center hidden">
@@ -3240,7 +3240,6 @@
             }, 30);
 
             // 📈 ระบบเร่งความยากตามเวลา (เฉพาะบอสอื่น ไม่รวมบอสยอดนักลากวาง AI Safety)
-            const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
             if (!isWb002) {
                 if (wbSpeedScaleInterval) clearInterval(wbSpeedScaleInterval);
                 wbSpeedScaleInterval = setInterval(() => {
