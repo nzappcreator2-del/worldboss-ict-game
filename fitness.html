@@ -718,6 +718,7 @@
                 webcamSection.style.aspectRatio = '';
                 webcamSection.style.zIndex = '';
                 webcamSection.style.flexShrink = '';
+                webcamSection.classList.remove('hidden');
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '';
@@ -751,7 +752,7 @@
                 gameFrame.style.padding = '12px';
             }
             
-            // ปรับตำแหน่งเว็บแคมให้อยู่ด้านข้างของลู่วิ่ง (ไม่ทับซ้อนหน้าจอหลัก) เพื่อความสะอาดตาในการวิ่ง!
+            // ปรับตำแหน่งเว็บแคมและทำการซ่อนเพื่อขยายวิสัยทัศน์ 100% ในเกมลากวาง AI Safety
             if (webcamSection) {
                 webcamSection.style.position = 'relative';
                 webcamSection.style.top = 'auto';
@@ -761,6 +762,7 @@
                 webcamSection.style.aspectRatio = '4/3';
                 webcamSection.style.zIndex = '30';
                 webcamSection.style.flexShrink = '0';
+                webcamSection.classList.add('hidden'); // ซ่อนเว็บแคม
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '100%';
@@ -821,6 +823,7 @@
                 webcamSection.style.aspectRatio = '';
                 webcamSection.style.zIndex = '';
                 webcamSection.style.flexShrink = '';
+                webcamSection.classList.remove('hidden');
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '';
@@ -901,9 +904,9 @@
         
         // 3 บล็อกเป้าหมาย (Drop Zones) พิกัด X, Y บน canvas 640x480 พร้อมค่า hx, hy, hw, hh สำหรับพิกัด Hitbox ตรวจจับการชนที่กว้างและง่ายขึ้นพิเศษ
         const DROP_ZONES = {
-            ethics: { x: 40, y: 340, w: 160, h: 100, hx: 0, hy: 260, hw: 215, hh: 220, label: "Ethics (จริยธรรม AI)", color: "#10b981", activeColor: "#34d399", textBg: "rgba(16, 185, 129, 0.15)" },
-            cybersecurity: { x: 240, y: 340, w: 160, h: 100, hx: 215, hy: 260, hw: 210, hh: 220, label: "Cybersecurity", color: "#06b6d4", activeColor: "#22d3ee", textBg: "rgba(6, 182, 212, 0.15)" },
-            social_risks: { x: 440, y: 340, w: 160, h: 100, hx: 425, hy: 260, hw: 215, hh: 220, label: "Social Risks", color: "#f43f5e", activeColor: "#fb7185", textBg: "rgba(244, 63, 94, 0.15)" }
+            ethics: { x: 40, y: 340, w: 160, h: 100, hx: 0, hy: 240, hw: 220, hh: 240, label: "Ethics (จริยธรรม AI)", color: "#10b981", activeColor: "#34d399", textBg: "rgba(16, 185, 129, 0.15)" },
+            cybersecurity: { x: 240, y: 340, w: 160, h: 100, hx: 220, hy: 240, hw: 160, hh: 240, label: "Cybersecurity", color: "#06b6d4", activeColor: "#22d3ee", textBg: "rgba(6, 182, 212, 0.15)" },
+            social_risks: { x: 440, y: 340, w: 160, h: 100, hx: 380, hy: 240, hw: 300, hh: 240, label: "Social Risks", color: "#f43f5e", activeColor: "#fb7185", textBg: "rgba(244, 63, 94, 0.15)" }
         };
 
         let wbTotalDistance = 0.0; // เก็บไว้ชั่วคราวเพื่อกันระบบผลรวมคะแนนเดิมมี reference เก่าขัดข้อง
@@ -2401,8 +2404,18 @@
                         
                         if (thumbTip && indexTip) {
                             // แปลงพิกัดสัมพัทธ์และกลับทิศซ้ายขวาให้เป็นธรรมชาติ
-                            const rawX = (1 - indexTip.x) * 640;
+                            let rawX = (1 - indexTip.x) * 640;
                             const rawY = indexTip.y * 480;
+                            
+                            // 🚀 เทคนิคเร่งสัมผัสพื้นที่ขอบข้าง (Edge Sensitivity Boosting):
+                            // ช่วยให้เด็กๆ เลื่อนเป้ามือถึงขอบซ้าย/ขวาได้ง่ายขึ้นมาก โดยมือจริงไม่ตกขอบเว็บแคม
+                            if (rawX > 320) {
+                                rawX = 320 + (rawX - 320) * 1.55; // ขยายช่วงความไวฝั่งขวา 1.55 เท่า!
+                                if (rawX > 635) rawX = 635;
+                            } else {
+                                rawX = 320 - (320 - rawX) * 1.55; // ขยายช่วงความไวฝั่งซ้าย 1.55 เท่า!
+                                if (rawX < 5) rawX = 5;
+                            }
                             
                             // Interpolation นุ่มนวลยิ่งขึ้นลดค่าลงเหลือ 0.18 ป้องกันอาการมือสั่น (Anti-Jitter Smooth Filtering)
                             handCursor.smoothX += (rawX - handCursor.smoothX) * 0.18;
@@ -3782,6 +3795,16 @@
             const elBestBadge = document.getElementById('wb-victory-best-badge');
             if (elBestBadge) elBestBadge.classList.add('hidden');
             
+            // ตั้งค่าซ่อน/แสดงเว็บแคมตามบอสที่เล่นป้องกันกล้องบังจอใน AI Safety
+            const webcamSection = document.getElementById('wb-webcam-section');
+            if (webcamSection) {
+                if (bossId.indexOf('WB002') === 0) {
+                    webcamSection.classList.add('hidden');
+                } else {
+                    webcamSection.classList.remove('hidden');
+                }
+            }
+            
             initWebcamAndPose();
         }
 
@@ -3852,6 +3875,12 @@
             
             // สตาร์ทระบบควบคุมการลากวางคู่ขนาน (Dual-Input) เมาส์/ทัชสกรีน
             initSafetyGameControls();
+            
+            // ซ่อนเว็บแคมขวาบนในโหมดบอส 2 (AI Safety) เพื่อขยายพื้นที่ทัศนวิสัยและการลากวาง
+            const webcamSection = document.getElementById('wb-webcam-section');
+            if (webcamSection) {
+                webcamSection.classList.add('hidden');
+            }
             
             // ข้ามเฟส Calibrate แล้วเข้าสู่เฟสนับถอยหลัง 3 2 1 ทันที เพื่อเริ่มเกมลากวางอย่างรวดเร็ว
             startCountdownPhase();
