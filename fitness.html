@@ -354,10 +354,10 @@
             <span class="text-7xl md:text-8xl animate-pulse my-2 drop-shadow-[0_5px_15px_rgba(6,182,212,0.5)] select-none">⏱️</span>
             
             <h1 class="font-black text-2xl md:text-3xl bg-gradient-to-r from-cyan-300 via-cyan-400 to-teal-200 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight mt-2 font-prompt">
-                เลือกเวลาท้าทายมินิเกมวิ่ง
+                เลือกเวลาท้าทายมือปราบภัย AI
             </h1>
             <p class="text-gray-300 font-bold text-xs md:text-sm mt-2 max-w-md">
-                กรุณาเลือกระดับเวลาที่คุณต้องการวิ่งอยู่กับที่ผ่านกล้องเพื่อสะสมระยะทางให้ไกลที่สุดและบันทึกขึ้นตารางอันดับ!
+                กรุณาเลือกระดับเวลาที่คุณต้องการสวมบทบาทเป็นมือปราบภัย AI แยกประเภทสถานการณ์ลงบล็อกเป้าหมายให้ถูกต้องเพื่อบันทึกคะแนนสูงสุด!
             </p>
             
             <!-- การ์ดตัวเลือกเวลา 5 แบบ จัดเรียงเรียบหรูสไตล์ RPG -->
@@ -693,8 +693,8 @@
                 cameraFrame.style.border = '';
             }
         } else if (bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack') {
-            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SPEED RUNNER 🏃‍♂️💨";
-            document.getElementById('mario-game-status').innerText = "🎮 ยอดนักวิ่งลมกรด: วิ่งอยู่กับที่ผ่านกล้องเพื่อเร่งความเร็วสะสมระยะทางให้ได้ไกลที่สุด!";
+            document.getElementById('wb-boss-tag').innerText = "MINI-GAME: AI SAFETY HAND-TRACKER 🛡️";
+            document.getElementById('mario-game-status').innerText = "🎮 สมรภูมิมือปราบภัย AI: ใช้ตำแหน่งมือจีบนิ้วชี้กับนิ้วโป้ง (Pinch) หรือใช้เมาส์ลากวางกล่องสถานการณ์ความปลอดภัยของ AI ลงบล็อกประเภทที่ถูกต้อง!";
             document.getElementById('mario-iframe').classList.add('hidden');
             document.getElementById('mario-iframe').src = "about:blank"; // กำหนดเป็นหน้าว่าง เพื่อตัดเสียงดนตรี Bowser มาริโอ้ค้างคา 100%
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
