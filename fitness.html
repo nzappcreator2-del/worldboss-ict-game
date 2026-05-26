@@ -856,8 +856,8 @@
         const runnerCanvasEl = document.getElementById('wb-runner-canvas');
         const runnerCanvasCtx = runnerCanvasEl ? runnerCanvasEl.getContext('2d') : null;
         if (runnerCanvasEl) {
-            runnerCanvasEl.width = 640;
-            runnerCanvasEl.height = 480;
+            runnerCanvasEl.width = 1280;
+            runnerCanvasEl.height = 960;
         }
         
         let wbStream = null;
@@ -2477,11 +2477,16 @@
             const width = 640;
             const height = 480;
             
-            runnerCanvasCtx.save();
-            // เคลียร์พื้นที่ความละเอียด 2 เท่า (1280x960) เพื่อความคมกริบ
+            // รีเซ็ตการเปลี่ยนแปลง Scale ทั้งหมดในเฟรมเก่ากลับเป็นสเกล 1:1 ปราศจากการคูณสะสม (Cumulative Scale Prevention)
+            runnerCanvasCtx.setTransform(1, 0, 0, 1, 0, 0);
+            
+            // เคลียร์พื้นที่ความละเอียด 2 เท่า (1280x960) ด้วยความคมกริบ
             runnerCanvasCtx.clearRect(0, 0, width * 2, height * 2);
-            // ทำการ scale 2 เท่า เพื่อให้พิกัด Logic 640x480 ทั้งหมดเรนเดอร์ในความละเอียดสูง 2X HD ทันที
+            
+            // สั่ง Scale 2 เท่าในรอบใหม่ เพื่อให้อินพุตพิกัด Logic 640x480 มีความคมชัดระดับ 2X UHD
             runnerCanvasCtx.scale(2, 2);
+            
+            runnerCanvasCtx.save();
             
             // 1. พื้นหลัง Sci-Fi กริตตารางนีออนแบบเคลื่อนไหว (Animated Cyber Grid & Intersection Node Glow)
             runnerCanvasCtx.fillStyle = '#080a1c';
