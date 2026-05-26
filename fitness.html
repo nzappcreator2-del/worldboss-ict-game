@@ -900,6 +900,7 @@
         let aiCurrentItem = null;
         let isPinching = false;
         let draggedItem = null;
+        let handLossFrames = 0; // ตัวนับเฟรมที่สูญเสียการจับมือ เพื่อทำระบบ Grace Period กันคีบหลุด
         let handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
         
         // 3 บล็อกเป้าหมาย (Drop Zones) พิกัด X, Y บน canvas 640x480 พร้อมค่า hx, hy, hw, hh สำหรับพิกัด Hitbox ตรวจจับการชนที่กว้างและง่ายขึ้นพิเศษ
@@ -2393,6 +2394,9 @@
                 if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                     detectedHand = results.multiHandLandmarks[0];
                     drawGlowingHandSkeleton(wbCanvasCtx, detectedHand);
+                    handLossFrames = 0; // เคลียร์ตัวนับเฟรมหลุด
+                } else {
+                    handLossFrames++; // สะสมจำนวนเฟรมหลุด เพื่อ Grace Period
                 }
                 wbCanvasCtx.restore();
                 
@@ -2410,7 +2414,7 @@
                             // 🚀 เทคนิคเร่งสัมผัสพื้นที่ขอบข้าง (Edge Sensitivity Boosting):
                             // ช่วยให้เด็กๆ เลื่อนเป้ามือถึงขอบซ้าย/ขวาได้ง่ายขึ้นมาก โดยมือจริงไม่ตกขอบเว็บแคม
                             if (rawX > 320) {
-                                rawX = 320 + (rawX - 320) * 1.55; // ขยายช่วงความไวฝั่งขวา 1.55 เท่า!
+                                rawX = 320 + (rawX - 320) * 1.85; // ขยายช่วงความไวฝั่งขวาเพิ่มขึ้นเป็น 1.85 เท่า ป้องกันนิ้วตกขอบกล้องจริง!
                                 if (rawX > 635) rawX = 635;
                             } else {
                                 rawX = 320 - (320 - rawX) * 1.55; // ขยายช่วงความไวฝั่งซ้าย 1.55 เท่า!
@@ -2464,12 +2468,14 @@
                             }
                         }
                     } else {
-                        // ปลดล็อคกันมือหลุดเฟรมค้าง
+                        // ปลดล็อคกันมือหลุดเฟรมค้าง (พร้อมระบบ Grace Period 6 เฟรม ป้องกันคีบหลุดกลางอากาศฝั่งขวา)
                         if (isPinching) {
-                            isPinching = false;
-                            if (draggedItem) {
-                                handleDropRelease();
-                                draggedItem = null;
+                            if (handLossFrames >= 6) {
+                                isPinching = false;
+                                if (draggedItem) {
+                                    handleDropRelease();
+                                    draggedItem = null;
+                                }
                             }
                         }
                     }
@@ -2613,19 +2619,13 @@
                     const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
                                           checkY >= zone.hy && checkY <= zone.hy + zone.hh);
                                           
-                    // 2: เช็คว่าตัวการ์ดคำถามทับซ้อนกับโซนเป้าหมาย (AABB Overlap)
-                    const leftA = aiCurrentItem.x - aiCurrentItem.w / 2;
-                    const rightA = aiCurrentItem.x + aiCurrentItem.w / 2;
-                    const topA = aiCurrentItem.y - aiCurrentItem.h / 2;
-                    const bottomA = aiCurrentItem.y + aiCurrentItem.h / 2;
+                    // 2: เช็คว่าจุดกึ่งกลางการ์ดคำถาม (Card Center) ตกอยู่ในโซนเป้าหมาย เพื่อแรงดึงดูดและการชนที่แม่นยำสูง
+                    const cardX = aiCurrentItem.x;
+                    const cardY = aiCurrentItem.y;
+                    const isCardCenterInZone = (cardX >= zone.hx && cardX <= zone.hx + zone.hw &&
+                                                cardY >= zone.hy && cardY <= zone.hy + zone.hh);
                     
-                    const leftB = zone.hx;
-                    const rightB = zone.hx + zone.hw;
-                    const topB = zone.hy;
-                    const bottomB = zone.hy + zone.hh;
-                    const isCardOverlapping = (leftA < rightB && rightA > leftB && topA < bottomB && bottomA > topB);
-                    
-                    if (isHandInZone || isCardOverlapping) {
+                    if (isHandInZone || isCardCenterInZone) {
                         isActive = true;
                     }
                 }
@@ -3065,33 +3065,31 @@
             const centerX = aiCurrentItem.x;
             const centerY = aiCurrentItem.y;
             
-            // ขอบเขตพิกัดการ์ดคำถาม (Bounding Box)
-            const leftA = aiCurrentItem.x - aiCurrentItem.w / 2;
-            const rightA = aiCurrentItem.x + aiCurrentItem.w / 2;
-            const topA = aiCurrentItem.y - aiCurrentItem.h / 2;
-            const bottomA = aiCurrentItem.y + aiCurrentItem.h / 2;
-            
             // พิกัดเป้าเล็งมือของผู้เล่นจริง (เพื่อการลากวางที่สมบูรณ์)
             const checkX = handCursor.smoothX;
             const checkY = handCursor.smoothY;
             
+            // ลูปเช็คเป้ามือเป็นอันดับแรกเพื่อความแม่นยำสูง (ชี้กล่องไหนได้กล่องนั้น 100%)
             for (const key in DROP_ZONES) {
                 const zone = DROP_ZONES[key];
-                
-                // เช็ค 1: เป้ามืออยู่ในกล่อง (ผ่าน Hitbox ตรวจจับพิเศษ hx, hy, hw, hh)
                 const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
                                       checkY >= zone.hy && checkY <= zone.hy + zone.hh);
-                                      
-                // เช็ค 2: ตัวการ์ดทับซ้อนกับโซน (AABB Collision บน Hitbox)
-                const leftB = zone.hx;
-                const rightB = zone.hx + zone.hw;
-                const topB = zone.hy;
-                const bottomB = zone.hy + zone.hh;
-                const isCardOverlapping = (leftA < rightB && rightA > leftB && topA < bottomB && bottomA > topB);
-                
-                if (isHandInZone || isCardOverlapping) {
+                if (isHandInZone) {
                     droppedZone = key;
                     break;
+                }
+            }
+            
+            if (!droppedZone) {
+                // เช็ค 2: พิกัดกึ่งกลางของการ์ดคำถาม (Card Center Drop) ในกรณีที่เกิดคีบหลุดหรือพิกัดเป้ามือหลุดไปแล้ว
+                for (const key in DROP_ZONES) {
+                    const zone = DROP_ZONES[key];
+                    const isCardCenterInZone = (centerX >= zone.hx && centerX <= zone.hx + zone.hw &&
+                                                centerY >= zone.hy && centerY <= zone.hy + zone.hh);
+                    if (isCardCenterInZone) {
+                        droppedZone = key;
+                        break;
+                    }
                 }
             }
             if (droppedZone) {
