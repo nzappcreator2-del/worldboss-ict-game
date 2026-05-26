@@ -159,6 +159,12 @@
             border-radius: 0 !important;
             background-color: #080a1c !important;
         }
+
+        /* ปรับปรุงคุณภาพการแสดงผล Canvas ให้คมกริบ Contrast เยี่ยม ไม่เบลอ */
+        #wb-runner-canvas {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between select-none">
@@ -217,7 +223,7 @@
                     </div>
 
                     <!-- 🏃‍♂️ หน้าจอวาดเกมวิ่ง Speed Runner โดยเฉพาะ เต็มกรอบ 100% (Aspect 4:3 ยึดไม่ตกขอบ) -->
-                    <canvas id="wb-runner-canvas" class="absolute inset-0 w-full h-full bg-slate-950 hidden" width="640" height="480"></canvas>
+                    <canvas id="wb-runner-canvas" class="absolute inset-0 w-full h-full bg-slate-950 hidden" width="1280" height="960"></canvas>
 
                     <!-- 🎥 หน้าจอประมวลผลกล้องเว็บแคม - ลอยตัวทับมุมขวาบนอย่างสวยงาม -->
                     <div id="wb-webcam-section" class="absolute top-3 right-3 w-[140px] md:w-[200px] lg:w-[260px] aspect-[4/3] z-30 flex flex-col items-center">
@@ -2472,7 +2478,10 @@
             const height = 480;
             
             runnerCanvasCtx.save();
-            runnerCanvasCtx.clearRect(0, 0, width, height);
+            // เคลียร์พื้นที่ความละเอียด 2 เท่า (1280x960) เพื่อความคมกริบ
+            runnerCanvasCtx.clearRect(0, 0, width * 2, height * 2);
+            // ทำการ scale 2 เท่า เพื่อให้พิกัด Logic 640x480 ทั้งหมดเรนเดอร์ในความละเอียดสูง 2X HD ทันที
+            runnerCanvasCtx.scale(2, 2);
             
             // 1. พื้นหลัง Sci-Fi กริตตารางนีออนแบบเคลื่อนไหว (Animated Cyber Grid & Intersection Node Glow)
             runnerCanvasCtx.fillStyle = '#080a1c';
@@ -2701,60 +2710,86 @@
                 const item = aiCurrentItem;
                 const isItemDragging = draggedItem !== null;
                 
+                // คำนวณ Scale แบบ Dynamic ตามระยะพิกัด Y (ยิ่งลากลงใกล้เป้าหมาย ยิ่งย่อขนาดเล็กลงอย่างราบรื่นมีมิติ)
+                let cardScale = 1.0;
+                if (item.y > 195) {
+                    const progress = Math.min(1.0, (item.y - 195) / (320 - 195));
+                    cardScale = 1.0 - progress * 0.58; // ย่อขนาดลงสูงสุด 58% (สเกลเหลือ 0.42)
+                }
+                
+                // อัปเดตความกว้างความสูง Bounding Box แบบ Dynamic เพื่อให้ฟิสิกส์ตรวจจับการทับซ้อนทำงานได้สอดคล้องกันดีเยี่ยม!
+                item.w = 460 * cardScale;
+                item.h = 135 * cardScale;
+                
                 runnerCanvasCtx.save();
                 runnerCanvasCtx.shadowColor = '#8b5cf6';
-                runnerCanvasCtx.shadowBlur = isItemDragging ? 32 : 14;
+                runnerCanvasCtx.shadowBlur = isItemDragging ? (32 * cardScale) : (14 * cardScale);
                 
-                // วาดตัวกล่องทรงโค้งมนไฮเทค
+                // วาดตัวกล่องทรงโค้งมนไฮเทคที่โดน Scale ตามระยะความลึก Y
                 runnerCanvasCtx.fillStyle = 'rgba(11, 15, 36, 0.96)';
                 runnerCanvasCtx.strokeStyle = isItemDragging ? '#c084fc' : '#8b5cf6';
-                runnerCanvasCtx.lineWidth = isItemDragging ? 2.5 : 1.5;
-                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 15, true, true);
+                runnerCanvasCtx.lineWidth = (isItemDragging ? 2.5 : 1.5) * cardScale;
+                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 15 * cardScale, true, true);
                 runnerCanvasCtx.restore();
                 
-                // หัวข้อแถบคาดเรืองแสงสตรีมข้อมูล (Tech Header Bar)
-                runnerCanvasCtx.save();
-                runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.1)';
-                runnerCanvasCtx.fillRect(item.x - item.w/2 + 2, item.y - item.h/2 + 2, item.w - 4, 30);
-                
-                runnerCanvasCtx.font = '900 16px Prompt, sans-serif';
-                runnerCanvasCtx.fillStyle = '#e9d5ff';
-                runnerCanvasCtx.textAlign = 'center';
-                runnerCanvasCtx.shadowColor = '#c084fc';
-                runnerCanvasCtx.shadowBlur = 6;
-                runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y - item.h/2 + 21);
-                
-                // ป้ายกำกับเทคโนโลยีขอบขวา
-                runnerCanvasCtx.font = 'bold 7.5px Courier, monospace';
-                runnerCanvasCtx.fillStyle = 'rgba(167, 139, 250, 0.6)';
-                runnerCanvasCtx.textAlign = 'right';
-                runnerCanvasCtx.fillText('PACKET V1.6', item.x + item.w/2 - 12, item.y - item.h/2 + 19);
-                runnerCanvasCtx.restore();
-                
-                // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
-                runnerCanvasCtx.strokeStyle = 'rgba(167, 139, 250, 0.25)';
-                runnerCanvasCtx.lineWidth = 1;
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(item.x - item.w/2 + 15, item.y - item.h/2 + 32);
-                runnerCanvasCtx.lineTo(item.x + item.w/2 - 15, item.y - item.h/2 + 32);
-                runnerCanvasCtx.stroke();
-                
-                // เนื้อหาคำถามหักขึ้นบรรทัดอัตโนมัติ
-                runnerCanvasCtx.save();
-                runnerCanvasCtx.font = '900 15px Prompt, sans-serif';
-                runnerCanvasCtx.fillStyle = '#ffffff';
-                runnerCanvasCtx.textAlign = 'center';
-                runnerCanvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
-                runnerCanvasCtx.shadowBlur = 4;
-                wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 56, item.w - 40, 22);
-                runnerCanvasCtx.restore();
+                // ตรวจความลึกสเกลของการ์ด
+                if (cardScale > 0.60) {
+                    // โหมดการ์ดขนาดใหญ่ (แสดงข้อมูลละเอียดคำถามครบถ้วน)
+                    
+                    // หัวข้อแถบคาดเรืองแสงสตรีมข้อมูล (Tech Header Bar)
+                    runnerCanvasCtx.save();
+                    runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.1)';
+                    runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 30 * cardScale);
+                    
+                    runnerCanvasCtx.font = `900 ${16 * cardScale}px Prompt, sans-serif`;
+                    runnerCanvasCtx.fillStyle = '#e9d5ff';
+                    runnerCanvasCtx.textAlign = 'center';
+                    runnerCanvasCtx.shadowColor = '#c084fc';
+                    runnerCanvasCtx.shadowBlur = 6 * cardScale;
+                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y - item.h/2 + 21 * cardScale);
+                    
+                    // ป้ายกำกับเทคโนโลยีขอบขวา
+                    runnerCanvasCtx.font = `bold ${7.5 * cardScale}px Courier, monospace`;
+                    runnerCanvasCtx.fillStyle = 'rgba(167, 139, 250, 0.6)';
+                    runnerCanvasCtx.textAlign = 'right';
+                    runnerCanvasCtx.fillText('PACKET V1.6', item.x + item.w/2 - 12 * cardScale, item.y - item.h/2 + 19 * cardScale);
+                    runnerCanvasCtx.restore();
+                    
+                    // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
+                    runnerCanvasCtx.strokeStyle = 'rgba(167, 139, 250, 0.25)';
+                    runnerCanvasCtx.lineWidth = 1 * cardScale;
+                    runnerCanvasCtx.beginPath();
+                    runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 32 * cardScale);
+                    runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 32 * cardScale);
+                    runnerCanvasCtx.stroke();
+                    
+                    // เนื้อหาคำถามหักขึ้นบรรทัดอัตโนมัติ
+                    runnerCanvasCtx.save();
+                    runnerCanvasCtx.font = `900 ${15 * cardScale}px Prompt, sans-serif`;
+                    runnerCanvasCtx.fillStyle = '#ffffff';
+                    runnerCanvasCtx.textAlign = 'center';
+                    runnerCanvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
+                    runnerCanvasCtx.shadowBlur = 4 * cardScale;
+                    wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 56 * cardScale, item.w - 40 * cardScale, 22 * cardScale);
+                    runnerCanvasCtx.restore();
+                } else {
+                    // 🔮 โหมด Cyber Chip (เมื่อลากลงมาลึกจนย่อขนาดจิ๋ว): เปลี่ยนเป็นชิปเรืองแสงสีเขียว แสดงไอคอนโตๆ
+                    runnerCanvasCtx.save();
+                    runnerCanvasCtx.font = `900 ${14}px Prompt, sans-serif`;
+                    runnerCanvasCtx.fillStyle = '#34d399'; // สีเขียวนีออนสว่าง
+                    runnerCanvasCtx.textAlign = 'center';
+                    runnerCanvasCtx.shadowColor = '#10b981';
+                    runnerCanvasCtx.shadowBlur = 8;
+                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y + 5);
+                    runnerCanvasCtx.restore();
+                }
                 
                 // ปลายวงจรเทคโนโลยีประดับมุมกล่องเล็กๆ
                 runnerCanvasCtx.save();
                 runnerCanvasCtx.fillStyle = '#8b5cf6';
                 runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.arc(item.x - item.w/2 + 8, item.y - item.h/2 + 8, 2, 0, Math.PI * 2);
-                runnerCanvasCtx.arc(item.x + item.w/2 - 8, item.y - item.h/2 + 8, 2, 0, Math.PI * 2);
+                runnerCanvasCtx.arc(item.x - item.w/2 + 8 * cardScale, item.y - item.h/2 + 8 * cardScale, 2 * cardScale, 0, Math.PI * 2);
+                runnerCanvasCtx.arc(item.x + item.w/2 - 8 * cardScale, item.y - item.h/2 + 8 * cardScale, 2 * cardScale, 0, Math.PI * 2);
                 runnerCanvasCtx.fill();
                 runnerCanvasCtx.restore();
             }
