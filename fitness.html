@@ -1292,8 +1292,8 @@
                     wbHands.setOptions({
                         maxNumHands: 1,
                         modelComplexity: 1,
-                        minDetectionConfidence: 0.6,
-                        minTrackingConfidence: 0.6
+                        minDetectionConfidence: 0.78, // เพิ่มความมั่นใจขั้นต่ำเพื่อให้คัดแยกมือจริงจากสิ่งแวดล้อมอย่างเข้มงวด ป้องกันอาการ Ghost Hands
+                        minTrackingConfidence: 0.75  // เพิ่มค่าล็อกเป้าเพื่อรักษาความเสถียรในการติดตามพิกัดมือ
                     });
                     
                     wbHands.onResults(onHandsResults);
@@ -2371,16 +2371,18 @@
                             const rawX = (1 - indexTip.x) * 640;
                             const rawY = indexTip.y * 480;
                             
-                            // Interpolation นุ่มนวล 
-                            handCursor.smoothX += (rawX - handCursor.smoothX) * 0.35;
-                            handCursor.smoothY += (rawY - handCursor.smoothY) * 0.35;
+                            // Interpolation นุ่มนวลยิ่งขึ้นลดค่าลงเหลือ 0.18 ป้องกันอาการมือสั่น (Anti-Jitter Smooth Filtering)
+                            handCursor.smoothX += (rawX - handCursor.smoothX) * 0.18;
+                            handCursor.smoothY += (rawY - handCursor.smoothY) * 0.18;
                             
                             // ระยะคำนวณ Pinch (จีบนิ้วโป้งชี้)
                             const dx = thumbTip.x - indexTip.x;
                             const dy = thumbTip.y - indexTip.y;
                             const pinDist = Math.sqrt(dx * dx + dy * dy);
                             
-                            const currentPinch = pinDist < 0.055;
+                            // 🛡️ Schmitt Trigger (Hysteresis): ใช้เกณฑ์สองระดับเพื่อให้คีบลากวัตถุได้นิ่งและทนทานอาการสั่นของนิ้ว
+                            // เมื่อเริ่มหนีบต้องขยับนิ้วชิดกันต่ำกว่า 0.048 | เมื่อหนีบแล้วยอมให้อ้าขยายได้ถึง 0.065 ป้องกันอาการลากวางหลุดกลางทาง
+                            const currentPinch = isPinching ? (pinDist < 0.065) : (pinDist < 0.048);
                             
                             if (currentPinch && !isPinching) {
                                 isPinching = true;
