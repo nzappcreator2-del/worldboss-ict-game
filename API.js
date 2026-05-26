@@ -1608,7 +1608,7 @@ function getWorldBossConfig() {
  * API: บันทึกคะแนนสถิติเวลาสู้บอส (บันทึกทับเฉพาะเมื่อเวลาใหม่เร็วกว่าสถิติเดิมของผู้เล่น)
  * และคำนวณการแจก Coins / XP พร้อมเช็คการเพิ่มเลเวลและจัดแรงก์แบบ Server-Authoritative
  */
-function submitWorldBossScore(userId, bossId, timeSeconds) {
+function submitWorldBossScore(userId, bossId, timeSeconds, bonusCoins) {
   try {
     ensureDatabaseSetup();
     const ss = getSpreadsheet();
@@ -1703,7 +1703,8 @@ function submitWorldBossScore(userId, bossId, timeSeconds) {
     }
     
     // 4. มอบรางวัลลงตารางผู้ใช้งาน (Users)
-    const finalCoins = coins + rewardCoins;
+    const cleanBonus = Number(bonusCoins) || 0;
+    const finalCoins = coins + rewardCoins + cleanBonus;
     const finalXp = xp + rewardXp;
     
     // คำนวณเลเวลใหม่จาก XP (1 เลเวลต่อ 100 XP)
@@ -1784,5 +1785,50 @@ function getWorldBossLeaderboard(bossId) {
   } catch (e) {
     console.error('Error in getWorldBossLeaderboard:', e);
     return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Utility: ค้นหาไอดีบทเรียนล่าสุดที่ผู้ใช้ยังไม่ผ่าน เพื่อนำคำถามมาสุ่มออกในมาริโอ้ควิซ
+ * @param {string} userId - รหัสผู้ใช้
+ * @returns {string|null} ไอดีบทเรียน หรือ null
+ */
+function getUserCurrentLessonId(userId) {
+  try {
+    ensureDatabaseSetup();
+    const ss = getSpreadsheet();
+    
+    const pSheet = ss.getSheetByName('Progress');
+    const pData = pSheet.getDataRange().getValues();
+    let passedLessons = new Set();
+    for (let i = 1; i < pData.length; i++) {
+      if (String(pData[i][0]) === String(userId) && String(pData[i][2]) === 'Passed') {
+        passedLessons.add(String(pData[i][1]));
+      }
+    }
+
+    const lSheet = ss.getSheetByName('Lessons');
+    const lData = lSheet.getDataRange().getValues();
+    
+    let activeLessons = [];
+    for (let i = 1; i < lData.length; i++) {
+      if (lData[i][0]) {
+        activeLessons.push(String(lData[i][0]));
+      }
+    }
+
+    for (let i = 0; i < activeLessons.length; i++) {
+      if (!passedLessons.has(activeLessons[i])) {
+        return activeLessons[i];
+      }
+    }
+    
+    if (activeLessons.length > 0) {
+      return activeLessons[activeLessons.length - 1];
+    }
+    return null;
+  } catch (e) {
+    console.error('Error in getUserCurrentLessonId:', e);
+    return null;
   }
 }

@@ -54,6 +54,7 @@
     <script type="text/javascript" src="js/levels/level.js"></script>
     <script type="text/javascript" src="js/levels/11.js"></script>
     <script type="text/javascript" src="js/levels/11tunnel.js"></script>
+    <script type="text/javascript" src="js/quiz.js"></script>
     <script type="text/javascript" src="js/game.js"></script>
     <script>
         // 🌉 สะพานเชื่อม API สำหรับเวิลด์บอส (World Boss API Bridge - SMB1 NES) & Preloader อัจฉริยะ
@@ -388,6 +389,18 @@
             // ปลดล็อกเสียงเมื่อผู้เล่นเริ่มขยับตัวด้วย
             unlockAllAudio();
             
+            // 🛡️ ระบบดักปุ่มตอนทำควิซตอบคำถาม: แปลง JUMP (88) -> ช้อยส์ A, CROUCH (40) -> ช้อยส์ B
+            if (window.MarioQuiz && window.MarioQuiz.isQuizActive) {
+                if (isDown) {
+                    if (keyCode === 88) {
+                        window.MarioQuiz.submitAnswer(1); // เลือกข้อ A
+                    } else if (keyCode === 40) {
+                        window.MarioQuiz.submitAnswer(2); // เลือกข้อ B
+                    }
+                }
+                return; // หยุดทำงานปุ่มปกติในสเตจเกมมาริโอ้
+            }
+            
             if (window.input && typeof window.input.set === 'function') {
                 let key;
                 switch(keyCode) {
@@ -404,6 +417,15 @@
                 }
             }
         };
+
+        // 🌉 รับชุดข้อสอบคำถามเชิงโต้ตอบจากหน้าหลักสู้บอส
+        window.addEventListener('message', (event) => {
+            const msg = event.data;
+            if (msg && msg.action === 'sendQuestions') {
+                window.marioQuestions = msg.questions;
+                console.log("🎯 [Mario UI Bridge] Received questions from Parent Page:", msg.questions);
+            }
+        });
 
         window.currentScoreInstance = {
             get coinScore() {

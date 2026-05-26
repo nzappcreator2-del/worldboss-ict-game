@@ -428,7 +428,8 @@
                         "&maxHp=" + encodeURIComponent(boss.maxHp) +
                         "&rewardCoins=" + encodeURIComponent(boss.rewardCoins) +
                         "&rewardXp=" + encodeURIComponent(boss.rewardXp) +
-                        "&webAppUrl=" + encodeURIComponent(webAppUrl);
+                        "&webAppUrl=" + encodeURIComponent(webAppUrl) +
+                        "&lessonId=L-CURRENT";
                     
                     // เปิดหน้าต่างแท็บใหม่ไปที่สมรภูมิรบ เพื่อเชื่อมกล้องจริงบนมือถือได้
                     window.open(targetUrl, "_blank");
@@ -451,7 +452,8 @@
                 "&maxHp=" + encodeURIComponent(boss.maxHp) +
                 "&rewardCoins=" + encodeURIComponent(boss.rewardCoins) +
                 "&rewardXp=" + encodeURIComponent(boss.rewardXp) +
-                "&webAppUrl=" + encodeURIComponent("http://localhost:5500");
+                "&webAppUrl=" + encodeURIComponent("http://localhost:5500") +
+                "&lessonId=L-CURRENT";
             
             window.open(targetUrl, "_blank");
         }

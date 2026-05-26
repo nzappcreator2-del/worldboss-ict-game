@@ -442,6 +442,10 @@
         let rewardXp = parseInt(urlParams.get('rewardXp') || '50');
         
         const webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
+        const lessonId = urlParams.get('lessonId') || 'L-CURRENT';
+        
+        let quizBonusCoins = 0; // ยอดเหรียญทองโบนัสสะสมจากการตอบควิซถูก
+        let worldBossQuestions = []; // ชุดคำถามที่จะส่งไปใน iframe มาริโอ้
 
         // 🔊 ระบบสังเคราะห์เสียง
         const enableVoice = false;
@@ -906,8 +910,124 @@
             unlockRealMarioAudio();
         };
 
+        // 🔮 ฟังก์ชันดึงคำถามวิชา ICT จากหลังบ้าน / ตั้งโจทย์สำรอง
+        function fetchQuizQuestions() {
+            const fallbackQuestions = [
+                {
+                    text: "โปรแกรมเมอร์ใช้ภาษาอะไรในการสั่งงานคอมพิวเตอร์เพื่อความถูกต้อง?",
+                    options: ["A: ภาษาเครื่อง/โค้ด (เช่น Python, JavaScript)", "B: ภาษากาย / ภาษาพูดตามธรรมชาติ"],
+                    answer: 1
+                },
+                {
+                    text: "โครงสร้างแบบใดในภาษาคอมพิวเตอร์ที่ใช้สั่งงานวนซ้ำคำสั่งเดิมๆ?",
+                    options: ["A: โครงสร้างแบบเงื่อนไข (If-Else)", "B: โครงสร้างแบบลูป (Loop / For / While)"],
+                    answer: 2
+                },
+                {
+                    text: "การแชร์พาสเวิร์ดบัญชีการเรียนให้บุคคลอื่นบนอินเทอร์เน็ต ปลอดภัยหรือไม่?",
+                    options: ["A: ไม่ปลอดภัย (อาจถูกขโมยข้อมูลและประวัติการเรียน)", "B: ปลอดภัยมาก (สะดวกดีเพื่อนจะได้ช่วยทำใบงาน)"],
+                    answer: 1
+                },
+                {
+                    text: "เทคโนโลยีใดที่ช่วยให้เครื่องจักรเกิดปัญญาประดิษฐ์และเรียนรู้ได้คล้ายมนุษย์?",
+                    options: ["A: AI (Artificial Intelligence)", "B: UI (User Interface)"],
+                    answer: 1
+                },
+                {
+                    text: "เครือข่ายคอมพิวเตอร์ที่เชื่อมต่อกันทั่วโลกเรียกว่าอะไร?",
+                    options: ["A: ระบบอินทราเน็ต (Intranet)", "B: ระบบอินเทอร์เน็ต (Internet)"],
+                    answer: 2
+                }
+            ];
+
+            if (!webAppUrl) {
+                console.log("Mock/Offline Mode: Using fallback ICT questions.");
+                worldBossQuestions = fallbackQuestions;
+                setupIframeQuestionsBridge();
+                return;
+            }
+
+            console.log("Fetching questions for lessonId:", lessonId, "userId:", userId);
+            
+            fetch(webAppUrl, {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    action: 'getQuestions',
+                    lessonId: lessonId,
+                    userId: userId
+                })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success && res.data && res.data.length > 0) {
+                    console.log("Successfully fetched lesson questions:", res.data);
+                    worldBossQuestions = res.data.map(q => {
+                        return {
+                            text: q.text,
+                            options: [
+                                "A: " + (q.options[0] || "ตัวเลือกที่ 1"),
+                                "B: " + (q.options[1] || "ตัวเลือกที่ 2")
+                            ],
+                            answer: (parseInt(q.answer) === 1) ? 1 : 2
+                        };
+                    });
+                } else {
+                    console.warn("No questions found for this lesson, using fallback ICT questions.");
+                    worldBossQuestions = fallbackQuestions;
+                }
+                setupIframeQuestionsBridge();
+            })
+            .catch(err => {
+                console.error("Failed to fetch questions from Apps Script:", err);
+                worldBossQuestions = fallbackQuestions;
+                setupIframeQuestionsBridge();
+            });
+        }
+
+        // 🌉 ส่งชุดคำถามข้ามแดนไปยัง iframe มาริโอ้
+        function setupIframeQuestionsBridge() {
+            const iframe = document.getElementById('mario-iframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.marioQuestions = worldBossQuestions;
+                    // ลองส่งผ่าน postMessage ร่วมด้วยเพื่อความเสถียร 100%
+                    iframe.contentWindow.postMessage({
+                        action: 'sendQuestions',
+                        questions: worldBossQuestions
+                    }, '*');
+                    console.log("🎯 [Quiz Bridge] Sent questions to Mario Emulator iframe successfully!");
+                } catch(e) {
+                    console.warn("Failed to set questions on iframe direct property, will try postMessage instead:", e);
+                }
+            }
+        }
+
+        // 🌉 รับสัญญาณคำร้องขอดันพลังชีวิตหรือทำร้าย HP จากเกมมาริโอ้ใน iframe
+        window.addEventListener('message', (event) => {
+            const msg = event.data;
+            if (!msg || typeof msg !== 'object') return;
+            
+            console.log("📬 [World Boss Event Receiver]:", msg.action);
+            
+            if (msg.action === 'healPlayer') {
+                // สำหรับมาริโอ้ฟิตเนส การฮีลจะทำใน iframe โดยตรง (Super/Fire Mario)
+                console.log("❤️ [Heal Event] Mario fully healed in iframe!");
+            } else if (msg.action === 'damagePlayer') {
+                console.log("💥 [Damage Event] Mario took damage in iframe!");
+            } else if (msg.action === 'addQuizCoin') {
+                // บวกเหรียญทองโบนัสสะสม +10 เหรียญทองจริงในระบบหลัก
+                quizBonusCoins += 10;
+                console.log("🪙 [Coin Event] Quiz bonus coins increased! Current:", quizBonusCoins);
+            } else if (msg.action === 'getQuestionsRequest') {
+                setupIframeQuestionsBridge();
+            }
+        });
+
         window.addEventListener('DOMContentLoaded', () => {
             initWebcamAndPose();
+            fetchQuizQuestions(); // ดึงคำถามควิซเมื่อเปิดด่าน!
             
             // 🛡️ ปลดล็อกเสียงข้าม iframe อัตโนมัติเมื่อมีการคลิกสัมผัสหน้าจอแรกสุดของคุณครูหรือนักเรียน
             window.addEventListener('click', unlockAudio);
@@ -2217,7 +2337,13 @@
             if (elUnitLabel) elUnitLabel.innerText = isWb002 ? "เมตร" : "วินาที";
             
             const elCoins = document.getElementById('wb-victory-reward-coins');
-            if (elCoins) elCoins.innerText = `+${finalRewardCoins} เหรียญ`;
+            if (elCoins) {
+                if (quizBonusCoins > 0) {
+                    elCoins.innerHTML = `+${finalRewardCoins} เหรียญ <span class="text-green-400 font-bold block text-[10px] mt-1">🎁 โบนัสควิซตอบถูก: +${quizBonusCoins} เหรียญ</span>`;
+                } else {
+                    elCoins.innerText = `+${finalRewardCoins} เหรียญ`;
+                }
+            }
             
             const elXp = document.getElementById('wb-victory-reward-xp');
             if (elXp) elXp.innerText = `+${finalRewardXp} XP`;
@@ -2226,7 +2352,7 @@
             if (victoryModal) {
                 victoryModal.classList.remove('hidden');
             } else {
-                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ สถิติ: ${displayValue}\n🪙 +${finalRewardCoins} เหรียญ | ⭐ +${finalRewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ...)`);
+                alert(`🏆 ชนะบอสแล้วจ้า!\nผู้สยบ: ${bossName}\n⏱️ สถิติ: ${displayValue}\n🪙 +${finalRewardCoins} เหรียญ (โบนัสควิซ +${quizBonusCoins} เหรียญ) | ⭐ +${finalRewardXp} XP\n\n(ระบบกำลังบันทึกสถิติของคุณ...)`);
             }
             
             playBeep('victory');
@@ -2258,7 +2384,8 @@
                         action: 'submitWorldBossScore',
                         userId: userId,
                         bossId: bossId,
-                        timeSeconds: finalTime
+                        timeSeconds: finalTime,
+                        bonusCoins: quizBonusCoins // บันทึกเหรียญทองสะสมโบนัสพิเศษจากการควิซ ICT ถูก!
                     })
                 })
                 .then(response => response.json())

@@ -34,6 +34,12 @@
     if (power > 0 && this.breakable) {
       this.break();
     } else if (this.standing){
+      // 🛡️ ป้องกันกรณีชนบล็อกคำถามปริศนา: เปิดควิซท้าทายสมองสไตล์ ICT ทันที!
+      if (this.sprite === level.qblockSprite && window.MarioQuiz) {
+        window.MarioQuiz.triggerQuiz(this);
+        return;
+      }
+
       this.standing = false;
       if (this.item) {
         this.item.spawn();

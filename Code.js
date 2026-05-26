@@ -39,9 +39,23 @@ function doPost(e) {
       var userId = params.userId;
       var bossId = params.bossId;
       var timeSeconds = params.timeSeconds;
+      var bonusCoins = params.bonusCoins;
       
       // เรียกใช้ฟังก์ชันเดิมใน API.js ปลอดภัยและใช้ตรรกะเดิม 100%
-      var result = submitWorldBossScore(userId, bossId, timeSeconds);
+      var result = submitWorldBossScore(userId, bossId, timeSeconds, bonusCoins);
+      response = result;
+    } else if (action === 'getQuestions') {
+      var lessonId = params.lessonId;
+      var userId = params.userId;
+      
+      if ((!lessonId || lessonId === 'L-CURRENT' || lessonId === 'null' || lessonId === 'undefined') && userId) {
+        var userLesson = getUserCurrentLessonId(userId);
+        if (userLesson) {
+          lessonId = userLesson;
+        }
+      }
+      
+      var result = getQuestions(lessonId);
       response = result;
     } else {
       response = { success: false, error: 'Invalid action: ' + action };
