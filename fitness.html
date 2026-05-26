@@ -2342,9 +2342,9 @@
             aiCurrentItem = {
                 ...template,
                 x: 320,
-                y: 180,
-                w: 300,
-                h: 100,
+                y: 195, // ย้ายพิกัดลงมาเล็กน้อยเพื่อไม่ให้ชิด HUD ด้านบนเกินไป
+                w: 460, // ขยายความกว้างเต็มอิ่มอ่านง่ายสะใจ
+                h: 135, // เพิ่มความสูงเพื่อรองรับตัวอักษรขนาดใหญ่
                 isDragging: false,
                 offsetX: 0,
                 offsetY: 0
@@ -2645,23 +2645,23 @@
                 }
                 
                 runnerCanvasCtx.save();
-                runnerCanvasCtx.font = '900 12px Prompt, sans-serif';
+                runnerCanvasCtx.font = '900 14px Prompt, sans-serif';
                 runnerCanvasCtx.fillStyle = '#ffffff';
                 runnerCanvasCtx.textAlign = 'center';
                 runnerCanvasCtx.shadowColor = '#000000';
-                runnerCanvasCtx.shadowBlur = 6;
+                runnerCanvasCtx.shadowBlur = 8;
                 
                 let thaiLabel = zone.label;
-                if (key === 'ethics') thaiLabel = "จริยธรรม AI (Ethics)";
-                if (key === 'cybersecurity') thaiLabel = "ไซเบอร์ (Cybersecurity)";
-                if (key === 'social_risks') thaiLabel = "ความเสี่ยงสังคม (Social)";
+                if (key === 'ethics') thaiLabel = "🛡️ จริยธรรม AI (Ethics)";
+                if (key === 'cybersecurity') thaiLabel = "🔑 ไซเบอร์ (Security)";
+                if (key === 'social_risks') thaiLabel = "👥 ความเสี่ยงสังคม (Social)";
                 
-                runnerCanvasCtx.fillText(thaiLabel, zone.x + zone.w / 2, zone.y + zone.h / 2 + 2);
+                runnerCanvasCtx.fillText(thaiLabel, zone.x + zone.w / 2, zone.y + zone.h / 2 + 4);
                 
                 // คำกำกับ HUD ย่อยใต้ป้ายหลัก
-                runnerCanvasCtx.font = 'bold 7.5px Courier, monospace';
+                runnerCanvasCtx.font = 'bold 8px Courier, monospace';
                 runnerCanvasCtx.fillStyle = currentBorderColor;
-                runnerCanvasCtx.fillText(isActive ? '>> TARGET LOCKED <<' : '[ SECURE SECTOR ]', zone.x + zone.w / 2, zone.y + zone.h / 2 + 18);
+                runnerCanvasCtx.fillText(isActive ? '>> TARGET LOCKED <<' : '[ SECURE SECTOR ]', zone.x + zone.w / 2, zone.y + zone.h / 2 + 20);
                 runnerCanvasCtx.restore();
             }
             
@@ -2686,18 +2686,18 @@
                 runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.1)';
                 runnerCanvasCtx.fillRect(item.x - item.w/2 + 2, item.y - item.h/2 + 2, item.w - 4, 30);
                 
-                runnerCanvasCtx.font = '900 13px Prompt, sans-serif';
-                runnerCanvasCtx.fillStyle = '#c084fc';
+                runnerCanvasCtx.font = '900 16px Prompt, sans-serif';
+                runnerCanvasCtx.fillStyle = '#e9d5ff';
                 runnerCanvasCtx.textAlign = 'center';
                 runnerCanvasCtx.shadowColor = '#c084fc';
-                runnerCanvasCtx.shadowBlur = 4;
+                runnerCanvasCtx.shadowBlur = 6;
                 runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y - item.h/2 + 21);
                 
                 // ป้ายกำกับเทคโนโลยีขอบขวา
-                runnerCanvasCtx.font = 'bold 7px Courier, monospace';
+                runnerCanvasCtx.font = 'bold 7.5px Courier, monospace';
                 runnerCanvasCtx.fillStyle = 'rgba(167, 139, 250, 0.6)';
                 runnerCanvasCtx.textAlign = 'right';
-                runnerCanvasCtx.fillText('PACKET V1.6', item.x + item.w/2 - 12, item.y - item.h/2 + 18);
+                runnerCanvasCtx.fillText('PACKET V1.6', item.x + item.w/2 - 12, item.y - item.h/2 + 19);
                 runnerCanvasCtx.restore();
                 
                 // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
@@ -2710,10 +2710,12 @@
                 
                 // เนื้อหาคำถามหักขึ้นบรรทัดอัตโนมัติ
                 runnerCanvasCtx.save();
-                runnerCanvasCtx.font = 'bold 10.5px Prompt, sans-serif';
-                runnerCanvasCtx.fillStyle = '#e2e8f0';
+                runnerCanvasCtx.font = '900 15px Prompt, sans-serif';
+                runnerCanvasCtx.fillStyle = '#ffffff';
                 runnerCanvasCtx.textAlign = 'center';
-                wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 50, item.w - 30, 15.5);
+                runnerCanvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
+                runnerCanvasCtx.shadowBlur = 4;
+                wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 56, item.w - 40, 22);
                 runnerCanvasCtx.restore();
                 
                 // ปลายวงจรเทคโนโลยีประดับมุมกล่องเล็กๆ
