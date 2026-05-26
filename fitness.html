@@ -23,8 +23,9 @@
             }
         }
     </script>
-    <!-- MediaPipe Pose & Camera Utilities CDN -->
+    <!-- MediaPipe Pose, Hands & Camera Utilities CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <!-- Canvas Confetti CDN (ฉลองชัยชนะ) -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -448,8 +449,28 @@
         let worldBossQuestions = []; // ชุดคำถามที่จะส่งไปใน iframe มาริโอ้
 
         // 🔊 ระบบสังเคราะห์เสียง
-        const enableVoice = false;
-        const enableSound = false;
+        const enableVoice = true;
+        const enableSound = true;
+
+        let globalAudioCtx = null;
+
+        function initAudioContext() {
+            if (!globalAudioCtx) {
+                try {
+                    globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.error("Failed to initialize Web Audio Context:", e);
+                }
+            }
+            if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+                globalAudioCtx.resume();
+            }
+            return globalAudioCtx;
+        }
+
+        // ลงทะเบียนคลิกแรกเพื่อปลดล็อก AudioContext อย่างปลอดภัยตามมาตรฐานเบราว์เซอร์
+        window.addEventListener('click', initAudioContext, { once: true });
+        window.addEventListener('touchstart', initAudioContext, { once: true });
 
         function speakThai(text) {
             if (!enableVoice) return;
@@ -469,51 +490,139 @@
 
         function playBeep(type) {
             if (!enableSound) return;
+            const audioCtx = initAudioContext();
+            if (!audioCtx) return;
+            
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                
                 const now = audioCtx.currentTime;
                 
                 if (type === 'countdown') {
-                    oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(600, now);
-                    gainNode.gain.setValueAtTime(0.08, now);
-                    oscillator.start();
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-                    oscillator.stop(now + 0.1);
+                    // เสียงเลเซอร์ Sci-Fi Beep เคราะห์จังหวะทุ้มกึ่งแหลมมีเสน่ห์
+                    const osc1 = audioCtx.createOscillator();
+                    const osc2 = audioCtx.createOscillator();
+                    const gain1 = audioCtx.createGain();
+                    const gain2 = audioCtx.createGain();
+                    
+                    osc1.connect(gain1);
+                    gain1.connect(audioCtx.destination);
+                    osc2.connect(gain2);
+                    gain2.connect(audioCtx.destination);
+                    
+                    osc1.type = 'sine';
+                    osc1.frequency.setValueAtTime(1000, now);
+                    osc1.frequency.exponentialRampToValueAtTime(250, now + 0.08);
+                    gain1.gain.setValueAtTime(0.05, now);
+                    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                    
+                    osc2.type = 'triangle';
+                    osc2.frequency.setValueAtTime(140, now);
+                    osc2.frequency.exponentialRampToValueAtTime(50, now + 0.05);
+                    gain2.gain.setValueAtTime(0.12, now);
+                    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                    
+                    osc1.start(now);
+                    osc1.stop(now + 0.09);
+                    osc2.start(now);
+                    osc2.stop(now + 0.06);
+                    
                 } else if (type === 'start') {
-                    oscillator.type = 'triangle';
-                    oscillator.frequency.setValueAtTime(880, now);
-                    gainNode.gain.setValueAtTime(0.12, now);
-                    oscillator.start();
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-                    oscillator.stop(now + 0.25);
+                    // เสียงชาร์จพลังงาน Sci-Fi Arpeggio ยิ่งใหญ่อลังการ (Power-up Synth)
+                    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        const filter = audioCtx.createBiquadFilter();
+                        
+                        osc.connect(filter);
+                        filter.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        
+                        osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.035);
+                        
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(500, now + idx * 0.035);
+                        filter.frequency.exponentialRampToValueAtTime(2200, now + idx * 0.035 + 0.12);
+                        
+                        gainNode.gain.setValueAtTime(0, now + idx * 0.035);
+                        gainNode.gain.linearRampToValueAtTime(0.04, now + idx * 0.035 + 0.015);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.035 + 0.22);
+                        
+                        osc.start(now + idx * 0.035);
+                        osc.stop(now + idx * 0.035 + 0.25);
+                    });
+                    
                 } else if (type === 'rep') {
-                    oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(523.25, now);
-                    oscillator.frequency.setValueAtTime(659.25, now + 0.08);
-                    gainNode.gain.setValueAtTime(0.12, now);
-                    oscillator.start();
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-                    oscillator.stop(now + 0.22);
+                    // เสียงสแกนหรือทำแต้มสำเร็จ (Affirmative Cybernetic Chime) สองคอร์ดพรีเมียม
+                    const baseFreq = 587.33; 
+                    const upperFreq = 1174.66; 
+                    
+                    [baseFreq, upperFreq].forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        const vibrato = audioCtx.createOscillator();
+                        const vibratoGain = audioCtx.createGain();
+                        
+                        osc.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, now);
+                        osc.frequency.exponentialRampToValueAtTime(freq * 1.04, now + 0.12);
+                        
+                        vibrato.frequency.value = 16; 
+                        vibratoGain.gain.value = 10; 
+                        
+                        vibrato.connect(vibratoGain);
+                        vibratoGain.connect(osc.frequency);
+                        
+                        gainNode.gain.setValueAtTime(0, now);
+                        gainNode.gain.linearRampToValueAtTime(idx === 0 ? 0.06 : 0.03, now + 0.02);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                        
+                        vibrato.start(now);
+                        osc.start(now);
+                        
+                        vibrato.stop(now + 0.23);
+                        osc.stop(now + 0.23);
+                    });
+                    
                 } else if (type === 'victory') {
-                    oscillator.type = 'triangle';
-                    oscillator.frequency.setValueAtTime(523.25, now);
-                    oscillator.frequency.setValueAtTime(659.25, now + 0.08);
-                    oscillator.frequency.setValueAtTime(783.99, now + 0.16);
-                    oscillator.frequency.setValueAtTime(1046.50, now + 0.24);
-                    gainNode.gain.setValueAtTime(0.15, now);
-                    oscillator.start();
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-                    oscillator.stop(now + 0.5);
+                    // มหาคอร์ดประสานเสียง Synth คลื่นพลังตระการตา (Cyberpunk Arpeggiator Ensemble)
+                    const chord = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98, 2093.00];
+                    chord.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const oscGlow = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        const filter = audioCtx.createBiquadFilter();
+                        
+                        osc.connect(filter);
+                        oscGlow.connect(filter);
+                        filter.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+                        
+                        oscGlow.type = 'sine';
+                        oscGlow.frequency.setValueAtTime(freq * 1.004, now + idx * 0.04);
+                        
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(350, now + idx * 0.04);
+                        filter.frequency.exponentialRampToValueAtTime(2800, now + idx * 0.04 + 0.25);
+                        
+                        gainNode.gain.setValueAtTime(0, now + idx * 0.04);
+                        gainNode.gain.linearRampToValueAtTime(0.04, now + idx * 0.04 + 0.04);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 1.1);
+                        
+                        osc.start(now + idx * 0.04);
+                        oscGlow.start(now + idx * 0.04);
+                        osc.stop(now + idx * 0.04 + 1.15);
+                        oscGlow.stop(now + idx * 0.04 + 1.15);
+                    });
                 }
             } catch (e) {
-                console.error("Web Audio API failed:", e);
+                console.error("Web Audio API premium synth failed:", e);
             }
         }
 
@@ -536,6 +645,14 @@
             document.getElementById('mario-iframe').classList.remove('hidden');
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             document.getElementById('mario-iframe').src = "mario-game/index.html?v=1.5";
+            
+            // เปลี่ยนแถบเกจเลือดบอสให้เป็นสีเขียวนีออนสำหรับมินิเกมฟิตเนส
+            const hpBar = document.getElementById('wb-battle-boss-hp-bar');
+            if (hpBar) {
+                hpBar.className = "h-full bg-gradient-to-r from-emerald-600 via-teal-500 to-green-400 transition-all duration-300 shadow-[0_0_15px_rgba(16,185,129,0.5)]";
+                hpBar.style.width = "0%";
+            }
+            document.getElementById('wb-battle-boss-hp-text').innerText = `ความดีความคืบหน้าสะสม: 0 / ${targetReps} 🪙`;
             
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
@@ -721,8 +838,42 @@
         let wbSpeedScaleInterval = null;
         let localGameAnimId = null;
 
-        // --- 🏃‍♂️ ตัวแปรพิเศษสำหรับมินิเกมวิ่ง (Speed Runner) ---
-        let wbTotalDistance = 0.0;
+        // --- 🛡️ ตัวแปรและข้อมูลคลังมินิเกมมือปราบภัย AI (AI Safety Hand-Tracker) ---
+        const AI_SAFETY_ITEMS = [
+            // --- Ethics (จริยธรรม AI) ---
+            { text: "กรองข้อมูลชื่อ-ที่อยู่ของผู้ใช้ออกจากชุดข้อมูลก่อนส่งไปเทรน AI", category: "ethics", title: "Data Anonymization", icon: "👤" },
+            { text: "ตรวจสอบหาค่าความลำเอียง (Bias Detection) ในโมเดลคัดเลือกพนักงาน", category: "ethics", title: "Bias Auditing", icon: "⚖️" },
+            { text: "สร้างอัลกอริทึมที่สามารถอธิบายเหตุผลเบื้องหลังการตัดสินใจได้ชัดเจน", category: "ethics", title: "Explainable AI", icon: "🔍" },
+            { text: "ขออนุญาตลิขสิทธิ์ภาพจากศิลปินอย่างถูกต้อง ก่อนนำมาใช้เทรน AI", category: "ethics", title: "Fair Licensing", icon: "🎨" },
+            
+            // --- Cybersecurity (ความปลอดภัยไซเบอร์) ---
+            { text: "ใส่ชุดคำสั่งล่อลวงเพื่อสั่งให้ AI แนะนำวิธีแฮกข้อมูลเว็บ (Jailbreak)", category: "cybersecurity", title: "Prompt Injection", icon: "🔓" },
+            { text: "ป้อนข้อมูลขยะหรือข้อมูลเท็จเข้าไปปนเปื้อนในระบบฝึกสอน AI (Data Poisoning)", category: "cybersecurity", title: "Data Poisoning", icon: "🧪" },
+            { text: "ติดตั้งระบบตรวจสอบและกรองข้อความผู้ใช้ก่อนส่งต่อให้ AI วิเคราะห์", category: "cybersecurity", title: "Input Sanitization", icon: "🛡️" },
+            { text: "เจาะเข้าระบบของบริษัทไอทีเพื่อโคลนน้ำหนักประสาทของ AI ขนาดใหญ่", category: "cybersecurity", title: "Model Extraction", icon: "💾" },
+
+            // --- Social Risks (ความเสี่ยงต่อสังคม) ---
+            { text: "ใช้ AI สร้างคลิปวิดีโอปลอมใบหน้าคนดังเพื่อไปขอเงินบริจาค", category: "social_risks", title: "Malicious Deepfake", icon: "🤥" },
+            { text: "แชทบอทวิเคราะห์คณิตศาสตร์ผิดพลาดแล้วสร้างสูตรปลอมขึ้นมาอย่างมั่นใจ", category: "social_risks", title: "AI Hallucination", icon: "🌀" },
+            { text: "ออกแบบฟีดโซเชียลมีเดียด้วย AI เพื่อครอบงำความคิดเห็นทางการเมือง", category: "social_risks", title: "Cognitive Hacking", icon: "📱" },
+            { text: "การนำ AI มาใช้ตอบคำถามช่วยเหลือลูกค้าจนทำให้พนักงานคอลเซ็นเตอร์ถูกเลิกจ้างจำนวนมาก", category: "social_risks", title: "Job Displacement", icon: "💼" }
+        ];
+
+        let wbHands = null;
+        let aiDragItems = [];
+        let aiCurrentItem = null;
+        let isPinching = false;
+        let draggedItem = null;
+        let handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
+        
+        // 3 บล็อกเป้าหมาย (Drop Zones) พิกัด X, Y บน canvas 640x480
+        const DROP_ZONES = {
+            ethics: { x: 40, y: 340, w: 160, h: 100, label: "Ethics (จริยธรรม AI)", color: "#10b981", activeColor: "#34d399", textBg: "rgba(16, 185, 129, 0.15)" },
+            cybersecurity: { x: 240, y: 340, w: 160, h: 100, label: "Cybersecurity", color: "#06b6d4", activeColor: "#22d3ee", textBg: "rgba(6, 182, 212, 0.15)" },
+            social_risks: { x: 440, y: 340, w: 160, h: 100, label: "Social Risks", color: "#f43f5e", activeColor: "#fb7185", textBg: "rgba(244, 63, 94, 0.15)" }
+        };
+
+        let wbTotalDistance = 0.0; // เก็บไว้ชั่วคราวเพื่อกันระบบผลรวมคะแนนเดิมมี reference เก่าขัดข้อง
         let wbCurrentRunningSpeed = 0.0;
         let lastFrameTime = performance.now();
         let roadOffset = 0;
@@ -1130,6 +1281,23 @@
                     
                     wbPose.onResults(onPoseResults);
                 }
+
+                if (!wbHands) {
+                    wbHands = new Hands({
+                        locateFile: (file) => {
+                            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                        }
+                    });
+                    
+                    wbHands.setOptions({
+                        maxNumHands: 1,
+                        modelComplexity: 1,
+                        minDetectionConfidence: 0.6,
+                        minTrackingConfidence: 0.6
+                    });
+                    
+                    wbHands.onResults(onHandsResults);
+                }
                 
                 if (wbCamera) {
                     try { await wbCamera.stop(); } catch(e) {}
@@ -1154,9 +1322,14 @@
                             lastPoseProcessTime = now;
                             
                             try {
-                                await wbPose.send({ image: wbVideoEl });
+                                const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
+                                if (isWb002) {
+                                    await wbHands.send({ image: wbVideoEl });
+                                } else {
+                                    await wbPose.send({ image: wbVideoEl });
+                                }
                             } catch(e) {
-                                console.error('Pose parsing error:', e);
+                                console.error('AI parsing error:', e);
                             }
                         }
                     },
@@ -2128,8 +2301,10 @@
             wbActiveSlashEffects.forEach((eff, idx) => {
                 wbCanvasCtx.save();
                 wbCanvasCtx.font = `900 ${eff.size}px Mali, Prompt, sans-serif`;
-                wbCanvasCtx.fillStyle = `rgba(239, 68, 68, ${eff.alpha})`;
-                wbCanvasCtx.shadowColor = '#ef4444';
+                
+                const finalColor = eff.color || 'rgba(239, 68, 68, ' + eff.alpha + ')';
+                wbCanvasCtx.fillStyle = finalColor;
+                wbCanvasCtx.shadowColor = eff.color || '#ef4444';
                 wbCanvasCtx.shadowBlur = 12;
                 wbCanvasCtx.textAlign = 'center';
                 
@@ -2143,6 +2318,793 @@
                     wbActiveSlashEffects.splice(idx, 1);
                 }
             });
+        }
+
+        // --- 🛡️ ระบบมินิเกมลากวางมือปราบภัย AI (AI Safety Drag & Drop) ---
+        
+        // สุ่มชุดข้อคำถามถัดไป
+        function spawnNewSafetyItem() {
+            if (AI_SAFETY_ITEMS.length === 0) return;
+            const randomIndex = Math.floor(Math.random() * AI_SAFETY_ITEMS.length);
+            const template = AI_SAFETY_ITEMS[randomIndex];
+            
+            aiCurrentItem = {
+                ...template,
+                x: 320,
+                y: 180,
+                w: 300,
+                h: 100,
+                isDragging: false,
+                offsetX: 0,
+                offsetY: 0
+            };
+        }
+
+        // ดักจับและวาดพิกัดข้อมือของ MediaPipe Hands
+        function onHandsResults(results) {
+            try {
+                if (!wbCanvasCtx || wbGameState === 'VICTORY') return;
+                
+                const width = wbCanvasEl.width;
+                const height = wbCanvasEl.height;
+                
+                // 1) วาดรูปจากเว็บแคมจริงลงบน Canvas ขนาดเล็ก (ย้อนทิศทางกระจก)
+                wbCanvasCtx.save();
+                wbCanvasCtx.clearRect(0, 0, width, height);
+                wbCanvasCtx.drawImage(results.image, 0, 0, width, height);
+                
+                let detectedHand = null;
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    detectedHand = results.multiHandLandmarks[0];
+                    drawGlowingHandSkeleton(wbCanvasCtx, detectedHand);
+                }
+                wbCanvasCtx.restore();
+                
+                // 2) วิเคราะห์ Gesture ลากวาง เมื่ออยู่ในช่วง BATTLE
+                if (wbGameState === 'BATTLE') {
+                    if (detectedHand) {
+                        const thumbTip = detectedHand[4];
+                        const indexTip = detectedHand[8];
+                        
+                        if (thumbTip && indexTip) {
+                            // แปลงพิกัดสัมพัทธ์และกลับทิศซ้ายขวาให้เป็นธรรมชาติ
+                            const rawX = (1 - indexTip.x) * 640;
+                            const rawY = indexTip.y * 480;
+                            
+                            // Interpolation นุ่มนวล 
+                            handCursor.smoothX += (rawX - handCursor.smoothX) * 0.35;
+                            handCursor.smoothY += (rawY - handCursor.smoothY) * 0.35;
+                            
+                            // ระยะคำนวณ Pinch (จีบนิ้วโป้งชี้)
+                            const dx = thumbTip.x - indexTip.x;
+                            const dy = thumbTip.y - indexTip.y;
+                            const pinDist = Math.sqrt(dx * dx + dy * dy);
+                            
+                            const currentPinch = pinDist < 0.055;
+                            
+                            if (currentPinch && !isPinching) {
+                                isPinching = true;
+                                playBeep('rep');
+                                
+                                if (aiCurrentItem) {
+                                    const boxLeft = aiCurrentItem.x - aiCurrentItem.w / 2;
+                                    const boxRight = aiCurrentItem.x + aiCurrentItem.w / 2;
+                                    const boxTop = aiCurrentItem.y - aiCurrentItem.h / 2;
+                                    const boxBottom = aiCurrentItem.y + aiCurrentItem.h / 2;
+                                    
+                                    if (handCursor.smoothX >= boxLeft && handCursor.smoothX <= boxRight &&
+                                        handCursor.smoothY >= boxTop && handCursor.smoothY <= boxBottom) {
+                                        draggedItem = aiCurrentItem;
+                                        draggedItem.offsetX = handCursor.smoothX - aiCurrentItem.x;
+                                        draggedItem.offsetY = handCursor.smoothY - aiCurrentItem.y;
+                                    }
+                                }
+                            } else if (!currentPinch && isPinching) {
+                                isPinching = false;
+                                if (draggedItem) {
+                                    handleDropRelease();
+                                    draggedItem = null;
+                                }
+                            }
+                            
+                            if (draggedItem) {
+                                draggedItem.x = handCursor.smoothX - draggedItem.offsetX;
+                                draggedItem.y = handCursor.smoothY - draggedItem.offsetY;
+                                
+                                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(640 - draggedItem.w / 2, draggedItem.x));
+                                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(480 - draggedItem.h / 2, draggedItem.y));
+                            }
+                        }
+                    } else {
+                        // ปลดล็อคกันมือหลุดเฟรมค้าง
+                        if (isPinching) {
+                            isPinching = false;
+                            if (draggedItem) {
+                                handleDropRelease();
+                                draggedItem = null;
+                            }
+                        }
+                    }
+                }
+                
+                // 3) สั่งวาดเฟรมเกมบน Canvas หลัก
+                drawSafetyGameCanvas();
+                
+            } catch(e) {
+                console.error("Hands onResults processing error: ", e);
+            }
+        }
+
+        // วาดหน้าจอเกมลากวางแบบนีออนระดับภาพยนตร์โปรดักชัน
+        function drawSafetyGameCanvas() {
+            if (!runnerCanvasCtx) return;
+            
+            const width = 640;
+            const height = 480;
+            
+            runnerCanvasCtx.save();
+            runnerCanvasCtx.clearRect(0, 0, width, height);
+            
+            // 1. พื้นหลัง Sci-Fi กริตตารางนีออนแบบเคลื่อนไหว (Animated Cyber Grid & Intersection Node Glow)
+            runnerCanvasCtx.fillStyle = '#080a1c';
+            runnerCanvasCtx.fillRect(0, 0, width, height);
+            
+            const gridOffset = (performance.now() / 45) % 30;
+            
+            // กริตตารางหลักสีกรมท่าเรืองแสงจางๆ
+            runnerCanvasCtx.strokeStyle = 'rgba(99, 102, 241, 0.05)';
+            runnerCanvasCtx.lineWidth = 1;
+            for (let i = gridOffset; i < width; i += 30) {
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(i, 0);
+                runnerCanvasCtx.lineTo(i, height);
+                runnerCanvasCtx.stroke();
+            }
+            for (let j = gridOffset; j < height; j += 30) {
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(0, j);
+                runnerCanvasCtx.lineTo(width, j);
+                runnerCanvasCtx.stroke();
+            }
+            
+            // กริตตารางรองสีม่วงบางเฉียบขยับทิศทางตรงกันข้าม
+            runnerCanvasCtx.strokeStyle = 'rgba(167, 139, 250, 0.02)';
+            for (let i = 30 - gridOffset; i < width; i += 60) {
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(i, 0);
+                runnerCanvasCtx.lineTo(i, height);
+                runnerCanvasCtx.stroke();
+            }
+            
+            // 2. วาด 3 โซนเป้าหมาย (Drop Zones) ดีไซน์ล้ำสมัยพร้อมกรอบ HUD 4 มุมเรืองแสง (Sci-Fi Bracket Corners)
+            for (const key in DROP_ZONES) {
+                const zone = DROP_ZONES[key];
+                
+                let isActive = false;
+                if (aiCurrentItem) {
+                    const cx = aiCurrentItem.x;
+                    const cy = aiCurrentItem.y;
+                    if (cx >= zone.x && cx <= zone.x + zone.w &&
+                        cy >= zone.y && cy <= zone.y + zone.h) {
+                        isActive = true;
+                    }
+                }
+                
+                const currentBorderColor = isActive ? zone.activeColor : zone.color;
+                
+                // เอฟเฟกต์แสงเรืองและพื้นหลังกึ่งโปร่งใสไล่เฉดนีออน
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.shadowColor = currentBorderColor;
+                runnerCanvasCtx.shadowBlur = isActive ? 35 : 12;
+                
+                const gradientBg = runnerCanvasCtx.createLinearGradient(zone.x, zone.y, zone.x, zone.y + zone.h);
+                gradientBg.addColorStop(0, 'rgba(15, 23, 42, 0.85)');
+                gradientBg.addColorStop(1, isActive ? `rgba(${isActive ? '16, 185, 129' : '99, 102, 241'}, 0.08)` : 'rgba(8, 10, 28, 0.9)');
+                
+                runnerCanvasCtx.fillStyle = gradientBg;
+                runnerCanvasCtx.strokeStyle = currentBorderColor;
+                runnerCanvasCtx.lineWidth = isActive ? 3 : 1.5;
+                
+                drawRoundRect(runnerCanvasCtx, zone.x, zone.y, zone.w, zone.h, 14, true, true);
+                runnerCanvasCtx.restore();
+                
+                // วาดลายเส้น HUD ขีดจำกัด 4 มุม (Tech Brackets) เพื่อความดิบหรูหรา
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.strokeStyle = currentBorderColor;
+                runnerCanvasCtx.lineWidth = 3;
+                runnerCanvasCtx.shadowColor = currentBorderColor;
+                runnerCanvasCtx.shadowBlur = isActive ? 15 : 4;
+                
+                const len = 12; // ความยาวแขนของมุม
+                const pad = 0;  // ระยะชิด
+                
+                // บนซ้าย
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(zone.x + pad, zone.y + pad + len);
+                runnerCanvasCtx.lineTo(zone.x + pad, zone.y + pad);
+                runnerCanvasCtx.lineTo(zone.x + pad + len, zone.y + pad);
+                runnerCanvasCtx.stroke();
+                
+                // บนขวา
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(zone.x + zone.w - pad - len, zone.y + pad);
+                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + pad);
+                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + pad + len);
+                runnerCanvasCtx.stroke();
+                
+                // ล่างซ้าย
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(zone.x + pad, zone.y + zone.h - pad - len);
+                runnerCanvasCtx.lineTo(zone.x + pad, zone.y + zone.h - pad);
+                runnerCanvasCtx.lineTo(zone.x + pad + len, zone.y + zone.h - pad);
+                runnerCanvasCtx.stroke();
+                
+                // ล่างขวา
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(zone.x + zone.w - pad - len, zone.y + zone.h - pad);
+                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + zone.h - pad);
+                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + zone.h - pad - len);
+                runnerCanvasCtx.stroke();
+                runnerCanvasCtx.restore();
+                
+                // แสดงลายตารางขีดสแกน (Hologram Scanlines) จางๆ ด้านในเมื่อ Active
+                if (isActive) {
+                    runnerCanvasCtx.save();
+                    runnerCanvasCtx.strokeStyle = `rgba(${key === 'ethics' ? '16, 185, 129' : key === 'cybersecurity' ? '6, 182, 212' : '244, 63, 94'}, 0.07)`;
+                    runnerCanvasCtx.lineWidth = 1;
+                    const scanlineOffset = (performance.now() / 20) % 15;
+                    for (let sy = zone.y + scanlineOffset; sy < zone.y + zone.h; sy += 8) {
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(zone.x, sy);
+                        runnerCanvasCtx.lineTo(zone.x + zone.w, sy);
+                        runnerCanvasCtx.stroke();
+                    }
+                    runnerCanvasCtx.restore();
+                }
+                
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.font = '900 12px Prompt, sans-serif';
+                runnerCanvasCtx.fillStyle = '#ffffff';
+                runnerCanvasCtx.textAlign = 'center';
+                runnerCanvasCtx.shadowColor = '#000000';
+                runnerCanvasCtx.shadowBlur = 6;
+                
+                let thaiLabel = zone.label;
+                if (key === 'ethics') thaiLabel = "จริยธรรม AI (Ethics)";
+                if (key === 'cybersecurity') thaiLabel = "ไซเบอร์ (Cybersecurity)";
+                if (key === 'social_risks') thaiLabel = "ความเสี่ยงสังคม (Social)";
+                
+                runnerCanvasCtx.fillText(thaiLabel, zone.x + zone.w / 2, zone.y + zone.h / 2 + 2);
+                
+                // คำกำกับ HUD ย่อยใต้ป้ายหลัก
+                runnerCanvasCtx.font = 'bold 7.5px Courier, monospace';
+                runnerCanvasCtx.fillStyle = currentBorderColor;
+                runnerCanvasCtx.fillText(isActive ? '>> TARGET LOCKED <<' : '[ SECURE SECTOR ]', zone.x + zone.w / 2, zone.y + zone.h / 2 + 18);
+                runnerCanvasCtx.restore();
+            }
+            
+            // 3. วาดกล่องข้อความคำถาม AI Safety (aiCurrentItem) สไตล์บอร์ดข้อมูลล้ำอนาคต (Tech Cyber Panel)
+            if (aiCurrentItem) {
+                const item = aiCurrentItem;
+                const isItemDragging = draggedItem !== null;
+                
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.shadowColor = '#8b5cf6';
+                runnerCanvasCtx.shadowBlur = isItemDragging ? 32 : 14;
+                
+                // วาดตัวกล่องทรงโค้งมนไฮเทค
+                runnerCanvasCtx.fillStyle = 'rgba(11, 15, 36, 0.96)';
+                runnerCanvasCtx.strokeStyle = isItemDragging ? '#c084fc' : '#8b5cf6';
+                runnerCanvasCtx.lineWidth = isItemDragging ? 2.5 : 1.5;
+                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 15, true, true);
+                runnerCanvasCtx.restore();
+                
+                // หัวข้อแถบคาดเรืองแสงสตรีมข้อมูล (Tech Header Bar)
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.1)';
+                runnerCanvasCtx.fillRect(item.x - item.w/2 + 2, item.y - item.h/2 + 2, item.w - 4, 30);
+                
+                runnerCanvasCtx.font = '900 13px Prompt, sans-serif';
+                runnerCanvasCtx.fillStyle = '#c084fc';
+                runnerCanvasCtx.textAlign = 'center';
+                runnerCanvasCtx.shadowColor = '#c084fc';
+                runnerCanvasCtx.shadowBlur = 4;
+                runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y - item.h/2 + 21);
+                
+                // ป้ายกำกับเทคโนโลยีขอบขวา
+                runnerCanvasCtx.font = 'bold 7px Courier, monospace';
+                runnerCanvasCtx.fillStyle = 'rgba(167, 139, 250, 0.6)';
+                runnerCanvasCtx.textAlign = 'right';
+                runnerCanvasCtx.fillText('PACKET V1.6', item.x + item.w/2 - 12, item.y - item.h/2 + 18);
+                runnerCanvasCtx.restore();
+                
+                // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
+                runnerCanvasCtx.strokeStyle = 'rgba(167, 139, 250, 0.25)';
+                runnerCanvasCtx.lineWidth = 1;
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(item.x - item.w/2 + 15, item.y - item.h/2 + 32);
+                runnerCanvasCtx.lineTo(item.x + item.w/2 - 15, item.y - item.h/2 + 32);
+                runnerCanvasCtx.stroke();
+                
+                // เนื้อหาคำถามหักขึ้นบรรทัดอัตโนมัติ
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.font = 'bold 10.5px Prompt, sans-serif';
+                runnerCanvasCtx.fillStyle = '#e2e8f0';
+                runnerCanvasCtx.textAlign = 'center';
+                wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 50, item.w - 30, 15.5);
+                runnerCanvasCtx.restore();
+                
+                // ปลายวงจรเทคโนโลยีประดับมุมกล่องเล็กๆ
+                runnerCanvasCtx.save();
+                runnerCanvasCtx.fillStyle = '#8b5cf6';
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.arc(item.x - item.w/2 + 8, item.y - item.h/2 + 8, 2, 0, Math.PI * 2);
+                runnerCanvasCtx.arc(item.x + item.w/2 - 8, item.y - item.h/2 + 8, 2, 0, Math.PI * 2);
+                runnerCanvasCtx.fill();
+                runnerCanvasCtx.restore();
+            }
+            
+            // 4. วาดเป้าเล็ง Sci-Fi HUD แบบเคลื่อนตามมือพร้อมหางลาก (Smooth Particle Trail & Cyber Crosshair)
+            if (wbGameState === 'BATTLE') {
+                // บันทึกประวัติพิกัดทำหางลาก Smooth Trail
+                if (!window.cursorHistory) window.cursorHistory = [];
+                window.cursorHistory.push({ x: handCursor.smoothX, y: handCursor.smoothY });
+                if (window.cursorHistory.length > 8) {
+                    window.cursorHistory.shift();
+                }
+                
+                // วาดเส้นประหางลาก (Fade-out Trail)
+                runnerCanvasCtx.save();
+                if (window.cursorHistory.length > 1) {
+                    runnerCanvasCtx.beginPath();
+                    runnerCanvasCtx.moveTo(window.cursorHistory[0].x, window.cursorHistory[0].y);
+                    for (let hIdx = 1; hIdx < window.cursorHistory.length; hIdx++) {
+                        runnerCanvasCtx.lineTo(window.cursorHistory[hIdx].x, window.cursorHistory[hIdx].y);
+                    }
+                    runnerCanvasCtx.strokeStyle = isPinching ? 'rgba(16, 185, 129, 0.45)' : 'rgba(192, 132, 252, 0.35)';
+                    runnerCanvasCtx.lineWidth = 5;
+                    runnerCanvasCtx.lineCap = 'round';
+                    runnerCanvasCtx.lineJoin = 'round';
+                    runnerCanvasCtx.shadowColor = isPinching ? '#10b981' : '#c084fc';
+                    runnerCanvasCtx.shadowBlur = 10;
+                    runnerCanvasCtx.stroke();
+                }
+                runnerCanvasCtx.restore();
+                
+                // วาดตัวเป้าเล็ง Sci-Fi HUD Crosshair หลัก
+                runnerCanvasCtx.save();
+                const curX = handCursor.smoothX;
+                const curY = handCursor.smoothY;
+                const pulseScale = 1 + Math.sin(performance.now() / 150) * 0.08;
+                const angle = performance.now() / 700;
+                
+                const themeColor = isPinching ? '#10b981' : '#c084fc';
+                const themeGlow = isPinching ? 'rgba(16, 185, 129, 0.3)' : 'rgba(192, 132, 252, 0.2)';
+                const size = (isPinching ? 12 : 20) * pulseScale;
+                
+                // กากบาทสี่ทิศบางๆ
+                runnerCanvasCtx.strokeStyle = themeColor;
+                runnerCanvasCtx.lineWidth = 1;
+                runnerCanvasCtx.beginPath();
+                // บน
+                runnerCanvasCtx.moveTo(curX, curY - size - 8);
+                runnerCanvasCtx.lineTo(curX, curY - size - 2);
+                // ล่าง
+                runnerCanvasCtx.moveTo(curX, curY + size + 2);
+                runnerCanvasCtx.lineTo(curX, curY + size + 8);
+                // ซ้าย
+                runnerCanvasCtx.moveTo(curX - size - 8, curY);
+                runnerCanvasCtx.lineTo(curX - size - 2, curY);
+                // ขวา
+                runnerCanvasCtx.moveTo(curX + size + 2, curY);
+                runnerCanvasCtx.lineTo(curX + size + 8, curY);
+                runnerCanvasCtx.stroke();
+                
+                // วงแหวนประนอกที่หมุนสแกนช้าๆ (Rotating outer ring)
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.arc(curX, curY, size + 5, angle, angle + Math.PI * 1.5);
+                runnerCanvasCtx.strokeStyle = themeColor;
+                runnerCanvasCtx.lineWidth = 2;
+                runnerCanvasCtx.shadowColor = themeColor;
+                runnerCanvasCtx.shadowBlur = 10;
+                runnerCanvasCtx.stroke();
+                
+                // วงกลมแกนกลางเรืองแสงหนาแน่น
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.arc(curX, curY, isPinching ? 5 : 8, 0, Math.PI * 2);
+                runnerCanvasCtx.fillStyle = isPinching ? 'rgba(16, 185, 129, 0.7)' : 'rgba(255, 255, 255, 0.35)';
+                runnerCanvasCtx.strokeStyle = '#ffffff';
+                runnerCanvasCtx.lineWidth = 1.5;
+                runnerCanvasCtx.shadowColor = '#ffffff';
+                runnerCanvasCtx.shadowBlur = 12;
+                runnerCanvasCtx.fill();
+                runnerCanvasCtx.stroke();
+                
+                // ข้อความระบุโหมดควบคุมสั้นๆ ใต้เป้าเล็ง
+                runnerCanvasCtx.font = '900 7px Courier, monospace';
+                runnerCanvasCtx.fillStyle = themeColor;
+                runnerCanvasCtx.textAlign = 'center';
+                runnerCanvasCtx.fillText(isPinching ? 'NODE: GRABBED' : 'NODE: HOVER', curX, curY + size + 16);
+                
+                runnerCanvasCtx.restore();
+            }
+            
+            runnerCanvasCtx.restore();
+        }
+
+        // วาดข้อนิ้วมือเรืองแสงสำหรับช่องกล้องมองเล็ก (Premium Sci-Fi Double Glow Layer)
+        function drawGlowingHandSkeleton(ctx, landmarks) {
+            const w = ctx.canvas.width;
+            const h = ctx.canvas.height;
+            
+            // คัดกรองปลายนิ้วโป้ง (4) และปลายนิ้วชี้ (8)
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            let isCurrentlyPinching = false;
+            let pinchX = 0;
+            let pinchY = 0;
+            
+            if (thumbTip && indexTip) {
+                const dx = thumbTip.x - indexTip.x;
+                const dy = thumbTip.y - indexTip.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                isCurrentlyPinching = dist < 0.055;
+                pinchX = (1 - (thumbTip.x + indexTip.x) / 2) * w;
+                pinchY = ((thumbTip.y + indexTip.y) / 2) * h;
+            }
+            
+            const neonPrimary = isCurrentlyPinching ? '#10b981' : '#c084fc'; 
+            const neonSecondary = isCurrentlyPinching ? '#34d399' : '#8b5cf6';
+            const neonGlow = isCurrentlyPinching ? 'rgba(16, 185, 129, 0.4)' : 'rgba(139, 92, 246, 0.4)';
+            
+            // --- ชั้นที่ 1: นีออนเรืองแสงหนาฟุ้งด้านหลัง (Outer Glow Layer) ---
+            ctx.save();
+            ctx.lineWidth = 6;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = neonSecondary;
+            ctx.strokeStyle = neonGlow;
+            
+            drawAllBones(ctx, landmarks, w, h);
+            ctx.restore();
+            
+            // --- ชั้นที่ 2: แกนเส้นนีออนสว่างบางด้านหน้า (Inner Core Layer) ---
+            ctx.save();
+            ctx.lineWidth = 2.5;
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = '#ffffff';
+            ctx.strokeStyle = '#ffffff';
+            
+            drawAllBones(ctx, landmarks, w, h);
+            ctx.restore();
+            
+            // --- วาดข้อนิ้วแต่ละข้อเป็นวงแหวนพลังงานดิจิตอล (Interactive Node Rings) ---
+            for (let i = 0; i < 21; i++) {
+                const lm = landmarks[i];
+                if (lm) {
+                    const cx = (1 - lm.x) * w;
+                    const cy = lm.y * h;
+                    
+                    ctx.save();
+                    const isTip = [4, 8, 12, 16, 20].includes(i);
+                    const r = isTip ? 5.5 : 3;
+                    
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.fillStyle = isTip ? '#ffffff' : neonPrimary;
+                    ctx.strokeStyle = neonSecondary;
+                    ctx.lineWidth = 1.5;
+                    ctx.shadowColor = neonPrimary;
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+            
+            // --- วาดคลื่นพลังงานกระเพื่อม (Concentric Ripples) เมื่อจีบนิ้วสัมผัส ---
+            if (isCurrentlyPinching) {
+                ctx.save();
+                const timeFactor = (performance.now() / 400) % 1;
+                const rippleRadius = 8 + timeFactor * 24;
+                const rippleAlpha = 1 - timeFactor;
+                
+                ctx.beginPath();
+                ctx.arc(pinchX, pinchY, rippleRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(52, 211, 153, ${rippleAlpha})`;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#10b981';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+                
+                // เส้นเลเซอร์ชมพูเชื่อมต่อระหว่างปลายนิ้วโป้งกับนิ้วชี้
+                if (thumbTip && indexTip) {
+                    const tx = (1 - thumbTip.x) * w;
+                    const ty = thumbTip.y * h;
+                    const ix = (1 - indexTip.x) * w;
+                    const iy = indexTip.y * h;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(tx, ty);
+                    ctx.lineTo(ix, iy);
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.lineWidth = 3;
+                    ctx.shadowColor = '#f43f5e';
+                    ctx.shadowBlur = 12;
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+            
+            // --- ส่วนตกแต่งบอร์ดสไตล์ HUD หน้าจอล้ำยุค (Futuristic Overlay) ---
+            if (landmarks[0]) {
+                const wrist = landmarks[0];
+                const wx = (1 - wrist.x) * w;
+                const wy = wrist.y * h;
+                
+                ctx.save();
+                ctx.font = 'bold 8px Courier, monospace';
+                ctx.fillStyle = neonPrimary;
+                ctx.shadowColor = neonPrimary;
+                ctx.shadowBlur = 4;
+                
+                const statusText = isCurrentlyPinching ? 'SYS.STATUS: [PINCHED]' : 'SYS.STATUS: [READY]';
+                ctx.fillText(statusText, wx - 45, wy + 20);
+                
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(wx - 45, wy + 24);
+                ctx.lineTo(wx + 45, wy + 24);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+        
+        // ฟังก์ชันย่อยช่วยวาดกระดูกทุกชิ้น
+        function drawAllBones(ctx, landmarks, w, h) {
+            drawBonePath(ctx, landmarks, [0, 1, 2, 3, 4], w, h);
+            drawBonePath(ctx, landmarks, [0, 5, 6, 7, 8], w, h);
+            drawBonePath(ctx, landmarks, [9, 10, 11, 12], w, h);
+            drawBonePath(ctx, landmarks, [13, 14, 15, 16], w, h);
+            drawBonePath(ctx, landmarks, [0, 17, 18, 19, 20], w, h);
+            drawBonePath(ctx, landmarks, [5, 9, 13, 17], w, h);
+        }
+        
+        function drawBonePath(ctx, landmarks, points, w, h) {
+            ctx.beginPath();
+            let first = true;
+            for (const ptIdx of points) {
+                const lm = landmarks[ptIdx];
+                if (lm) {
+                    const x = (1 - lm.x) * w;
+                    const y = lm.y * h;
+                    if (first) {
+                        ctx.moveTo(x, y);
+                        first = false;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+            }
+            ctx.stroke();
+        }
+
+        // ประมวลผลการหย่อนวางวัตถุลงบล็อกคัดกรอง
+        function handleDropRelease() {
+            if (!aiCurrentItem) return;
+            
+            let droppedZone = null;
+            const centerX = aiCurrentItem.x;
+            const centerY = aiCurrentItem.y;
+            
+            for (const key in DROP_ZONES) {
+                const zone = DROP_ZONES[key];
+                if (centerX >= zone.x && centerX <= zone.x + zone.w &&
+                    centerY >= zone.y && centerY <= zone.y + zone.h) {
+                    droppedZone = key;
+                    break;
+                }
+            }
+            
+            if (droppedZone) {
+                if (droppedZone === aiCurrentItem.category) {
+                    // ตอบถูกต้อง!
+                    playBeep('rep');
+                    wbRepsCount++;
+                    
+                    try {
+                        confetti({
+                            particleCount: 20,
+                            spread: 45,
+                            origin: { x: centerX / 640, y: centerY / 480 }
+                        });
+                    } catch(e){}
+                    
+                    // สร้างข้อความเอฟเฟกต์สีเขียวเรืองแสงลอยขึ้นในกล้อง
+                    wbActiveSlashEffects.push({
+                        x: 320,
+                        y: 220,
+                        damage: "✨ ถูกต้อง! +1 แต้ม",
+                        alpha: 1.2,
+                        size: 28,
+                        color: "#10b981"
+                    });
+                    
+                    spawnNewSafetyItem();
+                } else {
+                    // ตอบผิดพลาด!
+                    playBeep('countdown');
+                    
+                    wbActiveSlashEffects.push({
+                        x: 320,
+                        y: 220,
+                        damage: "❌ ไม่ถูกต้อง",
+                        alpha: 1.2,
+                        size: 28,
+                        color: "#f43f5e"
+                    });
+                    
+                    // เด้งคำถามกลับไปที่จุดเดิมตรงกลางจอเพื่อความยุติธรรม
+                    aiCurrentItem.x = 320;
+                    aiCurrentItem.y = 180;
+                }
+            } else {
+                aiCurrentItem.x = 320;
+                aiCurrentItem.y = 180;
+            }
+        }
+
+        // ฟังก์ชันวาดรูปสี่เหลี่ยมมุมโค้ง
+        function drawRoundRect(ctx, x, y, width, height, radius, fill, stroke) {
+            if (typeof radius === 'undefined') radius = 5;
+            if (typeof radius === 'number') {
+                radius = {tl: radius, tr: radius, br: radius, bl: radius};
+            }
+            ctx.beginPath();
+            ctx.moveTo(x + radius.tl, y);
+            ctx.lineTo(x + width - radius.tr, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+            ctx.lineTo(x + width, y + height - radius.br);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+            ctx.lineTo(x + radius.bl, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+            ctx.lineTo(x, y + radius.tl);
+            ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+            ctx.closePath();
+            if (fill) ctx.fill();
+            if (stroke) ctx.stroke();
+        }
+
+        // ฟังก์ชันหักแถวอักษรอัตโนมัติใน Canvas
+        function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+            const words = text.split('');
+            let line = '';
+            let lines = [];
+            
+            for (let n = 0; n < words.length; n++) {
+                let testLine = line + words[n];
+                let metrics = ctx.measureText(testLine);
+                let testWidth = metrics.width;
+                if (testWidth > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n];
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+            
+            const totalH = lines.length * lineHeight;
+            let startY = y - totalH / 2 + lineHeight / 2;
+            
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillText(lines[i], x, startY + i * lineHeight);
+            }
+        }
+
+        // กำหนดระบบประมวลผลเมาส์ / ทัชสกรีนในการลากวางวัตถุ (Dual-Input)
+        let isMouseDragging = false;
+        
+        function initSafetyGameControls() {
+            const canvas = document.getElementById('wb-runner-canvas');
+            if (!canvas) return;
+            
+            canvas.addEventListener('selectstart', (e) => e.preventDefault());
+            
+            // Mouse controls
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = ((e.clientX - rect.left) / rect.width) * 640;
+                const mouseY = ((e.clientY - rect.top) / rect.height) * 480;
+                handleDragStart(mouseX, mouseY);
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = ((e.clientX - rect.left) / rect.width) * 640;
+                const mouseY = ((e.clientY - rect.top) / rect.height) * 480;
+                handleDragMove(mouseX, mouseY);
+            });
+            
+            canvas.addEventListener('mouseup', () => handleDragEnd());
+            canvas.addEventListener('mouseleave', () => handleDragEnd());
+            
+            // Touch controls
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    const rect = canvas.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    const touchX = ((touch.clientX - rect.left) / rect.width) * 640;
+                    const touchY = ((touch.clientY - rect.top) / rect.height) * 480;
+                    handleDragStart(touchX, touchY);
+                }
+            }, { passive: true });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches.length > 0 && isMouseDragging) {
+                    const rect = canvas.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    const touchX = ((touch.clientX - rect.left) / rect.width) * 640;
+                    const touchY = ((touch.clientY - rect.top) / rect.height) * 480;
+                    handleDragMove(touchX, touchY);
+                    
+                    if (e.cancelable) e.preventDefault();
+                }
+            }, { passive: false });
+            
+            canvas.addEventListener('touchend', () => handleDragEnd(), { passive: true });
+        }
+        
+        function handleDragStart(x, y) {
+            if (wbGameState !== 'BATTLE' || !aiCurrentItem) return;
+            
+            const item = aiCurrentItem;
+            const boxLeft = item.x - item.w / 2;
+            const boxRight = item.x + item.w / 2;
+            const boxTop = item.y - item.h / 2;
+            const boxBottom = item.y + item.h / 2;
+            
+            if (x >= boxLeft && x <= boxRight && y >= boxTop && y <= boxBottom) {
+                isMouseDragging = true;
+                draggedItem = item;
+                draggedItem.offsetX = x - item.x;
+                draggedItem.offsetY = y - item.y;
+                
+                isPinching = true;
+                handCursor.smoothX = x;
+                handCursor.smoothY = y;
+                
+                playBeep('rep');
+            }
+        }
+        
+        function handleDragMove(x, y) {
+            if (wbGameState !== 'BATTLE') return;
+            
+            handCursor.smoothX = x;
+            handCursor.smoothY = y;
+            
+            if (isMouseDragging && draggedItem) {
+                draggedItem.x = x - draggedItem.offsetX;
+                draggedItem.y = y - draggedItem.offsetY;
+                
+                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(640 - draggedItem.w / 2, draggedItem.x));
+                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(480 - draggedItem.h / 2, draggedItem.y));
+                
+                drawSafetyGameCanvas();
+            }
+        }
+        
+        function handleDragEnd() {
+            if (isMouseDragging) {
+                isMouseDragging = false;
+                isPinching = false;
+                if (draggedItem) {
+                    handleDropRelease();
+                    draggedItem = null;
+                }
+                drawSafetyGameCanvas();
+            }
         }
 
         // 5) สลับเข้าสู่นับเวลา 3 2 1
@@ -2182,6 +3144,17 @@
         // 6) เริ่มต้นสวมหัวใจสิงห์บดขยี้บอส
         function startActiveBattlePhase() {
             wbGameState = 'BATTLE';
+            
+            const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
+            if (isWb002) {
+                wbRepsCount = 0;
+                wbTotalDistance = 0;
+                isPinching = false;
+                draggedItem = null;
+                handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
+                
+                spawnNewSafetyItem();
+            }
             
             const statusOverlay = document.getElementById('wb-status-overlay');
             if (statusOverlay) {
@@ -2245,26 +3218,47 @@
                     document.getElementById('wb-battle-timer').innerText = timeStr;
                     const elTimerMobile = document.getElementById('wb-battle-timer-mobile');
                     if (elTimerMobile) elTimerMobile.innerText = timeStr;
+                    
+                    const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
+                    if (isWb002) {
+                        const timeLeft = Math.max(0, targetReps - wbElapsedTime);
+                        wbBossHp = Math.round((timeLeft / targetReps) * maxHp);
+                        
+                        const hpPercent = (timeLeft / targetReps) * 100;
+                        document.getElementById('wb-battle-boss-hp-bar').style.width = `${Math.min(100, Math.max(0, hpPercent))}%`;
+                        document.getElementById('wb-battle-boss-hp-text').innerText = `เวลาที่เหลือ: ${timeLeft.toFixed(1)}s / ${targetReps}s | ตอบถูก: ${wbRepsCount} ข้อ`;
+                        
+                        document.getElementById('wb-battle-reps').innerText = `${wbRepsCount} ข้อ`;
+                        const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
+                        if (elRepsMobile) elRepsMobile.innerText = `${wbRepsCount} ข้อ`;
+                        
+                        if (timeLeft <= 0) {
+                            triggerVictoryPhase();
+                        }
+                    }
                 }
             }, 30);
 
-            // 📈 ระบบเร่งความยากตามเวลา (เพิ่มความเร็ว 20% ทุก 15 วินาที)
-            if (wbSpeedScaleInterval) clearInterval(wbSpeedScaleInterval);
-            wbSpeedScaleInterval = setInterval(() => {
-                if (wbGameState === 'BATTLE') {
-                    wbSpeedMultiplier += 0.2;
-                    console.log("🔥 Speed Scaling - ตัวคูณความเร็วเพิ่มขึ้นเป็น: ", wbSpeedMultiplier);
-                    
-                    const speedUpEffect = {
-                        x: wbCanvasEl.width / 2,
-                        y: 80,
-                        damage: "SPEED UP x" + wbSpeedMultiplier.toFixed(1),
-                        size: 32,
-                        alpha: 1.2
-                    };
-                    wbActiveSlashEffects.push(speedUpEffect);
-                }
-            }, 15000);
+            // 📈 ระบบเร่งความยากตามเวลา (เฉพาะบอสอื่น ไม่รวมบอสยอดนักลากวาง AI Safety)
+            const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
+            if (!isWb002) {
+                if (wbSpeedScaleInterval) clearInterval(wbSpeedScaleInterval);
+                wbSpeedScaleInterval = setInterval(() => {
+                    if (wbGameState === 'BATTLE') {
+                        wbSpeedMultiplier += 0.2;
+                        console.log("🔥 Speed Scaling - ตัวคูณความเร็วเพิ่มขึ้นเป็น: ", wbSpeedMultiplier);
+                        
+                        const speedUpEffect = {
+                            x: wbCanvasEl.width / 2,
+                            y: 80,
+                            damage: "SPEED UP x" + wbSpeedMultiplier.toFixed(1),
+                            size: 32,
+                            alpha: 1.2
+                        };
+                        wbActiveSlashEffects.push(speedUpEffect);
+                    }
+                }, 15000);
+            }
         }
 
         // 7) ตรวจพบแต้มสะสม
@@ -2278,25 +3272,51 @@
             const elRepsMobile2 = document.getElementById('wb-battle-reps-mobile');
             if (elRepsMobile2) elRepsMobile2.innerText = `${wbRepsCount} / ${targetReps}`;
             
-            const dmg = Math.round(maxHp / targetReps);
-            wbBossHp = Math.max(0, maxHp - (wbRepsCount * dmg));
-            
-            document.getElementById('wb-battle-boss-hp-bar').style.width = `${(wbBossHp / maxHp) * 100}%`;
-            document.getElementById('wb-battle-boss-hp-text').innerText = `${wbBossHp} / ${maxHp} HP`;
-            
-            wbActiveSlashEffects.push({
-                x: wbCanvasEl.width / 2 + (Math.random() * 80 - 40),
-                y: wbCanvasEl.height / 2 - 50 + (Math.random() * 40 - 20),
-                damage: dmg,
-                size: 38,
-                alpha: 1.0
-            });
+            if (bossId.indexOf('WB001') === 0 || poseType === 'mario_fitness') {
+                const progressPercent = (wbRepsCount / targetReps) * 100;
+                const hpBar = document.getElementById('wb-battle-boss-hp-bar');
+                if (hpBar) hpBar.style.width = `${progressPercent}%`;
+                document.getElementById('wb-battle-boss-hp-text').innerText = `ความดีความคืบหน้าสะสม: ${wbRepsCount} / ${targetReps} 🪙`;
+                
+                // สร้างคำชมเชยสุดหรูแบบฟิตเนสขวัญกำลังใจ แทนดาเมจลบเลือด
+                const compliments = ["✨ EXCELLENT! ✨", "🔥 AWESOME! 🔥", "🌟 AMAZING! 🌟", "👍 PERFECT! 👍"];
+                const randomComp = compliments[Math.floor(Math.random() * compliments.length)];
+                
+                wbActiveSlashEffects.push({
+                    x: wbCanvasEl.width / 2 + (Math.random() * 120 - 60),
+                    y: wbCanvasEl.height / 2 - 40 + (Math.random() * 60 - 30),
+                    damage: randomComp,
+                    size: 26,
+                    alpha: 1.2
+                });
+            } else {
+                const dmg = Math.round(maxHp / targetReps);
+                wbBossHp = Math.max(0, maxHp - (wbRepsCount * dmg));
+                
+                document.getElementById('wb-battle-boss-hp-bar').style.width = `${(wbBossHp / maxHp) * 100}%`;
+                document.getElementById('wb-battle-boss-hp-text').innerText = `${wbBossHp} / ${maxHp} HP`;
+                
+                wbActiveSlashEffects.push({
+                    x: wbCanvasEl.width / 2 + (Math.random() * 80 - 40),
+                    y: wbCanvasEl.height / 2 - 50 + (Math.random() * 40 - 20),
+                    damage: dmg,
+                    size: 38,
+                    alpha: 1.0
+                });
+            }
             
             playBeep('rep');
             speakThai(`${wbRepsCount}`);
             
-            if (wbBossHp <= 0) {
-                triggerVictoryPhase();
+            // ตรวจสอบเงื่อนไขจบเกม
+            if (bossId.indexOf('WB001') === 0 || poseType === 'mario_fitness') {
+                if (wbRepsCount >= targetReps) {
+                    triggerVictoryPhase();
+                }
+            } else {
+                if (wbBossHp <= 0) {
+                    triggerVictoryPhase();
+                }
             }
         }
 
@@ -2309,8 +3329,9 @@
             stopCamera();
             
             const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
+            const isWb001 = bossId.indexOf('WB001') === 0 || poseType === 'mario_fitness';
             
-            // สำหรับบอสยอดนักวิ่ง: เก็บระยะทาง เมตร แทนเวลาวิ่ง
+            // สำหรับบอสยอดนักลากวาง AI: เก็บจำนวนข้อที่ถูกต้อง แทนเวลาวิ่งหรือระยะทางเมตร
             let finalTime = Math.round(wbElapsedTime * 100) / 100;
             let displayValue = finalTime.toFixed(2) + " วินาที";
             
@@ -2318,23 +3339,29 @@
             let finalRewardXp = rewardXp;
             
             if (isWb002) {
-                finalTime = Math.round(wbTotalDistance * 100) / 100;
-                displayValue = finalTime.toFixed(1) + " เมตร";
+                finalTime = wbRepsCount;
+                displayValue = finalTime + " ข้อ";
                 
-                // คำนวณรางวัลตามเมตรสะสม (ทุก 1 เมตร = +2 Coins / +2 XP)
-                finalRewardCoins = Math.round(wbTotalDistance * 2);
-                finalRewardXp = Math.round(wbTotalDistance * 2);
+                // คำนวณรางวัลตามจำนวนข้อที่ถูกต้อง (ทุก 1 ข้อ = +15 Coins / +15 XP)
+                finalRewardCoins = Math.round(wbRepsCount * 15);
+                finalRewardXp = Math.round(wbRepsCount * 15);
             }
             
             const elBossName = document.getElementById('wb-victory-boss-name');
-            if (elBossName) elBossName.innerText = `ผู้สยบ: ${bossName}`;
+            if (elBossName) {
+                if (isWb001) {
+                    elBossName.innerText = `ผู้พิชิตด่าน: ${bossName}`;
+                } else {
+                    elBossName.innerText = `ผู้สยบ: ${bossName}`;
+                }
+            }
             
             const elTime = document.getElementById('wb-victory-time');
             if (elTime) elTime.innerText = displayValue;
             
-            // อัปเดตฉลากข้อความหน่วยเวลาในหน้าโมดอล ชัยชนะ
+            // อัปเดตฉลากข้อความหน่วยในหน้าโมดอล ชัยชนะ
             const elUnitLabel = document.getElementById('wb-victory-time-unit');
-            if (elUnitLabel) elUnitLabel.innerText = isWb002 ? "เมตร" : "วินาที";
+            if (elUnitLabel) elUnitLabel.innerText = isWb002 ? "ข้อ" : "วินาที";
             
             const elCoins = document.getElementById('wb-victory-reward-coins');
             if (elCoins) {
@@ -2356,7 +3383,7 @@
             }
             
             playBeep('victory');
-            speakThai(isWb002 ? "ยินดีด้วยค่ะ วิ่งได้ยอดเยี่ยมมาก" : "ยินดีด้วยค่ะ ชนะแล้ว");
+            speakThai(isWb002 ? "ยินดีด้วยค่ะ ทำคะแนนได้ยอดเยี่ยมมาก" : "ยินดีด้วยค่ะ ชนะแล้ว");
             
             try {
                 if (typeof confetti === 'function') {
@@ -2583,12 +3610,12 @@
             rewardXp = chosenXp;
             wbBossHp = maxHp; // ตั้งค่าพลังชีวิตบอสเริ่มต้นใหม่
             
-            // อัปเดต UI หน้าจอหลักแบบ Real-time
-            document.getElementById('wb-battle-reps').innerText = `0.0 / ${(targetReps * 4.0).toFixed(0)} เมตร`;
+            // อัปเดต UI หน้าจอหลักแบบ Real-time ให้เหมาะสมกับหน่วยคะแนนข้อแทนเมตร
+            document.getElementById('wb-battle-reps').innerText = `0 / ${targetReps} ข้อ`;
             const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
-            if (elRepsMobile) elRepsMobile.innerText = `0.0 / ${(targetReps * 4.0).toFixed(0)} เมตร`;
+            if (elRepsMobile) elRepsMobile.innerText = `0 / ${targetReps} ข้อ`;
             
-            document.getElementById('wb-battle-boss-hp-text').innerText = `ระยะทางวิ่ง: 0.0 / ${(targetReps * 4.0).toFixed(0)} เมตร`;
+            document.getElementById('wb-battle-boss-hp-text').innerText = `ตอบถูก: 0 / ${targetReps} ข้อ`;
             document.getElementById('wb-battle-boss-hp-bar').style.width = '0%';
             
             // อัปเดตของรางวัลในการ์ดชัยชนะ (Victory screen rewards)
@@ -2603,14 +3630,11 @@
                 modal.classList.add('hidden');
             }
             
-            // อัปเดตสถานะเพื่อเริ่มระบบ Calibrate และเริ่มเกมนับถอยหลังจริง
-            wbGameState = 'PREPARING';
+            // สตาร์ทระบบควบคุมการลากวางคู่ขนาน (Dual-Input) เมาส์/ทัชสกรีน
+            initSafetyGameControls();
             
-            const statusOverlay = document.getElementById('wb-status-overlay');
-            if (statusOverlay) {
-                statusOverlay.innerHTML = `⚠️ ขยับเข้ามาให้กล้องเห็นและหน้าอยู่กึ่งกลางเพื่อสแกนใบหน้า...`;
-                statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
-            }
+            // ข้ามเฟส Calibrate แล้วเข้าสู่เฟสนับถอยหลัง 3 2 1 ทันที เพื่อเริ่มเกมลากวางอย่างรวดเร็ว
+            startCountdownPhase();
         }
     </script>
 </body>

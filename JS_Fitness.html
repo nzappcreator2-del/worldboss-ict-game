@@ -180,15 +180,15 @@
                 const pb30 = localStorage.getItem('wb_best_time_' + userId + '_WB002_30');
                 
                 pbDisplay = '<span class="text-[10px] text-cyan-300 block font-black leading-normal text-left">' +
-                    '⏱️ 10s: ' + (pb10 ? parseFloat(pb10).toFixed(1) + 'm' : '-') + ' | ' +
-                    '⏱️ 15s: ' + (pb15 ? parseFloat(pb15).toFixed(1) + 'm' : '-') + '<br>' +
-                    '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(1) + 'm' : '-') + ' | ' +
-                    '⏱️ 30s: ' + (pb30 ? parseFloat(pb30).toFixed(1) + 'm' : '-') +
+                    '⏱️ 10s: ' + (pb10 ? parseFloat(pb10).toFixed(0) + ' ข้อ' : '-') + ' | ' +
+                    '⏱️ 15s: ' + (pb15 ? parseFloat(pb15).toFixed(0) + ' ข้อ' : '-') + '<br>' +
+                    '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(0) + ' ข้อ' : '-') + ' | ' +
+                    '⏱️ 30s: ' + (pb30 ? parseFloat(pb30).toFixed(0) + ' ข้อ' : '-') +
                 '</span>';
             } else {
                 const localPB = localStorage.getItem('wb_best_time_' + userId + '_' + boss.id);
                 if (localPB) {
-                    pbDisplay = '🔥 เวลาที่ดีที่สุด: <span class="text-yellow-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
+                    pbDisplay = '⏱️ สถิติสปีดรัน: <span class="text-emerald-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
                 }
             }
             
@@ -201,21 +201,21 @@
             let textGlow = '';
             
             if (boss.id === 'WB001' || boss.poseType === 'mario_fitness') {
-                displayName = 'ผจญภัยกับมาริโอ้ (Super Mario Bros)';
-                poseLabel = '🍄 ผจญภัยมาริโอ้ (Mario Fitness)';
-                bossDesc = 'ออกกำลังกายสไตล์เกมยุค 8-bit! 🏃‍♂️ ทำท่าวิ่งแถวเอว/พุงเพื่อเดินหน้า, 🦘 กระโดดเพื่อหลบ Bowser และเก็บเหรียญทองสุดหรรษา!';
+                displayName = 'มาริโอ้ฟิตเนสสะสมเหรียญ (Mario Fitness)';
+                poseLabel = '🍄 มาริโอ้คลาสสิก (Mario Fitness)';
+                bossDesc = 'มินิเกมออกกำลังกายสไตล์ 8-bit แสนสนุก! 🏃‍♂️ ขยับร่างกายวิ่งเพื่อพาตัวละครเคลื่อนไปข้างหน้า, 🦘 กระโดดหลบอุปสรรคและเก็บเหรียญทองเพื่อทำสถิติเวลาที่เร็วที่สุด!';
                 emoji = '🍄';
-                cardBorderColor = 'border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.25)]';
-                badgeBg = 'bg-red-950/80 text-red-300 border-red-800/80';
-                textGlow = 'text-red-400';
+                cardBorderColor = 'border-emerald-500/80 shadow-[0_0_20px_rgba(16,185,129,0.25)]';
+                badgeBg = 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80';
+                textGlow = 'text-emerald-400';
             } else if (isWb002 || boss.poseType === 'speed_runner') {
-                displayName = boss.name;
-                poseLabel = '🏃‍♂️ ยอดนักวิ่งลมกรด (Speed Runner)';
-                bossDesc = 'สวมบทนักวิ่งลมกรด! 🏃‍♂️ ขยับตัววิ่งอยู่กับที่ผ่านกล้องเพื่อเร่งความเร็วสะสมระยะทางจำลองให้ไกลที่สุดในเวลาจำกัดของคุณ!';
-                emoji = '🏃‍♂️';
-                cardBorderColor = 'border-cyan-500/80 shadow-[0_0_20px_rgba(6,182,212,0.25)]';
-                badgeBg = 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80';
-                textGlow = 'text-cyan-400';
+                displayName = 'สมรภูมิมือปราบภัย AI (AI Safety Hand-Tracker)';
+                poseLabel = '🛡️ มือปราบภัย AI (AI Safety)';
+                bossDesc = 'สวมบทมือปราบภัย AI! 🛡️ ใช้กล้องเว็บแคมหรือเมาส์ควบคุมตำแหน่งมือเพื่อหนีบจับ (Pinch) และลากแยกประเภทสถานการณ์ความปลอดภัยของ AI ลงบล็อกจริยธรรม, ไซเบอร์ และความเสี่ยงสังคมให้ถูกต้องเพื่อพิชิตบอส!';
+                emoji = '🛡️';
+                cardBorderColor = 'border-violet-500/80 shadow-[0_0_20px_rgba(139,92,246,0.25)]';
+                badgeBg = 'bg-violet-950/80 text-violet-300 border-violet-800/80';
+                textGlow = 'text-violet-400';
             } else {
                 poseLabel = '🏋️‍♂️ ท่าออกกำลังกาย (Fitness)';
                 bossDesc = 'ท้าทายความแข็งแกร่งด้วยการออกกำลังกายตรวจจับท่าทางด้วย AI สู้กับระบบบอสโลกเพื่อเอาชนะสถิติของห้องเรียน!';
@@ -227,7 +227,7 @@
             
             // แทนที่ชื่อบอสเพื่อส่งต่อไปหน้าเล่นเกมด้วยชื่อใหม่
             const bossToStart = { ...boss, name: displayName };
-            const targetLabel = isWb002 ? 'วิ่งจำกัดเวลา (15s/20s/30s)' : (boss.targetReps + ' ครั้ง');
+            const targetLabel = isWb002 ? 'ลากวางจำกัดเวลา (15s/20s/30s)' : (boss.targetReps + ' ครั้ง');
             
             html += '<div class="rpg-box bg-slate-900/95 text-white p-6 rounded-3xl border-4 ' + cardBorderColor + ' flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:scale-[1.01]">' +
                 '<div class="absolute inset-0 bg-gradient-to-tr from-slate-950/40 via-slate-900/40 to-transparent pointer-events-none"></div>' +
@@ -308,7 +308,7 @@
         // 🔮 ปรับแต่งหัวคอลัมน์เวลาดีที่สุดตามประเภทบอสแบบ Dynamic ระดับมือโปร
         const thEl = document.querySelector('#wb-leaderboard-container table thead tr th:nth-child(4)');
         if (thEl) {
-            thEl.innerText = isWb002 ? 'ระยะทางสูงสุด (เมตร)' : 'เวลาดีที่สุด (วินาที)';
+            thEl.innerText = isWb002 ? 'คะแนนสูงสุด (ข้อ)' : 'เวลาดีที่สุด (วินาที)';
         }
         
         const titleEl = document.getElementById('wb-leaderboard-title');
@@ -350,11 +350,12 @@
                             const isMe = currentUser && String(row.userId) === String(currentUser.id);
                             const rowClass = isMe ? 'bg-yellow-100/90 font-extrabold border-l-4 border-yellow-500 text-yellow-950' : 'hover:bg-purple-50/50';
                             
+                            const formattedScore = isWb002 ? row.bestTime.toFixed(0) : row.bestTime.toFixed(2);
                             html += '<tr class="' + rowClass + ' transition duration-150">' +
                                 '<td class="p-3 text-center text-base">' + medal + '</td>' +
                                 '<td class="p-3 font-black">' + row.name + (isMe ? ' (คุณ)' : '') + '</td>' +
                                 '<td class="p-3 text-center">' + row.className + '</td>' +
-                                '<td class="p-3 text-right text-purple-700 font-mono font-black">' + row.bestTime.toFixed(2) + ' ' + (isWb002 ? 'เมตร' : 'วินาที') + '</td>' +
+                                '<td class="p-3 text-right text-purple-700 font-mono font-black">' + formattedScore + ' ' + (isWb002 ? 'ข้อ' : 'วินาที') + '</td>' +
                                 '<td class="p-3 text-center text-xs text-gray-400 font-bold">' + row.date + '</td>' +
                             '</tr>';
                         });
@@ -378,11 +379,12 @@
                 let html = '';
                 mockLB.forEach((row, index) => {
                     const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : (index + 1);
+                    const formattedScore = isWb002 ? row.bestTime.toFixed(0) : row.bestTime.toFixed(2);
                     html += '<tr class="hover:bg-purple-50/50">' +
                         '<td class="p-3 text-center">' + medal + '</td>' +
                         '<td class="p-3 font-bold">' + row.name + '</td>' +
                         '<td class="p-3 text-center">' + row.className + '</td>' +
-                        '<td class="p-3 text-right text-purple-700 font-mono font-bold">' + row.bestTime.toFixed(2) + ' ' + (isWb002 ? 'เมตร' : 'วินาที') + '</td>' +
+                        '<td class="p-3 text-right text-purple-700 font-mono font-bold">' + formattedScore + ' ' + (isWb002 ? 'ข้อ' : 'วินาที') + '</td>' +
                         '<td class="p-3 text-center text-xs text-gray-400">' + row.date + '</td>' +
                     '</tr>';
                 });
@@ -390,16 +392,16 @@
             }, 500);
         }
     }
-    // 🌐 ที่อยู่ URL หน้า World Boss ที่โฮสต์บนระบบภายนอก (เช่น GitHub Pages, Vercel หรือ Firebase)
+    // 🌐 ที่อยู่ URL หน้าออกกำลังกายที่โฮสต์บนระบบภายนอก (เช่น GitHub Pages, Vercel หรือ Firebase)
     // สำหรับการหลีกเลี่ยง iframe sandbox ทำให้สิทธิ์กล้องบนมือถือ iOS/Android ทำงานได้สมบูรณ์แบบ 100%
-    // 👉 สามารถแก้ไขลิงก์นี้เป็นที่อยู่อภิมหาเกียรติยศหลังจากที่ท่านอัปโหลดไฟล์ worldboss.html เรียบร้อยแล้วครับ
-    const WORLD_BOSS_EXTERNAL_URL = "https://nzappcreator2-del.github.io/worldboss-ict-game/worldboss.html";
+    // 👉 สามารถแก้ไขลิงก์นี้เป็นที่อยู่อภิมหาเกียรติยศหลังจากที่ท่านอัปโหลดไฟล์ fitness.html เรียบร้อยแล้วครับ
+    const WORLD_BOSS_EXTERNAL_URL = "https://nzappcreator2-del.github.io/worldboss-ict-game/fitness.html";
 
     /**
      * ⚔️ เริ่มต้นหน้าจอต่อสู้เวิลด์บอส (Decoupled External Mode)
      */
     function startWorldBossBattle(boss) {
-        console.log('TRACE: [startWorldBossBattle] เริ่มท้าทายบอสแบบแยกส่วนภายนอก:', boss.name);
+        console.log('TRACE: [startWorldBossBattle] เริ่มท้าทายมินิเกมแบบแยกส่วนภายนอก:', boss.name);
         
         // ดึง Web App URL ปัจจุบันแบบไดนามิก เพื่อให้หน้าภายนอกส่งผลคะแนนกลับหลังบ้านได้ถูกต้อง
         if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -441,7 +443,7 @@
                 .getScriptUrl();
         } else {
             // โหมดจำลอง Local/Offline Development
-            const targetUrl = "worldboss.html" + 
+            const targetUrl = "fitness.html" + 
                 "?userId=U-MOCK" +
                 "&userName=" + encodeURIComponent("สมรภูมิ ม็อค") +
                 "&className=" + encodeURIComponent("ป.5/2") +
