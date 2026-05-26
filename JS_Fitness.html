@@ -185,12 +185,12 @@
                     '⏱️ 15s: ' + (pb15 ? parseFloat(pb15).toFixed(0) + ' ข้อ' : '-') + ' | ' +
                     '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(0) + ' ข้อ' : '-') + '<br>' +
                     '⏱️ 30s: ' + (pb30 ? parseFloat(pb30).toFixed(0) + ' ข้อ' : '-') + ' | ' +
-                    '🏆 Speedrun: ' + (pbSpeedrun ? parseFloat(pbSpeedrun).toFixed(2) + 's' : '-') +
+                    '🏆 เคลียร์ 12 ข้อ: ' + (pbSpeedrun ? parseFloat(pbSpeedrun).toFixed(2) + 's' : '-') +
                 '</span>';
             } else {
                 const localPB = localStorage.getItem('wb_best_time_' + userId + '_' + boss.id);
                 if (localPB) {
-                    pbDisplay = '⏱️ สถิติสปีดรัน: <span class="text-emerald-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
+                    pbDisplay = '⏱️ สถิติเคลียร์ด่วน: <span class="text-emerald-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
                 }
             }
             
@@ -300,7 +300,7 @@
                     '<button onclick="showWorldBossLeaderboard(\'WB002_15\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_15' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 15s</button>' +
                     '<button onclick="showWorldBossLeaderboard(\'WB002_20\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_20' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 20s</button>' +
                     '<button onclick="showWorldBossLeaderboard(\'WB002_30\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_30' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 30s</button>' +
-                    '<button onclick="showWorldBossLeaderboard(\'WB002_SPEEDRUN\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_SPEEDRUN' ? 'bg-violet-500 text-slate-950 border-violet-400 font-extrabold shadow-[0_0_10px_rgba(139,92,246,0.5)]' : 'bg-slate-800 text-violet-400 border-slate-700 hover:bg-slate-700') + '">🏆 Speedrun 12 ข้อ</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_SPEEDRUN\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_SPEEDRUN' ? 'bg-violet-500 text-slate-950 border-violet-400 font-extrabold shadow-[0_0_10px_rgba(139,92,246,0.5)]' : 'bg-slate-800 text-violet-400 border-slate-700 hover:bg-slate-700') + '">🏆 เคลียร์ 12 ข้อ</button>' +
                     '<button onclick="showWorldBossLeaderboard(\'WB002_1\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_1' ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold' : 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700') + '">🔧 1s</button>' +
                 '</div>';
             } else {

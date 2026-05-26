@@ -406,10 +406,10 @@
                     </div>
                 </button>
                 
-                <!-- ตัวเลือกที่ 5: โหมด Speedrun 12 ข้อ -->
+                <!-- ตัวเลือกที่ 5: โหมดท้าทายเคลียร์ด่วน 12 ข้อ -->
                 <button onclick="selectRunnerDuration(12)" 
                         class="p-3 bg-slate-900/90 hover:bg-slate-800/95 border-2 border-slate-800 hover:border-violet-500/80 text-white rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg">
-                    <span class="text-violet-400 font-black text-sm group-hover:animate-bounce">🏆 Speedrun 12 ข้อ</span>
+                    <span class="text-violet-400 font-black text-sm group-hover:animate-bounce">🏆 เคลียร์ด่วน 12 ข้อ</span>
                     <span class="text-[9px] text-slate-400 font-bold mt-1">บอส: 120 HP (เคลียร์ด่วน)</span>
                     <div class="flex gap-1.5 mt-2 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800">
                         <span class="text-[10px] font-black text-yellow-400">🪙 +250</span>
@@ -2489,6 +2489,75 @@
                 runnerCanvasCtx.stroke();
             }
             
+            // --- 🎇 1.5 วาด Cyber Glass HUD Panel (แผงควบคุมอัจฉริยะด้านบน) 🎇 ---
+            runnerCanvasCtx.save();
+            // วาดตัวบาร์กระจกแก้วไล่เฉดสีกรมท่าเกือบดำเรืองแสง
+            const hudGrad = runnerCanvasCtx.createLinearGradient(0, 0, 0, 52);
+            hudGrad.addColorStop(0, 'rgba(11, 15, 36, 0.96)');
+            hudGrad.addColorStop(1, 'rgba(15, 23, 42, 0.90)');
+            runnerCanvasCtx.fillStyle = hudGrad;
+            
+            // ใช้เงาเรืองแสงสีม่วง
+            runnerCanvasCtx.shadowColor = '#8b5cf6';
+            runnerCanvasCtx.shadowBlur = 10;
+            runnerCanvasCtx.fillRect(0, 0, width, 52);
+            
+            // วาดเส้นขอบล่างเรืองแสงนีออนสีไซอัน
+            runnerCanvasCtx.shadowColor = '#06b6d4';
+            runnerCanvasCtx.shadowBlur = 5;
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+            runnerCanvasCtx.lineWidth = 1.5;
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(0, 52);
+            runnerCanvasCtx.lineTo(width, 52);
+            runnerCanvasCtx.stroke();
+            runnerCanvasCtx.restore();
+            
+            // วาดข้อความฝั่งซ้าย: โล่พิทักษ์และชื่อโหมดระบบ
+            runnerCanvasCtx.save();
+            runnerCanvasCtx.font = '900 13px Prompt, sans-serif';
+            runnerCanvasCtx.fillStyle = '#c084fc';
+            runnerCanvasCtx.textAlign = 'left';
+            runnerCanvasCtx.shadowColor = '#8b5cf6';
+            runnerCanvasCtx.shadowBlur = 4;
+            runnerCanvasCtx.fillText('🛡️ สมรภูมิมือปราบภัย AI', 20, 31);
+            runnerCanvasCtx.restore();
+            
+            // วาดข้อความฝั่งขวา: คะแนน / ความคืบหน้า และ เวลาเรียลไทม์
+            runnerCanvasCtx.save();
+            runnerCanvasCtx.font = 'bold 11.5px Prompt, sans-serif';
+            runnerCanvasCtx.textAlign = 'right';
+            
+            const isSpeedrunMode = bossId === 'WB002_SPEEDRUN';
+            if (isSpeedrunMode) {
+                // ข้อความคะแนนเรืองแสงสีไซอันชวนตื่นตา
+                runnerCanvasCtx.fillStyle = '#22d3ee';
+                runnerCanvasCtx.shadowColor = '#06b6d4';
+                runnerCanvasCtx.shadowBlur = 6;
+                runnerCanvasCtx.fillText(`⚡ ความคืบหน้า: ${wbRepsCount} / 12 ข้อ  |  ⏱️ เวลา: ${wbElapsedTime.toFixed(2)}s`, width - 20, 30);
+            } else {
+                // โหมดจำกัดเวลาปกติ
+                const timeLeft = Math.max(0, targetReps - wbElapsedTime);
+                runnerCanvasCtx.fillStyle = '#fb7185';
+                runnerCanvasCtx.shadowColor = '#f43f5e';
+                runnerCanvasCtx.shadowBlur = 6;
+                runnerCanvasCtx.fillText(`🔥 ตอบถูก: ${wbRepsCount} ข้อ  |  ⏱️ เหลือ: ${timeLeft.toFixed(1)}s`, width - 20, 30);
+            }
+            runnerCanvasCtx.restore();
+            
+            // วาดหลอดพลังสะสมเลเซอร์ด้านล่างของ HUD (Y: 50, สูง 3px)
+            runnerCanvasCtx.save();
+            const progressRatio = Math.min(1.0, wbRepsCount / targetReps);
+            const progressGrad = runnerCanvasCtx.createLinearGradient(0, 0, width * progressRatio, 0);
+            progressGrad.addColorStop(0, '#8b5cf6');
+            progressGrad.addColorStop(1, '#10b981');
+            
+            runnerCanvasCtx.fillStyle = progressGrad;
+            runnerCanvasCtx.shadowColor = '#10b981';
+            runnerCanvasCtx.shadowBlur = 8;
+            runnerCanvasCtx.fillRect(0, 50, width * progressRatio, 3);
+            runnerCanvasCtx.restore();
+            
             // 2. วาด 3 โซนเป้าหมาย (Drop Zones) ดีไซน์ล้ำสมัยพร้อมกรอบ HUD 4 มุมเรืองแสง (Sci-Fi Bracket Corners)
             for (const key in DROP_ZONES) {
                 const zone = DROP_ZONES[key];
@@ -2918,12 +2987,10 @@
                     break;
                 }
             }
-            
             if (droppedZone) {
                 if (droppedZone === aiCurrentItem.category) {
                     // ตอบถูกต้อง!
-                    playBeep('rep');
-                    wbRepsCount++;
+                    handleRepDetected();
                     
                     try {
                         confetti({
