@@ -733,11 +733,11 @@
             document.getElementById('mario-iframe').src = "about:blank"; // กำหนดเป็นหน้าว่าง เพื่อตัดเสียงดนตรี Bowser มาริโอ้ค้างคา 100%
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             
-            // แสดง Canvas สำหรับวาดลู่วิ่งนีออนตรงกลางจอใหญ่ และปรับสเกลพอดี
+            // แสดง Canvas สำหรับวาดลู่วิ่งนีออนให้กว้างเต็มหน้าต่างเกมขอบฟ้านีออน 100% ไร้ขอบดำด้านข้าง
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
                 runnerCanvas.classList.remove('hidden');
-                runnerCanvas.className = "relative w-auto h-auto max-w-full max-h-full aspect-[4/3] bg-slate-950 rounded-xl overflow-hidden flex-1 shadow-inner object-contain";
+                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 shadow-inner";
             }
             
             // ใช้ขอบนีออนธีมสเปซสีไซอัน และปรับ Layout เป็น Split Screen ด้วย Flexbox
