@@ -148,6 +148,17 @@
             height: 0;
             opacity: 0;
         }
+
+        /* 📺 สไตล์สำหรับโหมดเต็มหน้าจอของตู้เกม */
+        #wb-game-frame:fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background-color: #080a1c !important;
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between select-none">
@@ -183,7 +194,12 @@
                 <!-- แถบระบุข้อมูลด่านด้านบน -->
                 <div class="w-full flex justify-between items-center z-10 px-1">
                     <span id="wb-boss-tag" class="bg-red-950/80 text-red-300 text-[8px] lg:text-[10px] font-black uppercase px-2 lg:px-3 py-0.5 lg:py-1 rounded-full border border-red-800/80 tracking-wider shadow-inner">MINI-GAME: SUPER MARIO 🍄</span>
-                    <span id="mario-game-status" class="hidden lg:inline text-xs font-black text-yellow-400 animate-pulse">🎮 สมรภูมิมาริโอ้เครื่องแฟมิคอมดั้งเดิม!</span>
+                    <div class="flex items-center gap-2">
+                        <span id="mario-game-status" class="hidden lg:inline text-xs font-black text-yellow-400 animate-pulse">🎮 สมรภูมิมาริโอ้เครื่องแฟมิคอมดั้งเดิม!</span>
+                        <button onclick="toggleFullscreen()" class="px-2.5 py-1 text-[10px] lg:text-xs font-black rounded-lg border border-slate-700 bg-slate-850 hover:bg-slate-750 text-cyan-400 hover:text-white transition flex items-center gap-1 cursor-pointer shadow">
+                            📺 <span id="fullscreen-btn-text">ขยายเต็มจอ</span>
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- 📺 จอภาพเกมมินิเกมขยายใหญ่สุดชนขอบเรืองแสง (ขยายเต็มหน้าจอ ไร้ขอบเปล่าประโยชน์) -->
@@ -2564,10 +2580,25 @@
                 
                 let isActive = false;
                 if (aiCurrentItem) {
-                    const cx = aiCurrentItem.x;
-                    const cy = aiCurrentItem.y;
-                    if (cx >= zone.x && cx <= zone.x + zone.w &&
-                        cy >= zone.y && cy <= zone.y + zone.h) {
+                    // 1: เช็คพิกัดเป้าเล็งมืออยู่ในกล่อง
+                    const checkX = handCursor.smoothX;
+                    const checkY = handCursor.smoothY;
+                    const isHandInZone = (checkX >= zone.x && checkX <= zone.x + zone.w &&
+                                          checkY >= zone.y && checkY <= zone.y + zone.h);
+                                          
+                    // 2: เช็คว่าตัวการ์ดคำถามทับซ้อนกับโซนเป้าหมาย (AABB Overlap)
+                    const leftA = aiCurrentItem.x - aiCurrentItem.w / 2;
+                    const rightA = aiCurrentItem.x + aiCurrentItem.w / 2;
+                    const topA = aiCurrentItem.y - aiCurrentItem.h / 2;
+                    const bottomA = aiCurrentItem.y + aiCurrentItem.h / 2;
+                    
+                    const leftB = zone.x;
+                    const rightB = zone.x + zone.w;
+                    const topB = zone.y;
+                    const bottomB = zone.y + zone.h;
+                    const isCardOverlapping = (leftA < rightB && rightA > leftB && topA < bottomB && bottomA > topB);
+                    
+                    if (isHandInZone || isCardOverlapping) {
                         isActive = true;
                     }
                 }
@@ -2981,10 +3012,31 @@
             const centerX = aiCurrentItem.x;
             const centerY = aiCurrentItem.y;
             
+            // ขอบเขตพิกัดการ์ดคำถาม (Bounding Box)
+            const leftA = aiCurrentItem.x - aiCurrentItem.w / 2;
+            const rightA = aiCurrentItem.x + aiCurrentItem.w / 2;
+            const topA = aiCurrentItem.y - aiCurrentItem.h / 2;
+            const bottomA = aiCurrentItem.y + aiCurrentItem.h / 2;
+            
+            // พิกัดเป้าเล็งมือของผู้เล่นจริง (เพื่อการลากวางที่สมบูรณ์)
+            const checkX = handCursor.smoothX;
+            const checkY = handCursor.smoothY;
+            
             for (const key in DROP_ZONES) {
                 const zone = DROP_ZONES[key];
-                if (centerX >= zone.x && centerX <= zone.x + zone.w &&
-                    centerY >= zone.y && centerY <= zone.y + zone.h) {
+                
+                // เช็ค 1: เป้ามืออยู่ในกล่อง
+                const isHandInZone = (checkX >= zone.x && checkX <= zone.x + zone.w &&
+                                      checkY >= zone.y && checkY <= zone.y + zone.h);
+                                      
+                // เช็ค 2: ตัวการ์ดทับซ้อนกับโซน (AABB Collision)
+                const leftB = zone.x;
+                const rightB = zone.x + zone.w;
+                const topB = zone.y;
+                const bottomB = zone.y + zone.h;
+                const isCardOverlapping = (leftA < rightB && rightA > leftB && topA < bottomB && bottomA > topB);
+                
+                if (isHandInZone || isCardOverlapping) {
                     droppedZone = key;
                     break;
                 }
@@ -3764,6 +3816,44 @@
             // ข้ามเฟส Calibrate แล้วเข้าสู่เฟสนับถอยหลัง 3 2 1 ทันที เพื่อเริ่มเกมลากวางอย่างรวดเร็ว
             startCountdownPhase();
         }
+
+        /**
+         * 📺 ระบบสลับการแสดงผลเต็มหน้าจอ (Fullscreen API Toggle)
+         */
+        function toggleFullscreen() {
+            const element = document.getElementById('wb-game-frame');
+            const btnText = document.getElementById('fullscreen-btn-text');
+            
+            if (!document.fullscreenElement) {
+                if (element.requestFullscreen) {
+                    element.requestFullscreen();
+                } else if (element.mozRequestFullScreen) {
+                    element.mozRequestFullScreen();
+                } else if (element.webkitRequestFullscreen) {
+                    element.webkitRequestFullscreen();
+                } else if (element.msRequestFullscreen) {
+                    element.msRequestFullscreen();
+                }
+                if (btnText) btnText.innerText = "ย่อหน้าจอ";
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+                if (btnText) btnText.innerText = "ขยายเต็มจอ";
+            }
+        }
+        
+        // ตรวจจับการออกจากโหมดเต็มหน้าจอโดยผู้ใช้ (เช่น กดปุ่ม ESC บนแป้นพิมพ์)
+        document.addEventListener('fullscreenchange', () => {
+            const btnText = document.getElementById('fullscreen-btn-text');
+            if (btnText) {
+                if (document.fullscreenElement) {
+                    btnText.innerText = "ย่อหน้าจอ";
+                } else {
+                    btnText.innerText = "ขยายเต็มจอ";
+                }
+            }
+        });
     </script>
 </body>
 </html>
