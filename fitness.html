@@ -899,11 +899,11 @@
         let draggedItem = null;
         let handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
         
-        // 3 บล็อกเป้าหมาย (Drop Zones) พิกัด X, Y บน canvas 640x480
+        // 3 บล็อกเป้าหมาย (Drop Zones) พิกัด X, Y บน canvas 640x480 พร้อมค่า hx, hy, hw, hh สำหรับพิกัด Hitbox ตรวจจับการชนที่กว้างและง่ายขึ้นพิเศษ
         const DROP_ZONES = {
-            ethics: { x: 40, y: 340, w: 160, h: 100, label: "Ethics (จริยธรรม AI)", color: "#10b981", activeColor: "#34d399", textBg: "rgba(16, 185, 129, 0.15)" },
-            cybersecurity: { x: 240, y: 340, w: 160, h: 100, label: "Cybersecurity", color: "#06b6d4", activeColor: "#22d3ee", textBg: "rgba(6, 182, 212, 0.15)" },
-            social_risks: { x: 440, y: 340, w: 160, h: 100, label: "Social Risks", color: "#f43f5e", activeColor: "#fb7185", textBg: "rgba(244, 63, 94, 0.15)" }
+            ethics: { x: 40, y: 340, w: 160, h: 100, hx: 0, hy: 260, hw: 215, hh: 220, label: "Ethics (จริยธรรม AI)", color: "#10b981", activeColor: "#34d399", textBg: "rgba(16, 185, 129, 0.15)" },
+            cybersecurity: { x: 240, y: 340, w: 160, h: 100, hx: 215, hy: 260, hw: 210, hh: 220, label: "Cybersecurity", color: "#06b6d4", activeColor: "#22d3ee", textBg: "rgba(6, 182, 212, 0.15)" },
+            social_risks: { x: 440, y: 340, w: 160, h: 100, hx: 425, hy: 260, hw: 215, hh: 220, label: "Social Risks", color: "#f43f5e", activeColor: "#fb7185", textBg: "rgba(244, 63, 94, 0.15)" }
         };
 
         let wbTotalDistance = 0.0; // เก็บไว้ชั่วคราวเพื่อกันระบบผลรวมคะแนนเดิมมี reference เก่าขัดข้อง
@@ -2594,11 +2594,11 @@
                 
                 let isActive = false;
                 if (aiCurrentItem) {
-                    // 1: เช็คพิกัดเป้าเล็งมืออยู่ในกล่อง
+                    // 1: เช็คพิกัดเป้าเล็งมืออยู่ในกล่อง โดยใช้พิกัด Hitbox ตรวจจับพิเศษ (hx, hy, hw, hh)
                     const checkX = handCursor.smoothX;
                     const checkY = handCursor.smoothY;
-                    const isHandInZone = (checkX >= zone.x && checkX <= zone.x + zone.w &&
-                                          checkY >= zone.y && checkY <= zone.y + zone.h);
+                    const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
+                                          checkY >= zone.hy && checkY <= zone.hy + zone.hh);
                                           
                     // 2: เช็คว่าตัวการ์ดคำถามทับซ้อนกับโซนเป้าหมาย (AABB Overlap)
                     const leftA = aiCurrentItem.x - aiCurrentItem.w / 2;
@@ -2606,10 +2606,10 @@
                     const topA = aiCurrentItem.y - aiCurrentItem.h / 2;
                     const bottomA = aiCurrentItem.y + aiCurrentItem.h / 2;
                     
-                    const leftB = zone.x;
-                    const rightB = zone.x + zone.w;
-                    const topB = zone.y;
-                    const bottomB = zone.y + zone.h;
+                    const leftB = zone.hx;
+                    const rightB = zone.hx + zone.hw;
+                    const topB = zone.hy;
+                    const bottomB = zone.hy + zone.hh;
                     const isCardOverlapping = (leftA < rightB && rightA > leftB && topA < bottomB && bottomA > topB);
                     
                     if (isHandInZone || isCardOverlapping) {
@@ -3065,15 +3065,15 @@
             for (const key in DROP_ZONES) {
                 const zone = DROP_ZONES[key];
                 
-                // เช็ค 1: เป้ามืออยู่ในกล่อง
-                const isHandInZone = (checkX >= zone.x && checkX <= zone.x + zone.w &&
-                                      checkY >= zone.y && checkY <= zone.y + zone.h);
+                // เช็ค 1: เป้ามืออยู่ในกล่อง (ผ่าน Hitbox ตรวจจับพิเศษ hx, hy, hw, hh)
+                const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
+                                      checkY >= zone.hy && checkY <= zone.hy + zone.hh);
                                       
-                // เช็ค 2: ตัวการ์ดทับซ้อนกับโซน (AABB Collision)
-                const leftB = zone.x;
-                const rightB = zone.x + zone.w;
-                const topB = zone.y;
-                const bottomB = zone.y + zone.h;
+                // เช็ค 2: ตัวการ์ดทับซ้อนกับโซน (AABB Collision บน Hitbox)
+                const leftB = zone.hx;
+                const rightB = zone.hx + zone.hw;
+                const topB = zone.hy;
+                const bottomB = zone.hy + zone.hh;
                 const isCardOverlapping = (leftA < rightB && rightA > leftB && topA < bottomB && bottomA > topB);
                 
                 if (isHandInZone || isCardOverlapping) {
