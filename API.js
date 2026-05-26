@@ -1669,12 +1669,14 @@ function submitWorldBossScore(userId, bossId, timeSeconds, bonusCoins) {
     
     let scoreRowIdx = -1;
     const isWb002 = String(bossId).indexOf('WB002') === 0;
-    let previousBest = isWb002 ? 0 : Infinity;
+    const isSpeedrun = String(bossId) === 'WB002_SPEEDRUN';
+    const isTimeBased = !isWb002 || isSpeedrun; // บอส 1, บอสอื่นๆ และ บอส 2 speedrun ค่าน้อยยิ่งดี (วินาที)
+    let previousBest = isTimeBased ? Infinity : 0;
     
     for (let i = 1; i < sData.length; i++) {
       if (String(sData[i][sCol.UserID]) === String(userId) && String(sData[i][sCol.BossID]) === String(bossId)) {
         scoreRowIdx = i + 1;
-        previousBest = Number(sData[i][sCol.BestTimeSeconds]) || (isWb002 ? 0 : Infinity);
+        previousBest = Number(sData[i][sCol.BestTimeSeconds]) || (isTimeBased ? Infinity : 0);
         break;
       }
     }
@@ -1691,9 +1693,9 @@ function submitWorldBossScore(userId, bossId, timeSeconds, bonusCoins) {
       scoresSheet.appendRow([userId, name, className, bossId, cleanTime, todayStr]);
       isPersonalBest = true;
     } else {
-      const condition = isWb002 ? (cleanTime > previousBest) : (cleanTime < previousBest);
+      const condition = isTimeBased ? (cleanTime < previousBest) : (cleanTime > previousBest);
       if (condition) {
-      // ทำเวลาได้เร็วขึ้น (ค่าเวลาน้อยลง = เร็วขึ้น) ให้ทำการเขียนทับ
+      // ทำเวลาดีขึ้น (ค่าน้อยลง = เร็วขึ้น) หรือทำข้อได้มากขึ้น (ค่ามากขึ้น = ดีขึ้น) ให้เขียนทับ
       scoresSheet.getRange(scoreRowIdx, sCol.BestTimeSeconds + 1).setValue(cleanTime);
       scoresSheet.getRange(scoreRowIdx, sCol.Date + 1).setValue(todayStr);
       scoresSheet.getRange(scoreRowIdx, sCol.Name + 1).setValue(name); // อัปเดตเผื่อเปลี่ยนชื่อในภายหลัง
@@ -1759,6 +1761,8 @@ function getWorldBossLeaderboard(bossId) {
     headers.forEach((h, idx) => col[h] = idx);
     
     const isWb002 = String(bossId).indexOf('WB002') === 0;
+    const isSpeedrun = String(bossId) === 'WB002_SPEEDRUN';
+    const isTimeBased = !isWb002 || isSpeedrun;
     const leaderboard = [];
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][col.BossID]) === String(bossId)) {
@@ -1766,17 +1770,17 @@ function getWorldBossLeaderboard(bossId) {
           userId: String(data[i][col.UserID]),
           name: String(data[i][col.Name]),
           className: String(data[i][col.Class]),
-          bestTime: Number(data[i][col.BestTimeSeconds]) || (isWb002 ? 0 : 9999),
+          bestTime: Number(data[i][col.BestTimeSeconds]) || (isTimeBased ? 9999 : 0),
           date: String(data[i][col.Date])
         });
       }
     }
     
     // เรียงตามเวลาที่ดีที่สุด จากน้อยไปมาก (เวลาทำได้น้อยสุด = เร็วสุด = อันดับ 1)
-    if (isWb002) {
-      leaderboard.sort((a, b) => b.bestTime - a.bestTime);
-    } else {
+    if (isTimeBased) {
       leaderboard.sort((a, b) => a.bestTime - b.bestTime);
+    } else {
+      leaderboard.sort((a, b) => b.bestTime - a.bestTime);
     }
     
     // เอาเฉพาะสิบคนแรก

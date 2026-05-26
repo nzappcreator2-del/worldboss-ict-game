@@ -173,17 +173,19 @@
             
             let pbDisplay = '⏳ ยังไม่มีสถิติ';
             if (isWb002) {
-                // ดึงสถิติ PB แยกของทั้ง 4 ช่วงเวลามาแสดงในบอร์ดเดี่ยวให้ครบครันอย่างเป็นระเบียบ
+                // ดึงสถิติ PB แยกของทั้ง 5 ช่วงเวลามาแสดงในบอร์ดเดี่ยวให้ครบครันอย่างเป็นระเบียบ
                 const pb10 = localStorage.getItem('wb_best_time_' + userId + '_WB002_10');
                 const pb15 = localStorage.getItem('wb_best_time_' + userId + '_WB002_15');
                 const pb20 = localStorage.getItem('wb_best_time_' + userId + '_WB002_20');
                 const pb30 = localStorage.getItem('wb_best_time_' + userId + '_WB002_30');
+                const pbSpeedrun = localStorage.getItem('wb_best_time_' + userId + '_WB002_SPEEDRUN');
                 
                 pbDisplay = '<span class="text-[10px] text-cyan-300 block font-black leading-normal text-left">' +
                     '⏱️ 10s: ' + (pb10 ? parseFloat(pb10).toFixed(0) + ' ข้อ' : '-') + ' | ' +
-                    '⏱️ 15s: ' + (pb15 ? parseFloat(pb15).toFixed(0) + ' ข้อ' : '-') + '<br>' +
-                    '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(0) + ' ข้อ' : '-') + ' | ' +
-                    '⏱️ 30s: ' + (pb30 ? parseFloat(pb30).toFixed(0) + ' ข้อ' : '-') +
+                    '⏱️ 15s: ' + (pb15 ? parseFloat(pb15).toFixed(0) + ' ข้อ' : '-') + ' | ' +
+                    '⏱️ 20s: ' + (pb20 ? parseFloat(pb20).toFixed(0) + ' ข้อ' : '-') + '<br>' +
+                    '⏱️ 30s: ' + (pb30 ? parseFloat(pb30).toFixed(0) + ' ข้อ' : '-') + ' | ' +
+                    '🏆 Speedrun: ' + (pbSpeedrun ? parseFloat(pbSpeedrun).toFixed(2) + 's' : '-') +
                 '</span>';
             } else {
                 const localPB = localStorage.getItem('wb_best_time_' + userId + '_' + boss.id);
@@ -294,11 +296,12 @@
         if (tabsEl) {
             if (isWb002) {
                 tabsEl.innerHTML = '<div class="flex justify-center flex-wrap gap-2 mb-4 font-prompt">' +
-                    '<button onclick="showWorldBossLeaderboard(\'WB002_10\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_10' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 10 วินาที</button>' +
-                    '<button onclick="showWorldBossLeaderboard(\'WB002_15\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_15' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 15 วินาที</button>' +
-                    '<button onclick="showWorldBossLeaderboard(\'WB002_20\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_20' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 20 วินาที</button>' +
-                    '<button onclick="showWorldBossLeaderboard(\'WB002_30\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_30' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 30 วินาที</button>' +
-                    '<button onclick="showWorldBossLeaderboard(\'WB002_1\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_1' ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold' : 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700') + '">🔧 ทดสอบ 1s</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_10\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_10' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 10s</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_15\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_15' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 15s</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_20\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_20' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 20s</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_30\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_30' ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold' : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700') + '">⏱️ 30s</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_SPEEDRUN\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_SPEEDRUN' ? 'bg-violet-500 text-slate-950 border-violet-400 font-extrabold shadow-[0_0_10px_rgba(139,92,246,0.5)]' : 'bg-slate-800 text-violet-400 border-slate-700 hover:bg-slate-700') + '">🏆 Speedrun 12 ข้อ</button>' +
+                    '<button onclick="showWorldBossLeaderboard(\'WB002_1\')" class="px-3 py-1.5 text-xs font-black rounded-lg border transition ' + (activeId === 'WB002_1' ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold' : 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700') + '">🔧 1s</button>' +
                 '</div>';
             } else {
                 tabsEl.innerHTML = '';
@@ -308,7 +311,8 @@
         // 🔮 ปรับแต่งหัวคอลัมน์เวลาดีที่สุดตามประเภทบอสแบบ Dynamic ระดับมือโปร
         const thEl = document.querySelector('#wb-leaderboard-container table thead tr th:nth-child(4)');
         if (thEl) {
-            thEl.innerText = isWb002 ? 'คะแนนสูงสุด (ข้อ)' : 'เวลาดีที่สุด (วินาที)';
+            const isSpeedrun = activeId === 'WB002_SPEEDRUN';
+            thEl.innerText = isSpeedrun ? 'เวลาเคลียร์ (วินาที)' : (isWb002 ? 'คะแนนสูงสุด (ข้อ)' : 'เวลาดีที่สุด (วินาที)');
         }
         
         const titleEl = document.getElementById('wb-leaderboard-title');
@@ -350,12 +354,14 @@
                             const isMe = currentUser && String(row.userId) === String(currentUser.id);
                             const rowClass = isMe ? 'bg-yellow-100/90 font-extrabold border-l-4 border-yellow-500 text-yellow-950' : 'hover:bg-purple-50/50';
                             
-                            const formattedScore = isWb002 ? row.bestTime.toFixed(0) : row.bestTime.toFixed(2);
+                            const isSpeedrun = activeId === 'WB002_SPEEDRUN';
+                            const formattedScore = (isWb002 && !isSpeedrun) ? row.bestTime.toFixed(0) : row.bestTime.toFixed(2);
+                            const unit = (isWb002 && !isSpeedrun) ? 'ข้อ' : 'วินาที';
                             html += '<tr class="' + rowClass + ' transition duration-150">' +
                                 '<td class="p-3 text-center text-base">' + medal + '</td>' +
                                 '<td class="p-3 font-black">' + row.name + (isMe ? ' (คุณ)' : '') + '</td>' +
                                 '<td class="p-3 text-center">' + row.className + '</td>' +
-                                '<td class="p-3 text-right text-purple-700 font-mono font-black">' + formattedScore + ' ' + (isWb002 ? 'ข้อ' : 'วินาที') + '</td>' +
+                                '<td class="p-3 text-right text-purple-700 font-mono font-black">' + formattedScore + ' ' + unit + '</td>' +
                                 '<td class="p-3 text-center text-xs text-gray-400 font-bold">' + row.date + '</td>' +
                             '</tr>';
                         });
@@ -379,12 +385,14 @@
                 let html = '';
                 mockLB.forEach((row, index) => {
                     const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : (index + 1);
-                    const formattedScore = isWb002 ? row.bestTime.toFixed(0) : row.bestTime.toFixed(2);
+                    const isSpeedrun = activeId === 'WB002_SPEEDRUN';
+                    const formattedScore = (isWb002 && !isSpeedrun) ? row.bestTime.toFixed(0) : row.bestTime.toFixed(2);
+                    const unit = (isWb002 && !isSpeedrun) ? 'ข้อ' : 'วินาที';
                     html += '<tr class="hover:bg-purple-50/50">' +
                         '<td class="p-3 text-center">' + medal + '</td>' +
                         '<td class="p-3 font-bold">' + row.name + '</td>' +
                         '<td class="p-3 text-center">' + row.className + '</td>' +
-                        '<td class="p-3 text-right text-purple-700 font-mono font-bold">' + formattedScore + ' ' + (isWb002 ? 'ข้อ' : 'วินาที') + '</td>' +
+                        '<td class="p-3 text-right text-purple-700 font-mono font-bold">' + formattedScore + ' ' + unit + '</td>' +
                         '<td class="p-3 text-center text-xs text-gray-400">' + row.date + '</td>' +
                     '</tr>';
                 });

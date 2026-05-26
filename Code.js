@@ -153,6 +153,7 @@ function setupDatabase() {
     bossSheet.appendRow(['WB002_20', 'สมรภูมิยอดนักวิ่งลมกรด (20 วินาที)', 'speed_runner', 20, 200, 150, 150, true]);
     bossSheet.appendRow(['WB002_30', 'สมรภูมิยอดนักวิ่งลมกรด (30 วินาที)', 'speed_runner', 30, 300, 200, 200, true]);
     bossSheet.appendRow(['WB002_1', 'สมรภูมิยอดนักวิ่งลมกรด (ทดสอบ 1 วินาที)', 'speed_runner', 1, 10, 5, 5, true]);
+    bossSheet.appendRow(['WB002_SPEEDRUN', 'สมรภูมิมือปราบภัย AI (Speedrun เคลียร์ 12 ข้อ)', 'speed_runner', 12, 120, 250, 250, true]);
   } else if (bossSheet) {
     // 🛠️ Auto-Migration: อัปเดตชื่อด่าน WB001 และเช็คว่ามี WB002_10 แล้วหรือยัง
     try {
@@ -246,7 +247,8 @@ function ensureDatabaseSetup() {
         ['WB002_15', 'สมรภูมิยอดนักวิ่งลมกรด (15 วินาที)', 'speed_runner', 15, 150, 100, 100, true],
         ['WB002_20', 'สมรภูมิยอดนักวิ่งลมกรด (20 วินาที)', 'speed_runner', 20, 200, 150, 150, true],
         ['WB002_30', 'สมรภูมิยอดนักวิ่งลมกรด (30 วินาที)', 'speed_runner', 30, 300, 200, 200, true],
-        ['WB002_1', 'สมรภูมิยอดนักวิ่งลมกรด (ทดสอบ 1 วินาที)', 'speed_runner', 1, 10, 5, 5, true]
+        ['WB002_1', 'สมรภูมิยอดนักวิ่งลมกรด (ทดสอบ 1 วินาที)', 'speed_runner', 1, 10, 5, 5, true],
+        ['WB002_SPEEDRUN', 'สมรภูมิมือปราบภัย AI (Speedrun เคลียร์ 12 ข้อ)', 'speed_runner', 12, 120, 250, 250, true]
       ];
       
       defaultBosses.forEach(def => {
