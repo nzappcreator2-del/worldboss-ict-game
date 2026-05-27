@@ -2294,10 +2294,11 @@
                         }
                     }
                 }
-            } catch(e) {
-                console.error("Pose onResults processing error: ", e);
             }
+        } catch(e) {
+            console.error("Pose onResults processing error: ", e);
         }
+    }
 
         // --- 🧠 [คอลแบ็กของ MediaPipe Hands] ประมวลผลตำแหน่งการ Pinch คีบลากการ์ด และตรวจชนถังขยะ ---
         function onHandsResults(results) {
@@ -2968,7 +2969,10 @@
             drawBottomHUD(runnerCanvasCtx, hudX, hudY, hudW, hudH, wbElapsedTime, wbRepsCount, wbTotalQuestionsPlayed, targetReps, wbRepsCount, (wbTotalQuestionsPlayed - wbRepsCount));
             
             runnerCanvasCtx.restore();
+        } catch(e) {
+            console.error("Hands onResults processing error: ", e);
         }
+    }
 
         // ==========================================
         // 🔮 ฟังก์ชัน Helper ย่อยสำหรับระบบวาดภาพ Sci-Fi (3D Bins & HUD)
