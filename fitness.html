@@ -524,13 +524,7 @@
         let rewardCoins = parseInt(urlParams.get('rewardCoins') || '50');
         let rewardXp = parseInt(urlParams.get('rewardXp') || '50');
         
-        let webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
-        // 🛡️ Apps Script URL Security Guard: ป้องกันและแก้ไขปัญหายอดฮิตของคุณครูเมื่อป้อนลิงก์โหมดพัฒนา (/dev) มาเล่นจริง
-        // เนื่องจากลิงก์โหมด dev จะบังคับ Login เสมอและไม่มีวันส่ง CORS Header กลับมา ทำให้เล่นเกมสะดุดและเกิดปัญหา
-        if (webAppUrl && webAppUrl.endsWith('/dev')) {
-            console.warn("⚠️ [Apps Script URL Guard]: ตรวจพบลิงก์ Google Apps Script โหมดพัฒนา (/dev) ซึ่งจะติดนโยบาย CORS จากภายนอก 100%! ระบบกำลังสลับเป้าหมายไปยังลิงก์ใช้งานจริง (/exec) ให้อัตโนมัติ โปรดแน่ใจว่าได้กด Deploy Web App บน Apps Script เป็น 'Anyone' แล้วนะครับ");
-            webAppUrl = webAppUrl.substring(0, webAppUrl.length - 4) + '/exec';
-        }
+        const webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
         const lessonId = urlParams.get('lessonId') || 'L-CURRENT';
         
         let quizBonusCoins = 0; // ยอดเหรียญทองโบนัสสะสมจากการตอบควิซถูก
@@ -1581,38 +1575,43 @@
                 
                 const isHandsMode = String(bossId).indexOf('WB002') === 0;
                 
-                if (!isHandsMode && !wbPose) {
-                    wbPose = new Pose({
-                        locateFile: (file) => {
-                            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-                        }
-                    });
-                    
-                    wbPose.setOptions({
-                        modelComplexity: 0, // ปรับเป็น Lite Model (0) เพื่อประหยัด CPU/GPU มหาศาล ลดอาการหนืดดีเลย์ในทันที!
-                        smoothLandmarks: true,
-                        minDetectionConfidence: 0.5,
-                        minTrackingConfidence: 0.5
-                    });
-                    
-                    wbPose.onResults(onPoseResults);
-                }
-
-                if (!wbHands) {
-                    wbHands = new Hands({
-                        locateFile: (file) => {
-                            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-                        }
-                    });
-                    
-                    wbHands.setOptions({
-                        maxNumHands: 1,
-                        modelComplexity: 1,
-                        minDetectionConfidence: 0.78, // เพิ่มความมั่นใจขั้นต่ำเพื่อให้คัดแยกมือจริงจากสิ่งแวดล้อมอย่างเข้มงวด ป้องกันอาการ Ghost Hands
-                        minTrackingConfidence: 0.75  // เพิ่มค่าล็อกเป้าเพื่อรักษาความเสถียรในการติดตามพิกัดมือ
-                    });
-                    
-                    wbHands.onResults(onHandsResults);
+                // 🧠 [Lazy Loading] โหลดเฉพาะโมเดล AI ที่ด่านนั้นต้องการใช้จริงเท่านั้น เพื่อประหยัด RAM/GPU และทรัพยากรเบื้องหลัง
+                if (!isHandsMode) {
+                    // โหมดมาริโอ้ (WB001): ใช้เฉพาะ Pose ตรวจจับร่างกาย
+                    if (!wbPose) {
+                        wbPose = new Pose({
+                            locateFile: (file) => {
+                                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                            }
+                        });
+                        
+                        wbPose.setOptions({
+                            modelComplexity: 0, // ปรับเป็น Lite Model (0) เพื่อประหยัด CPU/GPU มหาศาล ลดอาการหนืดดีเลย์ในทันที!
+                            smoothLandmarks: false, // ⚡ ปิดฟิลเตอร์สมูทซ้ำซ้อนภายใน MediaPipe เพื่อเพิ่มความรวดเร็วบนเธรดหลักและเบราว์เซอร์
+                            minDetectionConfidence: 0.5,
+                            minTrackingConfidence: 0.5
+                        });
+                        
+                        wbPose.onResults(onPoseResults);
+                    }
+                } else {
+                    // โหมดสมรภูมิมือปราบภัย AI (WB002): ใช้เฉพาะ Hands ตรวจจับมือ
+                    if (!wbHands) {
+                        wbHands = new Hands({
+                            locateFile: (file) => {
+                                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                            }
+                        });
+                        
+                        wbHands.setOptions({
+                            maxNumHands: 1,
+                            modelComplexity: 1,
+                            minDetectionConfidence: 0.78, // เพิ่มความมั่นใจขั้นต่ำเพื่อให้คัดแยกมือจริงจากสิ่งแวดล้อมอย่างเข้มงวด ป้องกันอาการ Ghost Hands
+                            minTrackingConfidence: 0.75  // เพิ่มค่าล็อกเป้าเพื่อรักษาความเสถียรในการติดตามพิกัดมือ
+                        });
+                        
+                        wbHands.onResults(onHandsResults);
+                    }
                 }
                 
                 if (wbCamera) {
@@ -1623,7 +1622,7 @@
                 let lastPoseProcessTime = 0;
                 const cameraStartTime = performance.now(); // บันทึกเวลาเริ่มรันกล้องเพื่อทำระบบอุ่นเครื่อง AI
                 
-                // 🌟 Offscreen Canvas จิ๋วสำหรับย่อภาพเว็บแคมก่อนส่งวิเคราะห์ เพื่อประหยัด CPU ฝั่งผู้ใช้งานลง 4 เท่าตัว!
+                // 🌟 Offscreen Canvas จิ๋วระดับสายฟ้าสำหรับย่อภาพเว็บแคมก่อนส่งวิเคราะห์ เพื่อประหยัด CPU ฝั่งผู้ใช้งานลงสูงสุด 16 เท่าตัว!
                 let offscreenCanvas = null;
                 let offscreenCtx = null;
                 
@@ -1656,16 +1655,16 @@
                                 if (isHandsMode) {
                                     await wbHands.send({ image: wbVideoEl });
                                 } else {
-                                    // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมก่อนส่งวิเคราะห์ (ขนาดสมดุลอัจฉริยะ 320x240 เพื่อความนิ่งสนิท ไร้อาการสั่นสะท้าน!)
+                                    // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมระดับอัจฉริยะ (ย่อขนาดเหลือ 160x120 เพื่อความนิ่งเป็นพิเศษและเบาสบายเธรดหลักที่สุด!)
                                     if (!offscreenCanvas) {
                                         offscreenCanvas = document.createElement('canvas');
-                                        offscreenCanvas.width = 320;
-                                        offscreenCanvas.height = 240;
+                                        offscreenCanvas.width = 160;
+                                        offscreenCanvas.height = 120;
                                         offscreenCtx = offscreenCanvas.getContext('2d');
                                     }
                                     
-                                    // วาดภาพเว็บแคมลงใน Canvas ขนาดสมบูรณ์ 320x240
-                                    offscreenCtx.drawImage(wbVideoEl, 0, 0, 320, 240);
+                                    // วาดภาพเว็บแคมลงใน Canvas ขนาดสมบูรณ์ 160x120
+                                    offscreenCtx.drawImage(wbVideoEl, 0, 0, 160, 120);
                                     
                                     await wbPose.send({ image: offscreenCanvas });
                                 }
