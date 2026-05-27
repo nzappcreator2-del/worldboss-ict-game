@@ -1542,9 +1542,9 @@
                         console.log("🔊 [Audio Bridge] ปลดล็อกเสียง Emulator มาริโอ้ NES ข้ามแดนสำเร็จ!");
                         isRealMarioAudioUnlocked = true;
                         
-                        // ถอด event listeners ออกเฉพาะเมื่อปลดล็อกสำเร็จสมบูรณ์เท่านั้น
-                        window.removeEventListener('click', unlockAudio);
-                        window.removeEventListener('touchstart', unlockAudio);
+                        // เพื่อความเหนียวแน่นสูงสุด: เราจะไม่ถอด Event Listener ปลดล็อกเสียงออก เพื่อให้คลิกต่อๆ ไปคอยช่วยปลุกเสียงได้
+                        // window.removeEventListener('click', unlockAudio);
+                        // window.removeEventListener('touchstart', unlockAudio);
                     }
                 } catch(e) {
                     console.error("Audio unlock fail:", e);
@@ -1811,16 +1811,16 @@
                                     await wbHands.send({ image: wbVideoEl });
                                 } else if (bossId === 'WB001_WORKER') {
                                     if (wbPoseWorker) {
-                                        // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมก่อนส่งวิเคราะห์ (ลดข้อมูลลงถึง 16 เท่าตัว!)
+                                        // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมก่อนส่งวิเคราะห์ (ขนาดสมดุลอัจฉริยะ 320x240 เพื่อความนิ่งสนิท ไร้อาการสั่นสะท้าน!)
                                         if (!offscreenCanvas) {
                                             offscreenCanvas = document.createElement('canvas');
-                                            offscreenCanvas.width = 160;
-                                            offscreenCanvas.height = 120;
+                                            offscreenCanvas.width = 320;
+                                            offscreenCanvas.height = 240;
                                             offscreenCtx = offscreenCanvas.getContext('2d');
                                         }
                                         
-                                        // วาดภาพเว็บแคมลงใน Canvas ขนาดจิ๋ว 160x120
-                                        offscreenCtx.drawImage(wbVideoEl, 0, 0, 160, 120);
+                                        // วาดภาพเว็บแคมลงใน Canvas ขนาดสมบูรณ์ 320x240
+                                        offscreenCtx.drawImage(wbVideoEl, 0, 0, 320, 240);
                                         
                                         // แปลง Canvas จิ๋วเป็น ImageBitmap ส่งให้ Worker ประมวลผลแบบเบาหวิวระดับไมโครวินาที
                                         const imageBitmap = await createImageBitmap(offscreenCanvas);
@@ -1858,7 +1858,7 @@
                     }
                 } else {
                     wbGameState = 'PREPARING';
-                    if (bossId === 'WB001') {
+                    if (bossId === 'WB001' || bossId === 'WB001_WORKER') {
                         statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อ Calibrate ค่าจมูกปกติ!`;
                         statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
                     } else {
@@ -2329,7 +2329,11 @@
                         const rightInBelly = rightWrist && rightWrist.visibility > 0.5 && (rightWrist.y >= bellyMinY && rightWrist.y <= avgHipYVal + currentBodyLen * 0.05);
                         
                         // แกว่งแขนวิ่งแบบธรรมชาติ (Natural Arm Swing): ขอเพียงแค่ข้อมือซ้ายหรือขวาข้างใดข้างหนึ่งอยู่ในโซนควบคุม และขยับแกว่งแขนสลับอย่างเป็นอิสระ
-                        const isNaturalArmSwing = (leftInBelly || rightInBelly) && (totalActivity > 0.065 && wristActivity > 0.015);
+                        // 🌟 ระบบขจัดอาการสั่น (Jitter Filter) สำหรับโหมด Web Worker โดยเฉพาะ
+                        // หากเป็นโหมด Worker เราจะเพิ่มเกณฑ์ Threshold การแกว่งข้อมือขึ้นอีกเพื่อป้องกันการ Ghost Actions (วิ่งเองเมื่อยืนนิ่ง)
+                        const armSwingThreshold = (bossId === 'WB001_WORKER') ? 0.035 : 0.015;
+                        const totalActivityThreshold = (bossId === 'WB001_WORKER') ? 0.095 : 0.065;
+                        const isNaturalArmSwing = (leftInBelly || rightInBelly) && (totalActivity > totalActivityThreshold && wristActivity > armSwingThreshold);
                         
                         // การตัดสินการกระโดด (JUMPING): สัมพันธ์กับไหล่และจมูกลอยสูงขึ้นพร้อมกัน ป้องกันการเงยหน้าโดดหลอน 100%
                         const isJumpingByBody = (noseLift > jumpThreshold && shoulderLift > jumpThreshold * 0.5) || 
@@ -2386,7 +2390,7 @@
                             }
                         }
                         
-                        if (bossId === 'WB001') {
+                        if (bossId === 'WB001' || bossId === 'WB001_WORKER') {
                             // บังคับเกมมาริโอ้ NES จริงๆ ใน iframe ด้วยสเตทที่เสถียรคมชัด!
                             controlRealMarioGame(detectedActiveState);
                             
@@ -4153,7 +4157,7 @@
             }
 
             // เริ่มการตรวจสอบแต้มและเหรียญของเกมมาริโอ้จริง
-            if (bossId === 'WB001') {
+            if (bossId === 'WB001' || bossId === 'WB001_WORKER') {
                 lastMarioCoinsCount = 0;
                 lastMarioScore = 0;
                 startMarioStatsLoop();
