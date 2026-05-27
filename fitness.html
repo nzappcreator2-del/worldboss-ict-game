@@ -174,17 +174,66 @@
 
     <!-- 🔮 ส่วนหัว: แสดงข้อมูลของนักเรียนและห้องเรียน -->
     <header class="w-full max-w-7xl mx-auto px-2 lg:px-4 pt-2 lg:pt-6 flex justify-between items-center z-10">
-        <div class="glass-panel py-1.5 lg:py-2 px-3 lg:px-6 rounded-xl lg:rounded-2xl flex items-center gap-2 lg:gap-3 border border-red-500/20">
-            <span class="text-lg lg:text-3xl">🛡️</span>
+        <div id="ui-student-container" class="glass-panel py-1.5 lg:py-2 px-3 lg:px-6 rounded-xl lg:rounded-2xl flex items-center gap-2 lg:gap-3 border border-red-500/20">
+            <!-- 👤 รูปโปรไฟล์สไตล์การ์ตูน SVG ในตัว (แสดงเฉพาะโหมด AI Safety ตาม ref1) -->
+            <div id="ui-student-profile-pic" class="w-8 h-8 lg:w-10 lg:h-10 rounded-full overflow-hidden border border-cyan-400/50 bg-slate-900 hidden items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                <svg viewBox="0 0 100 100" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="avatarBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#0f172a"/>
+                            <stop offset="100%" stop-color="#1e1b4b"/>
+                        </linearGradient>
+                        <linearGradient id="avatarFaceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#fed7aa"/>
+                            <stop offset="100%" stop-color="#fdb574"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="48" fill="url(#avatarBgGrad)" stroke="#06b6d4" stroke-width="2.5"/>
+                    <path d="M 20 90 Q 50 68 80 90 Z" fill="#3b82f6"/>
+                    <rect x="44" y="60" width="12" height="15" fill="#fdb574"/>
+                    <circle cx="50" cy="44" r="21" fill="url(#avatarFaceGrad)"/>
+                    <path d="M 26 40 Q 35 15 50 17 Q 65 15 74 40 Q 66 28 50 28 Q 34 28 26 40 Z" fill="#1e293b"/>
+                    <circle cx="43" cy="43" r="2.5" fill="#1e293b"/>
+                    <circle cx="57" cy="43" r="2.5" fill="#1e293b"/>
+                    <path d="M 45 53 Q 50 58 55 53" stroke="#1e293b" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                    <circle cx="37" cy="47" r="1.5" fill="#f43f5e" opacity="0.6"/>
+                    <circle cx="63" cy="47" r="1.5" fill="#f43f5e" opacity="0.6"/>
+                </svg>
+            </div>
+            <span id="ui-student-icon" class="text-lg lg:text-3xl">🛡️</span>
             <div>
                 <h2 id="ui-student-name" class="font-extrabold text-[11px] lg:text-base text-red-200 tracking-wide">ผู้กล้า: กำลังดาวน์โหลด...</h2>
                 <p id="ui-student-class" class="text-[9px] lg:text-xs font-bold text-red-400">ชั้นประถมศึกษาปีที่ -</p>
             </div>
         </div>
-        <button onclick="confirmLeaveGame()" 
-                class="rpg-btn-red px-3 lg:px-5 py-1.5 lg:py-2.5 rounded-lg lg:rounded-xl text-[10px] lg:text-sm font-black cursor-pointer tracking-wider text-white">
-            🏳️ ถอยทัพ
-        </button>
+
+        <!-- 🔮 ป้ายหัวข้อตรงกลางสไตล์ Sci-Fi (แสดงเฉพาะในโหมด AI Safety ตาม ref1) -->
+        <div id="ui-header-middle-container" class="hidden flex-col items-center gap-1 text-center">
+            <div class="border-2 border-cyan-500/50 bg-slate-950/90 shadow-[0_0_20px_rgba(6,182,212,0.45)] px-4 lg:px-8 py-1.5 lg:py-2 rounded-xl border-double relative">
+                <h1 class="font-black text-[11px] lg:text-lg text-white tracking-widest font-prompt">มินิเกม: ผู้ช่วยปราบภัย AI</h1>
+                <div class="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-cyan-400"></div>
+                <div class="absolute -top-1 -right-1 w-2 h-2 border-t-2 border-r-2 border-cyan-400"></div>
+                <div class="absolute -bottom-1 -left-1 w-2 h-2 border-b-2 border-l-2 border-cyan-400"></div>
+                <div class="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-cyan-400"></div>
+            </div>
+            <p class="text-[8px] lg:text-xs font-extrabold text-amber-400 tracking-wide mt-1">
+                การคัดแยก: ใช้ท่าทางจับการ์ดและลากลงถังที่ถูกต้อง!
+            </p>
+        </div>
+
+        <!-- 🎮 ปุ่มควบคุมขวาบน -->
+        <div class="flex items-center gap-2 lg:gap-3">
+            <button id="ui-header-back-btn" onclick="confirmLeaveGame()" 
+                    class="rpg-btn-red px-3 lg:px-5 py-1.5 lg:py-2.5 rounded-lg lg:rounded-xl text-[10px] lg:text-sm font-black cursor-pointer tracking-wider text-white flex items-center gap-1.5">
+                🏳️ <span id="ui-header-back-text">ถอยทัพ</span>
+            </button>
+            <button id="ui-header-fullscreen-btn" onclick="toggleFullscreen()" 
+                    class="px-2.5 py-1.5 lg:py-2.5 rounded-lg lg:rounded-xl text-[10px] lg:text-sm font-black border border-slate-750 bg-slate-850 hover:bg-slate-750 text-cyan-400 hover:text-white transition flex items-center justify-center cursor-pointer shadow">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 lg:w-5 lg:h-5">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+            </button>
+        </div>
     </header>
 
     <!-- ⚔️ สนามรบหลัก: จอเกมมาริโอ้ขยายใหญ่เต็มตา 100% (ขยายเต็มพิกัดจอภาพโรงเรียน) พร้อมกล้องเว็บแคมเรืองแสงแบบลอยมุมขวาบน -->
@@ -659,6 +708,105 @@
             }
         }
 
+        // 🛡️ ฟังก์ชันสลับสไตล์ Header สำหรับโหมดมินิเกมผู้ช่วยปราบภัย AI (ตาม ref1)
+        function toggleAISafetyHeader(isAISafety) {
+            const studentCard = document.getElementById('ui-student-container');
+            const studentIcon = document.getElementById('ui-student-icon');
+            const studentAvatar = document.getElementById('ui-student-profile-pic');
+            const studentName = document.getElementById('ui-student-name');
+            const studentClass = document.getElementById('ui-student-class');
+            
+            const middleSection = document.getElementById('ui-header-middle-container');
+            const backBtn = document.getElementById('ui-header-back-btn');
+            
+            if (isAISafety) {
+                // 1. สลับสไตล์ข้อมูลผู้เล่นเป็นธีมสีน้ำเงิน Sci-Fi
+                if (studentCard) {
+                    studentCard.className = "glass-panel py-1.5 lg:py-2 px-3 lg:px-6 rounded-xl lg:rounded-2xl flex items-center gap-2 lg:gap-3 border border-cyan-400/30 shadow-[0_0_15px_rgba(6,182,212,0.25)]";
+                }
+                if (studentIcon) studentIcon.classList.add('hidden');
+                if (studentAvatar) {
+                    studentAvatar.classList.remove('hidden');
+                    studentAvatar.classList.add('flex');
+                }
+                
+                // อัปเดตข้อมูลผู้เล่นตามรูปตัวอย่าง ref1 ถ้าข้อมูลเริ่มต้นเป็นตัวจำลอง
+                if (studentName) {
+                    const currentName = studentName.innerText;
+                    if (currentName.includes("ผู้กล้าทดลอง") || currentName.includes("กำลังดาวน์โหลด") || currentName.includes("ผู้กล้า:")) {
+                        studentName.innerText = "ผู้เล่น: น้องเฟี้ยส";
+                    }
+                }
+                if (studentClass) {
+                    const currentClass = studentClass.innerText;
+                    if (currentClass.includes("ป.5/1") || currentClass.includes("ชั้นประถมศึกษาปีที่ -") || currentClass.includes("ชั้นเรียน:")) {
+                        studentClass.innerText = "ชั้น: ป.1/1";
+                    }
+                }
+                
+                // 2. แสดงป้ายหัวข้อตรงกลาง
+                if (middleSection) middleSection.classList.remove('hidden');
+                
+                // 3. สลับปุ่มถอยทัพเป็นแบบ Sci-Fi สีน้ำเงิน/เทาเรืองแสงพร้อมลูกศรย้อนกลับ ↩️
+                if (backBtn) {
+                    backBtn.className = "px-3 lg:px-5 py-1.5 lg:py-2.5 rounded-lg lg:rounded-xl text-[10px] lg:text-sm font-black cursor-pointer tracking-wider text-white border border-slate-700 bg-slate-850 hover:bg-slate-750 hover:text-white transition flex items-center gap-1.5 shadow-[0_0_10px_rgba(255,255,255,0.05)]";
+                    backBtn.innerHTML = `↩️ <span id="ui-header-back-text">ถอยทัพ</span>`;
+                }
+                
+                // 4. ซ่อนสถิติและกล่อง RPG ทั่วไปที่อยู่นอก Canvas
+                const repsBox = document.getElementById('wb-battle-reps');
+                if (repsBox && repsBox.parentElement && repsBox.parentElement.parentElement) {
+                    repsBox.parentElement.parentElement.classList.add('hidden');
+                }
+            } else {
+                // 1. คืนค่าสไตล์ข้อมูลผู้เล่นเป็นธีมสีแดงมาริโอ้
+                if (studentCard) {
+                    studentCard.className = "glass-panel py-1.5 lg:py-2 px-3 lg:px-6 rounded-xl lg:rounded-2xl flex items-center gap-2 lg:gap-3 border border-red-500/20";
+                }
+                if (studentIcon) studentIcon.classList.remove('hidden');
+                if (studentAvatar) {
+                    studentAvatar.classList.add('hidden');
+                    studentAvatar.classList.remove('flex');
+                }
+                
+                if (studentName) {
+                    studentName.innerText = `ผู้กล้า: ${userName}`;
+                }
+                if (studentClass) {
+                    studentClass.innerText = `ชั้นเรียน: ${className}`;
+                }
+                
+                // 2. ซ่อนป้ายหัวข้อตรงกลาง
+                if (middleSection) middleSection.classList.add('hidden');
+                
+                // 3. คืนค่าปุ่มถอยทัพเป็นแบบสีแดง RPG
+                if (backBtn) {
+                    backBtn.className = "rpg-btn-red px-3 lg:px-5 py-1.5 lg:py-2.5 rounded-lg lg:rounded-xl text-[10px] lg:text-sm font-black cursor-pointer tracking-wider text-white flex items-center gap-1.5";
+                    backBtn.innerHTML = `🏳️ <span id="ui-header-back-text">ถอยทัพ</span>`;
+                }
+                
+                // 4. แสดงกล่องสถิติ RPG กลับมา
+                const repsBox = document.getElementById('wb-battle-reps');
+                if (repsBox && repsBox.parentElement && repsBox.parentElement.parentElement) {
+                    repsBox.parentElement.parentElement.classList.remove('hidden');
+                }
+            }
+        }
+
+        // ฟังก์ชันแปลงรหัสสี HEX เป็น RGBA อย่างปลอดภัย
+        function hexToRgba(hex, alpha) {
+            let c;
+            if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+                c= hex.substring(1).split('');
+                if(c.length== 3){
+                    c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+                }
+                c= '0x' + c.join('');
+                return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+            }
+            return hex;
+        }
+
         // 2) ตั้งค่า UI พื้นฐาน
         document.getElementById('ui-student-name').innerText = `ผู้กล้า: ${userName}`;
         document.getElementById('ui-student-class').innerText = `ชั้นเรียน: ${className}`;
@@ -673,6 +821,7 @@
         const webcamSection = document.getElementById('wb-webcam-section');
         
         if (bossId.indexOf('WB001') === 0 || poseType === 'mario_fitness') {
+            toggleAISafetyHeader(false); // คืนค่าเป็นธีมปกติ
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: SUPER MARIO FITNESS 🍄";
             document.getElementById('mario-game-status').innerText = "🎮 Super Mario Bros NES Fitness Edition!";
             document.getElementById('mario-iframe').classList.remove('hidden');
@@ -727,6 +876,7 @@
                 cameraFrame.style.border = '';
             }
         } else if (bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack') {
+            toggleAISafetyHeader(true); // ปรับแต่ง Header ให้เป็นดีไซน์ Sci-Fi ตามภาพ ref1
             document.getElementById('wb-boss-tag').innerText = "MINI-GAME: AI SAFETY HAND-TRACKER 🛡️";
             document.getElementById('mario-game-status').innerText = "🎮 สมรภูมิมือปราบภัย AI: ใช้ตำแหน่งมือจีบนิ้วชี้กับนิ้วโป้ง (Pinch) หรือใช้เมาส์ลากวางกล่องสถานการณ์ความปลอดภัยของ AI ลงบล็อกประเภทที่ถูกต้อง!";
             document.getElementById('mario-iframe').classList.add('hidden');
@@ -2491,6 +2641,7 @@
         }
 
         // วาดหน้าจอเกมลากวางแบบนีออนระดับภาพยนตร์โปรดักชัน
+        // วาดหน้าจอเกมลากวางแบบนีออนระดับภาพยนตร์โปรดักชัน
         function drawSafetyGameCanvas() {
             if (!runnerCanvasCtx) return;
             
@@ -2508,118 +2659,188 @@
             
             runnerCanvasCtx.save();
             
-            // 1. พื้นหลัง Sci-Fi กริตตารางนีออนแบบเคลื่อนไหว (Animated Cyber Grid & Intersection Node Glow)
-            runnerCanvasCtx.fillStyle = '#080a1c';
+            // ==========================================
+            // 1. พื้นหลัง Sci-Fi 3D Perspective ห้องแล็บ (ตาม ref1)
+            // ==========================================
+            runnerCanvasCtx.fillStyle = '#0a0d1a';
             runnerCanvasCtx.fillRect(0, 0, width, height);
             
-            const gridOffset = (performance.now() / 45) % 30;
+            const vanishingX = 320;
+            const vanishingY = 220; // จุดศูนย์กลางลับสายตา
             
-            // กริตตารางหลักสีกรมท่าเรืองแสงจางๆ
-            runnerCanvasCtx.strokeStyle = 'rgba(99, 102, 241, 0.05)';
-            runnerCanvasCtx.lineWidth = 1;
-            for (let i = gridOffset; i < width; i += 30) {
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(i, 0);
-                runnerCanvasCtx.lineTo(i, height);
-                runnerCanvasCtx.stroke();
-            }
-            for (let j = gridOffset; j < height; j += 30) {
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(0, j);
-                runnerCanvasCtx.lineTo(width, j);
-                runnerCanvasCtx.stroke();
-            }
+            // วาดสีเกรเดียนท์พื้นห้องแล็บสีน้ำเงินเข้ม
+            const floorGrad = runnerCanvasCtx.createLinearGradient(0, vanishingY, 0, height);
+            floorGrad.addColorStop(0, '#0a0e1c');
+            floorGrad.addColorStop(1, '#070812');
+            runnerCanvasCtx.fillStyle = floorGrad;
+            runnerCanvasCtx.fillRect(0, vanishingY, width, height - vanishingY);
             
-            // กริตตารางรองสีม่วงบางเฉียบขยับทิศทางตรงกันข้าม
-            runnerCanvasCtx.strokeStyle = 'rgba(167, 139, 250, 0.02)';
-            for (let i = 30 - gridOffset; i < width; i += 60) {
+            // วาดตารางกริต 3D บนพื้น (Perspective Guide Lines)
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.12)';
+            runnerCanvasCtx.lineWidth = 1.2;
+            for (let i = -100; i <= width + 100; i += 50) {
                 runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(i, 0);
+                runnerCanvasCtx.moveTo(vanishingX, vanishingY);
                 runnerCanvasCtx.lineTo(i, height);
                 runnerCanvasCtx.stroke();
             }
             
-            // --- 🎇 1.5 วาด Cyber Glass HUD Panel (แผงควบคุมอัจฉริยะด้านบน) 🎇 ---
+            // วาดเส้นกริดแนวนอนแบบ Perspective (ยิ่งใกล้ ยิ่งกว้าง)
+            let currY = vanishingY;
+            let gap = 5;
+            while (currY < height) {
+                runnerCanvasCtx.beginPath();
+                runnerCanvasCtx.moveTo(0, currY);
+                runnerCanvasCtx.lineTo(width, currY);
+                runnerCanvasCtx.strokeStyle = `rgba(6, 182, 212, ${0.03 + (currY - vanishingY)/(height - vanishingY) * 0.1})`;
+                runnerCanvasCtx.stroke();
+                currY += gap;
+                gap += 2.8; // เพิ่มระยะห่างแบบ Exponential
+            }
+            
+            // วาดผนังซ้าย (Perspective Wall Left)
+            const leftWallGrad = runnerCanvasCtx.createLinearGradient(0, 0, 120, 0);
+            leftWallGrad.addColorStop(0, '#10152b');
+            leftWallGrad.addColorStop(1, '#0a0d1a');
+            runnerCanvasCtx.fillStyle = leftWallGrad;
+            
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(0, 0);
+            runnerCanvasCtx.lineTo(120, 100);
+            runnerCanvasCtx.lineTo(120, 360);
+            runnerCanvasCtx.lineTo(0, height);
+            runnerCanvasCtx.closePath();
+            runnerCanvasCtx.fill();
+            
+            // เส้นขอบผนังซ้าย
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.25)';
+            runnerCanvasCtx.lineWidth = 2;
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(120, 100);
+            runnerCanvasCtx.lineTo(120, 360);
+            runnerCanvasCtx.stroke();
+            
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(0, 0);
+            runnerCanvasCtx.lineTo(120, 100);
+            runnerCanvasCtx.stroke();
+            
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(0, height);
+            runnerCanvasCtx.lineTo(120, 360);
+            runnerCanvasCtx.stroke();
+
+            // วาดสัญลักษณ์ตกแต่งบนผนังซ้าย (โล่เรืองแสงและรูปแม่กุญแจ)
             runnerCanvasCtx.save();
-            // วาดตัวบาร์กระจกแก้วไล่เฉดสีกรมท่าเกือบดำเรืองแสง
-            const hudGrad = runnerCanvasCtx.createLinearGradient(0, 0, 0, 52);
-            hudGrad.addColorStop(0, 'rgba(11, 15, 36, 0.96)');
-            hudGrad.addColorStop(1, 'rgba(15, 23, 42, 0.90)');
-            runnerCanvasCtx.fillStyle = hudGrad;
-            
-            // ใช้เงาเรืองแสงสีม่วง
-            runnerCanvasCtx.shadowColor = '#8b5cf6';
-            runnerCanvasCtx.shadowBlur = 10;
-            runnerCanvasCtx.fillRect(0, 0, width, 52);
-            
-            // วาดเส้นขอบล่างเรืองแสงนีออนสีไซอัน
             runnerCanvasCtx.shadowColor = '#06b6d4';
-            runnerCanvasCtx.shadowBlur = 5;
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+            runnerCanvasCtx.shadowBlur = 8;
+            
+            // โล่เรืองแสงบนผนังซ้าย
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.3)';
+            runnerCanvasCtx.fillStyle = 'rgba(6, 182, 212, 0.03)';
             runnerCanvasCtx.lineWidth = 1.5;
             runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(0, 52);
-            runnerCanvasCtx.lineTo(width, 52);
+            const shieldX = 60;
+            const shieldY = 220;
+            runnerCanvasCtx.moveTo(shieldX, shieldY - 20);
+            runnerCanvasCtx.quadraticCurveTo(shieldX + 15, shieldY - 20, shieldX + 18, shieldY - 18);
+            runnerCanvasCtx.lineTo(shieldX + 18, shieldY);
+            runnerCanvasCtx.quadraticCurveTo(shieldX + 18, shieldY + 18, shieldX, shieldY + 28);
+            runnerCanvasCtx.quadraticCurveTo(shieldX - 18, shieldY + 18, shieldX - 18, shieldY);
+            runnerCanvasCtx.lineTo(shieldX - 18, shieldY - 18);
+            runnerCanvasCtx.quadraticCurveTo(shieldX - 15, shieldY - 20, shieldX, shieldY - 20);
+            runnerCanvasCtx.closePath();
+            runnerCanvasCtx.fill();
             runnerCanvasCtx.stroke();
+            
+            // วาดรูปแม่กุญแจล็อคตรงกลางโล่
+            runnerCanvasCtx.fillStyle = 'rgba(6, 182, 212, 0.45)';
+            runnerCanvasCtx.fillRect(shieldX - 6, shieldY - 2, 12, 10);
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.arc(shieldX, shieldY - 2, 4, Math.PI, 0);
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+            runnerCanvasCtx.lineWidth = 2;
+            runnerCanvasCtx.stroke();
+            
             runnerCanvasCtx.restore();
-            
-            // วาดข้อความฝั่งซ้าย: โล่พิทักษ์และชื่อโหมดระบบ
+
+            // วาดสัญลักษณ์ตกแต่งบนผนังขวา (โล่เรืองแสงและประตูล็อคไอที)
             runnerCanvasCtx.save();
-            runnerCanvasCtx.font = '900 13px Prompt, sans-serif';
-            runnerCanvasCtx.fillStyle = '#c084fc';
-            runnerCanvasCtx.textAlign = 'left';
-            runnerCanvasCtx.shadowColor = '#8b5cf6';
-            runnerCanvasCtx.shadowBlur = 4;
-            runnerCanvasCtx.fillText('🛡️ สมรภูมิมือปราบภัย AI', 20, 31);
-            runnerCanvasCtx.restore();
-            
-            // วาดข้อความฝั่งขวา: คะแนน / ความคืบหน้า และ เวลาเรียลไทม์
-            runnerCanvasCtx.save();
-            runnerCanvasCtx.font = 'bold 11.5px Prompt, sans-serif';
-            runnerCanvasCtx.textAlign = 'right';
-            
-            const isSpeedrunMode = bossId === 'WB002_SPEEDRUN';
-            if (isSpeedrunMode) {
-                // ข้อความคะแนนเรืองแสงสีไซอันชวนตื่นตา
-                runnerCanvasCtx.fillStyle = '#22d3ee';
-                runnerCanvasCtx.shadowColor = '#06b6d4';
-                runnerCanvasCtx.shadowBlur = 6;
-                runnerCanvasCtx.fillText(`⚡ ทำไปแล้ว: ${wbTotalQuestionsPlayed} / 12 ข้อ (ถูก ${wbRepsCount} ข้อ)  |  ⏱️ เวลา: ${wbElapsedTime.toFixed(2)}s`, width - 20, 30);
-            } else {
-                // โหมดจำกัดเวลาปกติ หรือเป้าหมายจำนวนข้ออื่นๆ ของบอส 2
-                runnerCanvasCtx.fillStyle = '#fb7185';
-                runnerCanvasCtx.shadowColor = '#f43f5e';
-                runnerCanvasCtx.shadowBlur = 6;
-                runnerCanvasCtx.fillText(`🔥 ทำไปแล้ว: ${wbTotalQuestionsPlayed} / ${targetReps} ข้อ (ถูก ${wbRepsCount} ข้อ)  |  ⏱️ เวลา: ${wbElapsedTime.toFixed(2)}s`, width - 20, 30);
-            }
-            runnerCanvasCtx.restore();
-            
-            // วาดหลอดพลังสะสมเลเซอร์ด้านล่างของ HUD (Y: 50, สูง 3px)
-            runnerCanvasCtx.save();
-            const progressRatio = Math.min(1.0, wbTotalQuestionsPlayed / targetReps);
-            const progressGrad = runnerCanvasCtx.createLinearGradient(0, 0, width * progressRatio, 0);
-            progressGrad.addColorStop(0, '#8b5cf6');
-            progressGrad.addColorStop(1, '#10b981');
-            
-            runnerCanvasCtx.fillStyle = progressGrad;
-            runnerCanvasCtx.shadowColor = '#10b981';
+            runnerCanvasCtx.shadowColor = '#06b6d4';
             runnerCanvasCtx.shadowBlur = 8;
-            runnerCanvasCtx.fillRect(0, 50, width * progressRatio, 3);
+            
+            // โล่เรืองแสงบนผนังขวา
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.3)';
+            runnerCanvasCtx.fillStyle = 'rgba(6, 182, 212, 0.03)';
+            runnerCanvasCtx.lineWidth = 1.5;
+            runnerCanvasCtx.beginPath();
+            const rightShieldX = 580;
+            const rightShieldY = 220;
+            runnerCanvasCtx.moveTo(rightShieldX, rightShieldY - 20);
+            runnerCanvasCtx.quadraticCurveTo(rightShieldX + 15, rightShieldY - 20, rightShieldX + 18, rightShieldY - 18);
+            runnerCanvasCtx.lineTo(rightShieldX + 18, rightShieldY);
+            runnerCanvasCtx.quadraticCurveTo(rightShieldX + 18, rightShieldY + 18, rightShieldX, rightShieldY + 28);
+            runnerCanvasCtx.quadraticCurveTo(rightShieldX - 18, rightShieldY + 18, rightShieldX - 18, rightShieldY);
+            runnerCanvasCtx.lineTo(rightShieldX - 18, rightShieldY - 18);
+            runnerCanvasCtx.quadraticCurveTo(rightShieldX - 15, rightShieldY - 20, rightShieldX, rightShieldY - 20);
+            runnerCanvasCtx.closePath();
+            runnerCanvasCtx.fill();
+            runnerCanvasCtx.stroke();
+            
+            // วาดรูปกุญแจล็อค
+            runnerCanvasCtx.fillStyle = 'rgba(6, 182, 212, 0.45)';
+            runnerCanvasCtx.fillRect(rightShieldX - 6, rightShieldY - 2, 12, 10);
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.arc(rightShieldX, rightShieldY - 2, 4, Math.PI, 0);
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+            runnerCanvasCtx.lineWidth = 2;
+            runnerCanvasCtx.stroke();
+            
             runnerCanvasCtx.restore();
             
-            // 2. วาด 3 โซนเป้าหมาย (Drop Zones) ดีไซน์ล้ำสมัยพร้อมกรอบ HUD 4 มุมเรืองแสง (Sci-Fi Bracket Corners)
+            // วาดเส้นแสงวงจรอิเล็กทรอนิกส์วิ่งเฉียงไปตามผนัง (Sci-Fi lines)
+            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.1)';
+            runnerCanvasCtx.lineWidth = 1;
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(120, 140);
+            runnerCanvasCtx.lineTo(50, 80);
+            runnerCanvasCtx.lineTo(0, 80);
+            runnerCanvasCtx.stroke();
+            
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(120, 280);
+            runnerCanvasCtx.lineTo(40, 220);
+            runnerCanvasCtx.lineTo(0, 220);
+            runnerCanvasCtx.stroke();
+            
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(520, 140);
+            runnerCanvasCtx.lineTo(590, 80);
+            runnerCanvasCtx.lineTo(640, 80);
+            runnerCanvasCtx.stroke();
+            
+            runnerCanvasCtx.beginPath();
+            runnerCanvasCtx.moveTo(520, 280);
+            runnerCanvasCtx.lineTo(600, 220);
+            runnerCanvasCtx.lineTo(640, 220);
+            runnerCanvasCtx.stroke();
+            
+            runnerCanvasCtx.restore();
+            
+            // ==========================================
+            // 2. วาด 3 ถังขยะคัดแยกแบบสามมิติ (3D Perspective Bins - ตาม ref1)
+            // ==========================================
             for (const key in DROP_ZONES) {
                 const zone = DROP_ZONES[key];
                 
                 let isActive = false;
                 if (aiCurrentItem) {
-                    // 1: เช็คพิกัดเป้าเล็งมืออยู่ในกล่อง โดยใช้พิกัด Hitbox ตรวจจับพิเศษ (hx, hy, hw, hh)
+                    // เช็คเป้าชี้หรือตัวการ์ดตกลงในโซน Hitbox (hx, hy, hw, hh)
                     const checkX = handCursor.smoothX;
                     const checkY = handCursor.smoothY;
                     const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
                                           checkY >= zone.hy && checkY <= zone.hy + zone.hh);
                                           
-                    // 2: เช็คว่าจุดกึ่งกลางการ์ดคำถาม (Card Center) ตกอยู่ในโซนเป้าหมาย เพื่อแรงดึงดูดและการชนที่แม่นยำสูง
                     const cardX = aiCurrentItem.x;
                     const cardY = aiCurrentItem.y;
                     const isCardCenterInZone = (cardX >= zone.hx && cardX <= zone.hx + zone.hw &&
@@ -2630,100 +2851,34 @@
                     }
                 }
                 
-                const currentBorderColor = isActive ? zone.activeColor : zone.color;
+                let label = "จริยธรรม AI";
+                let subLabel = "[ จริยธรรม AI SECTOR ]";
+                let icon = "🛡️";
+                let baseColor = "#10b981"; // สีเขียว
                 
-                // เอฟเฟกต์แสงเรืองและพื้นหลังกึ่งโปร่งใสไล่เฉดนีออน
-                runnerCanvasCtx.save();
-                runnerCanvasCtx.shadowColor = currentBorderColor;
-                runnerCanvasCtx.shadowBlur = isActive ? 35 : 12;
-                
-                const gradientBg = runnerCanvasCtx.createLinearGradient(zone.x, zone.y, zone.x, zone.y + zone.h);
-                gradientBg.addColorStop(0, 'rgba(15, 23, 42, 0.85)');
-                gradientBg.addColorStop(1, isActive ? `rgba(${isActive ? '16, 185, 129' : '99, 102, 241'}, 0.08)` : 'rgba(8, 10, 28, 0.9)');
-                
-                runnerCanvasCtx.fillStyle = gradientBg;
-                runnerCanvasCtx.strokeStyle = currentBorderColor;
-                runnerCanvasCtx.lineWidth = isActive ? 3 : 1.5;
-                
-                drawRoundRect(runnerCanvasCtx, zone.x, zone.y, zone.w, zone.h, 14, true, true);
-                runnerCanvasCtx.restore();
-                
-                // วาดลายเส้น HUD ขีดจำกัด 4 มุม (Tech Brackets) เพื่อความดิบหรูหรา
-                runnerCanvasCtx.save();
-                runnerCanvasCtx.strokeStyle = currentBorderColor;
-                runnerCanvasCtx.lineWidth = 3;
-                runnerCanvasCtx.shadowColor = currentBorderColor;
-                runnerCanvasCtx.shadowBlur = isActive ? 15 : 4;
-                
-                const len = 12; // ความยาวแขนของมุม
-                const pad = 0;  // ระยะชิด
-                
-                // บนซ้าย
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(zone.x + pad, zone.y + pad + len);
-                runnerCanvasCtx.lineTo(zone.x + pad, zone.y + pad);
-                runnerCanvasCtx.lineTo(zone.x + pad + len, zone.y + pad);
-                runnerCanvasCtx.stroke();
-                
-                // บนขวา
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(zone.x + zone.w - pad - len, zone.y + pad);
-                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + pad);
-                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + pad + len);
-                runnerCanvasCtx.stroke();
-                
-                // ล่างซ้าย
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(zone.x + pad, zone.y + zone.h - pad - len);
-                runnerCanvasCtx.lineTo(zone.x + pad, zone.y + zone.h - pad);
-                runnerCanvasCtx.lineTo(zone.x + pad + len, zone.y + zone.h - pad);
-                runnerCanvasCtx.stroke();
-                
-                // ล่างขวา
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(zone.x + zone.w - pad - len, zone.y + zone.h - pad);
-                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + zone.h - pad);
-                runnerCanvasCtx.lineTo(zone.x + zone.w - pad, zone.y + zone.h - pad - len);
-                runnerCanvasCtx.stroke();
-                runnerCanvasCtx.restore();
-                
-                // แสดงลายตารางขีดสแกน (Hologram Scanlines) จางๆ ด้านในเมื่อ Active
-                if (isActive) {
-                    runnerCanvasCtx.save();
-                    runnerCanvasCtx.strokeStyle = `rgba(${key === 'ethics' ? '16, 185, 129' : key === 'cybersecurity' ? '6, 182, 212' : '244, 63, 94'}, 0.07)`;
-                    runnerCanvasCtx.lineWidth = 1;
-                    const scanlineOffset = (performance.now() / 20) % 15;
-                    for (let sy = zone.y + scanlineOffset; sy < zone.y + zone.h; sy += 8) {
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.moveTo(zone.x, sy);
-                        runnerCanvasCtx.lineTo(zone.x + zone.w, sy);
-                        runnerCanvasCtx.stroke();
-                    }
-                    runnerCanvasCtx.restore();
+                if (key === 'cybersecurity') {
+                    label = "ความปลอดภัย AI";
+                    subLabel = "[ ความปลอดภัย SECTOR ]";
+                    icon = "🔑";
+                    baseColor = "#06b6d4"; // สีฟ้า
+                } else if (key === 'social_risks') {
+                    label = "ความเสี่ยงสังคม";
+                    subLabel = "[ ความเสี่ยงสังคม SECTOR ]";
+                    icon = "👥";
+                    baseColor = "#f43f5e"; // สีแดง
                 }
                 
-                runnerCanvasCtx.save();
-                runnerCanvasCtx.font = '900 14px Prompt, sans-serif';
-                runnerCanvasCtx.fillStyle = '#ffffff';
-                runnerCanvasCtx.textAlign = 'center';
-                runnerCanvasCtx.shadowColor = '#000000';
-                runnerCanvasCtx.shadowBlur = 8;
+                // สลับสีสว่างเมื่อ Active คัดแยก
+                const activeColor = key === 'ethics' ? '#34d399' : key === 'cybersecurity' ? '#22d3ee' : '#fb7185';
+                const colorToUse = isActive ? activeColor : baseColor;
                 
-                let thaiLabel = zone.label;
-                if (key === 'ethics') thaiLabel = "🛡️ จริยธรรม AI (Ethics)";
-                if (key === 'cybersecurity') thaiLabel = "🔑 ไซเบอร์ (Security)";
-                if (key === 'social_risks') thaiLabel = "👥 ความเสี่ยงสังคม (Social)";
-                
-                runnerCanvasCtx.fillText(thaiLabel, zone.x + zone.w / 2, zone.y + zone.h / 2 + 4);
-                
-                // คำกำกับ HUD ย่อยใต้ป้ายหลัก
-                runnerCanvasCtx.font = 'bold 8px Courier, monospace';
-                runnerCanvasCtx.fillStyle = currentBorderColor;
-                runnerCanvasCtx.fillText(isActive ? '>> TARGET LOCKED <<' : '[ SECURE SECTOR ]', zone.x + zone.w / 2, zone.y + zone.h / 2 + 20);
-                runnerCanvasCtx.restore();
+                // วาดถังขยะแบบสามมิติ
+                draw3DBucket(runnerCanvasCtx, zone.x, zone.y, zone.w, zone.h, colorToUse, label, subLabel, icon, isActive);
             }
             
-            // 3. วาดกล่องข้อความคำถาม AI Safety (aiCurrentItem) สไตล์บอร์ดข้อมูลล้ำอนาคต (Tech Cyber Panel)
+            // ==========================================
+            // 3. วาดกล่องข้อความคำถาม AI Safety (aiCurrentItem) Holographic Card
+            // ==========================================
             if (aiCurrentItem) {
                 const item = aiCurrentItem;
                 const isItemDragging = draggedItem !== null;
@@ -2735,93 +2890,165 @@
                     cardScale = 1.0 - progress * 0.58; // ย่อขนาดลงสูงสุด 58% (สเกลเหลือ 0.42)
                 }
                 
-                // อัปเดตความกว้างความสูง Bounding Box แบบ Dynamic เพื่อให้ฟิสิกส์ตรวจจับการทับซ้อนทำงานได้สอดคล้องกันดีเยี่ยม!
+                // อัปเดตความกว้างความสูง Bounding Box แบบ Dynamic เพื่อให้ฟิสิกส์ตรวจจับการชนทำงานได้สม่ำเสมอ
                 item.w = 460 * cardScale;
                 item.h = 135 * cardScale;
                 
                 runnerCanvasCtx.save();
-                runnerCanvasCtx.shadowColor = '#8b5cf6';
-                runnerCanvasCtx.shadowBlur = isItemDragging ? (32 * cardScale) : (14 * cardScale);
+                runnerCanvasCtx.shadowColor = '#06b6d4'; // เปล่งแสงโฮโลแกรมสีฟ้าอมม่วง
+                runnerCanvasCtx.shadowBlur = isItemDragging ? (25 * cardScale) : (12 * cardScale);
                 
-                // วาดตัวกล่องทรงโค้งมนไฮเทคที่โดน Scale ตามระยะความลึก Y
-                runnerCanvasCtx.fillStyle = 'rgba(11, 15, 36, 0.96)';
-                runnerCanvasCtx.strokeStyle = isItemDragging ? '#c084fc' : '#8b5cf6';
+                // วาดตัวกล่องทรงโค้งมนไฮเทค
+                const cardGrad = runnerCanvasCtx.createLinearGradient(item.x, item.y - item.h/2, item.x, item.y + item.h/2);
+                cardGrad.addColorStop(0, 'rgba(11, 19, 43, 0.95)');
+                cardGrad.addColorStop(1, 'rgba(15, 23, 42, 0.88)');
+                
+                runnerCanvasCtx.fillStyle = cardGrad;
+                runnerCanvasCtx.strokeStyle = isItemDragging ? '#22d3ee' : '#06b6d4';
                 runnerCanvasCtx.lineWidth = (isItemDragging ? 2.5 : 1.5) * cardScale;
-                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 15 * cardScale, true, true);
+                
+                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, true, true);
                 runnerCanvasCtx.restore();
                 
                 // ตรวจความลึกสเกลของการ์ด
                 if (cardScale > 0.60) {
-                    // โหมดการ์ดขนาดใหญ่ (แสดงข้อมูลละเอียดคำถามครบถ้วน)
-                    
                     // หัวข้อแถบคาดเรืองแสงสตรีมข้อมูล (Tech Header Bar)
                     runnerCanvasCtx.save();
-                    runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(192, 132, 252, 0.15)' : 'rgba(139, 92, 246, 0.1)';
+                    runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(34, 211, 238, 0.12)' : 'rgba(6, 182, 212, 0.07)';
                     runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 30 * cardScale);
                     
+                    // ไอคอนกระเป๋าเอกสารและฉลากหัวข้อภาษาอังกฤษหนาๆ ตาม ref1 (💼 Job Displacement)
                     runnerCanvasCtx.font = `900 ${16 * cardScale}px Prompt, sans-serif`;
-                    runnerCanvasCtx.fillStyle = '#e9d5ff';
-                    runnerCanvasCtx.textAlign = 'center';
-                    runnerCanvasCtx.shadowColor = '#c084fc';
+                    runnerCanvasCtx.fillStyle = '#ffffff';
+                    runnerCanvasCtx.textAlign = 'left';
+                    runnerCanvasCtx.shadowColor = '#06b6d4';
                     runnerCanvasCtx.shadowBlur = 6 * cardScale;
-                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y - item.h/2 + 21 * cardScale);
+                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 21 * cardScale);
                     
-                    // ป้ายกำกับเทคโนโลยีขอบขวา
-                    runnerCanvasCtx.font = `bold ${7.5 * cardScale}px Courier, monospace`;
-                    runnerCanvasCtx.fillStyle = 'rgba(167, 139, 250, 0.6)';
+                    // ป้ายกำกับเทคโนโลยีขอบขวา "TAGRIST VL6" ตาม ref1
+                    runnerCanvasCtx.font = `bold ${8 * cardScale}px Courier, monospace`;
+                    runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.7)';
                     runnerCanvasCtx.textAlign = 'right';
-                    runnerCanvasCtx.fillText('PACKET V1.6', item.x + item.w/2 - 12 * cardScale, item.y - item.h/2 + 19 * cardScale);
+                    runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 18 * cardScale, item.y - item.h/2 + 20 * cardScale);
                     runnerCanvasCtx.restore();
                     
                     // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
-                    runnerCanvasCtx.strokeStyle = 'rgba(167, 139, 250, 0.25)';
+                    runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
                     runnerCanvasCtx.lineWidth = 1 * cardScale;
                     runnerCanvasCtx.beginPath();
                     runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 32 * cardScale);
                     runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 32 * cardScale);
                     runnerCanvasCtx.stroke();
                     
-                    // เนื้อหาคำถามหักขึ้นบรรทัดอัตโนมัติ
+                    // เนื้อหาคำถามหักขึ้นบรรทัดอัตโนมัติ สีขาวสว่าง ชัดเจน
                     runnerCanvasCtx.save();
                     runnerCanvasCtx.font = `900 ${15 * cardScale}px Prompt, sans-serif`;
                     runnerCanvasCtx.fillStyle = '#ffffff';
                     runnerCanvasCtx.textAlign = 'center';
                     runnerCanvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
                     runnerCanvasCtx.shadowBlur = 4 * cardScale;
-                    wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 56 * cardScale, item.w - 40 * cardScale, 22 * cardScale);
+                    wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 62 * cardScale, item.w - 40 * cardScale, 22 * cardScale);
                     runnerCanvasCtx.restore();
+                    
+                    // 🎯 วาดคำแนะนำมือลาก (Hand Drag Hint Indicator) ด้านขวาของการ์ด ตาม ref1
+                    if (!isItemDragging) {
+                        const hintX = item.x + item.w/2 + 45;
+                        const hintY = item.y;
+                        const hintPulse = 1 + Math.sin(performance.now() / 200) * 0.05;
+                        
+                        runnerCanvasCtx.save();
+                        // 1. เส้นทางวิถีลูกศรเฉียงเบาๆ (แสดงวิถีลากลงถัง)
+                        runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.25)';
+                        runnerCanvasCtx.lineWidth = 3;
+                        runnerCanvasCtx.setLineDash([4, 4]);
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(item.x + item.w/2 - 10, item.y);
+                        runnerCanvasCtx.quadraticCurveTo(hintX - 20, hintY, hintX, hintY);
+                        runnerCanvasCtx.stroke();
+                        runnerCanvasCtx.setLineDash([]); // รีเซ็ตเส้นประ
+                        
+                        // 2. วงแหวนเป้าเล็งเรืองแสง
+                        runnerCanvasCtx.shadowColor = '#22d3ee';
+                        runnerCanvasCtx.shadowBlur = 10;
+                        runnerCanvasCtx.strokeStyle = '#22d3ee';
+                        runnerCanvasCtx.lineWidth = 2.5;
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
+                        runnerCanvasCtx.stroke();
+                        
+                        // แกนเป้าเล็งกากบาทบางๆ ภายในวงแหวน
+                        runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.4)';
+                        runnerCanvasCtx.lineWidth = 1;
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(hintX - 25, hintY);
+                        runnerCanvasCtx.lineTo(hintX + 25, hintY);
+                        runnerCanvasCtx.moveTo(hintX, hintY - 25);
+                        runnerCanvasCtx.lineTo(hintX, hintY + 25);
+                        runnerCanvasCtx.stroke();
+                        
+                        // 3. รูปมือชี้จิ้ม (Pinch/Drag Gesture Icon) สีขาวขอบดำ
+                        runnerCanvasCtx.shadowBlur = 4;
+                        runnerCanvasCtx.shadowColor = '#000000';
+                        runnerCanvasCtx.fillStyle = '#ffffff';
+                        runnerCanvasCtx.strokeStyle = '#0f172a';
+                        runnerCanvasCtx.lineWidth = 2;
+                        
+                        const handX = hintX + 5;
+                        const handY = hintY + 12;
+                        
+                        // วาดรูปมือถือลากอย่างง่าย (ลูกศรพร้อมสัญลักษณ์นิ้ว)
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(handX, handY);
+                        runnerCanvasCtx.lineTo(handX - 6, handY - 14);
+                        runnerCanvasCtx.lineTo(handX - 11, handY - 14);
+                        runnerCanvasCtx.lineTo(handX - 11, handY - 2);
+                        runnerCanvasCtx.lineTo(handX - 18, handY + 2);
+                        runnerCanvasCtx.lineTo(handX - 16, handY + 6);
+                        runnerCanvasCtx.lineTo(handX - 9, handY + 8);
+                        runnerCanvasCtx.lineTo(handX - 8, handY + 14);
+                        runnerCanvasCtx.lineTo(handX, handY + 14);
+                        runnerCanvasCtx.closePath();
+                        runnerCanvasCtx.fill();
+                        runnerCanvasCtx.stroke();
+                        
+                        // วาดลูกศรเล็กๆ ชี้ทิศการลากออกจากเป้า
+                        runnerCanvasCtx.strokeStyle = '#22d3ee';
+                        runnerCanvasCtx.lineWidth = 2;
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(hintX - 8, hintY);
+                        runnerCanvasCtx.lineTo(hintX - 16, hintY);
+                        runnerCanvasCtx.lineTo(hintX - 12, hintY - 4);
+                        runnerCanvasCtx.moveTo(hintX - 16, hintY);
+                        runnerCanvasCtx.lineTo(hintX - 12, hintY + 4);
+                        runnerCanvasCtx.stroke();
+                        
+                        runnerCanvasCtx.restore();
+                    }
+                    
                 } else {
-                    // 🔮 โหมด Cyber Chip (เมื่อลากลงมาลึกจนย่อขนาดจิ๋ว): เปลี่ยนเป็นชิปเรืองแสงสีเขียว แสดงไอคอนโตๆ
+                    // 🔮 โหมด Cyber Chip เมื่อลากลงมาต่ำ: เปลี่ยนเป็นชิปเรืองแสงย่อส่วน
                     runnerCanvasCtx.save();
-                    runnerCanvasCtx.font = `900 ${14}px Prompt, sans-serif`;
-                    runnerCanvasCtx.fillStyle = '#34d399'; // สีเขียวนีออนสว่าง
+                    runnerCanvasCtx.font = `900 ${13}px Prompt, sans-serif`;
+                    runnerCanvasCtx.fillStyle = '#22d3ee';
                     runnerCanvasCtx.textAlign = 'center';
-                    runnerCanvasCtx.shadowColor = '#10b981';
+                    runnerCanvasCtx.shadowColor = '#06b6d4';
                     runnerCanvasCtx.shadowBlur = 8;
-                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y + 5);
+                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y + 4);
                     runnerCanvasCtx.restore();
                 }
-                
-                // ปลายวงจรเทคโนโลยีประดับมุมกล่องเล็กๆ
-                runnerCanvasCtx.save();
-                runnerCanvasCtx.fillStyle = '#8b5cf6';
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.arc(item.x - item.w/2 + 8 * cardScale, item.y - item.h/2 + 8 * cardScale, 2 * cardScale, 0, Math.PI * 2);
-                runnerCanvasCtx.arc(item.x + item.w/2 - 8 * cardScale, item.y - item.h/2 + 8 * cardScale, 2 * cardScale, 0, Math.PI * 2);
-                runnerCanvasCtx.fill();
-                runnerCanvasCtx.restore();
             }
             
-            // 4. วาดเป้าเล็ง Sci-Fi HUD แบบเคลื่อนตามมือพร้อมหางลาก (Smooth Particle Trail & Cyber Crosshair)
+            // ==========================================
+            // 4. วาดตัวเป้าเล็งเลื่อนตามมือ (Smooth Cyber Crosshair & Trail)
+            // ==========================================
             if (wbGameState === 'BATTLE') {
-                // บันทึกประวัติพิกัดทำหางลาก Smooth Trail
                 if (!window.cursorHistory) window.cursorHistory = [];
                 window.cursorHistory.push({ x: handCursor.smoothX, y: handCursor.smoothY });
                 if (window.cursorHistory.length > 8) {
                     window.cursorHistory.shift();
                 }
                 
-                // วาดเส้นประหางลาก (Fade-out Trail)
+                // วาดเส้นประหางลาก (Trail)
                 runnerCanvasCtx.save();
                 if (window.cursorHistory.length > 1) {
                     runnerCanvasCtx.beginPath();
@@ -2829,46 +3056,37 @@
                     for (let hIdx = 1; hIdx < window.cursorHistory.length; hIdx++) {
                         runnerCanvasCtx.lineTo(window.cursorHistory[hIdx].x, window.cursorHistory[hIdx].y);
                     }
-                    runnerCanvasCtx.strokeStyle = isPinching ? 'rgba(16, 185, 129, 0.45)' : 'rgba(192, 132, 252, 0.35)';
+                    runnerCanvasCtx.strokeStyle = isPinching ? 'rgba(52, 211, 153, 0.45)' : 'rgba(34, 211, 238, 0.35)';
                     runnerCanvasCtx.lineWidth = 5;
                     runnerCanvasCtx.lineCap = 'round';
                     runnerCanvasCtx.lineJoin = 'round';
-                    runnerCanvasCtx.shadowColor = isPinching ? '#10b981' : '#c084fc';
+                    runnerCanvasCtx.shadowColor = isPinching ? '#34d399' : '#22d3ee';
                     runnerCanvasCtx.shadowBlur = 10;
                     runnerCanvasCtx.stroke();
                 }
                 runnerCanvasCtx.restore();
                 
-                // วาดตัวเป้าเล็ง Sci-Fi HUD Crosshair หลัก
+                // วาดตัวเป้าเล็ง Sci-Fi HUD Crosshair
                 runnerCanvasCtx.save();
                 const curX = handCursor.smoothX;
                 const curY = handCursor.smoothY;
                 const pulseScale = 1 + Math.sin(performance.now() / 150) * 0.08;
                 const angle = performance.now() / 700;
                 
-                const themeColor = isPinching ? '#10b981' : '#c084fc';
-                const themeGlow = isPinching ? 'rgba(16, 185, 129, 0.3)' : 'rgba(192, 132, 252, 0.2)';
+                const themeColor = isPinching ? '#34d399' : '#22d3ee';
                 const size = (isPinching ? 12 : 20) * pulseScale;
                 
-                // กากบาทสี่ทิศบางๆ
                 runnerCanvasCtx.strokeStyle = themeColor;
                 runnerCanvasCtx.lineWidth = 1;
                 runnerCanvasCtx.beginPath();
-                // บน
-                runnerCanvasCtx.moveTo(curX, curY - size - 8);
-                runnerCanvasCtx.lineTo(curX, curY - size - 2);
-                // ล่าง
-                runnerCanvasCtx.moveTo(curX, curY + size + 2);
-                runnerCanvasCtx.lineTo(curX, curY + size + 8);
-                // ซ้าย
-                runnerCanvasCtx.moveTo(curX - size - 8, curY);
-                runnerCanvasCtx.lineTo(curX - size - 2, curY);
-                // ขวา
-                runnerCanvasCtx.moveTo(curX + size + 2, curY);
-                runnerCanvasCtx.lineTo(curX + size + 8, curY);
+                // ขีดกากบาท 4 ทิศ
+                runnerCanvasCtx.moveTo(curX, curY - size - 8); runnerCanvasCtx.lineTo(curX, curY - size - 2);
+                runnerCanvasCtx.moveTo(curX, curY + size + 2); runnerCanvasCtx.lineTo(curX, curY + size + 8);
+                runnerCanvasCtx.moveTo(curX - size - 8, curY); runnerCanvasCtx.lineTo(curX - size - 2, curY);
+                runnerCanvasCtx.moveTo(curX + size + 2, curY); runnerCanvasCtx.lineTo(curX + size + 8, curY);
                 runnerCanvasCtx.stroke();
                 
-                // วงแหวนประนอกที่หมุนสแกนช้าๆ (Rotating outer ring)
+                // วงแหวนนอกสแกนหมุนรอบ
                 runnerCanvasCtx.beginPath();
                 runnerCanvasCtx.arc(curX, curY, size + 5, angle, angle + Math.PI * 1.5);
                 runnerCanvasCtx.strokeStyle = themeColor;
@@ -2877,10 +3095,10 @@
                 runnerCanvasCtx.shadowBlur = 10;
                 runnerCanvasCtx.stroke();
                 
-                // วงกลมแกนกลางเรืองแสงหนาแน่น
+                // วงกลมแกนกลางส่องแสง
                 runnerCanvasCtx.beginPath();
                 runnerCanvasCtx.arc(curX, curY, isPinching ? 5 : 8, 0, Math.PI * 2);
-                runnerCanvasCtx.fillStyle = isPinching ? 'rgba(16, 185, 129, 0.7)' : 'rgba(255, 255, 255, 0.35)';
+                runnerCanvasCtx.fillStyle = isPinching ? 'rgba(52, 211, 153, 0.7)' : 'rgba(255, 255, 255, 0.35)';
                 runnerCanvasCtx.strokeStyle = '#ffffff';
                 runnerCanvasCtx.lineWidth = 1.5;
                 runnerCanvasCtx.shadowColor = '#ffffff';
@@ -2888,7 +3106,6 @@
                 runnerCanvasCtx.fill();
                 runnerCanvasCtx.stroke();
                 
-                // ข้อความระบุโหมดควบคุมสั้นๆ ใต้เป้าเล็ง
                 runnerCanvasCtx.font = '900 7px Courier, monospace';
                 runnerCanvasCtx.fillStyle = themeColor;
                 runnerCanvasCtx.textAlign = 'center';
@@ -2897,7 +3114,228 @@
                 runnerCanvasCtx.restore();
             }
             
+            // ==========================================
+            // 5. วาดแถบบาร์สถิติด้านล่างสุดใน Canvas (Bottom HUD - ตาม ref1)
+            // ==========================================
+            const hudW = 440;
+            const hudH = 34;
+            const hudX = (width - hudW) / 2;
+            const hudY = height - hudH - 12;
+            drawBottomHUD(runnerCanvasCtx, hudX, hudY, hudW, hudH, wbElapsedTime, wbRepsCount, wbTotalQuestionsPlayed, targetReps, wbRepsCount, (wbTotalQuestionsPlayed - wbRepsCount));
+            
             runnerCanvasCtx.restore();
+        }
+
+        // ==========================================
+        // 🔮 ฟังก์ชัน Helper ย่อยสำหรับระบบวาดภาพ Sci-Fi (3D Bins & HUD)
+        // ==========================================
+
+        // ฟังก์ชันวาดถังขยะแบบสามมิติ
+        function draw3DBucket(ctx, x, y, w, h, baseColor, label, subLabel, icon, isActive) {
+            ctx.save();
+            
+            // 1. เงารองก้นถัง (Drop Shadow)
+            ctx.beginPath();
+            ctx.ellipse(x + w/2, y + h + 5, w * 0.45, 10, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.fill();
+            
+            // 2. แสงออร่านีออนด้านหลังถังขยะ
+            ctx.save();
+            const glowGrad = ctx.createRadialGradient(x + w/2, y + h/2, 10, x + w/2, y + h/2, w * 0.85);
+            glowGrad.addColorStop(0, isActive ? hexToRgba(baseColor, 0.25) : hexToRgba(baseColor, 0.1));
+            glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glowGrad;
+            ctx.beginPath();
+            ctx.arc(x + w/2, y + h/2, w * 0.85, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // 3. วาดตัวถังด้านหน้า (Front Panel) - สี่เหลี่ยมคางหมู Perspective
+            const topL = x;
+            const topR = x + w;
+            const botL = x + w * 0.09;
+            const botR = x + w * 0.91;
+            const topY = y + 15; // ร่นลงจากปากถังเพื่อแสดงความลึก
+            const botY = y + h;
+            
+            const bodyGrad = ctx.createLinearGradient(x + w/2, topY, x + w/2, botY);
+            bodyGrad.addColorStop(0, hexToRgba(baseColor, 0.72));
+            bodyGrad.addColorStop(0.4, hexToRgba(baseColor, 0.58));
+            bodyGrad.addColorStop(1, hexToRgba(baseColor, 0.32));
+            
+            ctx.beginPath();
+            ctx.moveTo(topL, topY);
+            ctx.lineTo(topR, topY);
+            ctx.lineTo(botR, botY);
+            ctx.lineTo(botL, botY);
+            ctx.closePath();
+            ctx.fillStyle = bodyGrad;
+            ctx.strokeStyle = baseColor;
+            ctx.lineWidth = isActive ? 2.5 : 1.2;
+            ctx.fill();
+            ctx.stroke();
+            
+            // วาดขอบข้างซ้ายขวาเพิ่มมิตินูน (3D Bevel Highlight & Shadow)
+            ctx.beginPath();
+            ctx.moveTo(topL, topY);
+            ctx.lineTo(botL, botY);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(topR, topY);
+            ctx.lineTo(botR, botY);
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.32)';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            
+            // 4. วาดพื้นที่ลึกปากถังด้านใน (Inside Depth)
+            const insideGrad = ctx.createLinearGradient(x + w/2, y, x + w/2, topY);
+            insideGrad.addColorStop(0, 'rgba(8, 10, 24, 0.95)');
+            insideGrad.addColorStop(1, hexToRgba(baseColor, 0.25));
+            
+            ctx.beginPath();
+            ctx.moveTo(topL, topY);
+            ctx.bezierCurveTo(topL, y - 2, topR, y - 2, topR, topY);
+            ctx.lineTo(topR, topY);
+            ctx.bezierCurveTo(topR, y + 10, topL, y + 10, topL, topY);
+            ctx.closePath();
+            ctx.fillStyle = insideGrad;
+            ctx.fill();
+            
+            // 5. วาดขอบปากถังหนาด้านนอก (Upper Rim) สไตล์ 3D โค้งมน
+            ctx.beginPath();
+            ctx.moveTo(topL - 2, topY);
+            ctx.bezierCurveTo(topL - 2, y - 4, topR + 2, y - 4, topR + 2, topY);
+            ctx.bezierCurveTo(topR + 2, y + 12, topL - 2, y + 12, topL - 2, topY);
+            ctx.closePath();
+            
+            const rimGrad = ctx.createLinearGradient(topL, y, topR, y);
+            rimGrad.addColorStop(0, hexToRgba(baseColor, 0.85));
+            rimGrad.addColorStop(0.5, '#ffffff'); // ประกายสะท้อนแสงตรงกลางปาก
+            rimGrad.addColorStop(1, hexToRgba(baseColor, 0.75));
+            
+            ctx.fillStyle = rimGrad;
+            ctx.strokeStyle = baseColor;
+            ctx.lineWidth = 1;
+            ctx.fill();
+            ctx.stroke();
+            
+            // 6. ป้ายสกรีนหน้าถัง (Screen Badge Panel)
+            const badgeW = w * 0.8;
+            const badgeH = h * 0.58;
+            const badgeX = x + (w - badgeW) / 2;
+            const badgeY = topY + (h - 15 - badgeH) / 2 + 3;
+            
+            ctx.save();
+            ctx.fillStyle = 'rgba(8, 10, 28, 0.85)';
+            ctx.strokeStyle = baseColor;
+            ctx.lineWidth = isActive ? 2 : 1;
+            ctx.shadowBlur = isActive ? 10 : 0;
+            ctx.shadowColor = baseColor;
+            drawRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, 8, true, true);
+            ctx.restore();
+            
+            // 7. เขียนข้อมูลป้ายหน้าถัง (ตาม ref1)
+            ctx.textAlign = 'center';
+            
+            // ไอคอนและชื่อหลักภาษาไทย
+            ctx.font = '900 11.5px Prompt, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 4;
+            ctx.fillText(`${icon} ${label}`, badgeX + badgeW/2, badgeY + 22);
+            
+            // วงเล็บภาษาอังกฤษตรงกลาง
+            ctx.font = 'bold 9px Prompt, sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            let engLabel = "(Ethics)";
+            if (label.includes("ความปลอดภัย")) engLabel = "(Security)";
+            if (label.includes("ความเสี่ยงสังคม")) engLabel = "(Social)";
+            ctx.fillText(engLabel, badgeX + badgeW/2, badgeY + 36);
+            
+            // รหัส SECTOR ด้านล่าง
+            ctx.font = 'bold 7.5px Prompt, sans-serif';
+            ctx.fillStyle = baseColor;
+            ctx.fillText(subLabel, badgeX + badgeW/2, badgeY + badgeH - 8);
+            
+            ctx.restore();
+        }
+
+        // ฟังก์ชันวาดแถบสถานะด้านล่างสุดใน Canvas (Bottom HUD Bar)
+        function drawBottomHUD(ctx, x, y, w, h, elapsedTime, repsCount, totalPlayed, targetReps, scoreCorrect, scoreWrong) {
+            ctx.save();
+            
+            // 1. วาดแถบบาร์สีกรมท่าเกือบดำ ขอบเรืองแสงสีฟ้าอ่อนโฮโลแกรม
+            ctx.fillStyle = 'rgba(8, 10, 24, 0.9)';
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.55)';
+            ctx.lineWidth = 1.5;
+            ctx.shadowColor = '#06b6d4';
+            ctx.shadowBlur = 10;
+            
+            drawRoundRect(ctx, x, y, w, h, 10, true, true);
+            ctx.restore();
+            
+            // 2. แสดงข้อมูลข้อความไล่เฉดและสีที่ชัดเจนตาม ref1
+            ctx.save();
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.font = '900 13px Prompt, sans-serif';
+            
+            const centerY = y + h/2;
+            const secSpacing = w / 4.2;
+            
+            // --- ⏱️ เวลา: X.XXs (สีเหลืองทอง) ---
+            ctx.fillStyle = '#fbbf24';
+            ctx.shadowColor = 'rgba(251, 191, 36, 0.4)';
+            ctx.shadowBlur = 4;
+            ctx.fillText(`เวลา: ${elapsedTime.toFixed(2)}s`, x + 20, centerY);
+            
+            // --- 📊 คืบหน้า: X/12 ข้อ ---
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 0;
+            ctx.fillText(`คืบหน้า: ${totalPlayed}/${targetReps} ข้อ`, x + 20 + secSpacing, centerY);
+            
+            // --- 🟢 ถูก: X (สีเขียวสว่าง) ---
+            ctx.fillStyle = '#34d399';
+            ctx.beginPath();
+            ctx.arc(x + 20 + secSpacing * 2.2 - 8, centerY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText(`ถูก: ${scoreCorrect}`, x + 20 + secSpacing * 2.2, centerY);
+            
+            // --- 🔴 ผิด: X (สีแดงสว่าง) ---
+            ctx.fillStyle = '#f87171';
+            ctx.beginPath();
+            ctx.arc(x + 20 + secSpacing * 3.1 - 8, centerY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText(`ผิด: ${scoreWrong}`, x + 20 + secSpacing * 3.1, centerY);
+            
+            ctx.restore();
+            
+            // 3. วาดประกายดาวสี่แฉก (Sparkle Star) ด้านขวาสุดของบาร์ ตาม ref1
+            ctx.save();
+            ctx.shadowColor = '#22d3ee';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#ffffff';
+            
+            const starX = x + w - 24;
+            const starY = centerY;
+            drawSparkleStar(ctx, starX, starY, 6);
+            ctx.restore();
+        }
+
+        // ฟังก์ชันวาดประกายดาวสี่แฉก
+        function drawSparkleStar(ctx, cx, cy, size) {
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - size);
+            ctx.quadraticCurveTo(cx, cy, cx + size, cy);
+            ctx.quadraticCurveTo(cx, cy, cx, cy + size);
+            ctx.quadraticCurveTo(cx, cy, cx - size, cy);
+            ctx.quadraticCurveTo(cx, cy, cx, cy - size);
+            ctx.closePath();
+            ctx.fill();
         }
 
         // วาดข้อนิ้วมือเรืองแสงสำหรับช่องกล้องมองเล็ก (Premium Sci-Fi Double Glow Layer)
@@ -3821,6 +4259,7 @@
                 }
             }
             
+            toggleAISafetyHeader(bossId.indexOf('WB002') === 0); // บังคับสลับสไตล์ Header เมื่อกดเล่นใหม่อีกครั้ง
             initWebcamAndPose();
         }
 
@@ -3870,6 +4309,8 @@
             wbBossHp = maxHp; // ตั้งค่าพลังชีวิตบอสเริ่มต้นใหม่
             wbRepsCount = 0;
             wbTotalQuestionsPlayed = 0;
+            
+            toggleAISafetyHeader(bossId.indexOf('WB002') === 0); // บังคับสลับสไตล์ Header เมื่อผู้เล่นทำการสลับระดับเวลา
             
             // อัปเดต UI หน้าจอหลักแบบ Real-time ให้เหมาะสมกับหน่วยคะแนนข้อแทนเมตร
             document.getElementById('wb-battle-reps').innerText = `0 / ${targetReps} ข้อ`;
