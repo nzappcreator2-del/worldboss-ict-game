@@ -1084,7 +1084,6 @@
 
         // 3) ตัวแปรเกมสเตท (Game Loop States)
         let wbPose = null;
-        let wbPoseWorker = null; // ⚡ Web Worker สำหรับมินิเกมที่ 3 (Ultra-Smooth 60 FPS)
         let wbCamera = null;
         let wbGameState = 'PREPARING'; // PREPARING, COUNTDOWN, BATTLE, VICTORY
         
@@ -1574,157 +1573,9 @@
                 
                 console.log("🧠 World Boss Pose Engine Init - MediaPipe Active for World Boss System");
                 
-                const isWorkerMode = bossId === 'WB001_WORKER';
+                const isHandsMode = String(bossId).indexOf('WB002') === 0;
                 
-                if (isWorkerMode) {
-                    console.log("⚡ [Pose Web Worker] กำลังโหลดระบบแยกเธรด Web Worker สำหรับมาริโอ้ Ultra-Smooth...");
-                    
-                    // ตัวแปรควบคุมระบบความทนทาน (Fault-Tolerance Variables)
-                    let hasReceivedWorkerFrame = false;
-                    let workerTimeout = null;
-                    
-                    // 🔄 ฟังก์ชันกู้คืนระบบอัตโนมัติเมื่อ Worker มีปัญหาสนิทมืดตึ๊บ
-                    const switchToMainThreadPose = () => {
-                        console.warn("⚠️ [Pose Web Worker] ไม่ได้รับการตอบสนองจาก Worker ภายใน 4 วินาที สลับไปใช้ระบบกล้องดั้งเดิมฝั่ง Main Thread อัตโนมัติ!");
-                        if (wbPoseWorker) {
-                            try { wbPoseWorker.terminate(); } catch(e) {}
-                            wbPoseWorker = null;
-                        }
-                        
-                        // กู้ระบบด้วยการสร้าง MediaPipe Pose ดั้งเดิมบน Main Thread (ด่าน 1 ดั้งเดิม) เพื่อให้ลื่นไหลปกติตามเกณฑ์ปลอดภัย
-                        if (!wbPose) {
-                            console.log("🔄 [Auto-Recovery] กำลังสร้างตัวตรวจสอบ Pose บน Main Thread...");
-                            wbPose = new Pose({
-                                locateFile: (file) => {
-                                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-                                }
-                            });
-                            
-                            wbPose.setOptions({
-                                modelComplexity: 0,
-                                smoothLandmarks: true,
-                                minDetectionConfidence: 0.5,
-                                minTrackingConfidence: 0.5
-                            });
-                            
-                            wbPose.onResults(onPoseResults);
-                        }
-                        
-                        // ปิดสวิตช์โหมด Worker ชั่วคราวเพื่อให้กล้องเข้าลูปปกติ
-                        bossId = 'WB001'; // บังคับให้ลูปกล้องกลายร่างเป็นด่าน 1 ดั้งเดิมทันที!
-                        console.log("✅ [Auto-Recovery] กู้ระบบสำเร็จ! ระบบกลับมาทำงานด้วยเกณฑ์ควบคุมด่านดั้งเดิม 100%");
-                    };
-                    
-                    // ตั้งตรรกะตรวจเช็คความพร้อมหลังจาก 4 วินาที
-                    workerTimeout = setTimeout(() => {
-                        if (!hasReceivedWorkerFrame) {
-                            switchToMainThreadPose();
-                        }
-                    }, 4000);
-
-                    if (!wbPoseWorker) {
-                        try {
-                            console.log("⚡ [Pose Web Worker] เริ่มสร้าง Inline Web Worker...");
-                            
-                            // โค้ด Web Worker ทั้งหมดถูกฝังแบบ Inline เพื่อปลดล็อกปัญหา CORS บล็อกข้ามแดนจาก GAS Iframe 100%!
-                            const workerCode = `
-                                importScripts('https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js');
-
-                                let poseInstance = null;
-
-                                function initPoseInWorker() {
-                                    if (poseInstance) return;
-                                    
-                                    poseInstance = new Pose({
-                                        locateFile: (file) => {
-                                            return "https://cdn.jsdelivr.net/npm/@mediapipe/pose/" + file;
-                                        }
-                                    });
-                                    
-                                    poseInstance.setOptions({
-                                        modelComplexity: 0,
-                                        smoothLandmarks: true,
-                                        minDetectionConfidence: 0.5,
-                                        minTrackingConfidence: 0.5
-                                    });
-                                    
-                                    poseInstance.onResults((results) => {
-                                        if (results.poseLandmarks) {
-                                            self.postMessage({
-                                                action: 'poseResults',
-                                                poseLandmarks: results.poseLandmarks
-                                            });
-                                        } else {
-                                            self.postMessage({
-                                                action: 'poseResults',
-                                                poseLandmarks: null
-                                            });
-                                        }
-                                    });
-                                }
-
-                                self.onmessage = async function(event) {
-                                    const data = event.data;
-                                    if (data.action === 'init') {
-                                        initPoseInWorker();
-                                        self.postMessage({ action: 'ready' });
-                                    } else if (data.action === 'processFrame') {
-                                        const imageBitmap = data.imageBitmap;
-                                        if (!imageBitmap) return;
-                                        
-                                        try {
-                                            if (!poseInstance) {
-                                                initPoseInWorker();
-                                            }
-                                            await poseInstance.send({ image: imageBitmap });
-                                        } catch(e) {
-                                            self.postMessage({ action: 'error', error: e.toString() });
-                                        } finally {
-                                            imageBitmap.close();
-                                        }
-                                    }
-                                };
-                            `;
-
-                            const blob = new Blob([workerCode], { type: 'application/javascript' });
-                            const blobUrl = URL.createObjectURL(blob);
-                            
-                            wbPoseWorker = new Worker(blobUrl);
-                            wbPoseWorker.postMessage({ action: 'init' });
-                            
-                            wbPoseWorker.onmessage = (event) => {
-                                const data = event.data;
-                                if (data.action === 'poseResults') {
-                                    if (!hasReceivedWorkerFrame) {
-                                        hasReceivedWorkerFrame = true;
-                                        if (workerTimeout) {
-                                            clearTimeout(workerTimeout);
-                                            workerTimeout = null;
-                                        }
-                                        console.log("⚡ [Pose Web Worker] เธรดแยกตอบสนองเฟรมแรกสำเร็จ! ปลดล็อกการใช้ระบบแยกเอนจินเต็มสูบ");
-                                    }
-                                    
-                                    // จำลองโครงสร้างผลลัพธ์ของ MediaPipe ดั้งเดิม เพื่อให้ตัวระบบทำงานได้อย่างไม่มีสะดุด
-                                    const simulatedResults = {
-                                        image: wbVideoEl,
-                                        poseLandmarks: data.poseLandmarks
-                                    };
-                                    onPoseResults(simulatedResults);
-                                } else if (data.action === 'error') {
-                                    console.error('⚡ Worker Pose Error:', data.error);
-                                }
-                            };
-                            console.log("⚡ [Pose Web Worker] ติดตั้ง Inline Web Worker สำเร็จ!");
-                        } catch (err) {
-                            console.error("⚡ [Pose Web Worker] การสร้าง Inline Worker ล้มเหลว เปลี่ยนไปใช้เธรดดั้งเดิมทันที:", err);
-                            if (workerTimeout) {
-                                clearTimeout(workerTimeout);
-                                workerTimeout = null;
-                            }
-                            switchToMainThreadPose();
-                        }
-                    }
-                } else if (!wbPose) {
+                if (!isHandsMode && !wbPose) {
                     wbPose = new Pose({
                         locateFile: (file) => {
                             return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
@@ -1766,7 +1617,7 @@
                 let lastPoseProcessTime = 0;
                 const cameraStartTime = performance.now(); // บันทึกเวลาเริ่มรันกล้องเพื่อทำระบบอุ่นเครื่อง AI
                 
-                // 🌟 Offscreen Canvas จิ๋วสำหรับย่อภาพเว็บแคมก่อนส่งวิเคราะห์ เพื่อประหยัด CPU ฝั่งผู้ใช้งานลง 16 เท่าตัว!
+                // 🌟 Offscreen Canvas จิ๋วสำหรับย่อภาพเว็บแคมก่อนส่งวิเคราะห์ เพื่อประหยัด CPU ฝั่งผู้ใช้งานลง 4 เท่าตัว!
                 let offscreenCanvas = null;
                 let offscreenCtx = null;
                 
@@ -1775,26 +1626,15 @@
                         if (wbGameState === 'BATTLE' || wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
                             const now = performance.now();
                             
-                            // 🌟 วาดภาพกล้องสดลงบนแคนวาสทันทีในโหมด Worker เพื่อป้องกันปัญหากล้องมืดตึ๊บระหว่างที่ AI กำลังประมวลผลหรือโหลดโมเดล
-                            if (bossId === 'WB001_WORKER' && wbCanvasCtx && wbGameState !== 'VICTORY') {
-                                const w = wbCanvasEl.width;
-                                const h = wbCanvasEl.height;
-                                wbCanvasCtx.save();
-                                wbCanvasCtx.drawImage(wbVideoEl, 0, 0, w, h);
-                                wbCanvasCtx.restore();
-                            }
-                            
                             // 🛡️ Setup Dynamic & Warm-up AI Delay:
                             // ในด่านบอส 1 (มาริโอ้) ที่ใช้ MediaPipe Pose ซึ่งประมวลผลกระดูก 33 จุดและกินทรัพยากรเครื่องมหาศาล
-                            // เราจะปรับ Throttle ให้รันเฉลี่ยที่ ~18-20 FPS (หน่วง 52.0ms) แทน 30 FPS ดั้งเดิม
-                            // ซึ่งการเคลื่อนไหวของนักเรียนในการออกกำลังกายไม่ได้รวดเร็วแบบเสี้ยววินาที 18-20 FPS จึงแม่นยำ 100%
-                            // แต่จะช่วยลดภาระ CPU/GPU ลงมหาศาลกว่า 35%! ส่งผลให้ Emulator มาริโอ้ใน iframe รันได้ลื่นไหลปกติ 60 FPS
+                            // เราจะปรับ Throttle ให้รันเฉลี่ยที่ ~15 FPS (หน่วง 66.6ms) เพื่อลดภาระ CPU อย่างมีประสิทธิภาพสูงสุด
+                            // ซึ่งการเคลื่อนไหวของนักเรียนในการออกกำลังกายไม่ได้รวดเร็วแบบเสี้ยววินาที 15 FPS จึงแม่นยำ 100%
+                            // แต่จะช่วยลดภาระ CPU/GPU ลงมหาศาลกว่า 50%! ส่งผลให้ Emulator มาริโอ้ใน iframe รันได้ลื่นไหลปกติ 60 FPS
                             // และป้องกันปัญหาคอขวดบนเธรดเสียง (Web Audio starvation) ทำให้เสียงดนตรี NES ดังชัดเจนไม่หายหรือกระตุกสโลว์!
                             let throttleLimit = 33.3; // ความเร็วมาตรฐานสำหรับโหมดทั่วไป
                             if (bossId === 'WB001') {
-                                throttleLimit = 52.0; // ~19 FPS เพื่อประสิทธิภาพและความลื่นไหลระดับเทพในด่านมาริโอ้
-                            } else if (bossId === 'WB001_WORKER') {
-                                throttleLimit = 66.6; // ~15 FPS เพื่อให้เธรดหลักและเบราว์เซอร์เบาสบายอย่างแท้จริง! (แม่นยำ 100% แต่ลื่นไหลขั้นสุดยอด)
+                                throttleLimit = 66.6; // ~15 FPS เพื่อประสิทธิภาพและความลื่นไหลสูงสุดในด่านมาริโอ้
                             }
                             
                             // ในช่วง 4 วินาทีแรกของการอุ่นเครื่อง AI เพื่อเปิดทางให้ Emulator โหลดเพลงและจัดระเบียบเธรด
@@ -1809,29 +1649,19 @@
                                 const isHandsMode = String(bossId).indexOf('WB002') === 0;
                                 if (isHandsMode) {
                                     await wbHands.send({ image: wbVideoEl });
-                                } else if (bossId === 'WB001_WORKER') {
-                                    if (wbPoseWorker) {
-                                        // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมก่อนส่งวิเคราะห์ (ขนาดสมดุลอัจฉริยะ 320x240 เพื่อความนิ่งสนิท ไร้อาการสั่นสะท้าน!)
-                                        if (!offscreenCanvas) {
-                                            offscreenCanvas = document.createElement('canvas');
-                                            offscreenCanvas.width = 320;
-                                            offscreenCanvas.height = 240;
-                                            offscreenCtx = offscreenCanvas.getContext('2d');
-                                        }
-                                        
-                                        // วาดภาพเว็บแคมลงใน Canvas ขนาดสมบูรณ์ 320x240
-                                        offscreenCtx.drawImage(wbVideoEl, 0, 0, 320, 240);
-                                        
-                                        // แปลง Canvas จิ๋วเป็น ImageBitmap ส่งให้ Worker ประมวลผลแบบเบาหวิวระดับไมโครวินาที
-                                        const imageBitmap = await createImageBitmap(offscreenCanvas);
-                                        
-                                        wbPoseWorker.postMessage({
-                                            action: 'processFrame',
-                                            imageBitmap: imageBitmap
-                                        }, [imageBitmap]); // ส่งผ่านแบบ Zero-Copy
-                                    }
                                 } else {
-                                    await wbPose.send({ image: wbVideoEl });
+                                    // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมก่อนส่งวิเคราะห์ (ขนาดสมดุลอัจฉริยะ 320x240 เพื่อความนิ่งสนิท ไร้อาการสั่นสะท้าน!)
+                                    if (!offscreenCanvas) {
+                                        offscreenCanvas = document.createElement('canvas');
+                                        offscreenCanvas.width = 320;
+                                        offscreenCanvas.height = 240;
+                                        offscreenCtx = offscreenCanvas.getContext('2d');
+                                    }
+                                    
+                                    // วาดภาพเว็บแคมลงใน Canvas ขนาดสมบูรณ์ 320x240
+                                    offscreenCtx.drawImage(wbVideoEl, 0, 0, 320, 240);
+                                    
+                                    await wbPose.send({ image: offscreenCanvas });
                                 }
                             } catch(e) {
                                 console.error('AI parsing error:', e);
@@ -1844,7 +1674,6 @@
                 
                 wbCamera.start();
                 
-                const isHandsMode = String(bossId).indexOf('WB002') === 0;
                 const statusOverlay = document.getElementById('wb-status-overlay');
                 
                 if (isHandsMode) {
@@ -1858,7 +1687,7 @@
                     }
                 } else {
                     wbGameState = 'PREPARING';
-                    if (bossId === 'WB001' || bossId === 'WB001_WORKER') {
+                    if (bossId === 'WB001') {
                         statusOverlay.innerHTML = `⚠️ ยืนจัดท่าครึ่งตัวและมองกล้องนิ่ง ๆ 1.5 วินาที เพื่อ Calibrate ค่าจมูกปกติ!`;
                         statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
                     } else {
@@ -2069,7 +1898,7 @@
             
             // 🛡️ วาดแกนกระดูกเรืองแสงเชื่อมต่อพิกัดร่างกายผู้เล่น เพื่อมอบ Visual Guidance และความแม่นยำในการคุมท่าทางขั้นสุดยอด!
             const isWb002 = String(bossId).indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
-            const isWb001 = String(bossId).indexOf('WB001') === 0 || poseType === 'mario_fitness' || poseType === 'mario_fitness_worker';
+            const isWb001 = String(bossId).indexOf('WB001') === 0 || poseType === 'mario_fitness';
             if (landmarks && (isWb001 || isWb002)) {
                 drawGlowingSkeleton(wbCanvasCtx, landmarks, width, height);
             }
@@ -2329,10 +2158,9 @@
                         const rightInBelly = rightWrist && rightWrist.visibility > 0.5 && (rightWrist.y >= bellyMinY && rightWrist.y <= avgHipYVal + currentBodyLen * 0.05);
                         
                         // แกว่งแขนวิ่งแบบธรรมชาติ (Natural Arm Swing): ขอเพียงแค่ข้อมือซ้ายหรือขวาข้างใดข้างหนึ่งอยู่ในโซนควบคุม และขยับแกว่งแขนสลับอย่างเป็นอิสระ
-                        // 🌟 ระบบขจัดอาการสั่น (Jitter Filter) สำหรับโหมด Web Worker โดยเฉพาะ
-                        // หากเป็นโหมด Worker เราจะเพิ่มเกณฑ์ Threshold การแกว่งข้อมือขึ้นอีกเพื่อป้องกันการ Ghost Actions (วิ่งเองเมื่อยืนนิ่ง)
-                        const armSwingThreshold = (bossId === 'WB001_WORKER') ? 0.035 : 0.015;
-                        const totalActivityThreshold = (bossId === 'WB001_WORKER') ? 0.095 : 0.065;
+                        // 🌟 ระบบขจัดอาการสั่น (Jitter Filter) ปรับจูนพิเศษสำหรับด่านมาริโอ้ดั้งเดิมให้เสถียรไร้ที่ติ
+                        const armSwingThreshold = 0.035; // ค่านิ่งเป๊ะสูงสุดป้องกันการ Ghost Actions (วิ่งเองเมื่อยืนนิ่ง) ได้ 100%
+                        const totalActivityThreshold = 0.095;
                         const isNaturalArmSwing = (leftInBelly || rightInBelly) && (totalActivity > totalActivityThreshold && wristActivity > armSwingThreshold);
                         
                         // การตัดสินการกระโดด (JUMPING): สัมพันธ์กับไหล่และจมูกลอยสูงขึ้นพร้อมกัน ป้องกันการเงยหน้าโดดหลอน 100%
@@ -2390,7 +2218,7 @@
                             }
                         }
                         
-                        if (bossId === 'WB001' || bossId === 'WB001_WORKER') {
+                        if (bossId === 'WB001') {
                             // บังคับเกมมาริโอ้ NES จริงๆ ใน iframe ด้วยสเตทที่เสถียรคมชัด!
                             controlRealMarioGame(detectedActiveState);
                             
@@ -4157,7 +3985,7 @@
             }
 
             // เริ่มการตรวจสอบแต้มและเหรียญของเกมมาริโอ้จริง
-            if (bossId === 'WB001' || bossId === 'WB001_WORKER') {
+            if (bossId === 'WB001') {
                 lastMarioCoinsCount = 0;
                 lastMarioScore = 0;
                 startMarioStatsLoop();
