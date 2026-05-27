@@ -2271,23 +2271,27 @@
                                 runnerCanvasCtx.lineCap = 'round';
                                 runnerCanvasCtx.stroke();
                                 
-                                // วาดเกจเรืองแสงตามสปีดจริง
+                                // วาดเกจเรืองแสงตามสปีดจริง (Speedometer Neon Gauge)
+                                runnerCanvasCtx.beginPath();
                                 const speedPercent = Math.min(1.0, wbCurrentRunningSpeed / 6.5);
                                 const endAngle = Math.PI * 0.8 + (Math.PI * 1.4 * speedPercent);
+                                runnerCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, endAngle);
                                 
                                 const grad = runnerCanvasCtx.createRadialGradient(centerX, centerY, radius - 10, centerX, centerY, radius + 10);
-                                grad.addColorStop(0, '#06b6d4');
-                                grad.addColorStop(1, '#06b6d4');
+                                grad.addColorStop(0, '#22d3ee');
+                                grad.addColorStop(1, '#0891b2');
                                 
-                                runnerCanvasCtx.shadowBlur = 8;
+                                runnerCanvasCtx.strokeStyle = grad;
+                                runnerCanvasCtx.shadowColor = '#06b6d4';
+                                runnerCanvasCtx.shadowBlur = 10;
+                                runnerCanvasCtx.lineWidth = 10;
+                                runnerCanvasCtx.lineCap = 'round';
                                 runnerCanvasCtx.stroke();
                                 runnerCanvasCtx.restore();
                                 
                                 runnerCanvasCtx.restore();
                             }
                         }
-                    } catch(e) {
-                        console.error("Hands onResults processing error: ", e);
                     }
                 }
             } catch(e) {
