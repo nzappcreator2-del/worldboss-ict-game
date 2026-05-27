@@ -1922,6 +1922,44 @@
                         }
                     }
                     
+                    // 🛡️ [การสลับเปลี่ยนสเตทจากเตรียมตัว Calibrate ไปเป็นเริ่มนับถอยหลังสำหรับ Pose]
+                    if (wbGameState === 'PREPARING') {
+                        const statusOverlay = document.getElementById('wb-status-overlay');
+                        if (isPositionOk) {
+                            if (statusOverlay) {
+                                if (bossId === 'WB001') {
+                                    statusOverlay.innerHTML = '✅ Calibrate จมูกสำเร็จ! กรุณายืนนิ่งๆ เพื่อเริ่มลุยด่านมาริโอ้...';
+                                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-emerald-950/95 backdrop-blur-sm border border-emerald-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                                } else {
+                                    statusOverlay.innerHTML = '✅ ค้นหาระยะและสแกนใบหน้าสำเร็จ! กรุณายืนนิ่งๆ ในช่องสีเขียวเพื่อรอสัญญาณศึก...';
+                                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-emerald-950/95 backdrop-blur-sm border border-emerald-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                                }
+                            }
+                            
+                            // ถ้ายืนนิ่งอยู่ในกรอบสแกนกระดูกครบครัน 1.5 วินาที จะตัดเข้าสู่นับถอยหลังต่อสู้
+                            if (!wbStandingTimer) {
+                                wbStandingTimer = setTimeout(() => {
+                                    startCountdownPhase();
+                                }, 1500);
+                            }
+                        } else {
+                            if (statusOverlay) {
+                                if (bossId === 'WB001') {
+                                    statusOverlay.innerHTML = '⚠️ ยืนให้กล้องเห็น หัว ไหล่ และสะโพก เพื่อสแกน Calibrate ความสูงจมูก!';
+                                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/90 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                                } else {
+                                    statusOverlay.innerHTML = '⚠️ ขยับตัวถอยหลังให้อยู่กึ่งกลาง และให้เห็น ไหล่ สะโพก ข้อเท้า ครบถ้วน';
+                                    statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/90 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
+                                }
+                            }
+                            
+                            if (wbStandingTimer) {
+                                clearTimeout(wbStandingTimer);
+                                wbStandingTimer = null;
+                            }
+                        }
+                    }
+                    
                     if (wbGameState === 'BATTLE') {
                         // 🛡️ Continuous Real-time Dynamic Calibration: ปรับระดับพิกัดสรีระอ้างอิงตามระยะยืนจริงของนักเรียนในเฟรมนั้นๆ แบบเรียลไทม์!
                         // ทำให้นักเรียนสามารถเดินหน้า-ถอยหลัง หรือหลุดจากมุมเดิมได้ โดยที่แกนพุงเอวและเกณฑ์กระโดดยังคงแม่นยำเป๊ะ 100%
@@ -2788,14 +2826,15 @@
                 
                 // คำนวณ Scale แบบ Dynamic ตามระยะ Y (ยิ่งลากลงลึก ยิ่งย่อเล็กลง)
                 let cardScale = 1.0;
-                if (item.y > 195) {
-                    const progress = Math.min(1.0, (item.y - 195) / (centerYBucket - 50 - 195));
+                const startScaleY = height * 0.28; // เริ่มย่อขนาดเมื่อพ้นขอบบนเล็กน้อย
+                if (item.y > startScaleY) {
+                    const progress = Math.min(1.0, (item.y - startScaleY) / (centerYBucket - 50 - startScaleY));
                     cardScale = 1.0 - progress * 0.58; // ย่อขนาดลงสูงสุด 58%
                 }
                 
                 // อัปเดตความกว้างความสูง Bounding Box แบบ Dynamic เพื่อให้การชนแม่นยำ
-                item.w = 460 * cardScale;
-                item.h = 135 * cardScale;
+                item.w = 520 * cardScale;
+                item.h = 155 * cardScale;
                 
                 runnerCanvasCtx.save();
                 runnerCanvasCtx.shadowColor = '#06b6d4'; // ออร่าโฮโลแกรมสีไซอันสว่าง
@@ -2818,39 +2857,39 @@
                     // แถบคาดเรืองแสงข้อมูลด้านบน (Tech Header Bar)
                     runnerCanvasCtx.save();
                     runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(34, 211, 238, 0.12)' : 'rgba(6, 182, 212, 0.08)';
-                    runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 30 * cardScale);
+                    runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 34 * cardScale);
                     
                     // ไอคอนหัวข้อและภาษาอังกฤษ (💼 Job Displacement)
-                    runnerCanvasCtx.font = `900 ${16 * cardScale}px Prompt, sans-serif`;
+                    runnerCanvasCtx.font = `900 ${18 * cardScale}px Prompt, sans-serif`;
                     runnerCanvasCtx.fillStyle = '#ffffff';
                     runnerCanvasCtx.textAlign = 'left';
                     runnerCanvasCtx.shadowColor = '#06b6d4';
                     runnerCanvasCtx.shadowBlur = 6 * cardScale;
-                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 21 * cardScale);
+                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 23 * cardScale);
                     
                     // ป้าย TAG "TAGRIST VL6" ตาม ref2
-                    runnerCanvasCtx.font = `bold ${8 * cardScale}px Courier, monospace`;
+                    runnerCanvasCtx.font = `bold ${9 * cardScale}px Courier, monospace`;
                     runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.7)';
                     runnerCanvasCtx.textAlign = 'right';
-                    runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 18 * cardScale, item.y - item.h/2 + 20 * cardScale);
+                    runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 18 * cardScale, item.y - item.h/2 + 22 * cardScale);
                     runnerCanvasCtx.restore();
                     
                     // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
                     runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
                     runnerCanvasCtx.lineWidth = 1 * cardScale;
                     runnerCanvasCtx.beginPath();
-                    runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 32 * cardScale);
-                    runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 32 * cardScale);
+                    runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
+                    runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
                     runnerCanvasCtx.stroke();
                     
-                    // เนื้อหาคำถามภาษาไทย สีขาวนวล สว่าง ชัดเจน
+                    // เนื้อหาคำถามภาษาไทย สีขาวนวล สว่าง ชัดเจน และอ่านง่ายที่สุด
                     runnerCanvasCtx.save();
-                    runnerCanvasCtx.font = `900 ${15 * cardScale}px Prompt, sans-serif`;
+                    runnerCanvasCtx.font = `900 ${18.5 * cardScale}px Prompt, sans-serif`;
                     runnerCanvasCtx.fillStyle = '#ffffff';
                     runnerCanvasCtx.textAlign = 'center';
                     runnerCanvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
                     runnerCanvasCtx.shadowBlur = 4 * cardScale;
-                    wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 62 * cardScale, item.w - 40 * cardScale, 24 * cardScale);
+                    wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 75 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
                     runnerCanvasCtx.restore();
                     
                     // 🎯 วาดเป้าชี้แนะมือลากและลูกศรแนะแนว (Hand Drag Hint - เป๊ะตาม ref2)
@@ -3563,9 +3602,9 @@
                 title: template.title,
                 icon: template.icon,
                 x: canvasWidth / 2,
-                y: canvasHeight * 0.38,
-                w: 460,
-                h: 135
+                y: canvasHeight * 0.21,
+                w: 520,
+                h: 155
             };
             
             draggedItem = null;
