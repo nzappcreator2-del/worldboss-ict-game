@@ -508,6 +508,38 @@
         </div>
     </div>
 
+    <!-- ========================================================================= -->
+    <!-- 🏳️ หน้าต่างยืนยันการถอยทัพสุดโมเดิร์น (EXIT CONFIRM MODAL OVERLAY) -->
+    <!-- ========================================================================= -->
+    <div id="wb-exit-confirm-modal" 
+         class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden">
+        
+        <div class="glass-panel rounded-3xl max-w-md w-full p-6 md:p-8 text-center border-4 border-red-500/80 shadow-[0_0_50px_rgba(239,68,68,0.3)] relative overflow-hidden flex flex-col items-center">
+            <div class="absolute inset-0 bg-gradient-to-b from-red-950/20 via-transparent to-black/90 pointer-events-none"></div>
+            
+            <!-- ไอคอนธงขาว RPG -->
+            <span class="text-7xl md:text-8xl animate-pulse my-2 drop-shadow-[0_5px_15px_rgba(239,68,68,0.5)] select-none">🏳️</span>
+            
+            <h1 class="font-black text-2xl md:text-3xl bg-gradient-to-r from-red-400 via-orange-400 to-yellow-200 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight mt-2 font-prompt">
+                ท่านต้องการถอยทัพ?
+            </h1>
+            <p class="text-gray-300 font-bold text-xs md:text-sm mt-3 max-w-sm">
+                ผู้กล้าแน่ใจหรือไม่ว่าต้องการหลบหนีและถอยทัพจากการล่าบอสในเวลานี้? <br>
+                <span class="text-red-400/90 font-black text-[10px] md:text-xs block mt-1">(⚠️ คำเตือน: สถิติในรอบนี้จะไม่ถูกบันทึกนะจ๊ะ)</span>
+            </p>
+            
+            <!-- ปุ่มควบคุมการกดยอมรับ/ยกเลิก -->
+            <div class="grid grid-cols-2 gap-4 mt-6 w-full z-10">
+                <button onclick="executeLeaveGame()" class="py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:scale-[1.02] active:scale-[0.98] transition border-b-4 border-red-800 active:border-b-0 cursor-pointer flex items-center justify-center gap-2">
+                    <span>🏳️ ยืนยันถอยทัพ</span>
+                </button>
+                <button onclick="cancelLeaveGame()" class="py-3 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-black text-xs md:text-sm rounded-2xl shadow-[0_0_15px_rgba(71,85,105,0.3)] hover:scale-[1.02] active:scale-[0.98] transition border-b-4 border-slate-900 active:border-b-0 cursor-pointer flex items-center justify-center gap-2">
+                    <span>⚔️ สู้รบต่อไป!</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 1) แกะค่าพารามิเตอร์ทั้งหมดที่ส่งผ่าน URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -4307,18 +4339,64 @@
             wbVideoEl.srcObject = null;
         }
 
-        // ยอมแพ้และกดยกเลิกเกม
+        // ยอมแพ้และกดยกเลิกเกม (เปิดตัว Custom Dialog แทนการใช้ confirm ของเบราว์เซอร์)
         function confirmLeaveGame() {
-            if (confirm("🏳️ ผู้กล้าแน่ใจหรือไม่ว่าต้องการหลบหนีและถอยทัพจากการล่าบอสในเวลานี้?\n\n(สถิติรอบนี้จะไม่ถูกบันทึกนะจ๊ะ)")) {
-                stopCamera();
-                window.close();
+            const exitConfirmModal = document.getElementById('wb-exit-confirm-modal');
+            if (exitConfirmModal) {
+                exitConfirmModal.classList.remove('hidden');
+            } else {
+                // Fallback ในกรณีฉุกเฉิน
+                if (confirm("🏳️ ผู้กล้าแน่ใจหรือไม่ว่าต้องการหลบหนีและถอยทัพจากการล่าบอสในเวลานี้?\n\n(สถิติรอบนี้จะไม่ถูกบันทึกนะจ๊ะ)")) {
+                    executeLeaveGame();
+                }
             }
         }
 
-        // สรุปผลคะแนนและปิดตัว
+        // ยกเลิกการถอยทัพและสู้ต่อ
+        function cancelLeaveGame() {
+            const exitConfirmModal = document.getElementById('wb-exit-confirm-modal');
+            if (exitConfirmModal) {
+                exitConfirmModal.classList.add('hidden');
+            }
+        }
+
+        // ดำเนินการออกเกมจริง พาผู้ใช้กลับล็อบบี้ผ่านทิศทางที่แม่นยำและเสถียรสูงสุด
+        function executeLeaveGame() {
+            const exitConfirmModal = document.getElementById('wb-exit-confirm-modal');
+            if (exitConfirmModal) exitConfirmModal.classList.add('hidden');
+            
+            stopCamera();
+            
+            if (webAppUrl) {
+                console.log("🚀 [Navigation] กำลังพากลับสู่ระบบ Google Apps Script: " + webAppUrl);
+                window.location.href = webAppUrl;
+            } else {
+                console.log("🚪 [Navigation] ไม่มี webAppUrl ลิงก์ พยายามปิดหน้าต่างหลัก...");
+                try {
+                    window.close();
+                } catch(e) {
+                    console.warn("Browser block window.close - using fallback to index.html");
+                }
+                // Fallback ในกรณีที่ปิดหน้าไม่ได้
+                setTimeout(() => {
+                    window.location.href = "index.html";
+                }, 100);
+            }
+        }
+
+        // สรุปผลคะแนนและปิดตัว (นำทางกลับล็อบบี้อย่างปลอดภัย)
         function closeVictoryAndExit() {
             stopCamera();
-            window.close();
+            if (webAppUrl) {
+                window.location.href = webAppUrl;
+            } else {
+                try {
+                    window.close();
+                } catch(e) {}
+                setTimeout(() => {
+                    window.location.href = "index.html";
+                }, 100);
+            }
         }
 
         // 🔄 ฟังก์ชันสำหรับเล่นใหม่อีกครั้ง (Play Again)
