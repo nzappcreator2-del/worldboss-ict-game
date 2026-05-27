@@ -524,7 +524,13 @@
         let rewardCoins = parseInt(urlParams.get('rewardCoins') || '50');
         let rewardXp = parseInt(urlParams.get('rewardXp') || '50');
         
-        const webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
+        let webAppUrl = decodeURIComponent(urlParams.get('webAppUrl') || '');
+        // 🛡️ Apps Script URL Security Guard: ป้องกันและแก้ไขปัญหายอดฮิตของคุณครูเมื่อป้อนลิงก์โหมดพัฒนา (/dev) มาเล่นจริง
+        // เนื่องจากลิงก์โหมด dev จะบังคับ Login เสมอและไม่มีวันส่ง CORS Header กลับมา ทำให้เล่นเกมสะดุดและเกิดปัญหา
+        if (webAppUrl && webAppUrl.endsWith('/dev')) {
+            console.warn("⚠️ [Apps Script URL Guard]: ตรวจพบลิงก์ Google Apps Script โหมดพัฒนา (/dev) ซึ่งจะติดนโยบาย CORS จากภายนอก 100%! ระบบกำลังสลับเป้าหมายไปยังลิงก์ใช้งานจริง (/exec) ให้อัตโนมัติ โปรดแน่ใจว่าได้กด Deploy Web App บน Apps Script เป็น 'Anyone' แล้วนะครับ");
+            webAppUrl = webAppUrl.substring(0, webAppUrl.length - 4) + '/exec';
+        }
         const lessonId = urlParams.get('lessonId') || 'L-CURRENT';
         
         let quizBonusCoins = 0; // ยอดเหรียญทองโบนัสสะสมจากการตอบควิซถูก
