@@ -1578,18 +1578,114 @@
                 
                 if (isWorkerMode) {
                     console.log("⚡ [Pose Web Worker] กำลังโหลดระบบแยกเธรด Web Worker สำหรับมาริโอ้ Ultra-Smooth...");
+                    
+                    // ตัวแปรควบคุมระบบความทนทาน (Fault-Tolerance Variables)
+                    let hasReceivedWorkerFrame = false;
+                    let workerTimeout = null;
+                    
+                    // 🔄 ฟังก์ชันกู้คืนระบบอัตโนมัติเมื่อ Worker มีปัญหาสนิทมืดตึ๊บ
+                    const switchToMainThreadPose = () => {
+                        console.warn("⚠️ [Pose Web Worker] ไม่ได้รับการตอบสนองจาก Worker ภายใน 4 วินาที สลับไปใช้ระบบกล้องดั้งเดิมฝั่ง Main Thread อัตโนมัติ!");
+                        if (wbPoseWorker) {
+                            try { wbPoseWorker.terminate(); } catch(e) {}
+                            wbPoseWorker = null;
+                        }
+                        
+                        // กู้ระบบด้วยการสร้าง MediaPipe Pose ดั้งเดิมบน Main Thread (ด่าน 1 ดั้งเดิม) เพื่อให้ลื่นไหลปกติตามเกณฑ์ปลอดภัย
+                        if (!wbPose) {
+                            console.log("🔄 [Auto-Recovery] กำลังสร้างตัวตรวจสอบ Pose บน Main Thread...");
+                            wbPose = new Pose({
+                                locateFile: (file) => {
+                                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                                }
+                            });
+                            
+                            wbPose.setOptions({
+                                modelComplexity: 0,
+                                smoothLandmarks: true,
+                                minDetectionConfidence: 0.5,
+                                minTrackingConfidence: 0.5
+                            });
+                            
+                            wbPose.onResults(onPoseResults);
+                        }
+                        
+                        // ปิดสวิตช์โหมด Worker ชั่วคราวเพื่อให้กล้องเข้าลูปปกติ
+                        bossId = 'WB001'; // บังคับให้ลูปกล้องกลายร่างเป็นด่าน 1 ดั้งเดิมทันที!
+                        console.log("✅ [Auto-Recovery] กู้ระบบสำเร็จ! ระบบกลับมาทำงานด้วยเกณฑ์ควบคุมด่านดั้งเดิม 100%");
+                    };
+                    
+                    // ตั้งตรรกะตรวจเช็คความพร้อมหลังจาก 4 วินาที
+                    workerTimeout = setTimeout(() => {
+                        if (!hasReceivedWorkerFrame) {
+                            switchToMainThreadPose();
+                        }
+                    }, 4000);
+
                     if (!wbPoseWorker) {
                         try {
-                            // โหลดจาก GitHub Pages ผ่านเทคนิค Blob URL เพื่อก้าวข้ามข้อจำกัด Same-Origin Iframe ของ Google Apps Script ฝั่งเบราว์เซอร์
-                            const workerUrl = 'https://nzappcreator2-del.github.io/worldboss-ict-game/pose-worker-v1.js';
-                            console.log("⚡ [Pose Web Worker] กำลังดึงไฟล์เธรดจาก:", workerUrl);
+                            console.log("⚡ [Pose Web Worker] เริ่มสร้าง Inline Web Worker...");
                             
-                            const response = await fetch(workerUrl);
-                            if (!response.ok) {
-                                throw new Error(`Failed to fetch worker: ${response.status} ${response.statusText}`);
-                            }
-                            
-                            const workerCode = await response.text();
+                            // โค้ด Web Worker ทั้งหมดถูกฝังแบบ Inline เพื่อปลดล็อกปัญหา CORS บล็อกข้ามแดนจาก GAS Iframe 100%!
+                            const workerCode = `
+                                importScripts('https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js');
+
+                                let poseInstance = null;
+
+                                function initPoseInWorker() {
+                                    if (poseInstance) return;
+                                    
+                                    poseInstance = new Pose({
+                                        locateFile: (file) => {
+                                            return "https://cdn.jsdelivr.net/npm/@mediapipe/pose/" + file;
+                                        }
+                                    });
+                                    
+                                    poseInstance.setOptions({
+                                        modelComplexity: 0,
+                                        smoothLandmarks: true,
+                                        minDetectionConfidence: 0.5,
+                                        minTrackingConfidence: 0.5
+                                    });
+                                    
+                                    poseInstance.onResults((results) => {
+                                        if (results.poseLandmarks) {
+                                            self.postMessage({
+                                                action: 'poseResults',
+                                                poseLandmarks: results.poseLandmarks
+                                            });
+                                        } else {
+                                            self.postMessage({
+                                                action: 'poseResults',
+                                                poseLandmarks: null
+                                            });
+                                        }
+                                    });
+                                }
+
+                                self.onmessage = async function(event) {
+                                    const data = event.data;
+                                    if (data.action === 'init') {
+                                        initPoseInWorker();
+                                        self.postMessage({ action: 'ready' });
+                                    } else if (data.action === 'processFrame') {
+                                        const imageBitmap = data.imageBitmap;
+                                        if (!imageBitmap) return;
+                                        
+                                        try {
+                                            if (!poseInstance) {
+                                                initPoseInWorker();
+                                            }
+                                            await poseInstance.send({ image: imageBitmap });
+                                        } catch(e) {
+                                            self.postMessage({ action: 'error', error: e.toString() });
+                                        } finally {
+                                            imageBitmap.close();
+                                        }
+                                    }
+                                };
+                            `;
+
                             const blob = new Blob([workerCode], { type: 'application/javascript' });
                             const blobUrl = URL.createObjectURL(blob);
                             
@@ -1599,6 +1695,15 @@
                             wbPoseWorker.onmessage = (event) => {
                                 const data = event.data;
                                 if (data.action === 'poseResults') {
+                                    if (!hasReceivedWorkerFrame) {
+                                        hasReceivedWorkerFrame = true;
+                                        if (workerTimeout) {
+                                            clearTimeout(workerTimeout);
+                                            workerTimeout = null;
+                                        }
+                                        console.log("⚡ [Pose Web Worker] เธรดแยกตอบสนองเฟรมแรกสำเร็จ! ปลดล็อกการใช้ระบบแยกเอนจินเต็มสูบ");
+                                    }
+                                    
                                     // จำลองโครงสร้างผลลัพธ์ของ MediaPipe ดั้งเดิม เพื่อให้ตัวระบบทำงานได้อย่างไม่มีสะดุด
                                     const simulatedResults = {
                                         image: wbVideoEl,
@@ -1609,29 +1714,14 @@
                                     console.error('⚡ Worker Pose Error:', data.error);
                                 }
                             };
-                            console.log("⚡ [Pose Web Worker] สร้างและเริ่มต้นเธรด Web Worker สำเร็จ!");
+                            console.log("⚡ [Pose Web Worker] ติดตั้ง Inline Web Worker สำเร็จ!");
                         } catch (err) {
-                            console.error("⚡ [Pose Web Worker] เกิดข้อผิดพลาดในการโหลดเธรด:", err);
-                            // Fallback ในกรณีที่ขัดข้อง: พยายามโหลดจาก Local URL ตรงๆ
-                            try {
-                                wbPoseWorker = new Worker('pose-worker-v1.js');
-                                wbPoseWorker.postMessage({ action: 'init' });
-                                wbPoseWorker.onmessage = (event) => {
-                                    const data = event.data;
-                                    if (data.action === 'poseResults') {
-                                        const simulatedResults = {
-                                            image: wbVideoEl,
-                                            poseLandmarks: data.poseLandmarks
-                                        };
-                                        onPoseResults(simulatedResults);
-                                    } else if (data.action === 'error') {
-                                        console.error('⚡ Worker Pose Error (Fallback):', data.error);
-                                    }
-                                };
-                                console.log("⚡ [Pose Web Worker] รันโหมดสำรอง (Fallback) สำเร็จ!");
-                            } catch (fallbackErr) {
-                                console.error("⚡ [Pose Web Worker] ระบบสำรองก็ล้มเหลว:", fallbackErr);
+                            console.error("⚡ [Pose Web Worker] การสร้าง Inline Worker ล้มเหลว เปลี่ยนไปใช้เธรดดั้งเดิมทันที:", err);
+                            if (workerTimeout) {
+                                clearTimeout(workerTimeout);
+                                workerTimeout = null;
                             }
+                            switchToMainThreadPose();
                         }
                     }
                 } else if (!wbPose) {
@@ -1680,6 +1770,15 @@
                         if (wbGameState === 'BATTLE' || wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
                             const now = performance.now();
                             
+                            // 🌟 วาดภาพกล้องสดลงบนแคนวาสทันทีในโหมด Worker เพื่อป้องกันปัญหากล้องมืดตึ๊บระหว่างที่ AI กำลังประมวลผลหรือโหลดโมเดล
+                            if (bossId === 'WB001_WORKER' && wbCanvasCtx && wbGameState !== 'VICTORY') {
+                                const w = wbCanvasEl.width;
+                                const h = wbCanvasEl.height;
+                                wbCanvasCtx.save();
+                                wbCanvasCtx.drawImage(wbVideoEl, 0, 0, w, h);
+                                wbCanvasCtx.restore();
+                            }
+                            
                             // 🛡️ Setup Dynamic & Warm-up AI Delay:
                             // ในด่านบอส 1 (มาริโอ้) ที่ใช้ MediaPipe Pose ซึ่งประมวลผลกระดูก 33 จุดและกินทรัพยากรเครื่องมหาศาล
                             // เราจะปรับ Throttle ให้รันเฉลี่ยที่ ~18-20 FPS (หน่วง 52.0ms) แทน 30 FPS ดั้งเดิม
@@ -1706,12 +1805,14 @@
                                 if (isHandsMode) {
                                     await wbHands.send({ image: wbVideoEl });
                                 } else if (bossId === 'WB001_WORKER') {
-                                    // ⚡ Web Worker Mode: แปลงเฟรมเว็บแคมเป็น ImageBitmap แล้วถ่ายโอนข้ามเธรดแบบ Zero-Copy
-                                    const imageBitmap = await createImageBitmap(wbVideoEl);
-                                    wbPoseWorker.postMessage({
-                                        action: 'processFrame',
-                                        imageBitmap: imageBitmap
-                                    }, [imageBitmap]); // ถ่ายโอนลิขสิทธิ์ความเป็นเจ้าของแรมเพื่อไม่ให้ก๊อปปี้ข้อมูล
+                                    if (wbPoseWorker) {
+                                        // ⚡ Web Worker Mode: แปลงเฟรมเว็บแคมเป็น ImageBitmap แล้วถ่ายโอนข้ามเธรดแบบ Zero-Copy
+                                        const imageBitmap = await createImageBitmap(wbVideoEl);
+                                        wbPoseWorker.postMessage({
+                                            action: 'processFrame',
+                                            imageBitmap: imageBitmap
+                                        }, [imageBitmap]); // ถ่ายโอนลิขสิทธิ์ความเป็นเจ้าของแรมเพื่อไม่ให้ก๊อปปี้ข้อมูล
+                                    }
                                 } else {
                                     await wbPose.send({ image: wbVideoEl });
                                 }
