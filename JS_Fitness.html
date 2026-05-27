@@ -166,6 +166,18 @@
             }
         });
         
+        // 🔮 แทรกการ์ดมินิเกมที่ 3 มาริโอ้ Ultra-Smooth (Web Worker เอนจินแยกเธรดใหม่)
+        const marioOriginal = bosses.find(b => b.id === 'WB001');
+        if (marioOriginal) {
+            const workerMario = {
+                ...marioOriginal,
+                id: 'WB001_WORKER',
+                name: 'มาริโอ้ฟิตเนส Ultra-Smooth (เธรดแยก Web Worker)',
+                poseType: 'mario_fitness_worker'
+            };
+            groupedBosses.push(workerMario);
+        }
+        
         let html = '';
         groupedBosses.forEach(boss => {
             const isWb002 = String(boss.id).indexOf('WB002') === 0 || boss.poseType === 'speed_runner' || boss.poseType === 'jumping_jack';
@@ -202,7 +214,15 @@
             let badgeBg = '';
             let textGlow = '';
             
-            if (boss.id === 'WB001' || boss.poseType === 'mario_fitness') {
+            if (boss.id === 'WB001_WORKER' || boss.poseType === 'mario_fitness_worker') {
+                displayName = 'มาริโอ้ฟิตเนส Ultra-Smooth 60 FPS (Web Worker)';
+                poseLabel = '⚡ เธรดแยก Web Worker ( Ultra-Smooth )';
+                bossDesc = 'มินิเกมเวอร์ชันพิเศษส่งตรงจากแล็บ! ⚡ ประมวลผลโครงกระดูก AI แยกต่างหากบนเธรดเบื้องหลัง (Web Worker) เพื่อปลดปล่อยพลัง CPU/GPU 100% เล่นมาริโอ้แบบลื่นไหล 60 FPS ไร้อาการสะดุดและเสียงดนตรีสมบูรณ์แบบ!';
+                emoji = '⚡';
+                cardBorderColor = 'border-cyan-500/80 shadow-[0_0_20px_rgba(6,182,212,0.25)]';
+                badgeBg = 'bg-cyan-950/80 text-cyan-300 border-cyan-800/80';
+                textGlow = 'text-cyan-400';
+            } else if (boss.id === 'WB001' || boss.poseType === 'mario_fitness') {
                 displayName = 'มาริโอ้ฟิตเนสสะสมเหรียญ (Mario Fitness)';
                 poseLabel = '🍄 มาริโอ้คลาสสิก (Mario Fitness)';
                 bossDesc = 'มินิเกมออกกำลังกายสไตล์ 8-bit แสนสนุก! 🏃‍♂️ ขยับร่างกายวิ่งเพื่อพาตัวละครเคลื่อนไปข้างหน้า, 🦘 กระโดดหลบอุปสรรคและเก็บเหรียญทองเพื่อทำสถิติเวลาที่เร็วที่สุด!';
