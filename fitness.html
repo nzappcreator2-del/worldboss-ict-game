@@ -1608,8 +1608,8 @@
                             lastPoseProcessTime = now;
                             
                             try {
-                                const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
-                                if (isWb002) {
+                                const isHandsMode = String(bossId).indexOf('WB002') === 0;
+                                if (isHandsMode) {
                                     await wbHands.send({ image: wbVideoEl });
                                 } else {
                                     await wbPose.send({ image: wbVideoEl });
@@ -1625,10 +1625,10 @@
                 
                 wbCamera.start();
                 
-                const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
+                const isHandsMode = String(bossId).indexOf('WB002') === 0;
                 const statusOverlay = document.getElementById('wb-status-overlay');
                 
-                if (isWb002) {
+                if (isHandsMode) {
                     wbGameState = 'RUNNER_SELECT_TIME';
                     const modal = document.getElementById('wb-runner-time-modal');
                     if (modal) modal.classList.remove('hidden');
@@ -2308,6 +2308,81 @@
                 const rect = runnerCanvasEl.getBoundingClientRect();
                 const width = rect.width || 640;
                 const height = rect.height || 480;
+
+                // 🧠 [การประมวลผลพิกัดกล้องเว็บแคมสแกนนิ้วมือจริง]
+                if (results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const landmarks = results.multiHandLandmarks[0];
+                    const thumbTip = landmarks[4];
+                    const indexTip = landmarks[8];
+                    
+                    if (thumbTip && indexTip) {
+                        // แปลงพิกัดมือสลับขวาซ้าย (Mirroring) เพื่อให้เคลื่อนไหวเป็นธรรมชาติ
+                        const targetX = (1 - (thumbTip.x + indexTip.x) / 2) * width;
+                        const targetY = ((thumbTip.y + indexTip.y) / 2) * height;
+                        
+                        // ปรับตำแหน่งให้สมูทไม่กระตุกสั่น (Exponential Smoothing)
+                        handCursor.smoothX += (targetX - handCursor.smoothX) * 0.35;
+                        handCursor.smoothY += (targetY - handCursor.smoothY) * 0.35;
+                        
+                        // ตรวจจับท่าทางจีบนิ้ว (Pinch Gesture)
+                        const dx = thumbTip.x - indexTip.x;
+                        const dy = thumbTip.y - indexTip.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        const cameraPinching = dist < 0.055;
+                        
+                        if (cameraPinching) {
+                            if (!isPinching && aiCurrentItem) {
+                                // ตรวจระยะชนระหว่างเป้ามือและการ์ดคำถามเพื่อทำการคีบกระดาษ
+                                const cardX = aiCurrentItem.x;
+                                const cardY = aiCurrentItem.y;
+                                const cardW = aiCurrentItem.w;
+                                const cardH = aiCurrentItem.h;
+                                
+                                const boxLeft = cardX - cardW / 2;
+                                const boxRight = cardX + cardW / 2;
+                                const boxTop = cardY - cardH / 2;
+                                const boxBottom = cardY + cardH / 2;
+                                
+                                if (handCursor.smoothX >= boxLeft && handCursor.smoothX <= boxRight &&
+                                    handCursor.smoothY >= boxTop && handCursor.smoothY <= boxBottom) {
+                                    isPinching = true;
+                                    draggedItem = aiCurrentItem;
+                                    draggedItem.offsetX = handCursor.smoothX - cardX;
+                                    draggedItem.offsetY = handCursor.smoothY - cardY;
+                                    playBeep('rep');
+                                }
+                            }
+                            
+                            // ย้ายตำแหน่งการ์ดที่กำลังลากตามตำแหน่งมือกล้อง
+                            if (isPinching && draggedItem) {
+                                draggedItem.x = handCursor.smoothX - draggedItem.offsetX;
+                                draggedItem.y = handCursor.smoothY - draggedItem.offsetY;
+                                
+                                // ป้องกันการ์ดหลุดขอบเขต Canvas จริง
+                                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(width - draggedItem.w / 2, draggedItem.x));
+                                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(height - draggedItem.h / 2, draggedItem.y));
+                            }
+                        } else {
+                            // ปล่อยกระดาษการ์ดคำถามเมื่อแบมือออก
+                            if (isPinching) {
+                                isPinching = false;
+                                if (draggedItem) {
+                                    handleDropRelease();
+                                    draggedItem = null;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 🛡️ วาดสแกนมือจำลองเรืองแสง HUD ในหน้าต่างกล้องเว็บแคมมุมมองขนาดเล็ก
+                if (results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && wbCanvasCtx) {
+                    wbCanvasCtx.save();
+                    wbCanvasCtx.clearRect(0, 0, wbCanvasEl.width, wbCanvasEl.height);
+                    wbCanvasCtx.drawImage(results.image, 0, 0, wbCanvasEl.width, wbCanvasEl.height);
+                    drawGlowingHandSkeleton(wbCanvasCtx, results.multiHandLandmarks[0]);
+                    wbCanvasCtx.restore();
+                }
             
             // กำหนดความละเอียดของ Canvas ให้ตรงกับขนาด CSS * 2 เพื่อให้คมกริบ (Retina Display support)
             const scaleFactor = window.devicePixelRatio || 2;
@@ -3638,8 +3713,16 @@
                 draggedItem.x = x - draggedItem.offsetX;
                 draggedItem.y = y - draggedItem.offsetY;
                 
-                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(640 - draggedItem.w / 2, draggedItem.x));
-                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(480 - draggedItem.h / 2, draggedItem.y));
+                let canvasWidth = 640;
+                let canvasHeight = 480;
+                if (runnerCanvasEl) {
+                    const rect = runnerCanvasEl.getBoundingClientRect();
+                    canvasWidth = rect.width || 640;
+                    canvasHeight = rect.height || 480;
+                }
+                
+                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(canvasWidth - draggedItem.w / 2, draggedItem.x));
+                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(canvasHeight - draggedItem.h / 2, draggedItem.y));
                 
                 drawSafetyGameCanvas();
             }
