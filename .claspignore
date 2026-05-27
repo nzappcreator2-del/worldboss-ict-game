@@ -5,4 +5,5 @@ package-lock.json
 fitness.html
 mario-game/**
 .git/**
-
+pose-worker.js
+pose-worker-v1.js

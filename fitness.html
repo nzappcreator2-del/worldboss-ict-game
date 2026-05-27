@@ -1579,22 +1579,60 @@
                 if (isWorkerMode) {
                     console.log("⚡ [Pose Web Worker] กำลังโหลดระบบแยกเธรด Web Worker สำหรับมาริโอ้ Ultra-Smooth...");
                     if (!wbPoseWorker) {
-                        wbPoseWorker = new Worker('pose-worker.js');
-                        wbPoseWorker.postMessage({ action: 'init' });
-                        
-                        wbPoseWorker.onmessage = (event) => {
-                            const data = event.data;
-                            if (data.action === 'poseResults') {
-                                // จำลองโครงสร้างผลลัพธ์ของ MediaPipe ดั้งเดิม เพื่อให้ตัวระบบทำงานได้อย่างไม่มีสะดุด
-                                const simulatedResults = {
-                                    image: wbVideoEl,
-                                    poseLandmarks: data.poseLandmarks
-                                };
-                                onPoseResults(simulatedResults);
-                            } else if (data.action === 'error') {
-                                console.error('⚡ Worker Pose Error:', data.error);
+                        try {
+                            // โหลดจาก GitHub Pages ผ่านเทคนิค Blob URL เพื่อก้าวข้ามข้อจำกัด Same-Origin Iframe ของ Google Apps Script ฝั่งเบราว์เซอร์
+                            const workerUrl = 'https://nzappcreator2-del.github.io/worldboss-ict-game/pose-worker-v1.js';
+                            console.log("⚡ [Pose Web Worker] กำลังดึงไฟล์เธรดจาก:", workerUrl);
+                            
+                            const response = await fetch(workerUrl);
+                            if (!response.ok) {
+                                throw new Error(`Failed to fetch worker: ${response.status} ${response.statusText}`);
                             }
-                        };
+                            
+                            const workerCode = await response.text();
+                            const blob = new Blob([workerCode], { type: 'application/javascript' });
+                            const blobUrl = URL.createObjectURL(blob);
+                            
+                            wbPoseWorker = new Worker(blobUrl);
+                            wbPoseWorker.postMessage({ action: 'init' });
+                            
+                            wbPoseWorker.onmessage = (event) => {
+                                const data = event.data;
+                                if (data.action === 'poseResults') {
+                                    // จำลองโครงสร้างผลลัพธ์ของ MediaPipe ดั้งเดิม เพื่อให้ตัวระบบทำงานได้อย่างไม่มีสะดุด
+                                    const simulatedResults = {
+                                        image: wbVideoEl,
+                                        poseLandmarks: data.poseLandmarks
+                                    };
+                                    onPoseResults(simulatedResults);
+                                } else if (data.action === 'error') {
+                                    console.error('⚡ Worker Pose Error:', data.error);
+                                }
+                            };
+                            console.log("⚡ [Pose Web Worker] สร้างและเริ่มต้นเธรด Web Worker สำเร็จ!");
+                        } catch (err) {
+                            console.error("⚡ [Pose Web Worker] เกิดข้อผิดพลาดในการโหลดเธรด:", err);
+                            // Fallback ในกรณีที่ขัดข้อง: พยายามโหลดจาก Local URL ตรงๆ
+                            try {
+                                wbPoseWorker = new Worker('pose-worker-v1.js');
+                                wbPoseWorker.postMessage({ action: 'init' });
+                                wbPoseWorker.onmessage = (event) => {
+                                    const data = event.data;
+                                    if (data.action === 'poseResults') {
+                                        const simulatedResults = {
+                                            image: wbVideoEl,
+                                            poseLandmarks: data.poseLandmarks
+                                        };
+                                        onPoseResults(simulatedResults);
+                                    } else if (data.action === 'error') {
+                                        console.error('⚡ Worker Pose Error (Fallback):', data.error);
+                                    }
+                                };
+                                console.log("⚡ [Pose Web Worker] รันโหมดสำรอง (Fallback) สำเร็จ!");
+                            } catch (fallbackErr) {
+                                console.error("⚡ [Pose Web Worker] ระบบสำรองก็ล้มเหลว:", fallbackErr);
+                            }
+                        }
                     }
                 } else if (!wbPose) {
                     wbPose = new Pose({

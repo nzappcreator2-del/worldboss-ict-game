@@ -1,4 +1,4 @@
-// ⚡ pose-worker.js - เธรดแยกประมวลผลกล้อง AI (MediaPipe Pose Web Worker Thread)
+// ⚡ pose-worker-v1.js - เธรดแยกประมวลผลกล้อง AI (MediaPipe Pose Web Worker Thread)
 // ออกแบบโดยประยุกต์ใช้ ImageBitmap Transferable เพื่อความลื่นไหลแบบสุดขีด 60 FPS ปราศจากความหน่วงบนหน้าจอหลัก!
 
 importScripts('https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js');
