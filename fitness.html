@@ -3465,10 +3465,42 @@
                         }
                     }, 600);
                 }
-            } else {
-                // หากลากมาไม่ถึง หรือหลุดมือก่อนถึงโซนกล่องเป้าหมาย ให้เด้งกลับไปจุดศูนย์กลางเพื่อความยุติธรรม
-                aiCurrentItem.x = canvasWidth / 2;
-                aiCurrentItem.y = canvasHeight * 0.38;
+            }
+        }
+
+        // ฟังก์ชันสุ่มภัยความปลอดภัยไซเบอร์และตั้งพิกัดเริ่มต้น
+        function spawnNewSafetyItem() {
+            if (!AI_SAFETY_ITEMS || AI_SAFETY_ITEMS.length === 0) return;
+            const randomIndex = Math.floor(Math.random() * AI_SAFETY_ITEMS.length);
+            const template = AI_SAFETY_ITEMS[randomIndex];
+            
+            let canvasWidth = 640;
+            let canvasHeight = 480;
+            if (runnerCanvasEl) {
+                const rect = runnerCanvasEl.getBoundingClientRect();
+                canvasWidth = rect.width || 640;
+                canvasHeight = rect.height || 480;
+            }
+            
+            aiCurrentItem = {
+                text: template.text,
+                category: template.category,
+                title: template.title,
+                icon: template.icon,
+                x: canvasWidth / 2,
+                y: canvasHeight * 0.38,
+                w: 460,
+                h: 135
+            };
+            
+            draggedItem = null;
+            isPinching = false;
+        }
+
+        // ฟังก์ชันวาด Canvas เกมลากดึง
+        function drawSafetyGameCanvas() {
+            if (typeof onHandsResults === 'function') {
+                onHandsResults(null);
             }
         }
 
