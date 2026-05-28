@@ -165,6 +165,11 @@
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
         }
+
+        /* คลาสสำหรับกลับหัวกล้องเว็บแคม 180 องศา (สะท้อนทั้งแกน X และ Y) */
+        .camera-flipped {
+            transform: scaleX(-1) scaleY(-1) !important;
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between select-none">
@@ -275,8 +280,8 @@
                     <canvas id="wb-runner-canvas" class="absolute inset-0 w-full h-full bg-slate-950 hidden" width="1280" height="960"></canvas>
 
                     <!-- 🎥 หน้าจอประมวลผลกล้องเว็บแคม - ลอยตัวทับมุมขวาบนอย่างสวยงาม -->
-                    <div id="wb-webcam-section" class="absolute top-3 right-3 w-[140px] md:w-[200px] lg:w-[260px] aspect-[4/3] z-30 flex flex-col items-center">
-                        <div id="wb-camera-frame" class="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
+                    <div id="wb-webcam-section" class="absolute top-3 right-3 w-[140px] md:w-[200px] lg:w-[260px] z-30 flex flex-col items-center gap-1.5">
+                        <div id="wb-camera-frame" class="relative w-full aspect-[4/3] rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                             <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
                             <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
                             
@@ -291,6 +296,12 @@
                                 <span id="wb-countdown-text" class="font-mali text-2xl lg:text-[4rem] text-yellow-400 font-extrabold text-shadow drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] animate-ping">3</span>
                             </div>
                         </div>
+                        
+                        <!-- 🔄 ปุ่มกลับหัวกล้อง (สไตล์ Retro Neon RPG เข้ากับระบบ) -->
+                        <button id="wb-flip-cam-btn" onclick="toggleCameraFlip()"
+                                class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer">
+                            <span>🔄 กลับหัวกล้อง 180°</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1516,8 +1527,35 @@
             }
         });
 
+        // --- 🔄 ระบบกลับหัวกล้องเว็บแคมสำหรับแท็บเล็ตบางรุ่น ---
+        function toggleCameraFlip() {
+            const canvasEl = document.getElementById('wb-canvas');
+            if (!canvasEl) return;
+            
+            const isCurrentlyFlipped = canvasEl.classList.contains('camera-flipped');
+            if (isCurrentlyFlipped) {
+                canvasEl.classList.remove('camera-flipped');
+                localStorage.setItem('wb_camera_flipped', 'false');
+            } else {
+                canvasEl.classList.add('camera-flipped');
+                localStorage.setItem('wb_camera_flipped', 'true');
+            }
+        }
+
+        function initCameraFlipState() {
+            const canvasEl = document.getElementById('wb-canvas');
+            if (!canvasEl) return;
+            const isFlipped = localStorage.getItem('wb_camera_flipped') === 'true';
+            if (isFlipped) {
+                canvasEl.classList.add('camera-flipped');
+            } else {
+                canvasEl.classList.remove('camera-flipped');
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             initWebcamAndPose();
+            initCameraFlipState(); // ตั้งค่าสถานะการกลับหัวกล้องจากข้อมูลเดิมที่เคยตั้งไว้
             fetchQuizQuestions(); // ดึงคำถามควิซเมื่อเปิดด่าน!
             
             // 🛡️ ปลดล็อกเสียงข้าม iframe อัตโนมัติเมื่อมีการคลิกสัมผัสหน้าจอแรกสุดของคุณครูหรือนักเรียน
