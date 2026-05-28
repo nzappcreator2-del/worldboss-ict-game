@@ -96,17 +96,50 @@
             stomp: 'sounds/stomp.wav'
         };
 
-        // สร้าง Object เสียงระดับ Global ใน window ทันทีเพื่อเริ่มต้น Preload
-        window.music = {};
-        window.sounds = {};
+        // ฟังก์ชันสร้าง Mock/Dummy Audio Object เพื่อปิดเสียงมาริโอ้ 100% ตามความต้องการของผู้ใช้
+        function createDummyAudio() {
+          return {
+            play: function() { return Promise.resolve(); },
+            pause: function() {},
+            cloneNode: function() { return this; },
+            addEventListener: function() {},
+            removeEventListener: function() {},
+            volume: 0,
+            muted: true,
+            currentTime: 0,
+            paused: true
+          };
+        }
+
+        // สร้าง Object เสียงระดับ Global ใน window ทันทีเป็น Dummy
+        window.music = {
+          overworld: createDummyAudio(),
+          underground: createDummyAudio(),
+          clear: createDummyAudio(),
+          death: createDummyAudio()
+        };
+        window.sounds = {
+          smallJump: createDummyAudio(),
+          bigJump: createDummyAudio(),
+          breakBlock: createDummyAudio(),
+          bump: createDummyAudio(),
+          coin: createDummyAudio(),
+          fireball: createDummyAudio(),
+          flagpole: createDummyAudio(),
+          kick: createDummyAudio(),
+          pipe: createDummyAudio(),
+          itemAppear: createDummyAudio(),
+          powerup: createDummyAudio(),
+          stomp: createDummyAudio()
+        };
 
         // Setup Essential vs Lazy Assets
         const essentialImages = [...imagesToLoad];
-        const essentialMusic = ['overworld'];
-        const essentialSounds = ['smallJump', 'coin'];
+        const essentialMusic = []; // ไม่มีเสียงประกอบโหลด
+        const essentialSounds = []; // ไม่มีเสียงประกอบโหลด
 
         // Essential loading targets count
-        const totalItems = essentialImages.length + essentialMusic.length + essentialSounds.length; // 6 + 1 + 2 = 9
+        const totalItems = essentialImages.length + essentialMusic.length + essentialSounds.length; // 6 + 0 + 0 = 6
 
         let loadedItems = 0;
         let isPreloadFinished = false;
@@ -187,162 +220,21 @@
             img.src = src;
         });
 
-        // Initialize and Preload Essential Music
-        for (let key in audioMusicFiles) {
-            if (audioMusicFiles.hasOwnProperty(key)) {
-                const audio = new Audio();
-                window.music[key] = audio;
-                
-                if (essentialMusic.includes(key)) {
-                    audio.preload = "auto";
-                    const onAudioReady = () => {
-                        audio.removeEventListener('canplaythrough', onAudioReady);
-                        audio.removeEventListener('loadedmetadata', onAudioReady);
-                        onItemLoaded(audioMusicFiles[key]);
-                    };
-                    audio.addEventListener('canplaythrough', onAudioReady);
-                    audio.addEventListener('loadedmetadata', onAudioReady);
-                    audio.onerror = () => onAudioReady();
-                    audio.src = audioMusicFiles[key];
-                    audio.load();
-                } else {
-                    // Lazy load structure
-                    audio.preload = "none";
-                    audio.src = audioMusicFiles[key];
-                }
-            }
-        }
-
-        // Initialize and Preload Essential Sounds
-        for (let key in audioSoundFiles) {
-            if (audioSoundFiles.hasOwnProperty(key)) {
-                const audio = new Audio();
-                window.sounds[key] = audio;
-                
-                if (essentialSounds.includes(key)) {
-                    audio.preload = "auto";
-                    const onAudioReady = () => {
-                        audio.removeEventListener('canplaythrough', onAudioReady);
-                        audio.removeEventListener('loadedmetadata', onAudioReady);
-                        onItemLoaded(audioSoundFiles[key]);
-                    };
-                    audio.addEventListener('canplaythrough', onAudioReady);
-                    audio.addEventListener('loadedmetadata', onAudioReady);
-                    audio.onerror = () => onAudioReady();
-                    audio.src = audioSoundFiles[key];
-                    audio.load();
-                } else {
-                    // Lazy load structure
-                    audio.preload = "none";
-                    audio.src = audioSoundFiles[key];
-                }
-            }
-        }
-
-        // Lazy Loader function to fetch all remaining audio in the background safely
+        // ปิดการ Preload เสียงจริงทั้งหมด เพื่อความเร็วสูงสุดและปิดเสียง 100%
         function lazyLoadRemainingAssets() {
-            console.log("Starting lazy loading for remaining assets...");
-            
-            for (let key in audioMusicFiles) {
-                if (audioMusicFiles.hasOwnProperty(key) && !essentialMusic.includes(key)) {
-                    const audio = window.music[key];
-                    audio.preload = "auto";
-                    audio.load();
-                }
-            }
-            
-            for (let key in audioSoundFiles) {
-                if (audioSoundFiles.hasOwnProperty(key) && !essentialSounds.includes(key)) {
-                    const audio = window.sounds[key];
-                    audio.preload = "auto";
-                    audio.load();
-                }
-            }
+            // No-Op
         }
 
-        // 🎵 ระบบ Audio Unlocker อัจฉริยะ ปลดล็อกสิทธิ์เสียงของเบราว์เซอร์ 100% ในทุกไฟล์
+        // 🎵 ระบบ Audio Unlocker (ปรับเป็น No-Op เพื่อปิดการใช้สิทธิ์และตัดเสียงถาวร)
         function unlockAllAudio() {
-            if (audioUnlocked) return;
-            
-            // กระตุ้น AudioContext โกลบอล
-            try {
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                if (AudioCtx) {
-                    const dummyCtx = new AudioCtx();
-                    if (dummyCtx.state === 'suspended') {
-                        dummyCtx.resume();
-                    }
-                }
-            } catch(e) {
-                console.warn("AudioContext resume failure:", e);
-            }
-            
-            // วนลูปสั่งเล่นและหยุดสั้นๆ แบบปิดเสียงใน window.music
-            if (window.music) {
-                for (let key in window.music) {
-                    if (window.music.hasOwnProperty(key)) {
-                        const audio = window.music[key];
-                        try {
-                            const prevVol = audio.volume;
-                            audio.volume = 0;
-                            audio.play().then(() => {
-                                audio.pause();
-                                audio.volume = prevVol;
-                            }).catch(err => console.warn("Music unlock block:", err));
-                        } catch(e) {}
-                    }
-                }
-            }
-            
-            // วนลูปสั่งเล่นและหยุดสั้นๆ แบบปิดเสียงใน window.sounds
-            if (window.sounds) {
-                for (let key in window.sounds) {
-                    if (window.sounds.hasOwnProperty(key)) {
-                        const audio = window.sounds[key];
-                        try {
-                            const prevVol = audio.volume;
-                            audio.volume = 0;
-                            audio.play().then(() => {
-                                audio.pause();
-                                audio.volume = prevVol;
-                            }).catch(err => console.warn("Sound unlock block:", err));
-                        } catch(e) {}
-                    }
-                }
-            }
-            
-            // สั่งเริ่มเปิดเพลงด่านแรกอย่างคลาสสิก
-            if (window.music && window.music.overworld) {
-                try {
-                    window.music.overworld.currentTime = 0;
-                    window.music.overworld.muted = false;
-                    window.music.overworld.loop = true;
-                    
-                    const promise = window.music.overworld.play();
-                    if (promise !== undefined) {
-                        promise.then(() => {
-                            console.log("🔊 ปลดล็อกเสียงและเล่นดนตรีมาริโอ้ NES เรียบร้อยแล้ว!");
-                            audioUnlocked = true;
-                            
-                            // ถอด listeners ออก
-                            document.removeEventListener('click', unlockAllAudio);
-                            document.removeEventListener('touchstart', unlockAllAudio);
-                            document.removeEventListener('keydown', unlockAllAudio);
-                        }).catch(err => {
-                            console.warn("🔇 ปลดล็อกเสียงเบื้องต้นโดนปฏิเสธ:", err);
-                        });
-                    }
-                } catch(e) {
-                    console.error("Error starting main theme:", e);
-                }
-            }
+            audioUnlocked = true;
         }
         window.unlockAllAudio = unlockAllAudio;
 
-        // ลงทะเบียนรับสิทธิ์ Interaction ต่างๆ ช่วยผู้เล่นปลดล็อกในจังหวะเริ่ม
-        document.addEventListener('click', unlockAllAudio);
-        document.addEventListener('touchstart', unlockAllAudio);
-        document.addEventListener('keydown', unlockAllAudio);
+        // ปิดการลงทะเบียนรับสิทธิ์ Interaction ต่างๆ ช่วยผู้เล่นปลดล็อกในจังหวะเริ่ม
+        // document.addEventListener('click', unlockAllAudio);
+        // document.addEventListener('touchstart', unlockAllAudio);
+        // document.addEventListener('keydown', unlockAllAudio);
 
         // 🔮 ฟังก์ชันเรียกเมื่อภาพและทรัพยากรโหลดเสร็จสิ้น (รักษาโครงสร้างสะพานเชื่อม API สำหรับ game.js)
         window.onMarioAssetsReady = function() {
