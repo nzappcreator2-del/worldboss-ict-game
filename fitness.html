@@ -1618,7 +1618,7 @@
                         
                         wbHands.setOptions({
                             maxNumHands: 1,
-                            modelComplexity: 1,
+                            modelComplexity: 0, // ⚡ สลับใช้ Lite Model (0) เพื่อกู้ชีพแท็บเล็ตและประหยัด CPU/GPU เบื้องหลังลงสูงสุด
                             minDetectionConfidence: 0.78, // เพิ่มความมั่นใจขั้นต่ำเพื่อให้คัดแยกมือจริงจากสิ่งแวดล้อมอย่างเข้มงวด ป้องกันอาการ Ghost Hands
                             minTrackingConfidence: 0.75  // เพิ่มค่าล็อกเป้าเพื่อรักษาความเสถียรในการติดตามพิกัดมือ
                         });
@@ -1653,6 +1653,8 @@
                             let throttleLimit = 33.3; // ความเร็วมาตรฐานสำหรับโหมดทั่วไป
                             if (bossId === 'WB001') {
                                 throttleLimit = 66.6; // ~15 FPS เพื่อประสิทธิภาพและความลื่นไหลสูงสุดในด่านมาริโอ้
+                            } else if (String(bossId).indexOf('WB002') === 0) {
+                                throttleLimit = 55.5; // ⚡ ~18 FPS เพื่อความเสถียรและลดภาระ CPU ในด่านปราบภัย AI
                             }
                             
                             // ในช่วง 4 วินาทีแรกของการอุ่นเครื่อง AI เพื่อเปิดทางให้ Emulator โหลดเพลงและจัดระเบียบเธรด
@@ -1666,7 +1668,16 @@
                             try {
                                 const isHandsMode = String(bossId).indexOf('WB002') === 0;
                                 if (isHandsMode) {
-                                    await wbHands.send({ image: wbVideoEl });
+                                    // 🌟 นวัตกรรมย่อพิกเซลเว็บแคมเหลือ 240x180 เพื่อรักษาสมดุลความแม่นยำในการจีบนิ้ว และให้ CPU ทำงานสบายปรี๊ด!
+                                    if (!offscreenCanvas) {
+                                        offscreenCanvas = document.createElement('canvas');
+                                        offscreenCanvas.width = 240;
+                                        offscreenCanvas.height = 180;
+                                        offscreenCtx = offscreenCanvas.getContext('2d');
+                                    }
+                                    
+                                    offscreenCtx.drawImage(wbVideoEl, 0, 0, 240, 180);
+                                    await wbHands.send({ image: offscreenCanvas });
                                 } else {
                                     // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมระดับอัจฉริยะ (ย่อขนาดเหลือ 160x120 เพื่อความนิ่งเป็นพิเศษและเบาสบายเธรดหลักที่สุด!)
                                     if (!offscreenCanvas) {
