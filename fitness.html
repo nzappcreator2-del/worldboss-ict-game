@@ -4110,8 +4110,9 @@
                 }
             }, 30);
 
-            // 📈 ระบบเร่งความยากตามเวลา (เฉพาะบอสอื่น ไม่รวมบอสยอดนักลากวาง AI Safety)
-            if (!isWb002) {
+            // 📈 ระบบเร่งความยากตามเวลา (เฉพาะบอสอื่น ไม่รวมบอสยอดนักลากวาง AI Safety และไม่รวมมาริโอ้)
+            const isWb001 = bossId === 'WB001';
+            if (!isWb002 && !isWb001) {
                 if (wbSpeedScaleInterval) clearInterval(wbSpeedScaleInterval);
                 wbSpeedScaleInterval = setInterval(() => {
                     if (wbGameState === 'BATTLE') {
