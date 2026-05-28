@@ -73,6 +73,9 @@ var music;
 
 //initialize
 var lastTime;
+var accumulator = 0.0;
+var fixed_dt = 1.0 / 60.0; // Fixed Time Step ที่ 60Hz (~0.01667 วินาที)
+
 function init() {
   // นำออบเจกต์เสียงที่พรีโหลดและปลดล็อกเสร็จแล้วมาใช้งานเพื่อป้องกันกระตุกและไม่ทำให้เสียงเงียบ
   if (window.music) {
@@ -109,6 +112,7 @@ function init() {
   
   Mario.oneone();
   lastTime = Date.now();
+  accumulator = 0.0; // รีเซ็ตสะสมเวลา
   main();
 }
 
@@ -119,17 +123,23 @@ function main() {
   var now = Date.now();
   var dt = (now - lastTime) / 1000.0;
   
-  // 🛡️ ป้องกันอาการเคลื่อนไหวกระตุกสโลว์หรือสั่นกระชากทะลุแมพ (Physics Delta Time Capping)
-  // หากเบราว์เซอร์กระตุกจาก AI คลุมภาพ เราจะจำกัดความห่างเวลาไม่เกิน 0.05 วินาที (~20 FPS)
-  // เพื่อให้ระบบฟิสิกส์มาริโอ้ยังคงเคลื่อนไหวได้อย่างมั่นคง นุ่มนวล และไม่วาปทะลุกำแพง
-  if (dt > 0.05) {
-    dt = 0.05;
+  // 🛡️ ป้องกันปัญหา Spiral of Death และอาการเครื่องค้างชั่วขณะ (แคปเดลต้าไทม์สูงสุดที่ 0.15s)
+  if (dt > 0.15) {
+    dt = 0.15;
   }
 
-  update(dt);
+  lastTime = now;
+  accumulator += dt;
+
+  // รันระบบฟิสิกส์และการเคลื่อนไหวให้ตรงกับเวลาจริงตาม Fixed Step 60Hz
+  while (accumulator >= fixed_dt) {
+    update(fixed_dt);
+    accumulator -= fixed_dt;
+  }
+
+  // วาดเรนเดอร์ Canvas เพียง 1 ครั้งต่อเฟรมเพื่อประหยัดพลังงานการวาดหน้าจอสูงสุด!
   render();
 
-  lastTime = now;
   requestAnimFrame(main);
 }
 
