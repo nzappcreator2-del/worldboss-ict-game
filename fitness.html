@@ -1557,68 +1557,11 @@
             initWebcamAndPose();
             initCameraFlipState(); // ตั้งค่าสถานะการกลับหัวกล้องจากข้อมูลเดิมที่เคยตั้งไว้
             fetchQuizQuestions(); // ดึงคำถามควิซเมื่อเปิดด่าน!
-            
-            // 🛡️ ปลดล็อกเสียงข้าม iframe อัตโนมัติเมื่อมีการคลิกสัมผัสหน้าจอแรกสุดของคุณครูหรือนักเรียน
-            window.addEventListener('click', unlockAudio);
-            window.addEventListener('touchstart', unlockAudio);
         });
 
         // 🔊 ฟังก์ชันสะพานเชื่อมปลดล็อกสิทธิ์เสียงของเบราว์เซอร์ข้ามไปยังหน้า Emulator มาริโอ้
         function unlockRealMarioAudio() {
-            if (isRealMarioAudioUnlocked) return;
-            const iframe = document.getElementById('mario-iframe');
-            if (iframe && iframe.contentWindow) {
-                const iframeWin = iframe.contentWindow;
-                try {
-                    // ตรวจสอบและปลดล็อกเสียงข้าม iframe เมื่อดนตรีหรือระบบใน iframe พร้อมแล้ว
-                    if (iframeWin.isMarioReady || (iframeWin.music && iframeWin.music.overworld)) {
-                        // 1. เรียกฟังก์ชันการเล่นเสียงอย่างเป็นทางการของ iframe โดยตรงเพื่อเริ่มเพลง
-                        if (typeof iframeWin.unlockAllAudio === 'function') {
-                            iframeWin.unlockAllAudio();
-                        }
-                        
-                        // 2. ปลดล็อก BGM และเสียงประกอบสำรอง (Fallback audio unlock)
-                        const audios = [
-                            iframeWin.music.overworld, iframeWin.music.underground,
-                            iframeWin.music.clear, iframeWin.music.death
-                        ];
-                        audios.forEach(aud => {
-                            if (aud) {
-                                const p = aud.play();
-                                if (p instanceof Promise) {
-                                    p.then(() => aud.pause()).catch(() => {});
-                                } else {
-                                    aud.pause();
-                                }
-                            }
-                        });
-                        
-                        // ปลดล็อกเสียงเอฟเฟกต์
-                        if (iframeWin.sounds) {
-                            Object.keys(iframeWin.sounds).forEach(key => {
-                                const aud = iframeWin.sounds[key];
-                                if (aud) {
-                                    const p = aud.play();
-                                    if (p instanceof Promise) {
-                                        p.then(() => aud.pause()).catch(() => {});
-                                    } else {
-                                        aud.pause();
-                                    }
-                                }
-                            });
-                        }
-                        
-                        console.log("🔊 [Audio Bridge] ปลดล็อกเสียง Emulator มาริโอ้ NES ข้ามแดนสำเร็จ!");
-                        isRealMarioAudioUnlocked = true;
-                        
-                        // เพื่อความเหนียวแน่นสูงสุด: เราจะไม่ถอด Event Listener ปลดล็อกเสียงออก เพื่อให้คลิกต่อๆ ไปคอยช่วยปลุกเสียงได้
-                        // window.removeEventListener('click', unlockAudio);
-                        // window.removeEventListener('touchstart', unlockAudio);
-                    }
-                } catch(e) {
-                    console.error("Audio unlock fail:", e);
-                }
-            }
+            // ปิดระบบปลดล็อกเสียงดนตรีประกอบมาริโอ้ NES อย่างถาวร
         }
 
         async function initWebcamAndPose() {

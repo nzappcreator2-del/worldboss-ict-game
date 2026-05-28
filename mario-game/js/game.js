@@ -76,39 +76,47 @@ var lastTime;
 var accumulator = 0.0;
 var fixed_dt = 1.0 / 60.0; // Fixed Time Step ที่ 60Hz (~0.01667 วินาที)
 
-function init() {
-  // นำออบเจกต์เสียงที่พรีโหลดและปลดล็อกเสร็จแล้วมาใช้งานเพื่อป้องกันกระตุกและไม่ทำให้เสียงเงียบ
-  if (window.music) {
-    music = window.music;
-  } else {
-    music = {
-      overworld: new Audio('sounds/aboveground_bgm.ogg'),
-      underground: new Audio('sounds/underground_bgm.ogg'),
-      clear: new Audio('sounds/stage_clear.wav'),
-      death: new Audio('sounds/mariodie.wav')
-    };
-    window.music = music;
-  }
+// ฟังก์ชันสร้าง Mock/Dummy Audio Object เพื่อปิดเสียงมาริโอ้ 100% ตามความต้องการของผู้ใช้
+function createDummyAudio() {
+  return {
+    play: function() { return Promise.resolve(); },
+    pause: function() {},
+    cloneNode: function() { return this; },
+    addEventListener: function() {},
+    removeEventListener: function() {},
+    volume: 0,
+    muted: true,
+    currentTime: 0,
+    paused: true
+  };
+}
 
-  if (window.sounds) {
-    sounds = window.sounds;
-  } else {
-    sounds = {
-      smallJump: new Audio('sounds/jump-small.wav'),
-      bigJump: new Audio('sounds/jump-super.wav'),
-      breakBlock: new Audio('sounds/breakblock.wav'),
-      bump: new Audio('sounds/bump.wav'),
-      coin: new Audio('sounds/coin.wav'),
-      fireball: new Audio('sounds/fireball.wav'),
-      flagpole: new Audio('sounds/flagpole.wav'),
-      kick: new Audio('sounds/kick.wav'),
-      pipe: new Audio('sounds/pipe.wav'),
-      itemAppear: new Audio('sounds/itemAppear.wav'),
-      powerup: new Audio('sounds/powerup.wav'),
-      stomp: new Audio('sounds/stomp.wav')
-    };
-    window.sounds = sounds;
-  }
+function init() {
+  // สร้าง Dummy Audio เพื่อปิดเสียงดนตรีประกอบทั้งหมดอย่างสะอาดสะอ้าน
+  music = {
+    overworld: createDummyAudio(),
+    underground: createDummyAudio(),
+    clear: createDummyAudio(),
+    death: createDummyAudio()
+  };
+  window.music = music;
+
+  // สร้าง Dummy Audio เพื่อปิดเสียงเอฟเฟกต์ทั้งหมดในเกม
+  sounds = {
+    smallJump: createDummyAudio(),
+    bigJump: createDummyAudio(),
+    breakBlock: createDummyAudio(),
+    bump: createDummyAudio(),
+    coin: createDummyAudio(),
+    fireball: createDummyAudio(),
+    flagpole: createDummyAudio(),
+    kick: createDummyAudio(),
+    pipe: createDummyAudio(),
+    itemAppear: createDummyAudio(),
+    powerup: createDummyAudio(),
+    stomp: createDummyAudio()
+  };
+  window.sounds = sounds;
   
   Mario.oneone();
   lastTime = Date.now();
