@@ -308,12 +308,6 @@
                                 class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-amber-500/50 hover:border-amber-400 text-amber-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer mt-1">
                             <span>🔄 กลับทิศทาง AI [ปิด]</span>
                         </button>
-                        
-                        <!-- 🎮 ปุ่มสลับโหมดควบคุมสัมผัส/กล้อง AI (ช่วยเครื่องแท็บเล็ตเด็กนักเรียนลื่นปรี๊ด 100%) -->
-                        <button id="wb-control-mode-btn" onclick="toggleControlMode()"
-                                class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-violet-500/50 hover:border-violet-400 text-violet-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer mt-1">
-                            <span>📷 โหมดกล้อง AI [เปิด]</span>
-                        </button>
                     </div>
                 </div>
 
@@ -1188,7 +1182,6 @@
         wbSafetyBgImg.src = "https://i.postimg.cc/dVm5LhQx/Gemini-Generated-Image-p9omm7p9omm7p9om.png";
         
         let wbAiHandFlip = localStorage.getItem('wb_ai_hand_flip') === 'true';
-        let wbUseCameraAi = localStorage.getItem('wb_use_camera_ai') !== 'false'; // โหมดควบคุมด้วยกล้อง AI (เริ่มต้นเป็น true)
         
         let wbStream = null;
 
@@ -1600,44 +1593,6 @@
             }
         }
 
-        // --- 🎮 ฟังก์ชันสลับโหมดควบคุม ระหว่างใช้กล้อง AI และทัชสกรีน/เมาส์ 100% เพื่อกู้ชีพเครื่องแท็บเล็ตเด็ก ---
-        function toggleControlMode() {
-            wbUseCameraAi = !wbUseCameraAi;
-            localStorage.setItem('wb_use_camera_ai', wbUseCameraAi);
-            updateControlModeUI();
-            playBeep('coin');
-            
-            // สั่งเริ่ม/ปิดระบบกล้องใหม่ทันที
-            initWebcamAndPose();
-        }
-
-        function updateControlModeUI() {
-            const btn = document.getElementById('wb-control-mode-btn');
-            if (btn) {
-                if (wbUseCameraAi) {
-                    btn.classList.remove('border-rose-500', 'bg-rose-950/80', 'text-rose-300');
-                    btn.classList.add('border-violet-500/50', 'text-violet-300');
-                    btn.innerHTML = `<span>📷 โหมดกล้อง AI [เปิด]</span>`;
-                    
-                    // แสดงปุ่มตั้งค่ากล้องย่อยเมื่อเปิดกล้อง
-                    const flipCamBtn = document.getElementById('wb-flip-cam-btn');
-                    if (flipCamBtn) flipCamBtn.classList.remove('hidden');
-                    const flipAiBtn = document.getElementById('wb-flip-ai-btn');
-                    if (flipAiBtn) flipAiBtn.classList.remove('hidden');
-                } else {
-                    btn.classList.remove('border-violet-500/50', 'text-violet-300');
-                    btn.classList.add('border-rose-500', 'bg-rose-950/80', 'text-rose-300');
-                    btn.innerHTML = `<span>🎮 โหมดทัช/เมาส์ 100%</span>`;
-                    
-                    // ซ่อนปุ่มตั้งค่ากล้องย่อยที่ไม่จำเป็นเมื่อปิดกล้อง
-                    const flipCamBtn = document.getElementById('wb-flip-cam-btn');
-                    if (flipCamBtn) flipCamBtn.classList.add('hidden');
-                    const flipAiBtn = document.getElementById('wb-flip-ai-btn');
-                    if (flipAiBtn) flipAiBtn.classList.add('hidden');
-                }
-            }
-        }
-
         function initCameraFlipState() {
             const canvasEl = document.getElementById('wb-canvas');
             if (!canvasEl) return;
@@ -1648,9 +1603,8 @@
                 canvasEl.classList.remove('camera-flipped');
             }
             
-            // เรียกตั้งค่าสถานะและสไตล์ปุ่มสลับทิศทาง AI และปุ่มควบคุมครั้งแรกตามค่าใน localStorage
+            // เรียกตั้งค่าสถานะและสไตล์ปุ่มสลับทิศทาง AI ตามค่าใน localStorage
             updateAiFlipButtonUI();
-            updateControlModeUI();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -1667,29 +1621,6 @@
         async function initWebcamAndPose() {
             try {
                 const isHandsMode = String(bossId).indexOf('WB002') === 0;
-                
-                // ⚡ [Control Mode Switch] หากเลือกใช้โหมดสัมผัส/เมาส์ 100% (ปิดกล้อง AI) เพื่อกู้ชีพแท็บเล็ตเด็กนักเรียนสเปกต่ำ
-                if (!wbUseCameraAi && isHandsMode) {
-                    console.log("🎮 [Control Mode] โหมดสัมผัส/เมาส์ 100% ไร้กล้อง AI เพื่อประสิทธิภาพและความเร็วขีดสุด!");
-                    
-                    // สั่งปิดการสตรีมกล้องที่อาจค้างคาอยู่
-                    stopCamera();
-                    
-                    // ซ่อนกรอบเว็บแคมและปิดหน้าจอโหลด AI
-                    const camContainer = document.getElementById('wb-webcam-section');
-                    if (camContainer) camContainer.classList.add('hidden');
-                    
-                    const statusOverlay = document.getElementById('wb-status-overlay');
-                    if (statusOverlay) statusOverlay.classList.add('hidden');
-                    
-                    // นำทางเข้าสู่หน้าต่างเลือกเวลาเล่นเกมทันที
-                    wbGameState = 'RUNNER_SELECT_TIME';
-                    const modal = document.getElementById('wb-runner-time-modal');
-                    if (modal) modal.classList.remove('hidden');
-                    
-                    updateControlModeUI();
-                    return;
-                }
                 
                 // หากเปิดกล้อง AI หรือเป็นโหมดมาริโอ้
                 const camContainer = document.getElementById('wb-webcam-section');
@@ -2562,9 +2493,7 @@
                     const indexTip = landmarks[8];
                     
                     // 🛡️ หากผู้เล่นกำลังใช้เมาส์/ทัชลากการ์ดอยู่ ให้ล็อกไม่ยอมให้ AI มือมาแทรกแซงแย่งชิงตำแหน่งเคอร์เซอร์และการคีบปล่อยการ์ด
-                    const isUserDraggingWithMouse = isMouseDragging;
-                    
-                    if (thumbTip && indexTip && !isUserDraggingWithMouse) {
+                    if (thumbTip && indexTip) {
                         // ⚡ คำนวณพิกัดปกติหรือสลับทิศทาง (ปุ่มเดียวกลับทิศทาง AI ทั้งแนวนอนและแนวดิ่งตามความต้องการของครู)
                         const handXNorm = (thumbTip.x + indexTip.x) / 2;
                         const handYNorm = (thumbTip.y + indexTip.y) / 2;
@@ -3677,118 +3606,7 @@
             }
         }
 
-        // กำหนดระบบประมวลผลเมาส์ / ทัชสกรีนในการลากวางวัตถุ (Dual-Input)
-        let isMouseDragging = false;
-        
-        function initSafetyGameControls() {
-            const canvas = document.getElementById('wb-runner-canvas');
-            if (!canvas) return;
-            
-            canvas.addEventListener('selectstart', (e) => e.preventDefault());
-            
-            // Mouse controls
-            canvas.addEventListener('mousedown', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                // แปลงพิกเซลจริงบนจอภาพ ให้เข้ากับพิกัดระบบเรนเดอร์ Logical 640x480 เสมอ
-                const mouseX = ((e.clientX - rect.left) / (rect.width || 640)) * 640;
-                const mouseY = ((e.clientY - rect.top) / (rect.height || 480)) * 480;
-                handleDragStart(mouseX, mouseY);
-            });
-            
-            canvas.addEventListener('mousemove', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = ((e.clientX - rect.left) / (rect.width || 640)) * 640;
-                const mouseY = ((e.clientY - rect.top) / (rect.height || 480)) * 480;
-                handleDragMove(mouseX, mouseY);
-            });
-            
-            canvas.addEventListener('mouseup', () => handleDragEnd());
-            canvas.addEventListener('mouseleave', () => handleDragEnd());
-            
-            // Touch controls (สำหรับแท็บเล็ตและอุปกรณ์จอสัมผัสของนักเรียน - บังคับ passive: false เพื่อให้ป้องกันการเลื่อนเพจได้ 100%)
-            canvas.addEventListener('touchstart', (e) => {
-                if (e.touches.length > 0) {
-                    const rect = canvas.getBoundingClientRect();
-                    const touch = e.touches[0];
-                    const touchX = ((touch.clientX - rect.left) / (rect.width || 640)) * 640;
-                    const touchY = ((touch.clientY - rect.top) / (rect.height || 480)) * 480;
-                    handleDragStart(touchX, touchY);
-                    
-                    if (e.cancelable) e.preventDefault(); // ป้องกันเพจเลื่อนหรือซูมทันทีตั้งแต่แตะนิ้ว
-                }
-            }, { passive: false });
-            
-            canvas.addEventListener('touchmove', (e) => {
-                if (e.touches.length > 0 && isMouseDragging) {
-                    const rect = canvas.getBoundingClientRect();
-                    const touch = e.touches[0];
-                    const touchX = ((touch.clientX - rect.left) / (rect.width || 640)) * 640;
-                    const touchY = ((touch.clientY - rect.top) / (rect.height || 480)) * 480;
-                    handleDragMove(touchX, touchY);
-                    
-                    if (e.cancelable) e.preventDefault(); // ป้องกันเพจเลื่อนขณะกำลังลากการ์ด
-                }
-            }, { passive: false });
-            
-            canvas.addEventListener('touchend', () => handleDragEnd(), { passive: true });
-            canvas.addEventListener('touchcancel', () => handleDragEnd(), { passive: true });
-        }
-        
-        function handleDragStart(x, y) {
-            if (wbGameState !== 'BATTLE' || !aiCurrentItem) return;
-            
-            const item = aiCurrentItem;
-            const boxLeft = item.x - item.w / 2;
-            const boxRight = item.x + item.w / 2;
-            const boxTop = item.y - item.h / 2;
-            const boxBottom = item.y + item.h / 2;
-            
-            if (x >= boxLeft && x <= boxRight && y >= boxTop && y <= boxBottom) {
-                isMouseDragging = true;
-                draggedItem = item;
-                draggedItem.offsetX = x - item.x;
-                draggedItem.offsetY = y - item.y;
-                
-                isPinching = true;
-                handCursor.smoothX = x;
-                handCursor.smoothY = y;
-                
-                playBeep('rep');
-            }
-        }
-        
-        function handleDragMove(x, y) {
-            if (wbGameState !== 'BATTLE') return;
-            
-            handCursor.smoothX = x;
-            handCursor.smoothY = y;
-            
-            if (isMouseDragging && draggedItem) {
-                draggedItem.x = x - draggedItem.offsetX;
-                draggedItem.y = y - draggedItem.offsetY;
-                
-                // กำหนดขอบเขตความกว้างและสูงแบบระบบวาดคงที่ 640x480 เสมอ เพื่อความแม่นยำในการ Clamp ทุกหน้าจอจริง
-                const logicalWidth = 640;
-                const logicalHeight = 480;
-                
-                draggedItem.x = Math.max(80, Math.min(logicalWidth - 80, draggedItem.x));
-                draggedItem.y = Math.max(50, Math.min(logicalHeight - 50, draggedItem.y));
-                
-                drawSafetyGameCanvas();
-            }
-        }
-        
-        function handleDragEnd() {
-            if (isMouseDragging) {
-                isMouseDragging = false;
-                isPinching = false;
-                if (draggedItem) {
-                    handleDropRelease();
-                    draggedItem = null;
-                }
-                drawSafetyGameCanvas();
-            }
-        }
+        // (ระบบลากวางผ่านทัชสกรีนถูกยกเลิกแล้วเพื่อประสิทธิภาพสูงสุดและความเสถียร 100% ไร้บั๊กในชั้นเรียน)
 
         // 5) สลับเข้าสู่นับเวลา 3 2 1
         function startCountdownPhase() {
@@ -4424,9 +4242,6 @@
             if (modal) {
                 modal.classList.add('hidden');
             }
-            
-            // สตาร์ทระบบควบคุมการลากวางคู่ขนาน (Dual-Input) เมาส์/ทัชสกรีน
-            initSafetyGameControls();
             
             // แสดงเว็บแคมขวาบนในโหมดบอส 2 (AI Safety) เพื่อให้นักเรียนตรวจสอบพิกัดมือของตนเอง
             const webcamSection = document.getElementById('wb-webcam-section');
