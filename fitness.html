@@ -3705,7 +3705,7 @@
             canvas.addEventListener('mouseup', () => handleDragEnd());
             canvas.addEventListener('mouseleave', () => handleDragEnd());
             
-            // Touch controls (สำหรับแท็บเล็ตและอุปกรณ์จอสัมผัสของนักเรียน)
+            // Touch controls (สำหรับแท็บเล็ตและอุปกรณ์จอสัมผัสของนักเรียน - บังคับ passive: false เพื่อให้ป้องกันการเลื่อนเพจได้ 100%)
             canvas.addEventListener('touchstart', (e) => {
                 if (e.touches.length > 0) {
                     const rect = canvas.getBoundingClientRect();
@@ -3713,8 +3713,10 @@
                     const touchX = ((touch.clientX - rect.left) / (rect.width || 640)) * 640;
                     const touchY = ((touch.clientY - rect.top) / (rect.height || 480)) * 480;
                     handleDragStart(touchX, touchY);
+                    
+                    if (e.cancelable) e.preventDefault(); // ป้องกันเพจเลื่อนหรือซูมทันทีตั้งแต่แตะนิ้ว
                 }
-            }, { passive: true });
+            }, { passive: false });
             
             canvas.addEventListener('touchmove', (e) => {
                 if (e.touches.length > 0 && isMouseDragging) {
@@ -3724,11 +3726,12 @@
                     const touchY = ((touch.clientY - rect.top) / (rect.height || 480)) * 480;
                     handleDragMove(touchX, touchY);
                     
-                    if (e.cancelable) e.preventDefault();
+                    if (e.cancelable) e.preventDefault(); // ป้องกันเพจเลื่อนขณะกำลังลากการ์ด
                 }
             }, { passive: false });
             
             canvas.addEventListener('touchend', () => handleDragEnd(), { passive: true });
+            canvas.addEventListener('touchcancel', () => handleDragEnd(), { passive: true });
         }
         
         function handleDragStart(x, y) {
