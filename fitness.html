@@ -1001,17 +1001,17 @@
                 gameFrame.style.boxShadow = 'none';
             }
             
-            // ปรับตำแหน่งเว็บแคมและทำการซ่อนเพื่อขยายวิสัยทัศน์ 100% ในเกมลากวาง AI Safety
+            // ปรับตำแหน่งเว็บแคมและคงค่าลอยตัวดั้งเดิมขวาบนเพื่อให้มองเห็นแนวสายตาในเกมลากวาง AI Safety
             if (webcamSection) {
-                webcamSection.style.position = 'relative';
-                webcamSection.style.top = 'auto';
-                webcamSection.style.right = 'auto';
-                webcamSection.style.width = window.innerWidth >= 1024 ? '240px' : '150px';
-                webcamSection.style.height = 'auto';
-                webcamSection.style.aspectRatio = '4/3';
-                webcamSection.style.zIndex = '30';
-                webcamSection.style.flexShrink = '0';
-                webcamSection.classList.add('hidden'); // ซ่อนเว็บแคม
+                webcamSection.style.position = '';
+                webcamSection.style.top = '';
+                webcamSection.style.right = '';
+                webcamSection.style.width = '';
+                webcamSection.style.height = '';
+                webcamSection.style.aspectRatio = '';
+                webcamSection.style.zIndex = '';
+                webcamSection.style.flexShrink = '';
+                webcamSection.classList.remove('hidden'); // แสดงเว็บแคมเพื่อให้เช็คแนวปัดมือได้
             }
             if (cameraFrame) {
                 cameraFrame.style.width = '100%';
@@ -1150,6 +1150,21 @@
         
         const runnerCanvasEl = document.getElementById('wb-runner-canvas');
         const runnerCanvasCtx = runnerCanvasEl ? runnerCanvasEl.getContext('2d') : null;
+        
+        // ⚡ ป้องกันการใช้ shadowBlur เพื่อเพิ่มประสิทธิภาพ 60 FPS ป้องกันอาการกระตุกค้างบนแท็บเล็ตและอุปกรณ์สเปคต่ำ
+        if (wbCanvasCtx) {
+            Object.defineProperty(wbCanvasCtx, 'shadowBlur', {
+                get: function() { return 0; },
+                set: function(val) { /* bypass */ }
+            });
+        }
+        if (runnerCanvasCtx) {
+            Object.defineProperty(runnerCanvasCtx, 'shadowBlur', {
+                get: function() { return 0; },
+                set: function(val) { /* bypass */ }
+            });
+        }
+        
         if (runnerCanvasEl) {
             runnerCanvasEl.width = 1280;
             runnerCanvasEl.height = 960;
@@ -2477,9 +2492,9 @@
                                 draggedItem.x = handCursor.smoothX - draggedItem.offsetX;
                                 draggedItem.y = handCursor.smoothY - draggedItem.offsetY;
                                 
-                                // ป้องกันการ์ดหลุดขอบเขต Canvas จริง
-                                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(width - draggedItem.w / 2, draggedItem.x));
-                                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(height - draggedItem.h / 2, draggedItem.y));
+                                // ปรับเปลี่ยนขอบเขต Clamping ให้ยืดหยุ่นขึ้น เพื่อแก้ปัญหาการลากการ์ดติดขัดขอบขวาและฝั่งกล่องแดง
+                                draggedItem.x = Math.max(80, Math.min(width - 80, draggedItem.x));
+                                draggedItem.y = Math.max(50, Math.min(height - 50, draggedItem.y));
                             }
                         } else {
                             // ปล่อยกระดาษการ์ดคำถามเมื่อแบมือออก
@@ -3898,8 +3913,9 @@
                     canvasHeight = rect.height || 480;
                 }
                 
-                draggedItem.x = Math.max(draggedItem.w / 2, Math.min(canvasWidth - draggedItem.w / 2, draggedItem.x));
-                draggedItem.y = Math.max(draggedItem.h / 2, Math.min(canvasHeight - draggedItem.h / 2, draggedItem.y));
+                // ปรับเปลี่ยนขอบเขต Clamping ให้ยืดหยุ่นขึ้น เพื่อแก้ปัญหาการลากการ์ดติดขัดขอบขวาและฝั่งกล่องแดง
+                draggedItem.x = Math.max(80, Math.min(canvasWidth - 80, draggedItem.x));
+                draggedItem.y = Math.max(50, Math.min(canvasHeight - 50, draggedItem.y));
                 
                 drawSafetyGameCanvas();
             }
@@ -4470,14 +4486,10 @@
             const elBestBadge = document.getElementById('wb-victory-best-badge');
             if (elBestBadge) elBestBadge.classList.add('hidden');
             
-            // ตั้งค่าซ่อน/แสดงเว็บแคมตามบอสที่เล่นป้องกันกล้องบังจอใน AI Safety
+            // แสดงเว็บแคมเพื่อให้เด็กๆ เห็นขอบเขตกล้องและพิกัดการลากวางในการทดสอบ
             const webcamSection = document.getElementById('wb-webcam-section');
             if (webcamSection) {
-                if (bossId.indexOf('WB002') === 0) {
-                    webcamSection.classList.add('hidden');
-                } else {
-                    webcamSection.classList.remove('hidden');
-                }
+                webcamSection.classList.remove('hidden');
             }
             
             toggleAISafetyHeader(bossId.indexOf('WB002') === 0); // บังคับสลับสไตล์ Header เมื่อกดเล่นใหม่อีกครั้ง
@@ -4556,10 +4568,10 @@
             // สตาร์ทระบบควบคุมการลากวางคู่ขนาน (Dual-Input) เมาส์/ทัชสกรีน
             initSafetyGameControls();
             
-            // ซ่อนเว็บแคมขวาบนในโหมดบอส 2 (AI Safety) เพื่อขยายพื้นที่ทัศนวิสัยและการลากวาง
+            // แสดงเว็บแคมขวาบนในโหมดบอส 2 (AI Safety) เพื่อให้นักเรียนตรวจสอบพิกัดมือของตนเอง
             const webcamSection = document.getElementById('wb-webcam-section');
             if (webcamSection) {
-                webcamSection.classList.add('hidden');
+                webcamSection.classList.remove('hidden');
             }
             
             // ข้ามเฟส Calibrate แล้วเข้าสู่เฟสนับถอยหลัง 3 2 1 ทันที เพื่อเริ่มเกมลากวางอย่างรวดเร็ว
