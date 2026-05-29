@@ -308,6 +308,12 @@
                                 class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-amber-500/50 hover:border-amber-400 text-amber-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer mt-1">
                             <span>🔄 กลับทิศทาง AI [ปิด]</span>
                         </button>
+                        
+                        <!-- 🎮 ปุ่มสลับโหมดควบคุมสัมผัส/กล้อง AI (ช่วยเครื่องแท็บเล็ตเด็กนักเรียนลื่นปรี๊ด 100%) -->
+                        <button id="wb-control-mode-btn" onclick="toggleControlMode()"
+                                class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-violet-500/50 hover:border-violet-400 text-violet-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer mt-1">
+                            <span>📷 โหมดกล้อง AI [เปิด]</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1181,6 +1187,7 @@
         wbSafetyBgImg.src = "https://i.postimg.cc/dVm5LhQx/Gemini-Generated-Image-p9omm7p9omm7p9om.png";
         
         let wbAiHandFlip = localStorage.getItem('wb_ai_hand_flip') === 'true';
+        let wbUseCameraAi = localStorage.getItem('wb_use_camera_ai') !== 'false'; // โหมดควบคุมด้วยกล้อง AI (เริ่มต้นเป็น true)
         
         let wbStream = null;
 
@@ -1592,6 +1599,44 @@
             }
         }
 
+        // --- 🎮 ฟังก์ชันสลับโหมดควบคุม ระหว่างใช้กล้อง AI และทัชสกรีน/เมาส์ 100% เพื่อกู้ชีพเครื่องแท็บเล็ตเด็ก ---
+        function toggleControlMode() {
+            wbUseCameraAi = !wbUseCameraAi;
+            localStorage.setItem('wb_use_camera_ai', wbUseCameraAi);
+            updateControlModeUI();
+            playBeep('coin');
+            
+            // สั่งเริ่ม/ปิดระบบกล้องใหม่ทันที
+            initWebcamAndPose();
+        }
+
+        function updateControlModeUI() {
+            const btn = document.getElementById('wb-control-mode-btn');
+            if (btn) {
+                if (wbUseCameraAi) {
+                    btn.classList.remove('border-rose-500', 'bg-rose-950/80', 'text-rose-300');
+                    btn.classList.add('border-violet-500/50', 'text-violet-300');
+                    btn.innerHTML = `<span>📷 โหมดกล้อง AI [เปิด]</span>`;
+                    
+                    // แสดงปุ่มตั้งค่ากล้องย่อยเมื่อเปิดกล้อง
+                    const flipCamBtn = document.getElementById('wb-flip-cam-btn');
+                    if (flipCamBtn) flipCamBtn.classList.remove('hidden');
+                    const flipAiBtn = document.getElementById('wb-flip-ai-btn');
+                    if (flipAiBtn) flipAiBtn.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('border-violet-500/50', 'text-violet-300');
+                    btn.classList.add('border-rose-500', 'bg-rose-950/80', 'text-rose-300');
+                    btn.innerHTML = `<span>🎮 โหมดทัช/เมาส์ 100%</span>`;
+                    
+                    // ซ่อนปุ่มตั้งค่ากล้องย่อยที่ไม่จำเป็นเมื่อปิดกล้อง
+                    const flipCamBtn = document.getElementById('wb-flip-cam-btn');
+                    if (flipCamBtn) flipCamBtn.classList.add('hidden');
+                    const flipAiBtn = document.getElementById('wb-flip-ai-btn');
+                    if (flipAiBtn) flipAiBtn.classList.add('hidden');
+                }
+            }
+        }
+
         function initCameraFlipState() {
             const canvasEl = document.getElementById('wb-canvas');
             if (!canvasEl) return;
@@ -1602,8 +1647,9 @@
                 canvasEl.classList.remove('camera-flipped');
             }
             
-            // เรียกตั้งค่าสถานะและสไตล์ปุ่มสลับทิศทาง AI ครั้งแรกตามค่าใน localStorage
+            // เรียกตั้งค่าสถานะและสไตล์ปุ่มสลับทิศทาง AI และปุ่มควบคุมครั้งแรกตามค่าใน localStorage
             updateAiFlipButtonUI();
+            updateControlModeUI();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -1619,6 +1665,35 @@
 
         async function initWebcamAndPose() {
             try {
+                const isHandsMode = String(bossId).indexOf('WB002') === 0;
+                
+                // ⚡ [Control Mode Switch] หากเลือกใช้โหมดสัมผัส/เมาส์ 100% (ปิดกล้อง AI) เพื่อกู้ชีพแท็บเล็ตเด็กนักเรียนสเปกต่ำ
+                if (!wbUseCameraAi && isHandsMode) {
+                    console.log("🎮 [Control Mode] โหมดสัมผัส/เมาส์ 100% ไร้กล้อง AI เพื่อประสิทธิภาพและความเร็วขีดสุด!");
+                    
+                    // สั่งปิดการสตรีมกล้องที่อาจค้างคาอยู่
+                    stopCamera();
+                    
+                    // ซ่อนกรอบเว็บแคมและปิดหน้าจอโหลด AI
+                    const camContainer = document.getElementById('wb-webcam-container');
+                    if (camContainer) camContainer.classList.add('hidden');
+                    
+                    const statusOverlay = document.getElementById('wb-status-overlay');
+                    if (statusOverlay) statusOverlay.classList.add('hidden');
+                    
+                    // นำทางเข้าสู่หน้าต่างเลือกเวลาเล่นเกมทันที
+                    wbGameState = 'RUNNER_SELECT_TIME';
+                    const modal = document.getElementById('wb-runner-time-modal');
+                    if (modal) modal.classList.remove('hidden');
+                    
+                    updateControlModeUI();
+                    return;
+                }
+                
+                // หากเปิดกล้อง AI หรือเป็นโหมดมาริโอ้
+                const camContainer = document.getElementById('wb-webcam-container');
+                if (camContainer) camContainer.classList.remove('hidden');
+                
                 wbStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         width: 640,
