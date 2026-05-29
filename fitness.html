@@ -1140,6 +1140,7 @@
         // 3) ตัวแปรเกมสเตท (Game Loop States)
         let wbPose = null;
         let wbCamera = null;
+        let wbPoseWorker = null; // ป้องกัน ReferenceError ของระบบปิดกล้องย่อย
         let wbGameState = 'PREPARING'; // PREPARING, COUNTDOWN, BATTLE, VICTORY
         
         let wbRepsCount = 0;
@@ -1675,7 +1676,7 @@
                     stopCamera();
                     
                     // ซ่อนกรอบเว็บแคมและปิดหน้าจอโหลด AI
-                    const camContainer = document.getElementById('wb-webcam-container');
+                    const camContainer = document.getElementById('wb-webcam-section');
                     if (camContainer) camContainer.classList.add('hidden');
                     
                     const statusOverlay = document.getElementById('wb-status-overlay');
@@ -1691,7 +1692,7 @@
                 }
                 
                 // หากเปิดกล้อง AI หรือเป็นโหมดมาริโอ้
-                const camContainer = document.getElementById('wb-webcam-container');
+                const camContainer = document.getElementById('wb-webcam-section');
                 if (camContainer) camContainer.classList.remove('hidden');
                 
                 wbStream = await navigator.mediaDevices.getUserMedia({
@@ -1713,8 +1714,6 @@
                 });
                 
                 console.log("🧠 World Boss Pose Engine Init - MediaPipe Active for World Boss System");
-                
-                const isHandsMode = String(bossId).indexOf('WB002') === 0;
                 
                 // 🧠 [Lazy Loading] โหลดเฉพาะโมเดล AI ที่ด่านนั้นต้องการใช้จริงเท่านั้น เพื่อประหยัด RAM/GPU และทรัพยากรเบื้องหลัง
                 if (!isHandsMode) {
