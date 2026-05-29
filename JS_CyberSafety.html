@@ -172,9 +172,16 @@
             // จัดการหลอดเลือด HP
             updateCyberHpUI();
 
-            // โหลดรูป SVG ประกอบฉาก
+            // โหลดรูปประกอบฉาก (รองรับทั้ง Image URL จากชีตและ SVG ดั้งเดิม)
             const imageArea = document.getElementById('cyber-comic-image-area');
-            if (imageArea) imageArea.innerHTML = getScenarioSvg(scenario.id);
+            if (imageArea) {
+                const imgUrl = String(scenario.imageSvg || '').trim();
+                if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
+                    imageArea.innerHTML = `<img src="${imgUrl}" alt="${scenario.title || 'เหตุการณ์ไซเบอร์'}" class="w-full h-full object-contain rounded-xl shadow-inner border border-sky-100" />`;
+                } else {
+                    imageArea.innerHTML = getScenarioSvg(scenario.id);
+                }
+            }
 
             // ซ่อนกล่องบทเรียนแจ้งเตือน / Dialog NPC
             const npcDialogBox = document.getElementById('cyber-npc-dialog-box');
@@ -657,7 +664,7 @@
                 answerIdx: 0,
                 feedbackWrong: 'หยุดก่อนเพื่อนยาก! การเปิดเผยชื่อโรงเรียนและทะเบียนรถสู่สาธารณะ อาจเปิดโอกาสให้ผู้ไม่หวังดีสืบหาที่อยู่และติดตามตัวเราได้นะ! ควรปกปิดข้อมูลระบุตัวตนและโพสต์เฉพาะกับกลุ่มคนที่ไว้ใจได้เท่านั้นจ้า!',
                 feedbackRight: 'ยอดเยี่ยมมาก! การปกปิดข้อมูลสำคัญและตั้งค่าความเป็นส่วนตัว ช่วยป้องกันไม่ให้คนแปลกหน้าสืบหาข้อมูลเพื่อติดตามและทำอันตรายเราได้ เก่งมากน้องเซฟ!',
-                imageSvg: ''
+                imageSvg: 'https://i.postimg.cc/hjVpksZj/Chat-GPT-Image-29-ph-kh-2569-14-56-36.png'
             },
             {
                 id: 'SC002',
@@ -669,7 +676,7 @@
                 answerIdx: 1,
                 feedbackWrong: 'ระวังอันตราย! ไม่มีของฟรีในโลกไซเบอร์หรอกนะ! ลิงก์ที่หลอกให้ใส่รหัสผ่านเรียกว่า "ฟิชชิ่ง" (Phishing) หากหลงเชื่อ รหัสผ่านและไอดีเกมของเราจะโดนแฮกและขโมยไปทันทีเลย!',
                 feedbackRight: 'ปลอดภัยที่สุด! ของฟรีมักไม่มีอยู่จริง และการไม่กรอกรหัสผ่านลงในเว็บแปลกปลอมช่วยปกป้องไอดีเกมของเราไม่ให้โดนขโมยได้อย่างถาวร ยอดเยี่ยม!',
-                imageSvg: ''
+                imageSvg: 'https://i.postimg.cc/VsDjd2tQ/Chat-GPT-Image-29-ph-kh-2569-14-57-07.png'
             },
             {
                 id: 'SC003',
@@ -681,7 +688,7 @@
                 answerIdx: 0,
                 feedbackWrong: 'อันตรายร้ายแรง! การนัดเจอคนแปลกหน้าบนโลกออนไลน์ตามลำพังมีความเสี่ยงสูงมากที่จะถูกลักพาตัว ล่อลวง หรือทำอันตราย! เราไม่ควรกรรทำอย่างเด็ดขาดและต้องรีบบอกผู้ปกครองให้ทราบทันที!',
                 feedbackRight: 'ตัดสินใจได้ฉลาดมาก! การปฏิเสธและปรึกษาผู้ปกครองช่วยปกป้องเราจากการถูกล่อลวงหรือลักพาตัวโดยผู้ไม่หวังดีที่แฝงตัวมาในโลกออนไลน์!',
-                imageSvg: ''
+                imageSvg: 'https://i.postimg.cc/Yqvmj0kg/Chat-GPT-Image-29-ph-kh-2569-14-57-27.png'
             },
             {
                 id: 'SC004',
@@ -693,7 +700,7 @@
                 answerIdx: 1,
                 feedbackWrong: 'หยุดทำร้ายจิตใจผู้อื่น! การร่วมวงล้อเลียนเพื่อนออนไลน์ถือเป็นการรังแกทางไซเบอร์ (Cyberbullying) ซึ่งสร้างความเจ็บปวดและบาดแผลทางใจให้แก่เพื่อนอย่างรุนแรง เราไม่ควรมีส่วนร่วมเด็ดขาด!',
                 feedbackRight: 'หัวใจหล่อมาก! การไม่ร่วมรังแกผู้อื่นและหยิบยื่นความช่วยเหลือให้ผู้ถูกกระทำ ช่วยสร้างสังคมออนไลน์ที่ปลอดภัยและน่าอยู่ และหยุดยั้งปัญหาการกลั่นแกล้งกันได้เป็นอย่างดี!',
-                imageSvg: ''
+                imageSvg: 'https://i.postimg.cc/fbCb8QDw/Chat-GPT-Image-29-ph-kh-2569-14-57-41.png'
             }
         ];
     }

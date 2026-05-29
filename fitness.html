@@ -1182,6 +1182,7 @@
         wbSafetyBgImg.src = "https://i.postimg.cc/dVm5LhQx/Gemini-Generated-Image-p9omm7p9omm7p9om.png";
         
         let wbAiHandFlip = localStorage.getItem('wb_ai_hand_flip') === 'true';
+        let safetyGameLoopId = null; // ⚡ ตัวควบคุมเธรดเรนเดอร์ลูปอิสระ 60 FPS ปลดล็อกความลื่นไหลระดับขีดสุดของบอส 2
         
         let wbStream = null;
 
@@ -2333,141 +2334,6 @@
                             wbCanvasCtx.restore();
                         } else if (isWb002) {
                             // 🏃‍♂️ [สมรภูมิยอดนักวิ่งลมกรด (Speed Runner)]
-                            // คำนวณ delta time
-                            const nowFrame = performance.now();
-                            const dt = Math.min(0.1, (nowFrame - lastFrameTime) / 1000); // แคปค่า dt สูงสุดไม่เกิน 100ms ป้องกันการกระตุกกระทันหัน
-                            lastFrameTime = nowFrame;
-                            
-                            // คำนวณความเร่งจากการซอยเท้า
-                            let speedFactor = 0.0;
-                            if (detectedActiveState === 'RUNNING' || totalActivity > 0.025) {
-                                // totalActivity ปกติอยู่ราว 0.05-0.8 ขยายสเกลคูณเป็นความเร็ว
-                                speedFactor = Math.min(6.8, (totalActivity * 8.8));
-                            } else if (detectedActiveState === 'JUMPING' || detectedActiveState === 'CROUCHING') {
-                                // ออกกำลังกายท่าอื่นก็ได้สปีดปานกลาง
-                                speedFactor = 3.5;
-                            }
-                            
-                            // ความเฉื่อยของความเร็ว (Inertia physics)
-                            wbCurrentRunningSpeed = wbCurrentRunningSpeed * 0.91 + speedFactor * 0.09;
-                            if (wbCurrentRunningSpeed < 0.02) wbCurrentRunningSpeed = 0;
-                            
-                            wbTotalDistance += wbCurrentRunningSpeed * dt;
-                            
-                            // กำหนด rep count เลียนแบบของเดิม (สำหรับเป็นตัวแปรเก็บบันทึก)
-                            wbRepsCount = Math.floor(wbTotalDistance);
-                            
-                            // แสดงสถิติเมตรที่วิ่งได้บนหน้าจอหลัก
-                            document.getElementById('wb-battle-reps').innerText = `${wbTotalDistance.toFixed(1)} เมตร`;
-                            const elRepsMobile = document.getElementById('wb-battle-reps-mobile');
-                            if (elRepsMobile) elRepsMobile.innerText = `${wbTotalDistance.toFixed(1)} เมตร`;
-                            
-                            // ปรับเกจ HP บอสให้เข้าหา 100% ตามความไกลในการวิ่ง
-                            // เป้าหมายระยะทาง: ดึงตามเวลา (targetReps * 4 เมตร) เช่น 30 วินาที -> 120 เมตร
-                            const targetDistance = targetReps * 4.0;
-                            wbBossHp = Math.max(0, targetDistance - wbTotalDistance);
-                            
-                            const bossHpPercent = Math.max(0, (wbTotalDistance / targetDistance)) * 100;
-                            document.getElementById('wb-battle-boss-hp-bar').style.width = `${Math.min(100, bossHpPercent)}%`;
-                            document.getElementById('wb-battle-boss-hp-text').innerText = `ระยะทางวิ่ง: ${wbTotalDistance.toFixed(1)} / ${targetDistance.toFixed(0)} เมตร`;
-                            
-                            // 🎨 [เฟสที่ 5: วาด Canvas แอนิเมชันลู่วิ่ง Parallax และเกจความเร็ว Speedometer บนจอวิ่งแยกต่างหาก]
-                            if (runnerCanvasCtx) {
-                                runnerCanvasCtx.save();
-                                runnerCanvasCtx.clearRect(0, 0, width, height);
-                                
-                                // 1. วาดฉากหลังอวกาศ/ท้องฟ้าสีเข้มพรีเมียม
-                                runnerCanvasCtx.fillStyle = '#080a18';
-                                runnerCanvasCtx.fillRect(0, 0, width, height);
-                                
-                                // 2. วาดขอบฟ้าและสนามหญ้าขอบลู่วิ่ง
-                                runnerCanvasCtx.fillStyle = '#065f46'; // เขียวเข้ม
-                                runnerCanvasCtx.fillRect(0, 200, width, 280);
-                                
-                                // 3. วาดรูปทรงลู่วิ่ง 3D Perspective (สี่เหลี่ยมคางหมู)
-                                runnerCanvasCtx.beginPath();
-                                runnerCanvasCtx.moveTo(240, 200); // ขอบฟ้าซ้าย
-                                runnerCanvasCtx.lineTo(400, 200); // ขอบฟ้าขวา
-                                runnerCanvasCtx.lineTo(600, 480); // ล่างขวา
-                                runnerCanvasCtx.lineTo(40, 480);  // ล่างซ้าย
-                                runnerCanvasCtx.closePath();
-                                runnerCanvasCtx.fillStyle = '#b91c1c'; // ลู่วิ่งสีแดงอิฐ
-                                runnerCanvasCtx.fill();
-                                runnerCanvasCtx.strokeStyle = '#f87171'; // ขอบลู่วิ่งเรืองแสง
-                                runnerCanvasCtx.lineWidth = 3;
-                                runnerCanvasCtx.stroke();
-                                
-                                // 4. วาดเส้นประเลนวิ่งเคลื่อนไหว (Scrolling curb & lines)
-                                roadOffset += wbCurrentRunningSpeed * 2.8;
-                                if (roadOffset > 100) roadOffset = 0;
-                                
-                                runnerCanvasCtx.save();
-                                runnerCanvasCtx.strokeStyle = '#ffffff';
-                                runnerCanvasCtx.lineWidth = 2.5;
-                                runnerCanvasCtx.setLineDash([15, 20]);
-                                runnerCanvasCtx.lineDashOffset = -roadOffset;
-                                
-                                // เส้นขอบทางขาว-แดงสลับเลื่อนถอยหลัง
-                                // วาดเส้นประเลนขวา
-                                runnerCanvasCtx.beginPath();
-                                runnerCanvasCtx.moveTo(320, 200);
-                                runnerCanvasCtx.lineTo(480, 480);
-                                runnerCanvasCtx.stroke();
-                                
-                                // วาดเส้นประเลนซ้าย
-                                runnerCanvasCtx.beginPath();
-                                runnerCanvasCtx.moveTo(320, 200);
-                                runnerCanvasCtx.lineTo(160, 480);
-                                runnerCanvasCtx.stroke();
-                                runnerCanvasCtx.restore();
-                                
-                                // 5. วาดตัวละคร Emoji 🏃‍♂️ วิ่งสลับขาตามเวลา
-                                runnerCanvasCtx.save();
-                                runnerCanvasCtx.font = '85px Arial';
-                                runnerCanvasCtx.shadowColor = '#06b6d4'; // ออร่าสีฟ้านีออนไซเบอร์
-                                runnerCanvasCtx.shadowBlur = Math.min(25, wbCurrentRunningSpeed * 4);
-                                runnerCanvasCtx.textAlign = 'center';
-                                runnerCanvasCtx.textBaseline = 'middle';
-                                
-                                // ขยับสั่นตัวขึ้นลงตาม sine wave เพื่อให้มีมิติการวิ่งจริง
-                                const runAnimOffset = wbCurrentRunningSpeed > 0 ? Math.sin(performance.now() * 0.015 * wbCurrentRunningSpeed) * 10 : 0;
-                                runnerCanvasCtx.fillText('🏃‍♂️', 320, 390 + runAnimOffset);
-                                runnerCanvasCtx.restore();
-                                
-                                // 6. วาด Gradient Neon Speedometer Gauge (ขวาบน)
-                                runnerCanvasCtx.save();
-                                const centerX = 540;
-                                const centerY = 100;
-                                const radius = 60;
-                                
-                                // วาดขอบวงกลมเกจ
-                                runnerCanvasCtx.beginPath();
-                                runnerCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, Math.PI * 2.2);
-                                runnerCanvasCtx.strokeStyle = '#1e293b';
-                                runnerCanvasCtx.lineWidth = 10;
-                                runnerCanvasCtx.lineCap = 'round';
-                                runnerCanvasCtx.stroke();
-                                
-                                // วาดเกจเรืองแสงตามสปีดจริง (Speedometer Neon Gauge)
-                                runnerCanvasCtx.beginPath();
-                                const speedPercent = Math.min(1.0, wbCurrentRunningSpeed / 6.5);
-                                const endAngle = Math.PI * 0.8 + (Math.PI * 1.4 * speedPercent);
-                                runnerCanvasCtx.arc(centerX, centerY, radius, Math.PI * 0.8, endAngle);
-                                
-                                const grad = runnerCanvasCtx.createRadialGradient(centerX, centerY, radius - 10, centerX, centerY, radius + 10);
-                                grad.addColorStop(0, '#22d3ee');
-                                grad.addColorStop(1, '#0891b2');
-                                
-                                runnerCanvasCtx.strokeStyle = grad;
-                                runnerCanvasCtx.shadowColor = '#06b6d4';
-                                runnerCanvasCtx.shadowBlur = 10;
-                                runnerCanvasCtx.lineWidth = 10;
-                                runnerCanvasCtx.lineCap = 'round';
-                                runnerCanvasCtx.stroke();
-                                runnerCanvasCtx.restore();
-                                
-                                runnerCanvasCtx.restore();
-                            }
                         }
                     }
                 }
@@ -2480,11 +2346,11 @@
         // --- 🧠 [คอลแบ็กของ MediaPipe Hands] ประมวลผลตำแหน่งการ Pinch คีบลากการ์ด และตรวจชนถังขยะ ---
         function onHandsResults(results) {
             try {
-                if (!runnerCanvasCtx || wbGameState === 'VICTORY') return;
+                if (wbGameState !== 'BATTLE' || !runnerCanvasCtx) return;
                 
-                const rect = runnerCanvasEl.getBoundingClientRect();
-                const width = rect.width || 640;
-                const height = rect.height || 480;
+                // ใช้มิติ Logical Coordinate 640x480 คงที่ 100% ป้องกันการ์ดวาร์ปไปบนซ้ายและบั๊กคีบหลุด!
+                const width = 640;
+                const height = 480;
 
                 // 🧠 [การประมวลผลพิกัดกล้องเว็บแคมสแกนนิ้วมือจริง]
                 if (results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
@@ -2492,28 +2358,28 @@
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
                     
-                    // 🛡️ หากผู้เล่นกำลังใช้เมาส์/ทัชลากการ์ดอยู่ ให้ล็อกไม่ยอมให้ AI มือมาแทรกแซงแย่งชิงตำแหน่งเคอร์เซอร์และการคีบปล่อยการ์ด
                     if (thumbTip && indexTip) {
-                        // ⚡ คำนวณพิกัดปกติหรือสลับทิศทาง (ปุ่มเดียวกลับทิศทาง AI ทั้งแนวนอนและแนวดิ่งตามความต้องการของครู)
+                        // ⚡ คำนวณพิกัดมือบนสเกลคงที่ 640x480 เสมอ เพื่อความเที่ยงตรง 100% ป้องกันการ์ดวาร์ปไปบนซ้าย!
                         const handXNorm = (thumbTip.x + indexTip.x) / 2;
                         const handYNorm = (thumbTip.y + indexTip.y) / 2;
                         
-                        const targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * width;
-                        const targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * height;
+                        const targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * 640;
+                        const targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * 480;
                         
-                        // ⚡ ปรับเร่ง Exponential Smoothing ให้การตอบสนองมือตามรอยได้ว่องไวขึ้น จาก 0.35 เป็น 0.75 เพื่อลดความหน่วงสะดุดและอาการภาพวาป
-                        handCursor.smoothX += (targetX - handCursor.smoothX) * 0.75;
-                        handCursor.smoothY += (targetY - handCursor.smoothY) * 0.75;
+                        // ปรับความเร็วตามรอยให้นุ่มนวล รวดเร็ว และลื่นไหล
+                        handCursor.smoothX += (targetX - handCursor.smoothX) * 0.45;
+                        handCursor.smoothY += (targetY - handCursor.smoothY) * 0.45;
                         
                         // ตรวจจับท่าทางจีบนิ้ว (Pinch Gesture)
                         const dx = thumbTip.x - indexTip.x;
                         const dy = thumbTip.y - indexTip.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        const cameraPinching = dist < 0.055;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
                         
-                        if (cameraPinching) {
+                        const isCurrentlyPinching = distance < 0.088;
+                        
+                        if (isCurrentlyPinching) {
                             if (!isPinching && aiCurrentItem) {
-                                // ตรวจระยะชนระหว่างเป้ามือและการ์ดคำถามเพื่อทำการคีบกระดาษ
+                                // เริ่มการจีบคีบการ์ดคำถาม
                                 const cardX = aiCurrentItem.x;
                                 const cardY = aiCurrentItem.y;
                                 const cardW = aiCurrentItem.w;
@@ -2534,17 +2400,17 @@
                                 }
                             }
                             
-                            // ย้ายตำแหน่งการ์ดที่กำลังลากตามตำแหน่งมือกล้อง
+                            // ขยับตำแหน่งการ์ดตามตำแหน่งมือ
                             if (isPinching && draggedItem) {
                                 draggedItem.x = handCursor.smoothX - draggedItem.offsetX;
                                 draggedItem.y = handCursor.smoothY - draggedItem.offsetY;
                                 
-                                // ปรับเปลี่ยนขอบเขต Clamping ให้ยืดหยุ่นขึ้น เพื่อแก้ปัญหาการลากการ์ดติดขัดขอบขวาและฝั่งกล่องแดง
-                                draggedItem.x = Math.max(80, Math.min(width - 80, draggedItem.x));
-                                draggedItem.y = Math.max(50, Math.min(height - 50, draggedItem.y));
+                                // ป้องกันการ์ดหลุดขอบเขตการแสดงผล
+                                draggedItem.x = Math.max(80, Math.min(640 - 80, draggedItem.x));
+                                draggedItem.y = Math.max(50, Math.min(480 - 50, draggedItem.y));
                             }
                         } else {
-                            // ปล่อยกระดาษการ์ดคำถามเมื่อแบมือออก
+                            // ปล่อยการ์ดเมื่อแบมือ
                             if (isPinching) {
                                 isPinching = false;
                                 if (draggedItem) {
@@ -2556,415 +2422,21 @@
                     }
                 }
 
-                // 🛡️ วาดภาพเว็บแคมลงในจอกล้องจิ๋วเสมอ เพื่อป้องกันจอกล้องค้างแช่แข็งเมื่อมือหลุดออกนอกขอบกล้อง
+                // 🛡️ วาดภาพเว็บแคมลงในจอกล้องจิ๋วเสมอเพื่อความเสถียร
                 if (results && results.image && wbCanvasCtx) {
                     wbCanvasCtx.save();
                     wbCanvasCtx.clearRect(0, 0, wbCanvasEl.width, wbCanvasEl.height);
                     wbCanvasCtx.drawImage(results.image, 0, 0, wbCanvasEl.width, wbCanvasEl.height);
                     
-                    // วาดสแกนโครงกระดูกนิ้วมือนีออนเรืองแสงทับลงไป เฉพาะเมื่อตรวจพบมือในกล้องจริงเท่านั้น
                     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                         drawGlowingHandSkeleton(wbCanvasCtx, results.multiHandLandmarks[0]);
                     }
                     wbCanvasCtx.restore();
                 }
-            
-            // บังคับความละเอียดระดับ 1 เท่า (scaleFactor = 1.0) ในด่านบอส 2 เพื่อบูสความลื่นไหลขั้นเทพและประหยัดการประมวลผล 75% บนเครื่องนักเรียน
-            const scaleFactor = 1.0;
-            if (runnerCanvasEl.width !== width * scaleFactor || runnerCanvasEl.height !== height * scaleFactor) {
-                runnerCanvasEl.width = width * scaleFactor;
-                runnerCanvasEl.height = height * scaleFactor;
+            } catch (e) {
+                console.error("Error in onHandsResults AI Loop:", e);
             }
-            
-            // รีเซ็ตการเปลี่ยนแปลง Scale ทั้งหมดในเฟรมเก่ากลับเป็นสเกล 1:1 ปราศจากการคูณสะสม (Cumulative Scale Prevention)
-            runnerCanvasCtx.setTransform(1, 0, 0, 1, 0, 0);
-            
-            // เคีลยร์พื้นที่ความละเอียด scaleFactor เท่า
-            runnerCanvasCtx.clearRect(0, 0, width * scaleFactor, height * scaleFactor);
-            
-            // สั่ง Scale รอบใหม่ เพื่อให้โค้ดการวาดแบบ 1:1 มีความคมชัดสูงสุด
-            runnerCanvasCtx.scale(scaleFactor, scaleFactor);
-            
-            runnerCanvasCtx.save();
-            
-            // ==========================================
-            // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟตามความต้องการของครูผู้ใช้งาน (เร็วกว่าเดิมสูงสุด บูสความลื่นขั้นเทพ)
-            // ==========================================
-            if (wbSafetyBgImg.complete) {
-                runnerCanvasCtx.drawImage(wbSafetyBgImg, 0, 0, width, height);
-            } else {
-                // สีพื้นหลังสีน้ำเงินเข้มขรึมในกรณีที่รูปภาพกำลังโหลด
-                runnerCanvasCtx.fillStyle = '#060813';
-                runnerCanvasCtx.fillRect(0, 0, width, height);
-            }
-            
-            runnerCanvasCtx.restore();
-            
-            // ==========================================
-            // 2. วาด 3 ถังขยะคัดแยกแบบกล่องสามมิติ (3D Perspective Bins - เป๊ะตาม ref2)
-            // ==========================================
-            const binW = Math.max(145, Math.min(185, width * 0.23));
-            const binH = Math.max(90, Math.min(115, height * 0.22));
-            
-            // ระยะห่างระหว่างถังขยะ: ถังกลางอยู่ตรงกลาง (width/2) ถังซ้ายและขวาห่างออกไปตามสัดส่วนความกว้างจริง
-            const spacing = Math.max(165, width * 0.29);
-            const centerYBucket = height - binH - 68; // อยู่สูงจากขอบล่างพอที่จะวาง Bottom HUD ได้สวยงาม
-            
-            DROP_ZONES.ethics.x = width / 2 - binW / 2 - spacing;
-            DROP_ZONES.ethics.y = centerYBucket;
-            DROP_ZONES.ethics.w = binW;
-            DROP_ZONES.ethics.h = binH;
-            DROP_ZONES.ethics.hx = 0;
-            DROP_ZONES.ethics.hy = height * 0.45;
-            DROP_ZONES.ethics.hw = width * 0.35;
-            DROP_ZONES.ethics.hh = height * 0.55;
-
-            DROP_ZONES.cybersecurity.x = width / 2 - binW / 2;
-            DROP_ZONES.cybersecurity.y = centerYBucket;
-            DROP_ZONES.cybersecurity.w = binW;
-            DROP_ZONES.cybersecurity.h = binH;
-            DROP_ZONES.cybersecurity.hx = width * 0.35;
-            DROP_ZONES.cybersecurity.hy = height * 0.45;
-            DROP_ZONES.cybersecurity.hw = width * 0.30;
-            DROP_ZONES.cybersecurity.hh = height * 0.55;
-
-            DROP_ZONES.social_risks.x = width / 2 - binW / 2 + spacing;
-            DROP_ZONES.social_risks.y = centerYBucket;
-            DROP_ZONES.social_risks.w = binW;
-            DROP_ZONES.social_risks.h = binH;
-            DROP_ZONES.social_risks.hx = width * 0.65;
-            DROP_ZONES.social_risks.hy = height * 0.45;
-            DROP_ZONES.social_risks.hw = width * 0.35;
-            DROP_ZONES.social_risks.hh = height * 0.55;
-
-            for (const key in DROP_ZONES) {
-                const zone = DROP_ZONES[key];
-                
-                let isActive = false;
-                if (aiCurrentItem) {
-                    const checkX = handCursor.smoothX;
-                    const checkY = handCursor.smoothY;
-                    const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
-                                          checkY >= zone.hy && checkY <= zone.hy + zone.hh);
-                                          
-                    const cardX = aiCurrentItem.x;
-                    const cardY = aiCurrentItem.y;
-                    const isCardCenterInZone = (cardX >= zone.hx && cardX <= zone.hx + zone.hw &&
-                                                cardY >= zone.hy && cardY <= zone.hy + zone.hh);
-                    
-                    if (isHandInZone || isCardCenterInZone) {
-                        isActive = true;
-                    }
-                }
-                
-                let label = "จริยธรรม AI";
-                let subLabel = "[ จริยธรรม AI SECTOR ]";
-                let icon = "🛡️"; // ใน badge จะใช้รูปเกราะโล่เรืองแสง
-                let baseColor = "#10b981"; // สีเขียว
-                
-                if (key === 'cybersecurity') {
-                    label = "ความปลอดภัย AI";
-                    subLabel = "[ ความปลอดภัย SECTOR ]";
-                    icon = "🔑"; // ใน badge จะใช้รูปกุญแจทอง
-                    baseColor = "#06b6d4"; // สีฟ้า
-                } else if (key === 'social_risks') {
-                    label = "ความเสี่ยงสังคม";
-                    subLabel = "[ ความเสี่ยงสังคม SECTOR ]";
-                    icon = "👥"; // ใน badge จะใช้รูปคนม่วง/ชมพู
-                    baseColor = "#f43f5e"; // สีแดง
-                }
-                
-                // สลับสีสว่างเมื่อ Active คัดแยก
-                const activeColor = key === 'ethics' ? '#34d399' : key === 'cybersecurity' ? '#22d3ee' : '#fb7185';
-                const colorToUse = isActive ? activeColor : baseColor;
-                
-                // วาดถังขยะคัดแยกแบบ 3 มิติ
-                draw3DBucket(runnerCanvasCtx, zone.x, zone.y, zone.w, zone.h, colorToUse, label, subLabel, icon, isActive);
-            }
-            
-            // ==========================================
-            // 3. วาดกล่องข้อความคำถาม AI Safety (aiCurrentItem) Holographic Card (เป๊ะตาม ref2)
-            // ==========================================
-            if (aiCurrentItem) {
-                const item = aiCurrentItem;
-                const isItemDragging = draggedItem !== null;
-                
-                // คำนวณ Scale แบบ Dynamic ตามระยะ Y (ยิ่งลากลงลึก ยิ่งย่อเล็กลง)
-                let cardScale = 1.0;
-                const startScaleY = height * 0.28; // เริ่มย่อขนาดเมื่อพ้นขอบบนเล็กน้อย
-                if (item.y > startScaleY) {
-                    const progress = Math.min(1.0, (item.y - startScaleY) / (centerYBucket - 50 - startScaleY));
-                    cardScale = 1.0 - progress * 0.58; // ย่อขนาดลงสูงสุด 58%
-                }
-                
-                // อัปเดตความกว้างความสูง Bounding Box แบบ Dynamic เพื่อให้การชนแม่นยำ
-                item.w = 520 * cardScale;
-                item.h = 155 * cardScale;
-                
-                runnerCanvasCtx.save();
-                // ⚡ ยกเลิก shadowBlur ที่เป็นคอขวดประมวลผลช้าของ CPU เครื่องนักเรียน และทดแทนด้วยเทคนิค Double Border นีออนเรืองแสงซ้อน 2 ชั้นที่เร็วขึ้น 100 เท่า!
-                
-                // วาดตัวกล่องทรงโค้งมนไฮเทค สีกรมท่ามืดสลัว (เป๊ะตาม ref2)
-                const cardGrad = runnerCanvasCtx.createLinearGradient(item.x, item.y - item.h/2, item.x, item.y + item.h/2);
-                cardGrad.addColorStop(0, 'rgba(11, 16, 36, 0.96)');
-                cardGrad.addColorStop(1, 'rgba(7, 10, 24, 0.92)');
-                
-                runnerCanvasCtx.fillStyle = cardGrad;
-                
-                // 1. วาดขอบวงนอก ความหนา 4.5px สีโปร่งแสงจำลองเงาฟุ้ง (Outer Neon Glow Ring)
-                runnerCanvasCtx.strokeStyle = isItemDragging ? 'rgba(34, 211, 238, 0.35)' : 'rgba(6, 182, 212, 0.25)';
-                runnerCanvasCtx.lineWidth = (isItemDragging ? 4.5 : 3.0) * cardScale;
-                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, true, true);
-                
-                // 2. วาดขอบวงใน ความหนา 1.5px สีสว่างคมชัด (Inner High-Tech Ring)
-                runnerCanvasCtx.strokeStyle = isItemDragging ? '#22d3ee' : 'rgba(6, 182, 212, 0.8)';
-                runnerCanvasCtx.lineWidth = (isItemDragging ? 1.8 : 1.2) * cardScale;
-                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, false, true);
-                
-                runnerCanvasCtx.restore();
-                
-                // ตรวจสเกลความกว้างในการแสดงผลของข้อมูล
-                if (cardScale > 0.60) {
-                    // แถบคาดเรืองแสงข้อมูลด้านบน (Tech Header Bar)
-                    runnerCanvasCtx.save();
-                    runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(34, 211, 238, 0.12)' : 'rgba(6, 182, 212, 0.08)';
-                    runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 34 * cardScale);
-                    
-                    // ไอคอนหัวข้อและภาษาอังกฤษ (💼 Job Displacement)
-                    runnerCanvasCtx.font = `900 ${18 * cardScale}px Prompt, sans-serif`;
-                    runnerCanvasCtx.textAlign = 'left';
-                    
-                    // ⚡ ปลดยกเลิก shadowBlur บนตัวอักษร และใช้วิธี offset วาดทับซ้อนเฉียง 1px (เร็วกว่าการทำ shadowBlur 100 เท่า)
-                    runnerCanvasCtx.fillStyle = '#0691b2';
-                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 19 * cardScale, item.y - item.h/2 + 24 * cardScale);
-                    runnerCanvasCtx.fillStyle = '#ffffff';
-                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 23 * cardScale);
-                    
-                    // ป้าย TAG "TAGRIST VL6" ตาม ref2
-                    runnerCanvasCtx.font = `bold ${9 * cardScale}px Courier, monospace`;
-                    runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.7)';
-                    runnerCanvasCtx.textAlign = 'right';
-                    runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 18 * cardScale, item.y - item.h/2 + 22 * cardScale);
-                    runnerCanvasCtx.restore();
-                    
-                    // เส้นตกแต่งแผงวงจรด้านล่างแถบคาด
-                    runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
-                    runnerCanvasCtx.lineWidth = 1 * cardScale;
-                    runnerCanvasCtx.beginPath();
-                    runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
-                    runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
-                    runnerCanvasCtx.stroke();
-                    
-                    // เนื้อหาคำถามภาษาไทย สีขาวนวล สว่าง ชัดเจน และอ่านง่ายที่สุด
-                    runnerCanvasCtx.save();
-                    runnerCanvasCtx.font = `900 ${18.5 * cardScale}px Prompt, sans-serif`;
-                    runnerCanvasCtx.textAlign = 'center';
-                    
-                    // ⚡ ปรับเป็นวาดเยื้องพิกเซล (Offset Shadow) เลิกเงาเบลอ Gaussian เปลืองโหลด
-                    runnerCanvasCtx.fillStyle = 'rgba(0, 0, 0, 0.78)';
-                    wrapText(runnerCanvasCtx, item.text, item.x + 1 * cardScale, item.y - item.h/2 + 76 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
-                    runnerCanvasCtx.fillStyle = '#ffffff';
-                    wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 75 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
-                    
-                    runnerCanvasCtx.restore();
-                    
-                    // 🎯 วาดเป้าชี้แนะมือลากและลูกศรแนะแนว (Hand Drag Hint - เป๊ะตาม ref2)
-                    if (!isItemDragging) {
-                        const hintX = item.x + item.w/2 + 50;
-                        const hintY = item.y;
-                        const hintPulse = 1 + Math.sin(performance.now() / 200) * 0.05;
-                        
-                        runnerCanvasCtx.save();
-                        // 1. เส้นทางวิถีลูกศรเฉียงเบาๆ ไปยังเป้าหมาย
-                        runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
-                        runnerCanvasCtx.lineWidth = 3;
-                        runnerCanvasCtx.setLineDash([4, 4]);
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.moveTo(item.x + item.w/2 - 5, item.y);
-                        runnerCanvasCtx.quadraticCurveTo(hintX - 25, hintY, hintX, hintY);
-                        runnerCanvasCtx.stroke();
-                        runnerCanvasCtx.setLineDash([]); // รีเซ็ตเส้นประ
-                        
-                        // 2. วงแหวนเป้าเล็ง Sci-Fi โฮโลแกรม (ใช้วิธีซ้อนวงแหวนสีโปร่งแสงแทน shadowBlur เพื่อรีดพลัง CPU)
-                        runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.3)';
-                        runnerCanvasCtx.lineWidth = 4.5;
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
-                        runnerCanvasCtx.stroke();
-                        
-                        runnerCanvasCtx.strokeStyle = '#22d3ee';
-                        runnerCanvasCtx.lineWidth = 2.0;
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
-                        runnerCanvasCtx.stroke();
-                        
-                        // แกนกากบาทเป้าเล็งบางๆ
-                        runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.5)';
-                        runnerCanvasCtx.lineWidth = 1;
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.moveTo(hintX - 25, hintY);
-                        runnerCanvasCtx.lineTo(hintX + 25, hintY);
-                        runnerCanvasCtx.moveTo(hintX, hintY - 25);
-                        runnerCanvasCtx.lineTo(hintX, hintY + 25);
-                        runnerCanvasCtx.stroke();
-                        
-                        // 3. รูปมือชี้จิ้ม (Pinch Gesture) สีขาวขอบดำ เป๊ะตาม ref2 (ยกเลิก shadowBlur เพื่อความเบาเครื่อง)
-                        runnerCanvasCtx.fillStyle = '#ffffff';
-                        runnerCanvasCtx.strokeStyle = '#0f172a';
-                        runnerCanvasCtx.lineWidth = 2;
-                        
-                        const handX = hintX + 4;
-                        const handY = hintY + 12;
-                        
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.moveTo(handX, handY);
-                        runnerCanvasCtx.lineTo(handX - 6, handY - 14);
-                        runnerCanvasCtx.lineTo(handX - 11, handY - 14);
-                        runnerCanvasCtx.lineTo(handX - 11, handY - 2);
-                        runnerCanvasCtx.lineTo(handX - 18, handY + 2);
-                        runnerCanvasCtx.lineTo(handX - 16, handY + 6);
-                        runnerCanvasCtx.lineTo(handX - 9, handY + 8);
-                        runnerCanvasCtx.lineTo(handX - 8, handY + 14);
-                        runnerCanvasCtx.lineTo(handX, handY + 14);
-                        runnerCanvasCtx.closePath();
-                        runnerCanvasCtx.fill();
-                        runnerCanvasCtx.stroke();
-                        
-                        // 4. วาดลูกศรชี้ลากสีแดงทิศลากออกจากเป้า (ลูกศรเฉียงแบบ ref2)
-                        runnerCanvasCtx.strokeStyle = '#f43f5e';
-                        runnerCanvasCtx.lineWidth = 2;
-                        runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.moveTo(hintX - 8, hintY);
-                        runnerCanvasCtx.lineTo(hintX - 16, hintY + 4);
-                        runnerCanvasCtx.lineTo(hintX - 12, hintY + 8);
-                        runnerCanvasCtx.moveTo(hintX - 16, hintY + 4);
-                        runnerCanvasCtx.lineTo(hintX - 8, hintY + 8);
-                        runnerCanvasCtx.stroke();
-                        
-                        runnerCanvasCtx.restore();
-                    }
-                } else {
-                    // โหมดย่อเป็น Cyber Chip เรืองแสงขนาดเล็ก
-                    runnerCanvasCtx.save();
-                    runnerCanvasCtx.font = `900 13px Prompt, sans-serif`;
-                    runnerCanvasCtx.fillStyle = '#22d3ee';
-                    runnerCanvasCtx.textAlign = 'center';
-                    runnerCanvasCtx.shadowColor = '#06b6d4';
-                    runnerCanvasCtx.shadowBlur = 10;
-                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y + 4);
-                    runnerCanvasCtx.restore();
-                }
-            }
-            
-            // ==========================================
-            // 4. วาดเป้าเล็งมือ HUD Crosshair และ Trail หางลาก
-            // ==========================================
-            if (wbGameState === 'BATTLE') {
-                if (!window.cursorHistory) window.cursorHistory = [];
-                window.cursorHistory.push({ x: handCursor.smoothX, y: handCursor.smoothY });
-                if (window.cursorHistory.length > 8) {
-                    window.cursorHistory.shift();
-                }
-                
-                // วาดเส้นประหางลาก (Trail)
-                runnerCanvasCtx.save();
-                if (window.cursorHistory.length > 1) {
-                    runnerCanvasCtx.beginPath();
-                    runnerCanvasCtx.moveTo(window.cursorHistory[0].x, window.cursorHistory[0].y);
-                    for (let hIdx = 1; hIdx < window.cursorHistory.length; hIdx++) {
-                        runnerCanvasCtx.lineTo(window.cursorHistory[hIdx].x, window.cursorHistory[hIdx].y);
-                    }
-                    runnerCanvasCtx.strokeStyle = isPinching ? 'rgba(52, 211, 153, 0.45)' : 'rgba(34, 211, 238, 0.35)';
-                    runnerCanvasCtx.lineWidth = 5;
-                    runnerCanvasCtx.lineCap = 'round';
-                    runnerCanvasCtx.lineJoin = 'round';
-                    runnerCanvasCtx.shadowColor = isPinching ? '#34d399' : '#22d3ee';
-                    runnerCanvasCtx.shadowBlur = 10;
-                    runnerCanvasCtx.stroke();
-                }
-                runnerCanvasCtx.restore();
-                
-                // วาดตัวเป้าเล็ง Sci-Fi HUD Crosshair
-                runnerCanvasCtx.save();
-                const curX = handCursor.smoothX;
-                const curY = handCursor.smoothY;
-                const pulseScale = 1 + Math.sin(performance.now() / 150) * 0.08;
-                const angle = performance.now() / 700;
-                
-                const themeColor = isPinching ? '#34d399' : '#22d3ee';
-                const size = (isPinching ? 12 : 20) * pulseScale;
-                
-                runnerCanvasCtx.strokeStyle = themeColor;
-                runnerCanvasCtx.lineWidth = 1;
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(curX, curY - size - 8); runnerCanvasCtx.lineTo(curX, curY - size - 2);
-                runnerCanvasCtx.moveTo(curX, curY + size + 2); runnerCanvasCtx.lineTo(curX, curY + size + 8);
-                runnerCanvasCtx.moveTo(curX - size - 8, curY); runnerCanvasCtx.lineTo(curX - size - 2, curY);
-                runnerCanvasCtx.moveTo(curX + size + 2, curY); runnerCanvasCtx.lineTo(curX + size + 8, curY);
-                runnerCanvasCtx.stroke();
-                
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.arc(curX, curY, size + 5, angle, angle + Math.PI * 1.5);
-                runnerCanvasCtx.strokeStyle = themeColor;
-                runnerCanvasCtx.lineWidth = 2;
-                runnerCanvasCtx.shadowColor = themeColor;
-                runnerCanvasCtx.shadowBlur = 10;
-                runnerCanvasCtx.stroke();
-                
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.arc(curX, curY, isPinching ? 5 : 8, 0, Math.PI * 2);
-                runnerCanvasCtx.fillStyle = isPinching ? 'rgba(52, 211, 153, 0.7)' : 'rgba(255, 255, 255, 0.35)';
-                runnerCanvasCtx.strokeStyle = '#ffffff';
-                runnerCanvasCtx.lineWidth = 1.5;
-                runnerCanvasCtx.shadowColor = '#ffffff';
-                runnerCanvasCtx.shadowBlur = 12;
-                runnerCanvasCtx.fill();
-                runnerCanvasCtx.stroke();
-                
-                runnerCanvasCtx.font = '900 7px Courier, monospace';
-                runnerCanvasCtx.fillStyle = themeColor;
-                runnerCanvasCtx.textAlign = 'center';
-                runnerCanvasCtx.fillText(isPinching ? 'NODE: GRABBED' : 'NODE: HOVER', curX, curY + size + 16);
-                
-                runnerCanvasCtx.restore();
-            }
-            
-            // วาด Slash Effects บน Canvas หลัก
-            if (window.safetyActiveEffects) {
-                window.safetyActiveEffects.forEach((eff, idx) => {
-                    runnerCanvasCtx.save();
-                    runnerCanvasCtx.font = `900 ${eff.size}px Mali, Prompt, sans-serif`;
-                    runnerCanvasCtx.fillStyle = eff.color;
-                    runnerCanvasCtx.shadowColor = eff.color;
-                    runnerCanvasCtx.shadowBlur = 12;
-                    runnerCanvasCtx.textAlign = 'center';
-                    
-                    // ปรับตำแหน่งตามพิกัดจริง
-                    runnerCanvasCtx.fillText(eff.text, eff.x, eff.y);
-                    runnerCanvasCtx.restore();
-                    
-                    eff.y -= 1.8;
-                    eff.alpha -= 0.035;
-                    if (eff.alpha <= 0) {
-                        window.safetyActiveEffects.splice(idx, 1);
-                    }
-                });
-            }
-            
-            // ==========================================
-            // 5. วาดแถบบาร์สถิติด้านล่างสุดใน Canvas (Bottom HUD - เป๊ะตาม ref2)
-            // ==========================================
-            const hudW = Math.max(380, Math.min(520, width * 0.74));
-            const hudH = 34;
-            const hudX = (width - hudW) / 2;
-            const hudY = height - hudH - 12;
-            drawBottomHUD(runnerCanvasCtx, hudX, hudY, hudW, hudH, wbElapsedTime, wbRepsCount, wbTotalQuestionsPlayed, targetReps, wbRepsCount, (wbTotalQuestionsPlayed - wbRepsCount));
-            
-            runnerCanvasCtx.restore();
-        } catch(e) {
-            console.error("Hands onResults processing error: ", e);
         }
-    }
 
         // ==========================================
         // 🔮 ฟังก์ชัน Helper ย่อยสำหรับระบบวาดภาพ Sci-Fi (3D Bins & HUD)
@@ -3551,12 +3023,391 @@
             isPinching = false;
         }
 
-        // ฟังก์ชันวาด Canvas เกมลากดึง
-        function drawSafetyGameCanvas() {
-            if (typeof onHandsResults === 'function') {
-                onHandsResults(null);
+        // ⚡ [60 FPS Game Loop Control] ระบบเกมลูปและเรนเดอร์ภาพหลักแยกเป็นอิสระ 60 FPS เพื่อบูสความลื่นไหลขั้นสุดยอด!
+        function startSafetyGameLoop() {
+            if (safetyGameLoopId) cancelAnimationFrame(safetyGameLoopId);
+            
+            function tick() {
+                const isWb002 = String(bossId).indexOf('WB002') === 0;
+                if (wbGameState === 'BATTLE' && isWb002) {
+                    updateAndDrawSafetyGame();
+                    safetyGameLoopId = requestAnimationFrame(tick);
+                } else {
+                    safetyGameLoopId = null;
+                }
+            }
+            safetyGameLoopId = requestAnimationFrame(tick);
+        }
+
+        function stopSafetyGameLoop() {
+            if (safetyGameLoopId) {
+                cancelAnimationFrame(safetyGameLoopId);
+                safetyGameLoopId = null;
             }
         }
+
+        // ฟังก์ชันอัปเดตและเรนเดอร์ตัวเกมหลัก ด่านบอส 2 ด้วยความเร็ว 60 FPS อิสระ 100% หายกระตุกค้างขาดกระจุย!
+        function updateAndDrawSafetyGame() {
+            try {
+                if (!runnerCanvasCtx || wbGameState !== 'BATTLE') return;
+                
+                const width = 640;
+                const height = 480;
+                
+                // บังคับความละเอียดระดับ 1 เท่า (scaleFactor = 1.0)
+                const scaleFactor = 1.0;
+                if (runnerCanvasEl.width !== width * scaleFactor || runnerCanvasEl.height !== height * scaleFactor) {
+                    runnerCanvasEl.width = width * scaleFactor;
+                    runnerCanvasEl.height = height * scaleFactor;
+                }
+                
+                runnerCanvasCtx.setTransform(1, 0, 0, 1, 0, 0);
+                runnerCanvasCtx.clearRect(0, 0, width, height);
+                
+                runnerCanvasCtx.save();
+                
+                // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟ
+                if (wbSafetyBgImg.complete) {
+                    runnerCanvasCtx.drawImage(wbSafetyBgImg, 0, 0, width, height);
+                } else {
+                    runnerCanvasCtx.fillStyle = '#060813';
+                    runnerCanvasCtx.fillRect(0, 0, width, height);
+                }
+                
+                runnerCanvasCtx.restore();
+                
+                // 2. คำนวณพิกัด 3 ถังขยะคัดแยกแบบกล่องสามมิติ (3D Perspective Bins)
+                const binW = Math.max(145, Math.min(185, width * 0.23));
+                const binH = Math.max(90, Math.min(115, height * 0.22));
+                const spacing = Math.max(165, width * 0.29);
+                const centerYBucket = height - binH - 68;
+                
+                DROP_ZONES.ethics.x = width / 2 - binW / 2 - spacing;
+                DROP_ZONES.ethics.y = centerYBucket;
+                DROP_ZONES.ethics.w = binW;
+                DROP_ZONES.ethics.h = binH;
+                DROP_ZONES.ethics.hx = 0;
+                DROP_ZONES.ethics.hy = height * 0.45;
+                DROP_ZONES.ethics.hw = width * 0.35;
+                DROP_ZONES.ethics.hh = height * 0.55;
+                
+                DROP_ZONES.cybersecurity.x = width / 2 - binW / 2;
+                DROP_ZONES.cybersecurity.y = centerYBucket;
+                DROP_ZONES.cybersecurity.w = binW;
+                DROP_ZONES.cybersecurity.h = binH;
+                DROP_ZONES.cybersecurity.hx = width * 0.35;
+                DROP_ZONES.cybersecurity.hy = height * 0.45;
+                DROP_ZONES.cybersecurity.hw = width * 0.30;
+                DROP_ZONES.cybersecurity.hh = height * 0.55;
+                
+                DROP_ZONES.social_risks.x = width / 2 - binW / 2 + spacing;
+                DROP_ZONES.social_risks.y = centerYBucket;
+                DROP_ZONES.social_risks.w = binW;
+                DROP_ZONES.social_risks.h = binH;
+                DROP_ZONES.social_risks.hx = width * 0.65;
+                DROP_ZONES.social_risks.hy = height * 0.45;
+                DROP_ZONES.social_risks.hw = width * 0.35;
+                DROP_ZONES.social_risks.hh = height * 0.55;
+                
+                for (const key in DROP_ZONES) {
+                    const zone = DROP_ZONES[key];
+                    
+                    let isActive = false;
+                    if (aiCurrentItem) {
+                        const checkX = handCursor.smoothX;
+                        const checkY = handCursor.smoothY;
+                        const isHandInZone = (checkX >= zone.hx && checkX <= zone.hx + zone.hw &&
+                                              checkY >= zone.hy && checkY <= zone.hy + zone.hh);
+                                              
+                        const cardX = aiCurrentItem.x;
+                        const cardY = aiCurrentItem.y;
+                        const isCardCenterInZone = (cardX >= zone.hx && cardX <= zone.hx + zone.hw &&
+                                                    cardY >= zone.hy && cardY <= zone.hy + zone.hh);
+                        
+                        if (isHandInZone || isCardCenterInZone) {
+                            isActive = true;
+                        }
+                    }
+                    
+                    let label = "จริยธรรม AI";
+                    let subLabel = "[ จริยธรรม AI SECTOR ]";
+                    let icon = "🛡️";
+                    let baseColor = "#10b981";
+                    
+                    if (key === 'cybersecurity') {
+                        label = "ความปลอดภัย AI";
+                        subLabel = "[ ความปลอดภัย SECTOR ]";
+                        icon = "🔑";
+                        baseColor = "#06b6d4";
+                    } else if (key === 'social_risks') {
+                        label = "ความเสี่ยงสังคม";
+                        subLabel = "[ ความเสี่ยงสังคม SECTOR ]";
+                        icon = "👥";
+                        baseColor = "#f43f5e";
+                    }
+                    
+                    const activeColor = key === 'ethics' ? '#34d399' : key === 'cybersecurity' ? '#22d3ee' : '#fb7185';
+                    const colorToUse = isActive ? activeColor : baseColor;
+                    
+                    draw3DBucket(runnerCanvasCtx, zone.x, zone.y, zone.w, zone.h, colorToUse, label, subLabel, icon, isActive);
+                }
+                
+                // 3. วาดกล่องข้อความคำถาม AI Safety (aiCurrentItem) Holographic Card
+                if (aiCurrentItem) {
+                    const item = aiCurrentItem;
+                    const isItemDragging = draggedItem !== null;
+                    
+                    let cardScale = 1.0;
+                    const startScaleY = height * 0.28;
+                    if (item.y > startScaleY) {
+                        const progress = Math.min(1.0, (item.y - startScaleY) / (centerYBucket - 50 - startScaleY));
+                        cardScale = 1.0 - progress * 0.58;
+                    }
+                    
+                    item.w = 520 * cardScale;
+                    item.h = 155 * cardScale;
+                    
+                    runnerCanvasCtx.save();
+                    
+                    const cardGrad = runnerCanvasCtx.createLinearGradient(item.x, item.y - item.h/2, item.x, item.y + item.h/2);
+                    cardGrad.addColorStop(0, 'rgba(11, 16, 36, 0.96)');
+                    cardGrad.addColorStop(1, 'rgba(7, 10, 24, 0.92)');
+                    
+                    runnerCanvasCtx.fillStyle = cardGrad;
+                    
+                    runnerCanvasCtx.strokeStyle = isItemDragging ? 'rgba(34, 211, 238, 0.35)' : 'rgba(6, 182, 212, 0.25)';
+                    runnerCanvasCtx.lineWidth = (isItemDragging ? 4.5 : 3.0) * cardScale;
+                    drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, true, true);
+                    
+                    runnerCanvasCtx.strokeStyle = isItemDragging ? '#22d3ee' : 'rgba(6, 182, 212, 0.8)';
+                    runnerCanvasCtx.lineWidth = (isItemDragging ? 1.8 : 1.2) * cardScale;
+                    drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, false, true);
+                    
+                    runnerCanvasCtx.restore();
+                    
+                    if (cardScale > 0.60) {
+                        runnerCanvasCtx.save();
+                        runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(34, 211, 238, 0.12)' : 'rgba(6, 182, 212, 0.08)';
+                        runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 34 * cardScale);
+                        
+                        runnerCanvasCtx.font = `900 ${18 * cardScale}px Prompt, sans-serif`;
+                        runnerCanvasCtx.textAlign = 'left';
+                        
+                        runnerCanvasCtx.fillStyle = '#0691b2';
+                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 19 * cardScale, item.y - item.h/2 + 24 * cardScale);
+                        runnerCanvasCtx.fillStyle = '#ffffff';
+                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 23 * cardScale);
+                        
+                        runnerCanvasCtx.font = `bold ${9 * cardScale}px Courier, monospace`;
+                        runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.7)';
+                        runnerCanvasCtx.textAlign = 'right';
+                        runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 18 * cardScale, item.y - item.h/2 + 22 * cardScale);
+                        runnerCanvasCtx.restore();
+                        
+                        runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
+                        runnerCanvasCtx.lineWidth = 1 * cardScale;
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
+                        runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
+                        runnerCanvasCtx.stroke();
+                        
+                        runnerCanvasCtx.save();
+                        runnerCanvasCtx.font = `900 ${18.5 * cardScale}px Prompt, sans-serif`;
+                        runnerCanvasCtx.textAlign = 'center';
+                        
+                        runnerCanvasCtx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+                        wrapText(runnerCanvasCtx, item.text, item.x + 1 * cardScale, item.y - item.h/2 + 76 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
+                        runnerCanvasCtx.fillStyle = '#ffffff';
+                        wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 75 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
+                        
+                        runnerCanvasCtx.restore();
+                        
+                        if (!isItemDragging) {
+                            const hintX = item.x + item.w/2 + 50;
+                            const hintY = item.y;
+                            const hintPulse = 1 + Math.sin(performance.now() / 200) * 0.05;
+                            
+                            runnerCanvasCtx.save();
+                            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
+                            runnerCanvasCtx.lineWidth = 3;
+                            runnerCanvasCtx.setLineDash([4, 4]);
+                            runnerCanvasCtx.beginPath();
+                            runnerCanvasCtx.moveTo(item.x + item.w/2 - 5, item.y);
+                            runnerCanvasCtx.quadraticCurveTo(hintX - 25, hintY, hintX, hintY);
+                            runnerCanvasCtx.stroke();
+                            runnerCanvasCtx.setLineDash([]);
+                            
+                            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.3)';
+                            runnerCanvasCtx.lineWidth = 4.5;
+                            runnerCanvasCtx.beginPath();
+                            runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
+                            runnerCanvasCtx.stroke();
+                            
+                            runnerCanvasCtx.strokeStyle = '#22d3ee';
+                            runnerCanvasCtx.lineWidth = 2.0;
+                            runnerCanvasCtx.beginPath();
+                            runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
+                            runnerCanvasCtx.stroke();
+                            
+                            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.5)';
+                            runnerCanvasCtx.lineWidth = 1;
+                            runnerCanvasCtx.beginPath();
+                            runnerCanvasCtx.moveTo(hintX - 25, hintY);
+                            runnerCanvasCtx.lineTo(hintX + 25, hintY);
+                            runnerCanvasCtx.moveTo(hintX, hintY - 25);
+                            runnerCanvasCtx.lineTo(hintX, hintY + 25);
+                            runnerCanvasCtx.stroke();
+                            
+                            runnerCanvasCtx.fillStyle = '#ffffff';
+                            runnerCanvasCtx.strokeStyle = '#0f172a';
+                            runnerCanvasCtx.lineWidth = 2;
+                            
+                            const handX = hintX + 4;
+                            const handY = hintY + 12;
+                            
+                            runnerCanvasCtx.beginPath();
+                            runnerCanvasCtx.moveTo(handX, handY);
+                            runnerCanvasCtx.lineTo(handX - 6, handY - 14);
+                            runnerCanvasCtx.lineTo(handX - 11, handY - 14);
+                            runnerCanvasCtx.lineTo(handX - 11, handY - 2);
+                            runnerCanvasCtx.lineTo(handX - 18, handY + 2);
+                            runnerCanvasCtx.lineTo(handX - 16, handY + 6);
+                            runnerCanvasCtx.lineTo(handX - 9, handY + 8);
+                            runnerCanvasCtx.lineTo(handX - 8, handY + 14);
+                            runnerCanvasCtx.lineTo(handX, handY + 14);
+                            runnerCanvasCtx.closePath();
+                            runnerCanvasCtx.fill();
+                            runnerCanvasCtx.stroke();
+                            
+                            runnerCanvasCtx.strokeStyle = '#f43f5e';
+                            runnerCanvasCtx.lineWidth = 2;
+                            runnerCanvasCtx.beginPath();
+                            runnerCanvasCtx.moveTo(hintX - 8, hintY);
+                            runnerCanvasCtx.lineTo(hintX - 16, hintY + 4);
+                            runnerCanvasCtx.lineTo(hintX - 12, hintY + 8);
+                            runnerCanvasCtx.moveTo(hintX - 16, hintY + 4);
+                            runnerCanvasCtx.lineTo(hintX - 8, hintY + 8);
+                            runnerCanvasCtx.stroke();
+                            
+                            runnerCanvasCtx.restore();
+                        }
+                    } else {
+                        runnerCanvasCtx.save();
+                        runnerCanvasCtx.font = `900 13px Prompt, sans-serif`;
+                        runnerCanvasCtx.fillStyle = '#22d3ee';
+                        runnerCanvasCtx.textAlign = 'center';
+                        runnerCanvasCtx.shadowColor = '#06b6d4';
+                        runnerCanvasCtx.shadowBlur = 10;
+                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x, item.y + 4);
+                        runnerCanvasCtx.restore();
+                    }
+                }
+                
+                // 4. วาดเป้าเล็งมือ HUD Crosshair และ Trail หางลาก
+                if (wbGameState === 'BATTLE') {
+                    if (!window.cursorHistory) window.cursorHistory = [];
+                    window.cursorHistory.push({ x: handCursor.smoothX, y: handCursor.smoothY });
+                    if (window.cursorHistory.length > 8) {
+                        window.cursorHistory.shift();
+                    }
+                    
+                    runnerCanvasCtx.save();
+                    if (window.cursorHistory.length > 1) {
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.moveTo(window.cursorHistory[0].x, window.cursorHistory[0].y);
+                        for (let hIdx = 1; hIdx < window.cursorHistory.length; hIdx++) {
+                            runnerCanvasCtx.lineTo(window.cursorHistory[hIdx].x, window.cursorHistory[hIdx].y);
+                        }
+                        runnerCanvasCtx.strokeStyle = isPinching ? 'rgba(52, 211, 153, 0.45)' : 'rgba(34, 211, 238, 0.35)';
+                        runnerCanvasCtx.lineWidth = 5;
+                        runnerCanvasCtx.lineCap = 'round';
+                        runnerCanvasCtx.lineJoin = 'round';
+                        runnerCanvasCtx.shadowColor = isPinching ? '#34d399' : '#22d3ee';
+                        runnerCanvasCtx.shadowBlur = 10;
+                        runnerCanvasCtx.stroke();
+                    }
+                    runnerCanvasCtx.restore();
+                    
+                    runnerCanvasCtx.save();
+                    const curX = handCursor.smoothX;
+                    const curY = handCursor.smoothY;
+                    const pulseScale = 1 + Math.sin(performance.now() / 150) * 0.08;
+                    const angle = performance.now() / 700;
+                    
+                    const themeColor = isPinching ? '#34d399' : '#22d3ee';
+                    const size = (isPinching ? 12 : 20) * pulseScale;
+                    
+                    runnerCanvasCtx.strokeStyle = themeColor;
+                    runnerCanvasCtx.lineWidth = 1;
+                    runnerCanvasCtx.beginPath();
+                    runnerCanvasCtx.moveTo(curX, curY - size - 8); runnerCanvasCtx.lineTo(curX, curY - size - 2);
+                    runnerCanvasCtx.moveTo(curX, curY + size + 2); runnerCanvasCtx.lineTo(curX, curY + size + 8);
+                    runnerCanvasCtx.moveTo(curX - size - 8, curY); runnerCanvasCtx.lineTo(curX - size - 2, curY);
+                    runnerCanvasCtx.moveTo(curX + size + 2, curY); runnerCanvasCtx.lineTo(curX + size + 8, curY);
+                    runnerCanvasCtx.stroke();
+                    
+                    runnerCanvasCtx.beginPath();
+                    runnerCanvasCtx.arc(curX, curY, size + 5, angle, angle + Math.PI * 1.5);
+                    runnerCanvasCtx.strokeStyle = themeColor;
+                    runnerCanvasCtx.lineWidth = 2;
+                    runnerCanvasCtx.shadowColor = themeColor;
+                    runnerCanvasCtx.shadowBlur = 10;
+                    runnerCanvasCtx.stroke();
+                    
+                    runnerCanvasCtx.beginPath();
+                    runnerCanvasCtx.arc(curX, curY, isPinching ? 5 : 8, 0, Math.PI * 2);
+                    runnerCanvasCtx.fillStyle = isPinching ? 'rgba(52, 211, 153, 0.7)' : 'rgba(255, 255, 255, 0.35)';
+                    runnerCanvasCtx.strokeStyle = '#ffffff';
+                    runnerCanvasCtx.lineWidth = 1.5;
+                    runnerCanvasCtx.shadowColor = '#ffffff';
+                    runnerCanvasCtx.shadowBlur = 12;
+                    runnerCanvasCtx.fill();
+                    runnerCanvasCtx.stroke();
+                    
+                    runnerCanvasCtx.font = '900 7px Courier, monospace';
+                    runnerCanvasCtx.fillStyle = themeColor;
+                    runnerCanvasCtx.textAlign = 'center';
+                    runnerCanvasCtx.fillText(isPinching ? 'NODE: GRABBED' : 'NODE: HOVER', curX, curY + size + 16);
+                    
+                    runnerCanvasCtx.restore();
+                }
+                
+                // 5. วาด Slash Effects บน Canvas หลัก
+                if (window.safetyActiveEffects) {
+                    window.safetyActiveEffects.forEach((eff, idx) => {
+                        runnerCanvasCtx.save();
+                        runnerCanvasCtx.font = `900 ${eff.size}px Mali, Prompt, sans-serif`;
+                        runnerCanvasCtx.fillStyle = eff.color;
+                        runnerCanvasCtx.shadowColor = eff.color;
+                        runnerCanvasCtx.shadowBlur = 12;
+                        runnerCanvasCtx.textAlign = 'center';
+                        
+                        runnerCanvasCtx.fillText(eff.text, eff.x, eff.y);
+                        runnerCanvasCtx.restore();
+                        
+                        eff.y -= 1.8;
+                        eff.alpha -= 0.035;
+                        if (eff.alpha <= 0) {
+                            window.safetyActiveEffects.splice(idx, 1);
+                        }
+                    });
+                }
+                
+                // 6. วาดแถบบาร์ HUD ด้านล่างสุด
+                const hudW = Math.max(380, Math.min(520, width * 0.74));
+                const hudH = 34;
+                const hudX = (width - hudW) / 2;
+                const hudY = height - hudH - 12;
+                drawBottomHUD(runnerCanvasCtx, hudX, hudY, hudW, hudH, wbElapsedTime, wbRepsCount, wbTotalQuestionsPlayed, targetReps, wbRepsCount, (wbTotalQuestionsPlayed - wbRepsCount));
+                
+                runnerCanvasCtx.restore();
+            } catch(e) {
+                console.error("60 FPS Game Loop rendering error: ", e);
+            }
+        }
+
+        // ฟังก์ชันสำหรับสั่งวาดใหม่ที่ไม่มีผลกระทบ (ทิ้งไว้เป็นเปลือกเพื่อความเข้ากันได้)
+        function drawSafetyGameCanvas() {}
 
         // ฟังก์ชันวาดรูปสี่เหลี่ยมมุมโค้ง
         function drawRoundRect(ctx, x, y, width, height, radius, fill, stroke) {
@@ -3655,6 +3506,7 @@
                 handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
                 
                 spawnNewSafetyItem();
+                startSafetyGameLoop(); // ⚡ เริ่มเธรดเกมลูปเรนเดอร์อิสระ 60 FPS บูสความลื่นไหล
             }
             
             const statusOverlay = document.getElementById('wb-status-overlay');
@@ -3847,6 +3699,7 @@
             stopMarioStatsLoop(); // หยุด loop เช็คคะแนนมาริโอ้
             
             stopCamera();
+            stopSafetyGameLoop(); // ⚡ ปิดเธรดเรนเดอร์ลูปด่านบอส 2
             
             const isWb002 = bossId.indexOf('WB002') === 0 || poseType === 'speed_runner' || poseType === 'jumping_jack';
             const isWb001 = bossId.indexOf('WB001') === 0 || poseType === 'mario_fitness';
@@ -4050,6 +3903,7 @@
             if (exitConfirmModal) exitConfirmModal.classList.add('hidden');
             
             stopCamera();
+            stopSafetyGameLoop(); // ⚡ ปิดเธรดเรนเดอร์ลูปด่านบอส 2
             
             console.log("🏳️ [Retreat] พยายามปิดแท็บการเล่นตามคำขอครูผู้ใช้งาน...");
             try {
@@ -4074,6 +3928,7 @@
         // สรุปผลคะแนนและปิดตัว (นำทางกลับล็อบบี้อย่างปลอดภัย)
         function closeVictoryAndExit() {
             stopCamera();
+            stopSafetyGameLoop(); // ⚡ ปิดเธรดเรนเดอร์ลูปด่านบอส 2
             if (webAppUrl) {
                 window.location.href = webAppUrl;
             } else {

@@ -241,6 +241,12 @@
             else lessonBg.classList.add('opacity-0');
         }
 
+        const cyberBg = document.getElementById('cyber-bg-layer');
+        if (cyberBg) {
+            if (pageId === 'cyber-safety') cyberBg.classList.remove('opacity-0');
+            else cyberBg.classList.add('opacity-0');
+        }
+
         // เลื่อนกลับขึ้นบนสุด
         window.scrollTo(0, 0);
     }
