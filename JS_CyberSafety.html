@@ -1,0 +1,700 @@
+<script>
+    // ==========================================
+    // Cyber Safety Mode - Logic & UI Controller
+    // ==========================================
+
+    let cyberScenarios = [];
+    let currentScenarioIdx = 0;
+    let cyberSafetyHp = 100;
+    let earnedCoins = 0;
+    let earnedXp = 0;
+    let currentScenarioAttempts = 0; // นับครั้งที่พยายามในด่านปัจจุบันสำหรับคำนวณคะแนนไดนามิก
+
+    /**
+     * สลับหน้าเข้าเล่นโหมด Cyber Safety
+     */
+    function enterCyberSafetyMode() {
+        if (typeof playClickSound === 'function') playClickSound();
+
+        if (!currentUser || !currentUser.name) {
+            customAlert("กรุณาเลือกรายชื่อผู้กล้าและเข้าสู่ระบบก่อนเข้าเล่นโหมดภัยไซเบอร์ครับ");
+            showPage('landing');
+            return;
+        }
+
+        // แสดงหน้าจอและโหลดตัวเล่น
+        showPage('cyber-safety');
+        
+        // รีเซ็ตเกมสเตต
+        cyberSafetyHp = 100;
+        currentScenarioIdx = 0;
+        earnedCoins = 0;
+        earnedXp = 0;
+        currentScenarioAttempts = 0;
+
+        // ซ่อนหน้าจอผลลัพธ์ชัยชนะและแสดงหน้าเนื้อหาเกม
+        const container = document.getElementById('cyber-game-container');
+        if (container) container.classList.remove('hidden');
+        const victory = document.getElementById('cyber-victory-screen');
+        if (victory) victory.classList.add('hidden');
+        
+        // เรียกโหลดโจทย์จาก Sheet
+        const loader = document.getElementById('cyber-loader');
+        if (loader) loader.classList.remove('hidden');
+        const playArea = document.getElementById('cyber-game-play-area');
+        if (playArea) playArea.classList.add('hidden');
+
+        if (typeof google !== 'undefined') {
+            google.script.run
+                .withSuccessHandler(onLoadScenariosSuccess)
+                .withFailureHandler(onLoadScenariosFailure)
+                .getCyberSafetyScenarios();
+        } else {
+            // โหมด Mock โลคอลสำหรับพรีวิว
+            setTimeout(() => {
+                onLoadScenariosSuccess({
+                    success: true,
+                    data: getMockCyberScenarios()
+                });
+            }, 1000);
+        }
+    }
+
+    /**
+     * ฟังก์ชันรันข้อมูลภัยไซเบอร์จำลองกรณีฉุกเฉิน (Fail-safe Backup)
+     */
+    function loadBackupMockScenarios() {
+        try {
+            cyberScenarios = getMockCyberScenarios();
+            const loader = document.getElementById('cyber-loader');
+            if (loader) loader.classList.add('hidden');
+            const playArea = document.getElementById('cyber-game-play-area');
+            if (playArea) playArea.classList.remove('hidden');
+            renderCyberScenario();
+        } catch (e) {
+            console.error("Critical error in loadBackupMockScenarios:", e);
+            customAlert("พบข้อผิดพลาดร้ายแรงในสคริปต์ภัยไซเบอร์จำลอง");
+            exitCyberSafetyMode();
+        }
+    }
+
+    /**
+     * ดึงโจทย์สำเร็จ
+     */
+    function onLoadScenariosSuccess(res) {
+        try {
+            const loader = document.getElementById('cyber-loader');
+            if (loader) loader.classList.add('hidden');
+            
+            if (res && res.success && res.data && res.data.length > 0) {
+                cyberScenarios = res.data;
+                const playArea = document.getElementById('cyber-game-play-area');
+                if (playArea) playArea.classList.remove('hidden');
+                renderCyberScenario();
+            } else {
+                console.warn("getCyberSafetyScenarios success but no data or invalid response:", res);
+                customAlert("ไม่พบข้อมูลสถานการณ์บน Google Sheets หรือหัวตารางไม่ถูกต้องครับ\n👉 ระบบจะสลับไปใช้ด่านจำลองความปลอดภัยไซเบอร์แทนเพื่อให้ผู้เรียนเล่นต่อได้ครับ!");
+                loadBackupMockScenarios();
+            }
+        } catch (err) {
+            console.error("Error in onLoadScenariosSuccess:", err);
+            customAlert("เกิดข้อผิดพลาดในการโหลดด่าน ย้ายไปที่ระบบจำลองภัยไซเบอร์สำรองเพื่อความต่อเนื่องครับ");
+            loadBackupMockScenarios();
+        }
+    }
+
+    /**
+     * ดึงโจทย์ล้มเหลว
+     */
+    function onLoadScenariosFailure(err) {
+        try {
+            const loader = document.getElementById('cyber-loader');
+            if (loader) loader.classList.add('hidden');
+            customAlert("การเชื่อมต่อฐานข้อมูล Sheets ล้มเหลว\n👉 ระบบจะสลับไปใช้ด่านจำลองความปลอดภัยไซเบอร์แทนชั่วคราวครับ");
+            loadBackupMockScenarios();
+        } catch (e) {
+            console.error("Error in onLoadScenariosFailure:", e);
+            exitCyberSafetyMode();
+        }
+    }
+
+    /**
+     * แสดงผลเหตุการณ์ปัจจุบัน
+     */
+    function renderCyberScenario() {
+        try {
+            if (currentScenarioIdx >= cyberScenarios.length) {
+                showCyberVictoryScreen();
+                return;
+            }
+
+            currentScenarioAttempts = 0; // รีเซ็ตความพยายามของด่านนี้
+            const scenario = cyberScenarios[currentScenarioIdx];
+            if (!scenario) {
+                console.error("Scenario is null at index:", currentScenarioIdx);
+                customAlert("ไม่พบข้อมูลสถานการณ์ด่านนี้ครับ");
+                exitCyberSafetyMode();
+                return;
+            }
+
+            // อัปเดตข้อมูลช่วงเวลาและหัวข้อ
+            const timeEl = document.getElementById('cyber-scenario-time');
+            if (timeEl) timeEl.textContent = scenario.timeOfDay || 'ทั่วไป';
+            
+            const titleEl = document.getElementById('cyber-scenario-title');
+            if (titleEl) titleEl.textContent = scenario.title || 'สถานการณ์ไซเบอร์';
+            
+            const textEl = document.getElementById('cyber-scenario-text');
+            if (textEl) textEl.textContent = scenario.text || '';
+            
+            const scoreEl = document.getElementById('cyber-score-current');
+            if (scoreEl) scoreEl.textContent = earnedCoins;
+
+            // กำหนดไอคอนช่วงเวลา (แปลงเป็น String ป้องกัน Runtime Error ในกรณีข้อมูลในชีตว่างเปล่า)
+            const timeIconEl = document.getElementById('cyber-time-icon');
+            if (timeIconEl) {
+                const timeStr = String(scenario.timeOfDay || '').trim();
+                if (timeStr.includes('เช้า')) {
+                    timeIconEl.textContent = '☀️';
+                    timeIconEl.className = 'text-3xl animate-pulse text-yellow-500';
+                } else if (timeStr.includes('กลางวัน')) {
+                    timeIconEl.textContent = '⛅';
+                    timeIconEl.className = 'text-3xl animate-pulse text-sky-400';
+                } else if (timeStr.includes('เย็น')) {
+                    timeIconEl.textContent = '🌅';
+                    timeIconEl.className = 'text-3xl animate-pulse text-orange-500';
+                } else {
+                    timeIconEl.textContent = '🌙';
+                    timeIconEl.className = 'text-3xl animate-pulse text-indigo-400';
+                }
+            }
+
+            // จัดการหลอดเลือด HP
+            updateCyberHpUI();
+
+            // โหลดรูป SVG ประกอบฉาก
+            const imageArea = document.getElementById('cyber-comic-image-area');
+            if (imageArea) imageArea.innerHTML = getScenarioSvg(scenario.id);
+
+            // ซ่อนกล่องบทเรียนแจ้งเตือน / Dialog NPC
+            const npcDialogBox = document.getElementById('cyber-npc-dialog-box');
+            if (npcDialogBox) npcDialogBox.classList.add('hidden');
+            
+            const optContainer = document.getElementById('cyber-options-container');
+            if (optContainer) {
+                optContainer.classList.remove('hidden');
+                optContainer.innerHTML = '';
+
+                // ตัวเลือกมี 2 ข้อ (Opt1, Opt2 ในชีท)
+                const opts = [scenario.opt1, scenario.opt2];
+                opts.forEach((optText, idx) => {
+                    if (!optText) return;
+                    const btn = document.createElement('button');
+                    
+                    // ทางเลือกการออกแบบ 3D
+                    const colorClass = idx === 0 
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-700 hover:from-emerald-400 hover:to-teal-500'
+                        : 'bg-gradient-to-r from-amber-500 to-orange-600 border-amber-700 hover:from-amber-400 hover:to-orange-500';
+
+                    btn.className = `w-full text-left p-4 md:p-5 rounded-2xl text-white border-b-4 ${colorClass} font-bold text-sm md:text-base shadow-lg transform transition-all active:translate-y-0.5 hover:-translate-y-0.5 duration-200 cursor-pointer flex items-start gap-3`;
+                    btn.onclick = () => selectCyberOption(idx);
+                    btn.innerHTML = `
+                        <span class="bg-white/20 w-7 h-7 rounded-full flex items-center justify-center font-extrabold flex-shrink-0 text-white">${idx + 1}</span>
+                        <span class="leading-relaxed drop-shadow-sm">${optText}</span>
+                    `;
+                    optContainer.appendChild(btn);
+                });
+            }
+        } catch (e) {
+            console.error("Critical error in renderCyberScenario:", e);
+            customAlert("พบข้อผิดพลาดขณะวาดด่านเกม: " + e.message + "\n👉 กำลังปรับไปใช้โหมดภัยไซเบอร์จำลองเสมือนสำรองแทนครับ!");
+            loadBackupMockScenarios();
+        }
+    }
+
+    /**
+     * จัดการหลอด HP ผู้พิทักษ์
+     */
+    function updateCyberHpUI() {
+        const hpBar = document.getElementById('cyber-hp-bar');
+        const hpText = document.getElementById('cyber-hp-text');
+        
+        if (hpBar) {
+            hpBar.style.width = cyberSafetyHp + '%';
+            // สลับสีหลอดเลือดตามความแรง
+            if (cyberSafetyHp >= 75) {
+                hpBar.className = 'h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500';
+            } else if (cyberSafetyHp >= 50) {
+                hpBar.className = 'h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all duration-500';
+            } else {
+                hpBar.className = 'h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-500';
+            }
+        }
+        
+        if (hpText) {
+            hpText.textContent = `Cyber Shield: ${cyberSafetyHp}%`;
+        }
+    }
+
+    /**
+     * เมื่อผู้เล่นเลือกตัวเลือก
+     */
+    function selectCyberOption(selectedIdx) {
+        const scenario = cyberScenarios[currentScenarioIdx];
+        const isCorrect = selectedIdx === scenario.answerIdx;
+
+        // ค้นหา NPC อวาตาร์คู่หูที่ดึงมาจากผู้ใช้งานล็อกอิน
+        const helperAvatar = (currentUser && currentUser.avatar) || '🧙‍♂️';
+        let helperName = "คู่หูผู้กล้า";
+        if (helperAvatar === '🧙‍♂️') helperName = "🧙‍♂️ ท่านจอมเวทย์แนะแนว";
+        else if (helperAvatar === '🧝‍♀️') helperName = "🧝‍♀️ เอลฟ์ผู้รอบรู้";
+        else helperName = "⚔️ นักรบผู้พิทักษ์";
+
+        const npcAvatarEl = document.getElementById('cyber-npc-avatar');
+        const npcNameEl = document.getElementById('cyber-npc-name');
+        const npcTextEl = document.getElementById('cyber-npc-text');
+        const npcDialogBox = document.getElementById('cyber-npc-dialog-box');
+        const npcBtnAction = document.getElementById('cyber-npc-btn-action');
+
+        if (npcAvatarEl) npcAvatarEl.textContent = helperAvatar;
+        if (npcNameEl) npcNameEl.textContent = helperName;
+
+        if (isCorrect) {
+            // เคสเลือกถูก
+            if (typeof playSuccessSound === 'function') playSuccessSound();
+
+            // คำนวณคะแนนแบบ Dynamic
+            let coinReward = 20;
+            let xpReward = 20;
+            let rewardMsg = "ยอดเยี่ยม! ตอบถูกในครั้งแรก";
+
+            if (currentScenarioAttempts > 0) {
+                coinReward = 5;
+                xpReward = 5;
+                rewardMsg = "ดีมาก! เรียนรู้และตอบแก้ตัวใหม่สำเร็จ";
+            }
+
+            earnedCoins += coinReward;
+            earnedXp += xpReward;
+
+            // บันทึกเหรียญในหน้าจอ
+            const scoreEl = document.getElementById('cyber-score-current');
+            if (scoreEl) scoreEl.textContent = earnedCoins;
+
+            // แสดงคำชมเชยและการเรียนรู้เพิ่มเติม
+            if (npcTextEl) {
+                npcTextEl.innerHTML = `
+                    <div class="text-emerald-700 font-extrabold text-lg mb-2">🎉 ${rewardMsg} (+${coinReward} ⭐)</div>
+                    <p class="text-gray-800 leading-relaxed font-bold">${scenario.feedbackRight}</p>
+                `;
+            }
+
+            // กำหนดปุ่มก้าวต่อไป
+            if (npcBtnAction) {
+                npcBtnAction.textContent = currentScenarioIdx === cyberScenarios.length - 1 ? '🏁 สรุปผลความปลอดภัย' : '🚶 เดินทางต่อไป';
+                npcBtnAction.className = 'px-8 py-3 bg-gradient-to-r from-emerald-50 to-teal-600 border-b-4 border-emerald-800 text-white font-black rounded-2xl shadow-lg hover:from-emerald-400 active:translate-y-0.5 transition-all cursor-pointer';
+                npcBtnAction.onclick = () => {
+                    currentScenarioIdx++;
+                    renderCyberScenario();
+                };
+            }
+
+            // ซ่อนปุ่มเลือกชั่วคราวและเปิด Dialog
+            const optContainer = document.getElementById('cyber-options-container');
+            if (optContainer) optContainer.classList.add('hidden');
+            
+            if (npcDialogBox) {
+                npcDialogBox.classList.remove('hidden');
+                npcDialogBox.className = 'mt-6 bg-emerald-50/95 border-4 border-emerald-400 p-5 rounded-2xl flex gap-4 items-start shadow-inner animate-fadeIn';
+            }
+
+        } else {
+            // เคสเลือกผิด
+            if (typeof playErrorSound === 'function') playErrorSound();
+
+            // สั่นหน้าจอป้องกันภัย
+            const gameFrame = document.getElementById('cyber-comic-frame');
+            if (gameFrame) {
+                gameFrame.classList.add('animate-shake-strong');
+                setTimeout(() => gameFrame.classList.remove('animate-shake-strong'), 500);
+            }
+
+            // หักค่า HP (ขั้นต่ำ 0)
+            cyberSafetyHp = Math.max(0, cyberSafetyHp - 25);
+            updateCyberHpUI();
+            currentScenarioAttempts++; // นับครั้งพยายามกดผิด
+
+            // แสดงคำอธิบายบทเรียนเพื่อสอนเด็ก
+            if (npcTextEl) {
+                npcTextEl.innerHTML = `
+                    <div class="text-rose-700 font-extrabold text-lg mb-2">🚨 มีความเสี่ยงเกิดขึ้น! (Shield ลดลง)</div>
+                    <p class="text-gray-800 leading-relaxed font-bold">${scenario.feedbackWrong}</p>
+                `;
+            }
+
+            // ปล่อยให้เด็กกดคิดใหม่
+            if (npcBtnAction) {
+                npcBtnAction.textContent = '🔄 พิจารณาและเลือกตัดสินใจใหม่';
+                npcBtnAction.className = 'px-8 py-3 bg-gradient-to-r from-amber-50 to-orange-600 border-b-4 border-amber-800 text-white font-black rounded-2xl shadow-lg hover:from-amber-400 active:translate-y-0.5 transition-all cursor-pointer';
+                npcBtnAction.onclick = () => {
+                    if (npcDialogBox) npcDialogBox.classList.add('hidden');
+                    const optContainer = document.getElementById('cyber-options-container');
+                    if (optContainer) optContainer.classList.remove('hidden');
+                };
+            }
+
+            // ซ่อนปุ่มเลือกชั่วคราวและเปิด Dialog
+            const optContainer = document.getElementById('cyber-options-container');
+            if (optContainer) optContainer.classList.add('hidden');
+            
+            if (npcDialogBox) {
+                npcDialogBox.classList.remove('hidden');
+                npcDialogBox.className = 'mt-6 bg-rose-50/95 border-4 border-rose-400 p-5 rounded-2xl flex gap-4 items-start shadow-inner animate-fadeIn';
+            }
+        }
+    }
+
+    /**
+     * หน้าจอเมื่อจบเกมน้องเซฟมีชีวิตรอด
+     */
+    function showCyberVictoryScreen() {
+        const container = document.getElementById('cyber-game-container');
+        if (container) container.classList.add('hidden');
+        
+        const victory = document.getElementById('cyber-victory-screen');
+        if (victory) victory.classList.remove('hidden');
+
+        // จัดการหน้าจอ Victory
+        const coinEl = document.getElementById('victory-coins-earned');
+        if (coinEl) coinEl.textContent = earnedCoins;
+        
+        const xpEl = document.getElementById('victory-xp-earned');
+        if (xpEl) xpEl.textContent = earnedXp;
+
+        // สรุปสถานะ HP ที่เหลือ
+        const shieldText = document.getElementById('victory-shield-status');
+        if (shieldText) {
+            if (cyberSafetyHp >= 100) {
+                shieldText.textContent = '🛡️ เกราะผู้พิทักษ์สมบูรณ์แบบ 100% ไร้รอยขีดข่วน!';
+                shieldText.className = 'text-lg font-black text-emerald-600 mt-2';
+            } else if (cyberSafetyHp >= 50) {
+                shieldText.textContent = `🛡️ เกราะผู้พิทักษ์คงเหลือ ${cyberSafetyHp}% ปลอดภัยค่อนข้างดี!`;
+                shieldText.className = 'text-lg font-black text-blue-600 mt-2';
+            } else {
+                shieldText.textContent = `⚠️ เกราะผู้พิทักษ์อ่อนแอเหลือเพียง ${cyberSafetyHp}% เกือบไปแล้ว! ต้องระมัดระวังขึ้นนะ!`;
+                shieldText.className = 'text-lg font-black text-orange-600 mt-2';
+            }
+        }
+
+        // จัดเตรียมการยิง API อัปเดตข้อมูลขึ้น Google Sheets
+        const btnSave = document.getElementById('cyber-btn-save-progress');
+        if (btnSave) {
+            btnSave.textContent = '💾 ยืนยันบันทึกผลและแต้มผู้กล้า';
+            btnSave.disabled = false;
+            btnSave.onclick = saveFinalCyberResult;
+        }
+
+        // เอฟเฟกต์พลุดอกไม้ไฟฉลองชัย
+        if (typeof launchConfetti === 'function') launchConfetti();
+    }
+
+    /**
+     * ส่งคะแนนบันทึกขึ้นระบบ Sheets จริง
+     */
+    function saveFinalCyberResult() {
+        const btnSave = document.getElementById('cyber-btn-save-progress');
+        if (btnSave) {
+            btnSave.textContent = '⏳ กำลังส่งผลข้อมูล...';
+            btnSave.disabled = true;
+        }
+
+        if (typeof google !== 'undefined') {
+            google.script.run
+                .withSuccessHandler(onSaveProgressSuccess)
+                .withFailureHandler(onSaveProgressFailure)
+                .saveCyberSafetyResult(currentUser.id, cyberSafetyHp, earnedCoins, earnedXp);
+        } else {
+            // จำลอง Mock บันทึกข้อมูล
+            setTimeout(() => {
+                // เพิ่มเหรียญและ EXP ลง User ในหน่วยความจำเครื่อง
+                if (currentUser) {
+                    currentUser.coins = (currentUser.coins || 0) + earnedCoins;
+                    currentUser.xp = (currentUser.xp || 0) + earnedXp;
+                    currentUser.level = Math.floor(currentUser.xp / 100) + 1;
+                }
+                
+                // อัปเดต Topbar ทันที
+                if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                
+                onSaveProgressSuccess({ success: true, coins: (currentUser && currentUser.coins) || 0, xp: (currentUser && currentUser.xp) || 0, level: (currentUser && currentUser.level) || 1 });
+            }, 1000);
+        }
+    }
+
+    /**
+     * บันทึกสำเร็จ
+     */
+    function onSaveProgressSuccess(res) {
+        Swal.fire({
+            title: '🎉 บันทึกผลสำเร็จ!',
+            html: `ได้รับเหรียญ <b>+${earnedCoins} ⭐</b> และ XP <b>+${earnedXp}</b> เรียบร้อยแล้ว!`,
+            icon: 'success',
+            confirmButtonText: 'กลับหน้าเลือกโหมด',
+            confirmButtonColor: '#10b981'
+        }).then(() => {
+            // อัปเดตข้อมูลฝั่ง Dashboard ทันที
+            if (res.success && typeof refreshUserData === 'function') {
+                refreshUserData(); 
+            } else if (typeof updateDashboardStats === 'function') {
+                updateDashboardStats();
+            }
+            exitCyberSafetyMode();
+        });
+    }
+
+    /**
+     * บันทึกข้อมูลล้มเหลว
+     */
+    function onSaveProgressFailure(err) {
+        Swal.fire('บันทึกผิดพลาด', 'ไม่สามารถเข้าถึงแผ่นงาน Google Sheets ได้ แต่คะแนนการผ่านด่านจะแสดงในเซสชันของคุณชั่วคราว', 'warning').then(() => {
+            exitCyberSafetyMode();
+        });
+    }
+
+    /**
+     * ปิดหน้าจอและออกจากโหมด
+     */
+    function exitCyberSafetyMode() {
+        if (typeof playClickSound === 'function') playClickSound();
+        showPage('lobby');
+    }
+
+    // ==========================================
+    // UI Graphics (Modern SVGs for Scenarios)
+    // ==========================================
+    function getScenarioSvg(id) {
+        // ฉากที่ 1: เซลฟี่บนรถ (เช้า)
+        if (id === 'SC001') {
+            return `
+            <svg viewBox="0 0 400 220" class="w-full h-full rounded-xl bg-gradient-to-br from-yellow-50 to-orange-100 p-2 shadow-inner" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" rx="12" fill="none" />
+                <!-- กราฟิกรถโรงเรียนเหลือง 3D -->
+                <g transform="translate(10, 50)">
+                    <rect x="20" y="20" width="160" height="90" rx="10" fill="#facc15" stroke="#ca8a04" stroke-width="4"/>
+                    <rect x="180" y="50" width="40" height="60" rx="5" fill="#facc15" stroke="#ca8a04" stroke-width="4"/>
+                    <!-- หน้าต่างรถ -->
+                    <rect x="40" y="35" width="30" height="30" rx="4" fill="#38bdf8" stroke="#1d4ed8" stroke-width="2"/>
+                    <rect x="85" y="35" width="30" height="30" rx="4" fill="#38bdf8" stroke="#1d4ed8" stroke-width="2"/>
+                    <rect x="130" y="35" width="30" height="30" rx="4" fill="#38bdf8" stroke="#1d4ed8" stroke-width="2"/>
+                    <rect x="185" y="55" width="25" height="25" rx="4" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+                    <!-- ล้อรถ -->
+                    <circle cx="65" cy="110" r="20" fill="#1e293b" stroke="#0f172a" stroke-width="3"/>
+                    <circle cx="65" cy="110" r="8" fill="#94a3b8"/>
+                    <circle cx="165" cy="110" r="20" fill="#1e293b" stroke="#0f172a" stroke-width="3"/>
+                    <circle cx="165" cy="110" r="8" fill="#94a3b8"/>
+                    <!-- ไฟหน้าและทะเบียนแดงเด่น -->
+                    <polygon points="220,95 230,95 225,105" fill="#ef4444"/>
+                    <rect x="195" y="110" width="25" height="10" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+                    <text x="197" y="118" font-size="7" font-weight="black" fill="#ef4444">กข-99</text>
+                </g>
+                <!-- กล้องถ่ายเซลฟี่ -->
+                <g transform="translate(240, 20)">
+                    <rect x="15" y="10" width="120" height="170" rx="15" fill="#1e1b4b" stroke="#312e81" stroke-width="4"/>
+                    <rect x="22" y="20" width="106" height="150" rx="8" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+                    <!-- ภาพถ่ายอวตารเด็กนักเรียนเซลฟี่ -->
+                    <circle cx="75" cy="80" r="25" fill="#fbcfe8" stroke="#db2777" stroke-width="2"/>
+                    <path d="M50 130 C50 100, 100 100, 100 130 Z" fill="#93c5fd" stroke="#2563eb" stroke-width="2"/>
+                    <!-- ป้ายชื่อเสื้อเรืองแสงอันตราย -->
+                    <rect x="52" y="115" width="28" height="8" rx="1" fill="#fff" stroke="#f43f5e" stroke-width="1"/>
+                    <text x="54" y="121" font-size="5" fill="#f43f5e" font-weight="bold">เซฟ ป.5/1</text>
+                    <!-- แขนเซลฟี่ -->
+                    <path d="M75 105 L15 155" stroke="#fbcfe8" stroke-width="6" stroke-linecap="round"/>
+                </g>
+            </svg>`;
+        }
+        // ฉากที่ 2: ลิงก์แจกเพชร (กลางวัน)
+        if (id === 'SC002') {
+            return `
+            <svg viewBox="0 0 400 220" class="w-full h-full rounded-xl bg-gradient-to-br from-sky-50 to-blue-100 p-2 shadow-inner" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" rx="12" fill="none" />
+                <!-- เพชรเม็ดโตเรืองแสงสว่างไสว -->
+                <g transform="translate(45, 45)">
+                    <circle cx="60" cy="60" r="50" fill="#a5f3fc" opacity="0.3" class="animate-pulse"/>
+                    <circle cx="60" cy="60" r="40" fill="#22d3ee" opacity="0.2"/>
+                    <polygon points="60,20 95,45 80,95 40,95 25,45" fill="url(#cyanDiamondGrad)" stroke="#0891b2" stroke-width="3"/>
+                    <polygon points="60,20 60,95 80,95" fill="#e0f7fa" opacity="0.6"/>
+                    <polygon points="60,20 40,95 60,95" fill="#00e5ff" opacity="0.3"/>
+                    <!-- ดาวประกายระยิบระยับ -->
+                    <path d="M15 15 L20 20 L15 25 L10 20 Z" fill="#fff" class="animate-bounce"/>
+                    <path d="M100 25 L105 30 L100 35 L95 30 Z" fill="#fff" class="animate-bounce" style="animation-delay: 0.3s;"/>
+                </g>
+                <!-- ป๊อปอัปหลอกลวง / ลิงก์ฟิชชิ่งสแกม -->
+                <g transform="translate(180, 25)">
+                    <rect x="0" y="0" width="200" height="160" rx="12" fill="#ffffff" stroke="#f43f5e" stroke-width="4" shadow="lg"/>
+                    <rect x="0" y="0" width="200" height="35" rx="8" fill="#f43f5e"/>
+                    <text x="15" y="23" font-size="14" font-weight="black" fill="#ffffff">🚨 ข้อเสนอสุดพิเศษ!</text>
+                    <text x="15" y="60" font-size="11" font-weight="black" fill="#1e293b">แจกเพชรฟรี 1,000 เม็ดทันที!</text>
+                    
+                    <!-- กล่องกรอกรหัสผ่านฟิชชิ่ง -->
+                    <rect x="15" y="80" width="170" height="22" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+                    <text x="22" y="95" font-size="9" fill="#94a3b8">กรอกชื่อ ID ผู้ใช้เกม...</text>
+                    
+                    <rect x="15" y="108" width="170" height="22" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+                    <text x="22" y="123" font-size="9" fill="#94a3b8">กรอกรหัสผ่าน (Password)...</text>
+                    
+                    <rect x="50" y="137" width="100" height="18" rx="9" fill="#ef4444"/>
+                    <text x="73" y="150" font-size="9" font-weight="black" fill="#ffffff">🔗 คลิกที่นี่ด่วน</text>
+                </g>
+                <defs>
+                    <linearGradient id="cyanDiamondGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#22d3ee"/>
+                        <stop offset="100%" stop-color="#0891b2"/>
+                    </linearGradient>
+                </defs>
+            </svg>`;
+        }
+        // ฉากที่ 3: คนแปลกหน้า (เย็น)
+        if (id === 'SC003') {
+            return `
+            <svg viewBox="0 0 400 220" class="w-full h-full rounded-xl bg-gradient-to-br from-orange-50 to-amber-100 p-2 shadow-inner" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" rx="12" fill="none" />
+                <!-- หน้าจอเกมออนไลน์ -->
+                <g transform="translate(20, 25)">
+                    <rect x="0" y="0" width="170" height="160" rx="10" fill="#1e1b4b" stroke="#4338ca" stroke-width="3"/>
+                    <!-- อวาตาร์คนแปลกหน้าใส่หน้ากากลึกลับ -->
+                    <circle cx="85" cy="70" r="30" fill="#475569" stroke="#0f172a" stroke-width="2"/>
+                    <!-- หน้ากากจอมโจรลึกลับ -->
+                    <rect x="65" y="55" width="40" height="18" rx="4" fill="#000"/>
+                    <circle cx="73" cy="64" r="3" fill="#ef4444"/>
+                    <circle cx="97" cy="64" r="3" fill="#ef4444"/>
+                    <!-- ตัวละครในเกมคุยกัน -->
+                    <rect x="20" y="115" width="130" height="35" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+                    <text x="28" y="128" font-size="7" font-weight="bold" fill="#dc2626">Stranger: เสาร์นี้เจอกันนะ</text>
+                    <text x="28" y="142" font-size="7" font-weight="bold" fill="#475569">พี่มีของเล่นกับการ์ดแรร์มาให้</text>
+                </g>
+                <!-- สวนสาธารณะเปลี่ยวหลังห้างนัดเจอ -->
+                <g transform="translate(210, 25)">
+                    <rect x="0" y="0" width="170" height="160" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="3"/>
+                    <!-- ต้นไม้ใหญ่ -->
+                    <path d="M110 130 C100 130, 95 100, 110 80 C125 100, 120 130, 110 130 Z" fill="#047857"/>
+                    <rect x="107" y="125" width="6" height="25" fill="#78350f"/>
+                    <!-- ม้านั่งยาวเปล่าเปลี่ยว -->
+                    <rect x="30" y="120" width="60" height="8" rx="2" fill="#b45309"/>
+                    <rect x="35" y="128" width="50" height="12" fill="#78350f"/>
+                    <line x1="40" y1="140" x2="40" y2="150" stroke="#78350f" stroke-width="4"/>
+                    <line x1="80" y1="140" x2="80" y2="150" stroke="#78350f" stroke-width="4"/>
+                    <!-- เครื่องหมายนัดเจออันตราย -->
+                    <circle cx="60" cy="80" r="18" fill="#f43f5e" opacity="0.2" class="animate-ping"/>
+                    <circle cx="60" cy="80" r="10" fill="#ef4444"/>
+                    <text x="56" y="84" font-size="12" font-weight="black" fill="#fff">?</text>
+                    <text x="32" y="40" font-size="10" font-weight="black" fill="#dc2626">⚠️ ห้ามแอบนัดเจอนะ!</text>
+                </g>
+            </svg>`;
+        }
+        // ฉากที่ 4: ไซเบอร์บูลลี่ในห้องแชท (ค่ำ)
+        if (id === 'SC004') {
+            return `
+            <svg viewBox="0 0 400 220" class="w-full h-full rounded-xl bg-gradient-to-br from-indigo-50 to-purple-100 p-2 shadow-inner" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" rx="12" fill="none" />
+                <!-- แชทกลุ่มที่มีคำล้อเลียนหัวเราะด่าบูลลี่ -->
+                <g transform="translate(15, 20)">
+                    <rect x="0" y="0" width="220" height="175" rx="12" fill="#ffffff" stroke="#818cf8" stroke-width="3"/>
+                    <rect x="0" y="0" width="220" height="30" rx="8" fill="#818cf8"/>
+                    <text x="15" y="20" font-size="10" font-weight="black" fill="#ffffff">💬 กลุ่มแชท ป.5 ห้องเรา (35)</text>
+                    
+                    <!-- ข้อความล้อเลียนที่ 1 -->
+                    <rect x="15" y="42" width="130" height="32" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+                    <circle cx="28" cy="58" r="8" fill="#fb7185"/>
+                    <text x="42" y="52" font-size="7" font-weight="bold" fill="#0f172a">เพื่อนเอ: ดูรูปตัดต่อมันดิ 55+</text>
+                    <text x="42" y="65" font-size="7" fill="#64748b">น่าเกลียดชะมัด ตลกมาก!</text>
+
+                    <!-- ข้อความล้อเลียนที่ 2 -->
+                    <rect x="15" y="82" width="130" height="32" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+                    <circle cx="28" cy="98" r="8" fill="#60a5fa"/>
+                    <text x="42" y="92" font-size="7" font-weight="bold" fill="#0f172a">เพื่อนบี: ยัยเอ๋อประจำห้อง!</text>
+                    <text x="42" y="105" font-size="7" fill="#64748b">อย่าไปเล่นกับมันเลยพวกเรา</text>
+
+                    <!-- ข้อความชวนเซฟร่วมแจม -->
+                    <rect x="65" y="125" width="140" height="35" rx="6" fill="#e0e7ff" stroke="#818cf8" stroke-width="1.5"/>
+                    <text x="73" y="137" font-size="7.5" font-weight="black" fill="#312e81">เพื่อนแก๊ง: เฮ้ เซฟ! ส่งรูปมาด่ามัน</text>
+                    <text x="73" y="150" font-size="7.5" font-weight="black" fill="#312e81">ร่วมกันเลยสิ สนุกนะ!</text>
+                </g>
+                <!-- หัวใจและการช่วยเหลือเพื่อน -->
+                <g transform="translate(255, 30)">
+                    <circle cx="65" cy="70" r="50" fill="#fae8ff" opacity="0.5"/>
+                    <!-- รูปหัวใจช่วยหยุดบูลลี่ -->
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#ec4899" stroke="#db2777" stroke-width="2" transform="translate(45, 40) scale(1.8) translate(-12, -12)"/>
+                    <text x="5" y="145" font-size="10" font-weight="black" fill="#be185d">💖 ส่งกำลังใจ/ช่วยเหลือเพื่อน</text>
+                </g>
+            </svg>`;
+        }
+        
+        // กรณีด่านอื่นๆ ที่ครูอาจจะสร้างเพิ่มขึ้นมาภายหลัง
+        return `
+        <svg viewBox="0 0 400 220" class="w-full h-full rounded-xl bg-gradient-to-br from-indigo-50 to-blue-100 p-2 shadow-inner" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" rx="12" fill="none" />
+            <circle cx="200" cy="110" r="60" fill="#a5f3fc" opacity="0.3" class="animate-pulse"/>
+            <!-- โล่ผู้พิทักษ์ภัยไซเบอร์เรืองแสงนีออน -->
+            <path d="M200 60 C230 60, 240 70, 240 100 C240 130, 200 160, 200 160 C200 160, 160 130, 160 100 C160 70, 170 60, 200 60 Z" fill="#6366f1" stroke="#312e81" stroke-width="4"/>
+            <path d="M200 70 C220 70, 230 80, 230 100 C230 120, 200 145, 200 145 C200 145, 170 120, 170 100 C170 80, 180 70, 200 70 Z" fill="#818cf8"/>
+            <text x="188" y="112" font-size="30" fill="#fff">🛡️</text>
+            <text x="110" y="185" font-size="11" font-weight="black" fill="#1e1b4b">Cyber Safety Guardian Mode</text>
+        </svg>`;
+    }
+
+    /**
+     * ข้อมูลคำถาม/ด่านตัวอย่าง Mock ดั้งเดิมสำหรับพรีวิวโลคอล
+     */
+    function getMockCyberScenarios() {
+        return [
+            {
+                id: 'SC001',
+                timeOfDay: 'เช้า',
+                title: 'เซลฟี่อันตรายบนรถโรงเรียน',
+                text: 'น้องเซฟกำลังตื่นเต้นกับเช้าวันใหม่ จึงถ่ายภาพเซลฟี่ของตัวเองบนรถโรงเรียนเพื่อโพสต์ลงโซเชียลมีเดีย แต่ในภาพถ่ายนั้นติดป้ายทะเบียนรถและเห็นชื่อจริงรวมถึงป้ายชื่อโรงเรียนบนเสื้อนักเรียนของตนเองอย่างชัดเจน น้องเซฟควรทำอย่างไร?',
+                opt1: 'เบลอชื่อโรงเรียนและป้ายทะเบียนรถ หรือตกแต่งด้วยสติกเกอร์ปิดข้อมูลระบุตัวตนก่อนโพสต์ พร้อมตั้งค่าโพสต์เป็น "เฉพาะเพื่อน" เพื่อความเป็นส่วนตัว',
+                opt2: 'โพสต์ภาพดิบลงโซเชียลทันทีและตั้งค่าเป็น "สาธารณะ" (Public) เพื่อให้ทุกคนเข้ามาดูและกดไลก์เยอะ ๆ',
+                answerIdx: 0,
+                feedbackWrong: 'หยุดก่อนเพื่อนยาก! การเปิดเผยชื่อโรงเรียนและทะเบียนรถสู่สาธารณะ อาจเปิดโอกาสให้ผู้ไม่หวังดีสืบหาที่อยู่และติดตามตัวเราได้นะ! ควรปกปิดข้อมูลระบุตัวตนและโพสต์เฉพาะกับกลุ่มคนที่ไว้ใจได้เท่านั้นจ้า!',
+                feedbackRight: 'ยอดเยี่ยมมาก! การปกปิดข้อมูลสำคัญและตั้งค่าความเป็นส่วนตัว ช่วยป้องกันไม่ให้คนแปลกหน้าสืบหาข้อมูลเพื่อติดตามและทำอันตรายเราได้ เก่งมากน้องเซฟ!',
+                imageSvg: ''
+            },
+            {
+                id: 'SC002',
+                timeOfDay: 'กลางวัน',
+                title: 'เพชรฟรีแสนหวานกับลิงก์ลวงตา',
+                text: 'ในช่วงพักกลางวันอันแสนสนุกสนาน มีข้อความส่งมาในห้องแชทกลุ่มเกมออนไลน์อ้างว่า "แจกเพชรเกมออนไลน์ฟรี 1,000 เม็ด! ด่วนจำนวนจำกัด แค่คลิกลิงก์นี้แล้วเข้าสู่ระบบด้วย ID และรหัสผ่านเกมของคุณเพื่อรับของรางวัลทันที!" น้องเซฟอยากได้เพชรมาก ควรทำอย่างไร?',
+                opt1: 'รีบกดลิงก์และกรอกชื่อผู้ใช้พร้อมรหัสผ่านเกมทันทีเพื่อที่จะได้รับเพชรฟรีคนแรกก่อนที่กิจกรรมจะหมดเวลา',
+                opt2: 'ปิดข้อความทิ้งทันที และไม่คลิกลิงก์แปลกปลอมนั้น พร้อมเตือนเพื่อน ๆ ในกลุ่มว่าอาจเป็นลิงก์หลอกลวงขโมยรหัสผ่าน (Phishing)',
+                answerIdx: 1,
+                feedbackWrong: 'ระวังอันตราย! ไม่มีของฟรีในโลกไซเบอร์หรอกนะ! ลิงก์ที่หลอกให้ใส่รหัสผ่านเรียกว่า "ฟิชชิ่ง" (Phishing) หากหลงเชื่อ รหัสผ่านและไอดีเกมของเราจะโดนแฮกและขโมยไปทันทีเลย!',
+                feedbackRight: 'ปลอดภัยที่สุด! ของฟรีมักไม่มีอยู่จริง และการไม่กรอกรหัสผ่านลงในเว็บแปลกปลอมช่วยปกป้องไอดีเกมของเราไม่ให้โดนขโมยได้อย่างถาวร ยอดเยี่ยม!',
+                imageSvg: ''
+            },
+            {
+                id: 'SC003',
+                timeOfDay: 'เย็น',
+                title: 'คนแปลกหน้าออนไลน์กับของเล่นฟรี',
+                text: 'หลังเลิกเรียน น้องเซฟกำลังเล่นเกมออนไลน์อยู่ที่บ้านอย่างเพลิดเพลิน จู่ ๆ มีผู้เล่นคนหนึ่งในเกมที่เล่นด้วยกันมาสองสามวันส่งข้อความมาชวนคุยอย่างเป็นกันเอง และเอ่ยปากชวนว่า "พี่ชอบเล่นเกมกับเรานะ วันเสาร์นี้มาเจอกันที่สวนสาธารณะหลังห้างใกล้บ้านเราไหม พี่จะเอาการ์ดเกมแรร์กับของเล่นมาแจกให้ฟรี ๆ เลย แต่อย่าบอกพ่อแม่นะ เดี๋ยวอดของดี!" น้องเซฟควรทำอย่างไร?',
+                opt1: 'ตอบปฏิเสธทันที และนำข้อความสนทนานี้ไปแจ้งให้คุณพ่อคุณแม่หรือคุณครูทราบเพื่อขอคำปรึกษาและระมัดระวังตัว',
+                opt2: 'แอบออกไปนัดเจอตามลำพังเงียบ ๆ เพราะคิดว่าเขาเป็นคนใจดีและสัญญาว่าจะให้ของเล่นแรร์ฟรี ๆ',
+                answerIdx: 0,
+                feedbackWrong: 'อันตรายร้ายแรง! การนัดเจอคนแปลกหน้าบนโลกออนไลน์ตามลำพังมีความเสี่ยงสูงมากที่จะถูกลักพาตัว ล่อลวง หรือทำอันตราย! เราไม่ควรกรรทำอย่างเด็ดขาดและต้องรีบบอกผู้ปกครองให้ทราบทันที!',
+                feedbackRight: 'ตัดสินใจได้ฉลาดมาก! การปฏิเสธและปรึกษาผู้ปกครองช่วยปกป้องเราจากการถูกล่อลวงหรือลักพาตัวโดยผู้ไม่หวังดีที่แฝงตัวมาในโลกออนไลน์!',
+                imageSvg: ''
+            },
+            {
+                id: 'SC004',
+                timeOfDay: 'ค่ำ',
+                title: 'กระแสบูลลี่ในห้องแชทกลุ่ม',
+                text: 'ก่อนเข้านอน น้องเซฟเปิดกลุ่มไลน์ห้องเรียนเพื่อคุยกับเพื่อน ๆ แต่กลับพบว่ามีเพื่อนกลุ่มหนึ่งกำลังรุมส่งภาพตัดต่อล้อเลียนเพื่อกลั่นแกล้งเพื่อนคนหนึ่งในห้องอย่างสนุกสนาน เพื่อน ๆ ทักมาบอกว่า "เซฟ ส่งรูปตลก ๆ มาร่วมแจมด่ามันด้วยกันสิ สนุกจะตาย!" น้องเซฟควรทำอย่างไร?',
+                opt1: 'ส่งสติกเกอร์หัวเราะหรือตัดต่อภาพล้อเลียนร่วมแจมไปด้วย เพื่อความสนุกและเพื่อป้องกันไม่ให้ตัวเองโดนเพื่อนคนอื่น ๆ แบนออกจากกลุ่ม',
+                opt2: 'ไม่ร่วมวงส่งภาพล้อเลียน และส่งข้อความทักส่วนตัวไปให้กำลังใจเพื่อนที่โดนแกล้ง หรือแจ้งให้คุณครูประจำชั้นทราบถึงสถานการณ์ไซเบอร์บูลลี่นี้',
+                answerIdx: 1,
+                feedbackWrong: 'หยุดทำร้ายจิตใจผู้อื่น! การร่วมวงล้อเลียนเพื่อนออนไลน์ถือเป็นการรังแกทางไซเบอร์ (Cyberbullying) ซึ่งสร้างความเจ็บปวดและบาดแผลทางใจให้แก่เพื่อนอย่างรุนแรง เราไม่ควรมีส่วนร่วมเด็ดขาด!',
+                feedbackRight: 'หัวใจหล่อมาก! การไม่ร่วมรังแกผู้อื่นและหยิบยื่นความช่วยเหลือให้ผู้ถูกกระทำ ช่วยสร้างสังคมออนไลน์ที่ปลอดภัยและน่าอยู่ และหยุดยั้งปัญหาการกลั่นแกล้งกันได้เป็นอย่างดี!',
+                imageSvg: ''
+            }
+        ];
+    }
+</script>

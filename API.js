@@ -1836,3 +1836,70 @@ function getUserCurrentLessonId(userId) {
     return null;
   }
 }
+
+/**
+ * API: บันทึกแต้ม เหรียญ และความก้าวหน้าผู้เล่นจากโหมดความปลอดภัยไซเบอร์
+ */
+function saveCyberSafetyResult(userId, score, coinsGained, xpGained) {
+  try {
+    ensureDatabaseSetup();
+    const ss = getSpreadsheet();
+    
+    // 1. บันทึกผลลงตาราง Progress เพื่อใช้ติดตามผลความก้าวหน้า
+    const progressSheet = ss.getSheetByName('Progress');
+    if (progressSheet) {
+      progressSheet.appendRow([userId, 'CYBER_SAFETY', 'Passed', score]);
+    }
+    
+    // 2. อัปเดตเหรียญและ EXP ของผู้เล่นใน Users
+    const usersSheet = ss.getSheetByName('Users');
+    const data = usersSheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const col = {};
+    const requiredCols = ['UserID', 'XP', 'Coins', 'Level', 'Rank'];
+    requiredCols.forEach(c => col[c] = headers.indexOf(c));
+    
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][col.UserID]) === String(userId)) {
+        const currentCoins = Number(data[i][col.Coins]) || 0;
+        const currentXp = Number(data[i][col.XP]) || 0;
+        
+        const cleanCoins = Number(coinsGained) || 0;
+        const cleanXp = Number(xpGained) || 0;
+        
+        const newCoins = currentCoins + cleanCoins;
+        const newXp = currentXp + cleanXp;
+        
+        const newLevel = Math.floor(newXp / 100) + 1;
+        
+        let newRank = 'BRONZE';
+        if (newXp >= 300) newRank = 'SILVER';
+        if (newXp >= 600) newRank = 'GOLD';
+        if (newXp >= 1200) newRank = 'PLATINUM';
+        if (newXp >= 2500) newRank = 'DIAMOND';
+        if (newXp >= 5000) newRank = 'MASTER';
+        if (newXp >= 10000) newRank = 'GRANDMASTER';
+        
+        // เขียนอัปเดตกลับลงชีท
+        usersSheet.getRange(i + 1, col.Coins + 1).setValue(newCoins);
+        usersSheet.getRange(i + 1, col.XP + 1).setValue(newXp);
+        usersSheet.getRange(i + 1, col.Level + 1).setValue(newLevel);
+        usersSheet.getRange(i + 1, col.Rank + 1).setValue(newRank);
+        
+        return {
+          success: true,
+          coins: newCoins,
+          xp: newXp,
+          level: newLevel,
+          rank: newRank
+        };
+      }
+    }
+    return { success: false, error: 'ไม่พบข้อมูลผู้เล่น' };
+  } catch (e) {
+    console.error('Error in saveCyberSafetyResult:', e);
+    return { success: false, error: e.toString() };
+  }
+}
+

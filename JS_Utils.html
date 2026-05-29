@@ -146,7 +146,7 @@
     // ========== 2. ระบบ Navigation (เปลี่ยนหน้า) ==========
     function showPage(pageId) {
         // ซ่อนทุกหน้า
-        const allPages = ['page-landing', 'page-dashboard', 'page-admin', 'page-lesson', 'page-pretest', 'page-boss-battle', 'page-map', 'page-worksheet', 'page-lobby', 'page-pvp', 'page-world-boss'];
+        const allPages = ['page-landing', 'page-dashboard', 'page-admin', 'page-lesson', 'page-pretest', 'page-boss-battle', 'page-map', 'page-worksheet', 'page-lobby', 'page-pvp', 'page-world-boss', 'page-cyber-safety'];
         allPages.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -157,32 +157,34 @@
 
         // จัดการ #app container — ซ่อนเมื่อเปิดหน้า map หรือ pvp
         const appContainer = document.getElementById('app');
-        if (pageId === 'map' || pageId === 'pvp') {
-            appContainer.classList.add('hidden');
-        } else {
-            appContainer.classList.remove('hidden');
-
-            // ถ้าเป็นหน้า Dashboard หรือ หน้าอ่านบทเรียน (Lesson) หรือหน้าทำใบงาน หรือหน้าเวิลด์บอส ให้ขยายเต็มหน้าจอ ไม่กระดับขอบ (Borderless Fullscreen) หรือเอาพื้นกระจกออก
-            if (pageId === 'dashboard' || pageId === 'lesson' || pageId === 'worksheet' || pageId === 'world-boss') {
-                appContainer.classList.remove('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
-                appContainer.classList.add('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
-
-                // นำความเบลอของกระจกออก เพื่อให้เห็น Background และ ฟองสบู่ชัดเจน
-                appContainer.style.background = 'transparent';
-                appContainer.style.backdropFilter = 'none';
-                appContainer.style.webkitBackdropFilter = 'none';
-                appContainer.style.border = 'none';
-                appContainer.style.boxShadow = 'none';
+        if (appContainer) {
+            if (pageId === 'map' || pageId === 'pvp') {
+                appContainer.classList.add('hidden');
             } else {
-                appContainer.classList.add('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
-                appContainer.classList.remove('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
+                appContainer.classList.remove('hidden');
 
-                // คืนค่ารูปแบบกระจกเดิม
-                appContainer.style.background = '';
-                appContainer.style.backdropFilter = '';
-                appContainer.style.webkitBackdropFilter = '';
-                appContainer.style.border = '';
-                appContainer.style.boxShadow = '';
+                // ถ้าเป็นหน้า Dashboard หรือ หน้าอ่านบทเรียน (Lesson) หรือหน้าทำใบงาน หรือหน้าเวิลด์บอส หรือหน้าภัยไซเบอร์ ให้ขยายเต็มหน้าจอ
+                if (pageId === 'dashboard' || pageId === 'lesson' || pageId === 'worksheet' || pageId === 'world-boss' || pageId === 'cyber-safety') {
+                    appContainer.classList.remove('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
+                    appContainer.classList.add('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
+
+                    // นำความเบลอของกระจกออก เพื่อให้เห็น Background และ ฟองสบู่ชัดเจน
+                    appContainer.style.background = 'transparent';
+                    appContainer.style.backdropFilter = 'none';
+                    appContainer.style.webkitBackdropFilter = 'none';
+                    appContainer.style.border = 'none';
+                    appContainer.style.boxShadow = 'none';
+                } else {
+                    appContainer.classList.add('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
+                    appContainer.classList.remove('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
+
+                    // คืนค่ารูปแบบกระจกเดิม
+                    appContainer.style.background = '';
+                    appContainer.style.backdropFilter = '';
+                    appContainer.style.webkitBackdropFilter = '';
+                    appContainer.style.border = '';
+                    appContainer.style.boxShadow = '';
+                }
             }
         }
 
@@ -283,15 +285,18 @@
 
     // ========== 3. ระบบโหลดหน้าจอ (Loading) ==========
     function showLoader() {
-        document.getElementById('global-loader').classList.remove('hidden');
+        const loader = document.getElementById('global-loader');
+        if (loader) loader.classList.remove('hidden');
     }
     function hideLoader() {
-        document.getElementById('global-loader').classList.add('hidden');
+        const loader = document.getElementById('global-loader');
+        if (loader) loader.classList.add('hidden');
     }
 
     // ========== 7. อนิเมชันพื้นหลัง (Animations) ==========
     function createBubbles() {
         const container = document.getElementById('bg-bubbles');
+        if (!container) return; // ป้องกันพังหากไม่มี element bg-bubbles บนหน้าเว็บ (เช่น หน้าขอสิทธิ์ OAuth)
         // สร้างฟองสบู่ลอย 15 อัน
         for (let i = 0; i < 15; i++) {
             let bubble = document.createElement('div');

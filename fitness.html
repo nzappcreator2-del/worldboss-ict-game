@@ -302,6 +302,12 @@
                                 class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer">
                             <span>🔄 กลับหัวกล้อง 180°</span>
                         </button>
+                        
+                        <!-- ⚙️ ปุ่มเดียวสลับการกลับทิศทาง AI ทั้งสองแกนพร้อมกัน (แก้เครื่องเรียนที่มีปัญหา AI สลับทิศทาง) -->
+                        <button id="wb-flip-ai-btn" onclick="toggleAiHandFlip()"
+                                class="w-full py-1 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-amber-500/50 hover:border-amber-400 text-amber-300 hover:text-white font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer mt-1">
+                            <span>🔄 กลับทิศทาง AI [ปิด]</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1170,6 +1176,12 @@
             runnerCanvasEl.height = 960;
         }
         
+        // ⚡ อาร์เรย์รูปภาพพื้นหลังและสถานะกลับทิศทาง AI สำหรับมินิเกมผู้ช่วยปราบภัย AI (บอส 2) บูสสปีด 60 FPS
+        const wbSafetyBgImg = new Image();
+        wbSafetyBgImg.src = "https://i.postimg.cc/dVm5LhQx/Gemini-Generated-Image-p9omm7p9omm7p9om.png";
+        
+        let wbAiHandFlip = localStorage.getItem('wb_ai_hand_flip') === 'true';
+        
         let wbStream = null;
 
         // กำหนดความละเอียดคงที่ของ Canvas
@@ -1557,6 +1569,29 @@
             }
         }
 
+        // --- ⚙️ ฟังก์ชันสลับการกลับทิศทาง AI ทั้งแกน X/Y ในปุ่มเดียว สำหรับเครื่องเรียนที่มีปัญหากล้องรีเวิร์ส ---
+        function toggleAiHandFlip() {
+            wbAiHandFlip = !wbAiHandFlip;
+            localStorage.setItem('wb_ai_hand_flip', wbAiHandFlip);
+            updateAiFlipButtonUI();
+            playBeep('coin'); // เล่นเสียง coin คลาสสิก
+        }
+
+        function updateAiFlipButtonUI() {
+            const btn = document.getElementById('wb-flip-ai-btn');
+            if (btn) {
+                if (wbAiHandFlip) {
+                    btn.classList.remove('border-amber-500/50', 'text-amber-300');
+                    btn.classList.add('border-emerald-500', 'bg-emerald-950/80', 'text-emerald-300');
+                    btn.innerHTML = `<span>🔄 กลับทิศทาง AI [เปิด]</span>`;
+                } else {
+                    btn.classList.remove('border-emerald-500', 'bg-emerald-950/80', 'text-emerald-300');
+                    btn.classList.add('border-amber-500/50', 'text-amber-300');
+                    btn.innerHTML = `<span>🔄 กลับทิศทาง AI [ปิด]</span>`;
+                }
+            }
+        }
+
         function initCameraFlipState() {
             const canvasEl = document.getElementById('wb-canvas');
             if (!canvasEl) return;
@@ -1566,6 +1601,9 @@
             } else {
                 canvasEl.classList.remove('camera-flipped');
             }
+            
+            // เรียกตั้งค่าสถานะและสไตล์ปุ่มสลับทิศทาง AI ครั้งแรกตามค่าใน localStorage
+            updateAiFlipButtonUI();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -2453,9 +2491,12 @@
                     const isUserDraggingWithMouse = isMouseDragging;
                     
                     if (thumbTip && indexTip && !isUserDraggingWithMouse) {
-                        // แปลงพิกัดมือสลับขวาซ้าย (Mirroring) เพื่อให้เคลื่อนไหวเป็นธรรมชาติ
-                        const targetX = (1 - (thumbTip.x + indexTip.x) / 2) * width;
-                        const targetY = ((thumbTip.y + indexTip.y) / 2) * height;
+                        // ⚡ คำนวณพิกัดปกติหรือสลับทิศทาง (ปุ่มเดียวกลับทิศทาง AI ทั้งแนวนอนและแนวดิ่งตามความต้องการของครู)
+                        const handXNorm = (thumbTip.x + indexTip.x) / 2;
+                        const handYNorm = (thumbTip.y + indexTip.y) / 2;
+                        
+                        const targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * width;
+                        const targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * height;
                         
                         // ⚡ ปรับเร่ง Exponential Smoothing ให้การตอบสนองมือตามรอยได้ว่องไวขึ้น จาก 0.35 เป็น 0.75 เพื่อลดความหน่วงสะดุดและอาการภาพวาป
                         handCursor.smoothX += (targetX - handCursor.smoothX) * 0.75;
@@ -2544,297 +2585,15 @@
             runnerCanvasCtx.save();
             
             // ==========================================
-            // 1. พื้นหลัง Sci-Fi 3D Perspective ห้องแล็บ (ตาม ref1 & ref2)
+            // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟตามความต้องการของครูผู้ใช้งาน (เร็วกว่าเดิมสูงสุด บูสความลื่นขั้นเทพ)
             // ==========================================
-            runnerCanvasCtx.fillStyle = '#0a0d1a';
-            runnerCanvasCtx.fillRect(0, 0, width, height);
-            
-            const vanishingX = width / 2;
-            const vanishingY = height * 0.45; // จุดศูนย์กลางลับสายตาให้อยู่กึ่งกลางแนวสูง
-            
-            // วาดสีเกรเดียนท์พื้นห้องแล็บสีน้ำเงินเข้ม
-            const floorGrad = runnerCanvasCtx.createLinearGradient(0, vanishingY, 0, height);
-            floorGrad.addColorStop(0, '#0a0e1c');
-            floorGrad.addColorStop(1, '#070812');
-            runnerCanvasCtx.fillStyle = floorGrad;
-            runnerCanvasCtx.fillRect(0, vanishingY, width, height - vanishingY);
-            
-            // วาดตารางกริต 3D บนพื้น (Perspective Guide Lines)
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.12)';
-            runnerCanvasCtx.lineWidth = 1.2;
-            for (let i = -width * 0.5; i <= width * 1.5; i += 50) {
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(vanishingX, vanishingY);
-                runnerCanvasCtx.lineTo(i, height);
-                runnerCanvasCtx.stroke();
+            if (wbSafetyBgImg.complete) {
+                runnerCanvasCtx.drawImage(wbSafetyBgImg, 0, 0, width, height);
+            } else {
+                // สีพื้นหลังสีน้ำเงินเข้มขรึมในกรณีที่รูปภาพกำลังโหลด
+                runnerCanvasCtx.fillStyle = '#060813';
+                runnerCanvasCtx.fillRect(0, 0, width, height);
             }
-            
-            // วาดเส้นกริดแนวนอนแบบ Perspective (ยิ่งใกล้ ยิ่งกว้าง)
-            let currY = vanishingY;
-            let gap = 5;
-            while (currY < height) {
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(0, currY);
-                runnerCanvasCtx.lineTo(width, currY);
-                runnerCanvasCtx.strokeStyle = `rgba(6, 182, 212, ${0.03 + (currY - vanishingY)/(height - vanishingY) * 0.1})`;
-                runnerCanvasCtx.stroke();
-                currY += gap;
-                gap += 2.8; // เพิ่มระยะห่างแบบ Exponential
-            }
-            
-            // กำหนดความกว้างของผนังด้านข้างแบบแปรผันตามขนาดจริง
-            const wallWidth = Math.max(120, width * 0.16);
-            
-            // วาดผนังซ้าย (Perspective Wall Left)
-            const leftWallGrad = runnerCanvasCtx.createLinearGradient(0, 0, wallWidth, 0);
-            leftWallGrad.addColorStop(0, '#10152b');
-            leftWallGrad.addColorStop(1, '#0a0d1a');
-            runnerCanvasCtx.fillStyle = leftWallGrad;
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(0, 0);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.2);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.75);
-            runnerCanvasCtx.lineTo(0, height);
-            runnerCanvasCtx.closePath();
-            runnerCanvasCtx.fill();
-            
-            // เส้นขอบผนังซ้าย
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.25)';
-            runnerCanvasCtx.lineWidth = 2;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(wallWidth, height * 0.2);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.75);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(0, 0);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.2);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(0, height);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.75);
-            runnerCanvasCtx.stroke();
-            
-            // วาดสัญลักษณ์ตกแต่งบนผนังซ้าย (โล่เรืองแสงและรูปแม่กุญแจ)
-            runnerCanvasCtx.save();
-            runnerCanvasCtx.shadowColor = '#06b6d4';
-            runnerCanvasCtx.shadowBlur = 8;
-            
-            // โล่เรืองแสงบนผนังซ้าย
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.3)';
-            leftWallGrad.addColorStop(0, '#13192f');
-            leftWallGrad.addColorStop(0.5, '#0e1224');
-            leftWallGrad.addColorStop(1, '#060813');
-            runnerCanvasCtx.fillStyle = leftWallGrad;
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(0, 0);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.18);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.77);
-            runnerCanvasCtx.lineTo(0, height);
-            runnerCanvasCtx.closePath();
-            runnerCanvasCtx.fill();
-            
-            // แรเงาและวาดขอบความหนาประตูบานเลื่อน (Bevel Gate highlights)
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.32)';
-            runnerCanvasCtx.lineWidth = 2.5;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(wallWidth, height * 0.18);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.77);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.18)';
-            runnerCanvasCtx.lineWidth = 1.5;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(0, 0);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.18);
-            runnerCanvasCtx.moveTo(0, height);
-            runnerCanvasCtx.lineTo(wallWidth, height * 0.77);
-            runnerCanvasCtx.stroke();
-            
-            // วาด "โล่เรืองแสงสีฟ้าอ่อนและแม่กุญแจล็อค" บนผนังซ้าย (เป๊ะตาม ref2)
-            runnerCanvasCtx.save();
-            const shieldX = wallWidth * 0.52;
-            const shieldY = height * 0.46;
-            
-            runnerCanvasCtx.shadowColor = '#22d3ee';
-            runnerCanvasCtx.shadowBlur = 10;
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.45)';
-            runnerCanvasCtx.fillStyle = 'rgba(6, 182, 212, 0.05)';
-            runnerCanvasCtx.lineWidth = 2;
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(shieldX, shieldY - 24);
-            runnerCanvasCtx.quadraticCurveTo(shieldX + 18, shieldY - 24, shieldX + 22, shieldY - 20);
-            runnerCanvasCtx.lineTo(shieldX + 22, shieldY);
-            runnerCanvasCtx.quadraticCurveTo(shieldX + 22, shieldY + 20, shieldX, shieldY + 30);
-            runnerCanvasCtx.quadraticCurveTo(shieldX - 22, shieldY + 20, shieldX - 22, shieldY);
-            runnerCanvasCtx.lineTo(shieldX - 22, shieldY - 20);
-            runnerCanvasCtx.quadraticCurveTo(shieldX - 18, shieldY - 24, shieldX, shieldY - 24);
-            runnerCanvasCtx.closePath();
-            runnerCanvasCtx.fill();
-            runnerCanvasCtx.stroke();
-            
-            // วาดรูปกุญแจล็อค Sci-Fi ตรงกลางโล่
-            runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.75)';
-            runnerCanvasCtx.fillRect(shieldX - 7, shieldY - 3, 14, 12);
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.arc(shieldX, shieldY - 3, 5, Math.PI, 0);
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.75)';
-            runnerCanvasCtx.lineWidth = 2.5;
-            runnerCanvasCtx.stroke();
-            
-            // วาดรูกุญแจวงกลมและขีดตรงลงด้านล่าง
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.arc(shieldX, shieldY + 2, 2.2, 0, Math.PI * 2);
-            runnerCanvasCtx.fillStyle = '#060813';
-            runnerCanvasCtx.fill();
-            runnerCanvasCtx.fillRect(shieldX - 1, shieldY + 3.5, 2, 4);
-            runnerCanvasCtx.restore();
-            
-            // วาดกราฟข้อมูลโฮโลแกรมเรืองแสงสีฟ้าอ่อนและเส้นตาราง Grid บนผนังซ้าย
-            runnerCanvasCtx.save();
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
-            runnerCanvasCtx.lineWidth = 1;
-            // ลาย Grid 3 เส้น
-            for(let g = 0; g < 3; g++) {
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(wallWidth * 0.1, height * (0.25 + g * 0.15));
-                runnerCanvasCtx.lineTo(wallWidth * 0.9, height * (0.32 + g * 0.15));
-                runnerCanvasCtx.stroke();
-            }
-            // เส้นกราฟโฮโลแกรมเรืองแสง
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.2)';
-            runnerCanvasCtx.shadowColor = '#22d3ee';
-            runnerCanvasCtx.shadowBlur = 6;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(wallWidth * 0.15, height * 0.65);
-            runnerCanvasCtx.lineTo(wallWidth * 0.35, height * 0.68);
-            runnerCanvasCtx.lineTo(wallWidth * 0.55, height * 0.63);
-            runnerCanvasCtx.lineTo(wallWidth * 0.75, height * 0.67);
-            runnerCanvasCtx.stroke();
-            runnerCanvasCtx.restore();
-            
-            // --- ผนังขวา 3D Metal Gate (เป๊ะตาม ref2) ---
-            const rightWallGrad = runnerCanvasCtx.createLinearGradient(width - wallWidth, 0, width, 0);
-            rightWallGrad.addColorStop(0, '#060813');
-            rightWallGrad.addColorStop(0.5, '#0e1224');
-            rightWallGrad.addColorStop(1, '#13192f');
-            runnerCanvasCtx.fillStyle = rightWallGrad;
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(width, 0);
-            runnerCanvasCtx.lineTo(width - wallWidth, height * 0.18);
-            runnerCanvasCtx.lineTo(width - wallWidth, height * 0.77);
-            runnerCanvasCtx.lineTo(width, height);
-            runnerCanvasCtx.closePath();
-            runnerCanvasCtx.fill();
-            
-            // แรเงาและวาดขอบความหนาประตูบานเลื่อนฝั่งขวา
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.32)';
-            runnerCanvasCtx.lineWidth = 2.5;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(width - wallWidth, height * 0.18);
-            runnerCanvasCtx.lineTo(width - wallWidth, height * 0.77);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.18)';
-            runnerCanvasCtx.lineWidth = 1.5;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(width, 0);
-            runnerCanvasCtx.lineTo(width - wallWidth, height * 0.18);
-            runnerCanvasCtx.moveTo(width, height);
-            runnerCanvasCtx.lineTo(width - wallWidth, height * 0.77);
-            runnerCanvasCtx.stroke();
-            
-            // วาด "โล่เรืองแสงสีฟ้าอ่อนและแม่กุญแจล็อค" บนผนังขวา (เป๊ะตาม ref2)
-            runnerCanvasCtx.save();
-            const rightShieldX = width - wallWidth * 0.52;
-            const rightShieldY = height * 0.46;
-            
-            runnerCanvasCtx.shadowColor = '#22d3ee';
-            runnerCanvasCtx.shadowBlur = 10;
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.45)';
-            runnerCanvasCtx.fillStyle = 'rgba(6, 182, 212, 0.05)';
-            runnerCanvasCtx.lineWidth = 2;
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(rightShieldX, rightShieldY - 24);
-            runnerCanvasCtx.quadraticCurveTo(rightShieldX + 18, rightShieldY - 24, rightShieldX + 22, rightShieldY - 20);
-            runnerCanvasCtx.lineTo(rightShieldX + 22, rightShieldY);
-            runnerCanvasCtx.quadraticCurveTo(rightShieldX + 22, rightShieldY + 20, rightShieldX, rightShieldY + 30);
-            runnerCanvasCtx.quadraticCurveTo(rightShieldX - 22, rightShieldY + 20, rightShieldX - 22, rightShieldY);
-            runnerCanvasCtx.lineTo(rightShieldX - 22, rightShieldY - 20);
-            runnerCanvasCtx.quadraticCurveTo(rightShieldX - 18, rightShieldY - 24, rightShieldX, rightShieldY - 24);
-            runnerCanvasCtx.closePath();
-            runnerCanvasCtx.fill();
-            runnerCanvasCtx.stroke();
-            
-            // วาดรูปกุญแจล็อค Sci-Fi ฝั่งขวา
-            runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.75)';
-            runnerCanvasCtx.fillRect(rightShieldX - 7, rightShieldY - 3, 14, 12);
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.arc(rightShieldX, rightShieldY - 3, 5, Math.PI, 0);
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.75)';
-            runnerCanvasCtx.lineWidth = 2.5;
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.arc(rightShieldX, rightShieldY + 2, 2.2, 0, Math.PI * 2);
-            runnerCanvasCtx.fillStyle = '#060813';
-            runnerCanvasCtx.fill();
-            runnerCanvasCtx.fillRect(rightShieldX - 1, rightShieldY + 3.5, 2, 4);
-            runnerCanvasCtx.restore();
-            
-            // วาดกราฟข้อมูลโฮโลแกรมเรืองแสงบนผนังขวา
-            runnerCanvasCtx.save();
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
-            runnerCanvasCtx.lineWidth = 1;
-            for(let g = 0; g < 3; g++) {
-                runnerCanvasCtx.beginPath();
-                runnerCanvasCtx.moveTo(width - wallWidth * 0.1, height * (0.25 + g * 0.15));
-                runnerCanvasCtx.lineTo(width - wallWidth * 0.9, height * (0.32 + g * 0.15));
-                runnerCanvasCtx.stroke();
-            }
-            runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.2)';
-            runnerCanvasCtx.shadowColor = '#22d3ee';
-            runnerCanvasCtx.shadowBlur = 6;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(width - wallWidth * 0.15, height * 0.65);
-            runnerCanvasCtx.lineTo(width - wallWidth * 0.35, height * 0.68);
-            runnerCanvasCtx.lineTo(width - wallWidth * 0.55, height * 0.63);
-            runnerCanvasCtx.lineTo(width - wallWidth * 0.75, height * 0.67);
-            runnerCanvasCtx.stroke();
-            runnerCanvasCtx.restore();
-            
-            // วาดเส้นแสงวงจรอิเล็กทรอนิกส์วิ่งเฉียงไปตามมุมผนัง (Sci-Fi lines)
-            runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.14)';
-            runnerCanvasCtx.lineWidth = 1;
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(wallWidth, height * 0.3);
-            runnerCanvasCtx.lineTo(wallWidth * 0.4, height * 0.17);
-            runnerCanvasCtx.lineTo(0, height * 0.17);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(wallWidth, height * 0.68);
-            runnerCanvasCtx.lineTo(wallWidth * 0.33, height * 0.45);
-            runnerCanvasCtx.lineTo(0, height * 0.45);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(width - wallWidth, height * 0.3);
-            runnerCanvasCtx.lineTo(width - wallWidth * 0.4, height * 0.17);
-            runnerCanvasCtx.lineTo(width, height * 0.17);
-            runnerCanvasCtx.stroke();
-            
-            runnerCanvasCtx.beginPath();
-            runnerCanvasCtx.moveTo(width - wallWidth, height * 0.68);
-            runnerCanvasCtx.lineTo(width - wallWidth * 0.33, height * 0.45);
-            runnerCanvasCtx.lineTo(width, height * 0.45);
-            runnerCanvasCtx.stroke();
             
             runnerCanvasCtx.restore();
             
@@ -3205,16 +2964,18 @@
             ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
             ctx.fill();
             
-            // 2. แสงออร่านีออนด้านหลังถังขยะ
-            ctx.save();
-            const glowGrad = ctx.createRadialGradient(x + w/2, y + h/2, 10, x + w/2, y + h/2, w * 0.85);
-            glowGrad.addColorStop(0, isActive ? hexToRgba(baseColor, 0.25) : hexToRgba(baseColor, 0.1));
-            glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = glowGrad;
-            ctx.beginPath();
-            ctx.arc(x + w/2, y + h/2, w * 0.85, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
+            // 2. แสงออร่านีออนด้านหลังถังขยะ (วาดเฉพาะเมื่อ Active คัดแยกเพื่อบูสท์ความลื่นไหลขั้นเทพ!)
+            if (isActive) {
+                ctx.save();
+                const glowGrad = ctx.createRadialGradient(x + w/2, y + h/2, 10, x + w/2, y + h/2, w * 0.85);
+                glowGrad.addColorStop(0, hexToRgba(baseColor, 0.25));
+                glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = glowGrad;
+                ctx.beginPath();
+                ctx.arc(x + w/2, y + h/2, w * 0.85, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
             
             // 3. วาดตัวถังด้านหน้า (Front Panel) - สี่เหลี่ยมคางหมู Perspective
             const topL = x;
