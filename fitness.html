@@ -989,7 +989,7 @@
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
                 runnerCanvas.classList.remove('hidden');
-                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 block object-cover border-none rounded-none";
+                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 block object-contain border-none rounded-none";
             }
             
             // ปลดขอบตู้เกมสีดำทึบด้านข้างออก เพื่อให้แสดงผลเต็มพื้นที่อย่างแท้จริง
@@ -3000,13 +3000,8 @@
             const randomIndex = Math.floor(Math.random() * AI_SAFETY_ITEMS.length);
             const template = AI_SAFETY_ITEMS[randomIndex];
             
-            let canvasWidth = 640;
-            let canvasHeight = 480;
-            if (runnerCanvasEl) {
-                const rect = runnerCanvasEl.getBoundingClientRect();
-                canvasWidth = rect.width || 640;
-                canvasHeight = rect.height || 480;
-            }
+            const canvasWidth = 640;
+            const canvasHeight = 480;
             
             aiCurrentItem = {
                 text: template.text,
