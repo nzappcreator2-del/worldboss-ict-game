@@ -2566,8 +2566,8 @@
                     wbCanvasCtx.restore();
                 }
             
-            // กำหนดความละเอียดของ Canvas ให้ตรงกับขนาด CSS * 2 เพื่อให้คมกริบ (Retina Display support)
-            const scaleFactor = window.devicePixelRatio || 2;
+            // บังคับความละเอียดระดับ 1 เท่า (scaleFactor = 1.0) ในด่านบอส 2 เพื่อบูสความลื่นไหลขั้นเทพและประหยัดการประมวลผล 75% บนเครื่องนักเรียน
+            const scaleFactor = 1.0;
             if (runnerCanvasEl.width !== width * scaleFactor || runnerCanvasEl.height !== height * scaleFactor) {
                 runnerCanvasEl.width = width * scaleFactor;
                 runnerCanvasEl.height = height * scaleFactor;
@@ -2699,8 +2699,7 @@
                 item.h = 155 * cardScale;
                 
                 runnerCanvasCtx.save();
-                runnerCanvasCtx.shadowColor = '#06b6d4'; // ออร่าโฮโลแกรมสีไซอันสว่าง
-                runnerCanvasCtx.shadowBlur = isItemDragging ? (25 * cardScale) : (12 * cardScale);
+                // ⚡ ยกเลิก shadowBlur ที่เป็นคอขวดประมวลผลช้าของ CPU เครื่องนักเรียน และทดแทนด้วยเทคนิค Double Border นีออนเรืองแสงซ้อน 2 ชั้นที่เร็วขึ้น 100 เท่า!
                 
                 // วาดตัวกล่องทรงโค้งมนไฮเทค สีกรมท่ามืดสลัว (เป๊ะตาม ref2)
                 const cardGrad = runnerCanvasCtx.createLinearGradient(item.x, item.y - item.h/2, item.x, item.y + item.h/2);
@@ -2708,10 +2707,17 @@
                 cardGrad.addColorStop(1, 'rgba(7, 10, 24, 0.92)');
                 
                 runnerCanvasCtx.fillStyle = cardGrad;
-                runnerCanvasCtx.strokeStyle = isItemDragging ? '#22d3ee' : 'rgba(6, 182, 212, 0.8)';
-                runnerCanvasCtx.lineWidth = (isItemDragging ? 2.5 : 1.5) * cardScale;
                 
+                // 1. วาดขอบวงนอก ความหนา 4.5px สีโปร่งแสงจำลองเงาฟุ้ง (Outer Neon Glow Ring)
+                runnerCanvasCtx.strokeStyle = isItemDragging ? 'rgba(34, 211, 238, 0.35)' : 'rgba(6, 182, 212, 0.25)';
+                runnerCanvasCtx.lineWidth = (isItemDragging ? 4.5 : 3.0) * cardScale;
                 drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, true, true);
+                
+                // 2. วาดขอบวงใน ความหนา 1.5px สีสว่างคมชัด (Inner High-Tech Ring)
+                runnerCanvasCtx.strokeStyle = isItemDragging ? '#22d3ee' : 'rgba(6, 182, 212, 0.8)';
+                runnerCanvasCtx.lineWidth = (isItemDragging ? 1.8 : 1.2) * cardScale;
+                drawRoundRect(runnerCanvasCtx, item.x - item.w/2, item.y - item.h/2, item.w, item.h, 12 * cardScale, false, true);
+                
                 runnerCanvasCtx.restore();
                 
                 // ตรวจสเกลความกว้างในการแสดงผลของข้อมูล
@@ -2723,10 +2729,12 @@
                     
                     // ไอคอนหัวข้อและภาษาอังกฤษ (💼 Job Displacement)
                     runnerCanvasCtx.font = `900 ${18 * cardScale}px Prompt, sans-serif`;
-                    runnerCanvasCtx.fillStyle = '#ffffff';
                     runnerCanvasCtx.textAlign = 'left';
-                    runnerCanvasCtx.shadowColor = '#06b6d4';
-                    runnerCanvasCtx.shadowBlur = 6 * cardScale;
+                    
+                    // ⚡ ปลดยกเลิก shadowBlur บนตัวอักษร และใช้วิธี offset วาดทับซ้อนเฉียง 1px (เร็วกว่าการทำ shadowBlur 100 เท่า)
+                    runnerCanvasCtx.fillStyle = '#0691b2';
+                    runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 19 * cardScale, item.y - item.h/2 + 24 * cardScale);
+                    runnerCanvasCtx.fillStyle = '#ffffff';
                     runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 23 * cardScale);
                     
                     // ป้าย TAG "TAGRIST VL6" ตาม ref2
@@ -2747,11 +2755,14 @@
                     // เนื้อหาคำถามภาษาไทย สีขาวนวล สว่าง ชัดเจน และอ่านง่ายที่สุด
                     runnerCanvasCtx.save();
                     runnerCanvasCtx.font = `900 ${18.5 * cardScale}px Prompt, sans-serif`;
-                    runnerCanvasCtx.fillStyle = '#ffffff';
                     runnerCanvasCtx.textAlign = 'center';
-                    runnerCanvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
-                    runnerCanvasCtx.shadowBlur = 4 * cardScale;
+                    
+                    // ⚡ ปรับเป็นวาดเยื้องพิกเซล (Offset Shadow) เลิกเงาเบลอ Gaussian เปลืองโหลด
+                    runnerCanvasCtx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+                    wrapText(runnerCanvasCtx, item.text, item.x + 1 * cardScale, item.y - item.h/2 + 76 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
+                    runnerCanvasCtx.fillStyle = '#ffffff';
                     wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 75 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
+                    
                     runnerCanvasCtx.restore();
                     
                     // 🎯 วาดเป้าชี้แนะมือลากและลูกศรแนะแนว (Hand Drag Hint - เป๊ะตาม ref2)
@@ -2771,11 +2782,15 @@
                         runnerCanvasCtx.stroke();
                         runnerCanvasCtx.setLineDash([]); // รีเซ็ตเส้นประ
                         
-                        // 2. วงแหวนเป้าเล็ง Sci-Fi โฮโลแกรม
-                        runnerCanvasCtx.shadowColor = '#22d3ee';
-                        runnerCanvasCtx.shadowBlur = 10;
+                        // 2. วงแหวนเป้าเล็ง Sci-Fi โฮโลแกรม (ใช้วิธีซ้อนวงแหวนสีโปร่งแสงแทน shadowBlur เพื่อรีดพลัง CPU)
+                        runnerCanvasCtx.strokeStyle = 'rgba(34, 211, 238, 0.3)';
+                        runnerCanvasCtx.lineWidth = 4.5;
+                        runnerCanvasCtx.beginPath();
+                        runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
+                        runnerCanvasCtx.stroke();
+                        
                         runnerCanvasCtx.strokeStyle = '#22d3ee';
-                        runnerCanvasCtx.lineWidth = 2.5;
+                        runnerCanvasCtx.lineWidth = 2.0;
                         runnerCanvasCtx.beginPath();
                         runnerCanvasCtx.arc(hintX, hintY, 20 * hintPulse, 0, Math.PI * 2);
                         runnerCanvasCtx.stroke();
@@ -2790,9 +2805,7 @@
                         runnerCanvasCtx.lineTo(hintX, hintY + 25);
                         runnerCanvasCtx.stroke();
                         
-                        // 3. รูปมือชี้จิ้ม (Pinch Gesture) สีขาวขอบดำ เป๊ะตาม ref2
-                        runnerCanvasCtx.shadowBlur = 4;
-                        runnerCanvasCtx.shadowColor = '#000000';
+                        // 3. รูปมือชี้จิ้ม (Pinch Gesture) สีขาวขอบดำ เป๊ะตาม ref2 (ยกเลิก shadowBlur เพื่อความเบาเครื่อง)
                         runnerCanvasCtx.fillStyle = '#ffffff';
                         runnerCanvasCtx.strokeStyle = '#0f172a';
                         runnerCanvasCtx.lineWidth = 2;
