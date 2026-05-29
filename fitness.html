@@ -4376,28 +4376,31 @@
             }
         }
 
-        // ดำเนินการออกเกมจริง พาผู้ใช้กลับล็อบบี้ผ่านทิศทางที่แม่นยำและเสถียรสูงสุด
+        // ดำเนินการออกเกมจริง พาผู้ใช้กลับล็อบบี้หรือปิดแท็บตามคำขอผู้ใช้งาน
         function executeLeaveGame() {
             const exitConfirmModal = document.getElementById('wb-exit-confirm-modal');
             if (exitConfirmModal) exitConfirmModal.classList.add('hidden');
             
             stopCamera();
             
-            if (webAppUrl) {
-                console.log("🚀 [Navigation] กำลังพากลับสู่ระบบ Google Apps Script: " + webAppUrl);
-                window.location.href = webAppUrl;
-            } else {
-                console.log("🚪 [Navigation] ไม่มี webAppUrl ลิงก์ พยายามปิดหน้าต่างหลัก...");
-                try {
-                    window.close();
-                } catch(e) {
-                    console.warn("Browser block window.close - using fallback to index.html");
-                }
-                // Fallback ในกรณีที่ปิดหน้าไม่ได้
-                setTimeout(() => {
-                    window.location.href = "index.html";
-                }, 100);
+            console.log("🏳️ [Retreat] พยายามปิดแท็บการเล่นตามคำขอครูผู้ใช้งาน...");
+            try {
+                window.close();
+            } catch(e) {
+                console.warn("พยายามปิดแท็บหลักล้มเหลวเนื่องจากความปลอดภัยเบราว์เซอร์");
             }
+            
+            // 🛡️ Fallback: ในกรณีที่เบราว์เซอร์บล็อคไม่ยอมให้ปิดแท็บอัตโนมัติ (เช่น พิมพ์ URL เข้ามาตรงๆ)
+            // เราจะทำการส่งกลับไปยังหน้าล็อบบี้ผ่าน webAppUrl หรือถอยหลังประวัติเว็บหลังจากหน่วงเวลา 150ms
+            setTimeout(() => {
+                if (webAppUrl) {
+                    console.log("🚀 [Navigation Fallback] กำลังเปลี่ยนหน้าจอกลับสู่ระบบหลัก: " + webAppUrl);
+                    window.location.replace(webAppUrl);
+                } else {
+                    console.log("🚪 [Navigation Fallback] พยายามถอยประวัติเบราว์เซอร์ย้อนหลัง...");
+                    window.history.back();
+                }
+            }, 150);
         }
 
         // สรุปผลคะแนนและปิดตัว (นำทางกลับล็อบบี้อย่างปลอดภัย)
