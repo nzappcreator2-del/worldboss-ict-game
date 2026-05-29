@@ -178,7 +178,7 @@
     <video id="wb-video" autoplay playsinline muted></video>
 
     <!-- 🔮 ส่วนหัว: แสดงข้อมูลของนักเรียนและห้องเรียน -->
-    <header class="w-full max-w-7xl mx-auto px-2 lg:px-4 pt-2 lg:pt-6 flex justify-between items-center z-10">
+    <header class="w-full max-w-7xl mx-auto px-2 lg:px-4 pt-2 lg:pt-6 flex justify-between items-center z-[40]">
         <div id="ui-student-container" class="glass-panel py-1.5 lg:py-2 px-3 lg:px-6 rounded-xl lg:rounded-2xl flex items-center gap-2 lg:gap-3 border border-red-500/20">
             <!-- 👤 รูปโปรไฟล์สไตล์การ์ตูน SVG ในตัว (แสดงเฉพาะโหมด AI Safety ตาม ref1) -->
             <div id="ui-student-profile-pic" class="w-8 h-8 lg:w-10 lg:h-10 rounded-full overflow-hidden border border-cyan-400/50 bg-slate-900 hidden items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)]">
@@ -2449,14 +2449,17 @@
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
                     
-                    if (thumbTip && indexTip) {
+                    // 🛡️ หากผู้เล่นกำลังใช้เมาส์/ทัชลากการ์ดอยู่ ให้ล็อกไม่ยอมให้ AI มือมาแทรกแซงแย่งชิงตำแหน่งเคอร์เซอร์และการคีบปล่อยการ์ด
+                    const isUserDraggingWithMouse = isMouseDragging;
+                    
+                    if (thumbTip && indexTip && !isUserDraggingWithMouse) {
                         // แปลงพิกัดมือสลับขวาซ้าย (Mirroring) เพื่อให้เคลื่อนไหวเป็นธรรมชาติ
                         const targetX = (1 - (thumbTip.x + indexTip.x) / 2) * width;
                         const targetY = ((thumbTip.y + indexTip.y) / 2) * height;
                         
-                        // ปรับตำแหน่งให้สมูทไม่กระตุกสั่น (Exponential Smoothing)
-                        handCursor.smoothX += (targetX - handCursor.smoothX) * 0.35;
-                        handCursor.smoothY += (targetY - handCursor.smoothY) * 0.35;
+                        // ⚡ ปรับเร่ง Exponential Smoothing ให้การตอบสนองมือตามรอยได้ว่องไวขึ้น จาก 0.35 เป็น 0.75 เพื่อลดความหน่วงสะดุดและอาการภาพวาป
+                        handCursor.smoothX += (targetX - handCursor.smoothX) * 0.75;
+                        handCursor.smoothY += (targetY - handCursor.smoothY) * 0.75;
                         
                         // ตรวจจับท่าทางจีบนิ้ว (Pinch Gesture)
                         const dx = thumbTip.x - indexTip.x;
@@ -2509,12 +2512,16 @@
                     }
                 }
 
-                // 🛡️ วาดสแกนมือจำลองเรืองแสง HUD ในหน้าต่างกล้องเว็บแคมมุมมองขนาดเล็ก
-                if (results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && wbCanvasCtx) {
+                // 🛡️ วาดภาพเว็บแคมลงในจอกล้องจิ๋วเสมอ เพื่อป้องกันจอกล้องค้างแช่แข็งเมื่อมือหลุดออกนอกขอบกล้อง
+                if (results && results.image && wbCanvasCtx) {
                     wbCanvasCtx.save();
                     wbCanvasCtx.clearRect(0, 0, wbCanvasEl.width, wbCanvasEl.height);
                     wbCanvasCtx.drawImage(results.image, 0, 0, wbCanvasEl.width, wbCanvasEl.height);
-                    drawGlowingHandSkeleton(wbCanvasCtx, results.multiHandLandmarks[0]);
+                    
+                    // วาดสแกนโครงกระดูกนิ้วมือนีออนเรืองแสงทับลงไป เฉพาะเมื่อตรวจพบมือในกล้องจริงเท่านั้น
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        drawGlowingHandSkeleton(wbCanvasCtx, results.multiHandLandmarks[0]);
+                    }
                     wbCanvasCtx.restore();
                 }
             
