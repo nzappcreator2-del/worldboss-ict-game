@@ -985,26 +985,26 @@
             document.getElementById('mario-iframe').src = "about:blank"; // กำหนดเป็นหน้าว่าง เพื่อตัดเสียงดนตรี Bowser มาริโอ้ค้างคา 100%
             document.getElementById('wb-titan-placeholder').classList.add('hidden');
             
-            // แสดง Canvas สำหรับวาดลู่วิ่งนีออนแบบขยายกว้างขวางเต็มขอบ (Full-Width) ไร้ขอบดำตามภาพ ref2
+            // แสดง Canvas สำหรับวาดลู่วิ่งนีออน
             const runnerCanvas = document.getElementById('wb-runner-canvas');
             if (runnerCanvas) {
                 runnerCanvas.classList.remove('hidden');
-                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 block object-contain border-none rounded-none";
+                runnerCanvas.className = "absolute inset-0 w-full h-full bg-slate-950 block object-cover border-none rounded-none";
             }
             
-            // ปลดขอบตู้เกมสีดำทึบด้านข้างออก เพื่อให้แสดงผลเต็มพื้นที่อย่างแท้จริง
+            // ปรับคืนความกว้างกรอบตู้เกมสีดำขอบสีน้ำเงิน 4:3 อันหรูหราดั้งเดิมให้เต็มกรอบสวยงาม
             if (gameFrame) {
                 gameFrame.classList.remove('neon-border-purple', 'neon-border-mario');
                 gameFrame.classList.add('neon-border-space');
-                gameFrame.style.display = 'block';
-                gameFrame.style.width = '100%';
-                gameFrame.style.maxWidth = '100%';
-                gameFrame.style.height = '86vh'; // ปรับความสูงให้เต็มตาแบบ 86vh
-                gameFrame.style.aspectRatio = 'auto';
-                gameFrame.style.border = 'none';
-                gameFrame.style.borderRadius = '0px';
-                gameFrame.style.padding = '0px';
-                gameFrame.style.boxShadow = 'none';
+                gameFrame.style.display = '';
+                gameFrame.style.width = '';
+                gameFrame.style.maxWidth = '';
+                gameFrame.style.height = '';
+                gameFrame.style.aspectRatio = '';
+                gameFrame.style.border = '';
+                gameFrame.style.borderRadius = '';
+                gameFrame.style.padding = '';
+                gameFrame.style.boxShadow = '';
             }
             
             // ปรับตำแหน่งเว็บแคมและคงค่าลอยตัวดั้งเดิมขวาบนเพื่อให้มองเห็นแนวสายตาในเกมลากวาง AI Safety
