@@ -3489,13 +3489,9 @@
                 }
             }
             
-            let canvasWidth = 640;
-            let canvasHeight = 480;
-            if (runnerCanvasEl) {
-                const rect = runnerCanvasEl.getBoundingClientRect();
-                canvasWidth = rect.width || 640;
-                canvasHeight = rect.height || 480;
-            }
+            // กำหนดขนาดระบบวาดจริง 640x480 เสมอ เพื่อการคำนวณอัตราส่วนและการตรวจสอบตำแหน่งที่ถูกต้อง 100%
+            const canvasWidth = 640;
+            const canvasHeight = 480;
             
             if (!droppedZone) {
                 // เช็ค 2: พิกัดกึ่งกลางของการ์ดคำถาม (Card Center Drop) ในกรณีที่เกิดคีบหลุดหรือพิกัดเป้ามือหลุดไปแล้ว
@@ -3587,6 +3583,12 @@
                             triggerVictoryPhase();
                         }
                     }, 600);
+                }
+            } else {
+                // 🌟 ระบบดีดการ์ดกลับอัตโนมัติ (Card Spring-Back): ลากปล่อยไม่โดนกล่อง ให้การ์ดดีดกลับตำแหน่งศูนย์กลางทันที
+                if (aiCurrentItem) {
+                    aiCurrentItem.x = 320;
+                    aiCurrentItem.y = 100.8; // 480 * 0.21
                 }
             }
         }
@@ -3687,28 +3689,29 @@
             // Mouse controls
             canvas.addEventListener('mousedown', (e) => {
                 const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+                // แปลงพิกเซลจริงบนจอภาพ ให้เข้ากับพิกัดระบบเรนเดอร์ Logical 640x480 เสมอ
+                const mouseX = ((e.clientX - rect.left) / (rect.width || 640)) * 640;
+                const mouseY = ((e.clientY - rect.top) / (rect.height || 480)) * 480;
                 handleDragStart(mouseX, mouseY);
             });
             
             canvas.addEventListener('mousemove', (e) => {
                 const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+                const mouseX = ((e.clientX - rect.left) / (rect.width || 640)) * 640;
+                const mouseY = ((e.clientY - rect.top) / (rect.height || 480)) * 480;
                 handleDragMove(mouseX, mouseY);
             });
             
             canvas.addEventListener('mouseup', () => handleDragEnd());
             canvas.addEventListener('mouseleave', () => handleDragEnd());
             
-            // Touch controls
+            // Touch controls (สำหรับแท็บเล็ตและอุปกรณ์จอสัมผัสของนักเรียน)
             canvas.addEventListener('touchstart', (e) => {
                 if (e.touches.length > 0) {
                     const rect = canvas.getBoundingClientRect();
                     const touch = e.touches[0];
-                    const touchX = touch.clientX - rect.left;
-                    const touchY = touch.clientY - rect.top;
+                    const touchX = ((touch.clientX - rect.left) / (rect.width || 640)) * 640;
+                    const touchY = ((touch.clientY - rect.top) / (rect.height || 480)) * 480;
                     handleDragStart(touchX, touchY);
                 }
             }, { passive: true });
@@ -3717,8 +3720,8 @@
                 if (e.touches.length > 0 && isMouseDragging) {
                     const rect = canvas.getBoundingClientRect();
                     const touch = e.touches[0];
-                    const touchX = touch.clientX - rect.left;
-                    const touchY = touch.clientY - rect.top;
+                    const touchX = ((touch.clientX - rect.left) / (rect.width || 640)) * 640;
+                    const touchY = ((touch.clientY - rect.top) / (rect.height || 480)) * 480;
                     handleDragMove(touchX, touchY);
                     
                     if (e.cancelable) e.preventDefault();
@@ -3761,17 +3764,12 @@
                 draggedItem.x = x - draggedItem.offsetX;
                 draggedItem.y = y - draggedItem.offsetY;
                 
-                let canvasWidth = 640;
-                let canvasHeight = 480;
-                if (runnerCanvasEl) {
-                    const rect = runnerCanvasEl.getBoundingClientRect();
-                    canvasWidth = rect.width || 640;
-                    canvasHeight = rect.height || 480;
-                }
+                // กำหนดขอบเขตความกว้างและสูงแบบระบบวาดคงที่ 640x480 เสมอ เพื่อความแม่นยำในการ Clamp ทุกหน้าจอจริง
+                const logicalWidth = 640;
+                const logicalHeight = 480;
                 
-                // ปรับเปลี่ยนขอบเขต Clamping ให้ยืดหยุ่นขึ้น เพื่อแก้ปัญหาการลากการ์ดติดขัดขอบขวาและฝั่งกล่องแดง
-                draggedItem.x = Math.max(80, Math.min(canvasWidth - 80, draggedItem.x));
-                draggedItem.y = Math.max(50, Math.min(canvasHeight - 50, draggedItem.y));
+                draggedItem.x = Math.max(80, Math.min(logicalWidth - 80, draggedItem.x));
+                draggedItem.y = Math.max(50, Math.min(logicalHeight - 50, draggedItem.y));
                 
                 drawSafetyGameCanvas();
             }
