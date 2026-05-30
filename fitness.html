@@ -2353,9 +2353,10 @@
             try {
                 if (wbGameState !== 'BATTLE' || !runnerCanvasCtx) return;
                 
-                // ใช้มิติ Logical Coordinate 640x480 คงที่ 100% ป้องกันการ์ดวาร์ปไปบนซ้ายและบั๊กคีบหลุด!
-                const width = 640;
+                const cssW = runnerCanvasEl ? (runnerCanvasEl.clientWidth || 640) : 640;
+                const cssH = runnerCanvasEl ? (runnerCanvasEl.clientHeight || 480) : 480;
                 const height = 480;
+                const width = height * (cssW / cssH);
 
                 // 🧠 [การประมวลผลพิกัดกล้องเว็บแคมสแกนนิ้วมือจริง]
                 if (results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
@@ -2364,12 +2365,11 @@
                     const indexTip = landmarks[8];
                     
                     if (thumbTip && indexTip) {
-                        // ⚡ คำนวณพิกัดมือบนสเกลคงที่ 640x480 เสมอ เพื่อความเที่ยงตรง 100% ป้องกันการ์ดวาร์ปไปบนซ้าย!
                         const handXNorm = (thumbTip.x + indexTip.x) / 2;
                         const handYNorm = (thumbTip.y + indexTip.y) / 2;
                         
-                        const targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * 640;
-                        const targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * 480;
+                        const targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * width;
+                        const targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * height;
                         
                         // ปรับความเร็วตามรอยให้นุ่มนวล รวดเร็ว และลื่นไหล
                         handCursor.smoothX += (targetX - handCursor.smoothX) * 0.45;
@@ -2411,8 +2411,8 @@
                                 draggedItem.y = handCursor.smoothY - draggedItem.offsetY;
                                 
                                 // ป้องกันการ์ดหลุดขอบเขตการแสดงผล
-                                draggedItem.x = Math.max(80, Math.min(640 - 80, draggedItem.x));
-                                draggedItem.y = Math.max(50, Math.min(480 - 50, draggedItem.y));
+                                draggedItem.x = Math.max(80, Math.min(width - 80, draggedItem.x));
+                                draggedItem.y = Math.max(50, Math.min(height - 50, draggedItem.y));
                             }
                         } else {
                             // ปล่อยการ์ดเมื่อแบมือ
@@ -2873,6 +2873,7 @@
         }
 
         // ประมวลผลการหย่อนวางวัตถุลงบล็อกคัดกรอง
+        // ประมวลผลการหย่อนวางวัตถุลงบล็อกคัดกรอง
         function handleDropRelease() {
             if (!aiCurrentItem) return;
             
@@ -2895,9 +2896,10 @@
                 }
             }
             
-            // กำหนดขนาดระบบวาดจริง 640x480 เสมอ เพื่อการคำนวณอัตราส่วนและการตรวจสอบตำแหน่งที่ถูกต้อง 100%
-            const canvasWidth = 640;
+            const cssW = runnerCanvasEl ? (runnerCanvasEl.clientWidth || 640) : 640;
+            const cssH = runnerCanvasEl ? (runnerCanvasEl.clientHeight || 480) : 480;
             const canvasHeight = 480;
+            const canvasWidth = canvasHeight * (cssW / cssH);
             
             if (!droppedZone) {
                 // เช็ค 2: พิกัดกึ่งกลางของการ์ดคำถาม (Card Center Drop) ในกรณีที่เกิดคีบหลุดหรือพิกัดเป้ามือหลุดไปแล้ว
@@ -2926,9 +2928,9 @@
                         });
                     } catch(e){}
                     
-                    // สร้างข้อความเอฟเฟกต์สีเขียวเรืองแสงลอยขึ้นในกล้องเว็บแคม
+                    // สร้างข้อความเอฟเฟกต์สีเขียวเรืองแสงลอยขึ้นในกล้องเว็บแคม (จัดกึ่งกลางไดนามิก)
                     wbActiveSlashEffects.push({
-                        x: 320,
+                        x: canvasWidth / 2,
                         y: 220,
                         damage: "✨ ถูกต้อง! +1 แต้ม",
                         alpha: 1.2,
@@ -2936,10 +2938,10 @@
                         color: "#10b981"
                     });
                     
-                    // สร้างข้อความเอฟเฟกต์สีเขียวเรืองแสงลอยขึ้นบนหน้าจอหลัก Canvas มินิเกมคัดแยก AI Safety
+                    // สร้างข้อความเอฟเฟกต์สีเขียวเรืองแสงลอยขึ้นบนหน้าจอหลัก Canvas (จัดกึ่งกลางไดนามิก)
                     if (!window.safetyActiveEffects) window.safetyActiveEffects = [];
                     window.safetyActiveEffects.push({
-                        x: 320,
+                        x: canvasWidth / 2,
                         y: 220,
                         text: "✨ ถูกต้อง! +1 แต้ม",
                         alpha: 1.2,
@@ -2961,7 +2963,7 @@
                     playBeep('countdown');
                     
                     wbActiveSlashEffects.push({
-                        x: 320,
+                        x: canvasWidth / 2,
                         y: 220,
                         damage: "❌ ไม่ถูกต้อง",
                         alpha: 1.2,
@@ -2969,10 +2971,10 @@
                         color: "#f43f5e"
                     });
                     
-                    // สร้างข้อความเอฟเฟกต์สีแดงเตือนบนหน้าจอหลัก Canvas มินิเกม
+                    // สร้างข้อความเอฟเฟกต์สีแดงเตือนบนหน้าจอหลัก Canvas (จัดกึ่งกลางไดนามิก)
                     if (!window.safetyActiveEffects) window.safetyActiveEffects = [];
                     window.safetyActiveEffects.push({
-                        x: 320,
+                        x: canvasWidth / 2,
                         y: 220,
                         text: "❌ ไม่ถูกต้อง",
                         alpha: 1.2,
@@ -2993,8 +2995,8 @@
             } else {
                 // 🌟 ระบบดีดการ์ดกลับอัตโนมัติ (Card Spring-Back): ลากปล่อยไม่โดนกล่อง ให้การ์ดดีดกลับตำแหน่งศูนย์กลางทันที
                 if (aiCurrentItem) {
-                    aiCurrentItem.x = 320;
-                    aiCurrentItem.y = 100.8; // 480 * 0.21
+                    aiCurrentItem.x = canvasWidth / 2;
+                    aiCurrentItem.y = canvasHeight * 0.15; // ขยับขึ้นบนชิดขอบมากขึ้นจาก 0.21 เป็น 0.15
                 }
             }
         }
@@ -3005,18 +3007,20 @@
             const randomIndex = Math.floor(Math.random() * AI_SAFETY_ITEMS.length);
             const template = AI_SAFETY_ITEMS[randomIndex];
             
-            const canvasWidth = 640;
-            const canvasHeight = 480;
+            const cssW = runnerCanvasEl ? (runnerCanvasEl.clientWidth || 640) : 640;
+            const cssH = runnerCanvasEl ? (runnerCanvasEl.clientHeight || 480) : 480;
+            const height = 480;
+            const width = height * (cssW / cssH);
             
             aiCurrentItem = {
                 text: template.text,
                 category: template.category,
                 title: template.title,
                 icon: template.icon,
-                x: canvasWidth / 2,
-                y: canvasHeight * 0.21,
-                w: 520,
-                h: 155
+                x: width / 2,
+                y: height * 0.15, // เลื่อนตำแหน่ง Y เริ่มต้นขึ้นไปชิดด้านบน (จากเดิม 0.21 เป็น 0.15)
+                w: 390,           // ลดความกว้างลงจากเดิม 520 เป็น 390
+                h: 110            // ลดความสูงลงจากเดิม 155 เป็น 110
             };
             
             draggedItem = null;
@@ -3070,27 +3074,33 @@
                     _bgCacheW = 0; // reset cache เมื่อขนาดเปลี่ยน
                 }
                 
-                // Logical coordinate space คงที่ 640×480 — game logic ทั้งหมดไม่ต้องแก้
-                const width = 640;
+                // คำนวณมิติแบบ Aspect-Ratio matching: ให้ความสูงคงที่ 480px และผันแปรความกว้างตามสัดส่วนจอจริง
                 const height = 480;
+                const width = height * (cssW / cssH);
                 
-                // Scale logical 640×480 → actual canvas pixels เพื่อความคมชัดไม่เบลอ/ซูม
+                // Scale dynamic coordinates -> actual canvas pixels (สเกล X และ Y เท่ากันเป๊ะ ภาพไม่มีบิดเบี้ยวหรือยืดแบน)
                 runnerCanvasCtx.setTransform(canvasW / width, 0, 0, canvasH / height, 0, 0);
                 runnerCanvasCtx.clearRect(0, 0, width, height);
                 
                 runnerCanvasCtx.save();
                 
-                // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟ (cache ที่ขนาด logical เพื่อไม่ต้อง decode/scale ทุกเฟรม)
+                // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟ (cache และวาดแบบ Cover เพื่อไม่ให้สัดส่วนยืดแบน)
                 if (wbSafetyBgImg.complete) {
-                    if (!_bgCache || _bgCacheW !== width || _bgCacheH !== height) {
+                    if (!_bgCache || _bgCacheW !== 640 || _bgCacheH !== 480) {
                         _bgCache = document.createElement('canvas');
-                        _bgCache.width = width;
-                        _bgCache.height = height;
-                        _bgCache.getContext('2d').drawImage(wbSafetyBgImg, 0, 0, width, height);
-                        _bgCacheW = width;
-                        _bgCacheH = height;
+                        _bgCache.width = 640;
+                        _bgCache.height = 480;
+                        _bgCache.getContext('2d').drawImage(wbSafetyBgImg, 0, 0, 640, 480);
+                        _bgCacheW = 640;
+                        _bgCacheH = 480;
                     }
-                    runnerCanvasCtx.drawImage(_bgCache, 0, 0);
+                    // วาดแบบ Cover รักษาสัดส่วน
+                    const scale = Math.max(width / 640, height / 480);
+                    const w = 640 * scale;
+                    const h = 480 * scale;
+                    const x = (width - w) / 2;
+                    const y = (height - h) / 2;
+                    runnerCanvasCtx.drawImage(_bgCache, x, y, w, h);
                 } else {
                     runnerCanvasCtx.fillStyle = '#060813';
                     runnerCanvasCtx.fillRect(0, 0, width, height);
@@ -3099,37 +3109,37 @@
                 runnerCanvasCtx.restore();
                 
                 // 2. คำนวณพิกัด 3 ถังขยะคัดแยกแบบกล่องสามมิติ (3D Perspective Bins)
-                const binW = Math.max(145, Math.min(185, width * 0.23));
-                const binH = Math.max(90, Math.min(115, height * 0.22));
-                const spacing = Math.max(165, width * 0.29);
-                const centerYBucket = height - binH - 68;
+                const binW = Math.max(115, Math.min(130, width * 0.16));
+                const binH = Math.max(70, Math.min(80, height * 0.15));
+                const spacing = Math.max(140, Math.min(200, width * 0.25));
+                const centerYBucket = height - binH - 45; // ขยับลงด้านล่างมากขึ้นเพื่อเพิ่มพื้นที่ลาก
                 
                 DROP_ZONES.ethics.x = width / 2 - binW / 2 - spacing;
                 DROP_ZONES.ethics.y = centerYBucket;
                 DROP_ZONES.ethics.w = binW;
                 DROP_ZONES.ethics.h = binH;
                 DROP_ZONES.ethics.hx = 0;
-                DROP_ZONES.ethics.hy = height * 0.45;
-                DROP_ZONES.ethics.hw = width * 0.35;
-                DROP_ZONES.ethics.hh = height * 0.55;
+                DROP_ZONES.ethics.hy = height * 0.50;
+                DROP_ZONES.ethics.hw = width * 0.33;
+                DROP_ZONES.ethics.hh = height * 0.50;
                 
                 DROP_ZONES.cybersecurity.x = width / 2 - binW / 2;
                 DROP_ZONES.cybersecurity.y = centerYBucket;
                 DROP_ZONES.cybersecurity.w = binW;
                 DROP_ZONES.cybersecurity.h = binH;
-                DROP_ZONES.cybersecurity.hx = width * 0.35;
-                DROP_ZONES.cybersecurity.hy = height * 0.45;
-                DROP_ZONES.cybersecurity.hw = width * 0.30;
-                DROP_ZONES.cybersecurity.hh = height * 0.55;
+                DROP_ZONES.cybersecurity.hx = width * 0.33;
+                DROP_ZONES.cybersecurity.hy = height * 0.50;
+                DROP_ZONES.cybersecurity.hw = width * 0.34;
+                DROP_ZONES.cybersecurity.hh = height * 0.50;
                 
                 DROP_ZONES.social_risks.x = width / 2 - binW / 2 + spacing;
                 DROP_ZONES.social_risks.y = centerYBucket;
                 DROP_ZONES.social_risks.w = binW;
                 DROP_ZONES.social_risks.h = binH;
-                DROP_ZONES.social_risks.hx = width * 0.65;
-                DROP_ZONES.social_risks.hy = height * 0.45;
-                DROP_ZONES.social_risks.hw = width * 0.35;
-                DROP_ZONES.social_risks.hh = height * 0.55;
+                DROP_ZONES.social_risks.hx = width * 0.67;
+                DROP_ZONES.social_risks.hy = height * 0.50;
+                DROP_ZONES.social_risks.hw = width * 0.33;
+                DROP_ZONES.social_risks.hh = height * 0.50;
                 
                 for (const key in DROP_ZONES) {
                     const zone = DROP_ZONES[key];
@@ -3180,14 +3190,14 @@
                     const isItemDragging = draggedItem !== null;
                     
                     let cardScale = 1.0;
-                    const startScaleY = height * 0.28;
+                    const startScaleY = height * 0.18; // เริ่มลดขนาดเมื่อลากต่ำลง เพื่อเพิ่มพื้นที่การลากและวางได้ลื่นไหลขึ้น
                     if (item.y > startScaleY) {
                         const progress = Math.min(1.0, (item.y - startScaleY) / (centerYBucket - 50 - startScaleY));
                         cardScale = 1.0 - progress * 0.58;
                     }
                     
-                    item.w = 520 * cardScale;
-                    item.h = 155 * cardScale;
+                    item.w = 390 * cardScale; // ย่อขนาดความกว้างลงเหลือ 390
+                    item.h = 110 * cardScale; // ย่อขนาดความสูงลงเหลือ 110
                     
                     runnerCanvasCtx.save();
                     
@@ -3210,37 +3220,37 @@
                     if (cardScale > 0.60) {
                         runnerCanvasCtx.save();
                         runnerCanvasCtx.fillStyle = isItemDragging ? 'rgba(34, 211, 238, 0.12)' : 'rgba(6, 182, 212, 0.08)';
-                        runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 34 * cardScale);
+                        runnerCanvasCtx.fillRect(item.x - item.w/2 + 2 * cardScale, item.y - item.h/2 + 2 * cardScale, item.w - 4 * cardScale, 28 * cardScale);
                         
-                        runnerCanvasCtx.font = `900 ${18 * cardScale}px Prompt, sans-serif`;
+                        runnerCanvasCtx.font = `900 ${13.5 * cardScale}px Prompt, sans-serif`; // ย่อฟอนต์หัวข้อ
                         runnerCanvasCtx.textAlign = 'left';
                         
                         runnerCanvasCtx.fillStyle = '#0691b2';
-                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 19 * cardScale, item.y - item.h/2 + 24 * cardScale);
+                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 19 * cardScale);
                         runnerCanvasCtx.fillStyle = '#ffffff';
-                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 18 * cardScale, item.y - item.h/2 + 23 * cardScale);
+                        runnerCanvasCtx.fillText(`${item.icon} ${item.title}`, item.x - item.w/2 + 14 * cardScale, item.y - item.h/2 + 18 * cardScale);
                         
-                        runnerCanvasCtx.font = `bold ${9 * cardScale}px Courier, monospace`;
+                        runnerCanvasCtx.font = `bold ${8 * cardScale}px Courier, monospace`;
                         runnerCanvasCtx.fillStyle = 'rgba(34, 211, 238, 0.7)';
                         runnerCanvasCtx.textAlign = 'right';
-                        runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 18 * cardScale, item.y - item.h/2 + 22 * cardScale);
+                        runnerCanvasCtx.fillText('TAGRIST VL6', item.x + item.w/2 - 14 * cardScale, item.y - item.h/2 + 18 * cardScale);
                         runnerCanvasCtx.restore();
                         
                         runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
                         runnerCanvasCtx.lineWidth = 1 * cardScale;
                         runnerCanvasCtx.beginPath();
-                        runnerCanvasCtx.moveTo(item.x - item.w/2 + 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
-                        runnerCanvasCtx.lineTo(item.x + item.w/2 - 15 * cardScale, item.y - item.h/2 + 36 * cardScale);
+                        runnerCanvasCtx.moveTo(item.x - item.w/2 + 12 * cardScale, item.y - item.h/2 + 30 * cardScale);
+                        runnerCanvasCtx.lineTo(item.x + item.w/2 - 12 * cardScale, item.y - item.h/2 + 30 * cardScale);
                         runnerCanvasCtx.stroke();
                         
                         runnerCanvasCtx.save();
-                        runnerCanvasCtx.font = `900 ${18.5 * cardScale}px Prompt, sans-serif`;
+                        runnerCanvasCtx.font = `900 ${13.5 * cardScale}px Prompt, sans-serif`; // ย่อฟอนต์เนื้อหาคำถาม
                         runnerCanvasCtx.textAlign = 'center';
                         
                         runnerCanvasCtx.fillStyle = 'rgba(0, 0, 0, 0.78)';
-                        wrapText(runnerCanvasCtx, item.text, item.x + 1 * cardScale, item.y - item.h/2 + 76 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
+                        wrapText(runnerCanvasCtx, item.text, item.x + 1 * cardScale, item.y - item.h/2 + 59 * cardScale, item.w - 36 * cardScale, 19 * cardScale); // ระยะบรรทัดปรับเป็น 19
                         runnerCanvasCtx.fillStyle = '#ffffff';
-                        wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 75 * cardScale, item.w - 46 * cardScale, 28 * cardScale);
+                        wrapText(runnerCanvasCtx, item.text, item.x, item.y - item.h/2 + 58 * cardScale, item.w - 36 * cardScale, 19 * cardScale);
                         
                         runnerCanvasCtx.restore();
                         
