@@ -3111,7 +3111,7 @@
                 // 2. คำนวณพิกัด 3 ถังขยะคัดแยกแบบกล่องสามมิติ (3D Perspective Bins)
                 const binW = Math.max(115, Math.min(130, width * 0.16));
                 const binH = Math.max(70, Math.min(80, height * 0.15));
-                const spacing = Math.max(140, Math.min(200, width * 0.25));
+                const spacing = Math.max(180, Math.min(270, width * 0.31));
                 const centerYBucket = height - binH - 45; // ขยับลงด้านล่างมากขึ้นเพื่อเพิ่มพื้นที่ลาก
                 
                 DROP_ZONES.ethics.x = width / 2 - binW / 2 - spacing;
