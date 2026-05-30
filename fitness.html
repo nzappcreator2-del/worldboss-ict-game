@@ -283,7 +283,7 @@
                     <div id="wb-webcam-section" class="absolute top-3 right-3 w-[140px] md:w-[200px] lg:w-[260px] z-30 flex flex-col items-center gap-1.5">
                         <div id="wb-camera-frame" class="relative w-full aspect-[4/3] rounded-xl lg:rounded-2xl overflow-hidden glass-panel neon-border-purple shadow-2xl flex items-center justify-center">
                             <!-- Canvas ที่ MediaPipe ใช้วาดภาพกล้องและทับด้วยพิกัดอนิเมชั่น -->
-                            <canvas id="wb-canvas" class="w-full h-full object-cover transform scale-x-[-1] bg-slate-950"></canvas>
+                            <canvas id="wb-canvas" class="w-full h-full object-contain transform scale-x-[-1] bg-slate-950"></canvas>
                             
                             <!-- ตัวกะพริบสถานะ/แจ้งเตือนคำสั่งเบื้องบนกล้อง -->
                             <div id="wb-status-overlay" 
@@ -1181,14 +1181,19 @@
         const wbSafetyBgImg = new Image();
         wbSafetyBgImg.src = "https://i.postimg.cc/dVm5LhQx/Gemini-Generated-Image-p9omm7p9omm7p9om.png";
         
+        // ⚡ Cache พื้นหลังที่ขนาดตรง เพื่อไม่ต้อง scale ทุกเฟรม (ลดภาระ CPU ในเกมลูป)
+        let _bgCache = null;
+        let _bgCacheW = 0, _bgCacheH = 0;
+        
         let wbAiHandFlip = localStorage.getItem('wb_ai_hand_flip') === 'true';
         let safetyGameLoopId = null; // ⚡ ตัวควบคุมเธรดเรนเดอร์ลูปอิสระ 60 FPS ปลดล็อกความลื่นไหลระดับขีดสุดของบอส 2
         
         let wbStream = null;
 
         // กำหนดความละเอียดคงที่ของ Canvas
-        wbCanvasEl.width = 640;
-        wbCanvasEl.height = 480;
+        // ⚡ ลดความละเอียด webcam canvas เหลือ 320×240 (ช่องกล้องจิ๋วแสดงแค่ 140-260px — ไม่จำเป็นต้อง 640×480)
+        wbCanvasEl.width = 320;
+        wbCanvasEl.height = 240;
 
         // --- ⚡ ตัวแปรพิเศษสำหรับระบบบอส 1 & 2 รูปแบบใหม่ ---
         let wbSpeedMultiplier = 1.0;
@@ -3021,11 +3026,17 @@
         // ⚡ [60 FPS Game Loop Control] ระบบเกมลูปและเรนเดอร์ภาพหลักแยกเป็นอิสระ 60 FPS เพื่อบูสความลื่นไหลขั้นสุดยอด!
         function startSafetyGameLoop() {
             if (safetyGameLoopId) cancelAnimationFrame(safetyGameLoopId);
+            let lastGameFrameTime = 0;
             
             function tick() {
                 const isWb002 = String(bossId).indexOf('WB002') === 0;
                 if (wbGameState === 'BATTLE' && isWb002) {
-                    updateAndDrawSafetyGame();
+                    // ⚡ จำกัดเรนเดอร์ ~30 FPS (33.3ms) แทน 60 FPS — ลดภาระ CPU ลง 50% เกมลากการ์ดไม่จำเป็นต้อง 60 FPS
+                    const now = performance.now();
+                    if (now - lastGameFrameTime >= 33.3) {
+                        lastGameFrameTime = now;
+                        updateAndDrawSafetyGame();
+                    }
                     safetyGameLoopId = requestAnimationFrame(tick);
                 } else {
                     safetyGameLoopId = null;
@@ -3046,24 +3057,40 @@
             try {
                 if (!runnerCanvasCtx || wbGameState !== 'BATTLE') return;
                 
+                // ⚡ ปรับ canvas resolution ให้ match CSS display size เพื่อภาพคมชัดพอดีกรอบ (จำกัดไม่เกิน 960px ป้องกันหนัก)
+                const cssW = runnerCanvasEl.clientWidth || 640;
+                const cssH = runnerCanvasEl.clientHeight || 480;
+                const maxRes = 960;
+                const fitScale = Math.min(1, maxRes / Math.max(cssW, cssH));
+                const canvasW = Math.round(cssW * fitScale);
+                const canvasH = Math.round(cssH * fitScale);
+                if (runnerCanvasEl.width !== canvasW || runnerCanvasEl.height !== canvasH) {
+                    runnerCanvasEl.width = canvasW;
+                    runnerCanvasEl.height = canvasH;
+                    _bgCacheW = 0; // reset cache เมื่อขนาดเปลี่ยน
+                }
+                
+                // Logical coordinate space คงที่ 640×480 — game logic ทั้งหมดไม่ต้องแก้
                 const width = 640;
                 const height = 480;
                 
-                // บังคับความละเอียดระดับ 1 เท่า (scaleFactor = 1.0)
-                const scaleFactor = 1.0;
-                if (runnerCanvasEl.width !== width * scaleFactor || runnerCanvasEl.height !== height * scaleFactor) {
-                    runnerCanvasEl.width = width * scaleFactor;
-                    runnerCanvasEl.height = height * scaleFactor;
-                }
-                
-                runnerCanvasCtx.setTransform(1, 0, 0, 1, 0, 0);
+                // Scale logical 640×480 → actual canvas pixels เพื่อความคมชัดไม่เบลอ/ซูม
+                runnerCanvasCtx.setTransform(canvasW / width, 0, 0, canvasH / height, 0, 0);
                 runnerCanvasCtx.clearRect(0, 0, width, height);
                 
                 runnerCanvasCtx.save();
                 
-                // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟ
+                // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟ (cache ที่ขนาด logical เพื่อไม่ต้อง decode/scale ทุกเฟรม)
                 if (wbSafetyBgImg.complete) {
-                    runnerCanvasCtx.drawImage(wbSafetyBgImg, 0, 0, width, height);
+                    if (!_bgCache || _bgCacheW !== width || _bgCacheH !== height) {
+                        _bgCache = document.createElement('canvas');
+                        _bgCache.width = width;
+                        _bgCache.height = height;
+                        _bgCache.getContext('2d').drawImage(wbSafetyBgImg, 0, 0, width, height);
+                        _bgCacheW = width;
+                        _bgCacheH = height;
+                    }
+                    runnerCanvasCtx.drawImage(_bgCache, 0, 0);
                 } else {
                     runnerCanvasCtx.fillStyle = '#060813';
                     runnerCanvasCtx.fillRect(0, 0, width, height);
@@ -3302,7 +3329,7 @@
                 if (wbGameState === 'BATTLE') {
                     if (!window.cursorHistory) window.cursorHistory = [];
                     window.cursorHistory.push({ x: handCursor.smoothX, y: handCursor.smoothY });
-                    if (window.cursorHistory.length > 8) {
+                    if (window.cursorHistory.length > 4) { // ⚡ ลดจาก 8→4 จุด ลดภาระวาดเส้น trail
                         window.cursorHistory.shift();
                     }
                     
@@ -3600,7 +3627,7 @@
                         }
                     }
                 }
-            }, 30);
+            }, 200); // ⚡ ลดจาก 30ms→200ms (อัปเดตข้อความ timer 5 ครั้ง/วินาทีก็เพียงพอ ลดภาระ DOM ~6x)
 
             // 📈 ระบบเร่งความยากตามเวลา (เฉพาะบอสอื่น ไม่รวมบอสยอดนักลากวาง AI Safety และไม่รวมมาริโอ้)
             const isWb001 = bossId === 'WB001';
