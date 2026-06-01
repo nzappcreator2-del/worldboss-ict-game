@@ -142,6 +142,20 @@
             return;
         }
         
+        // 🧘‍♂️ เพิ่มมินิเกมส์วิทยาการคำนวณเอียงคอ AI เสมอ เพื่อความปลอดภัยไม่ใช้ database ของระบบหลัก
+        const neckQuizBoss = {
+            id: 'WB003',
+            name: 'วิทยาการคำนวณ ม.2 (Neck-Tilt Quiz AI)',
+            poseType: 'neck_quiz',
+            targetReps: 10,
+            maxHp: 100,
+            rewardCoins: 150,
+            rewardXp: 150
+        };
+        if (!bosses.some(b => b.id === 'WB003')) {
+            bosses.push(neckQuizBoss);
+        }
+
         // 🔮 กรองจัดกลุ่มบอส WB002 ทั้งหมดให้เหลือการ์ดเดี่ยวเพียงใบเดียวในล็อบบี้
         const groupedBosses = [];
         let hasWb002 = false;
@@ -165,8 +179,6 @@
                 groupedBosses.push(boss);
             }
         });
-        
-
         
         let html = '';
         groupedBosses.forEach(boss => {
@@ -192,7 +204,11 @@
             } else {
                 const localPB = localStorage.getItem('wb_best_time_' + userId + '_' + boss.id);
                 if (localPB) {
-                    pbDisplay = '⏱️ สถิติเคลียร์ด่วน: <span class="text-emerald-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
+                    if (boss.id === 'WB003') {
+                        pbDisplay = '⏱️ สูงสุด: <span class="text-pink-400 font-black">' + localPB + ' ข้อ</span>';
+                    } else {
+                        pbDisplay = '⏱️ สถิติเคลียร์ด่วน: <span class="text-emerald-400 font-black">' + parseFloat(localPB).toFixed(2) + 's</span>';
+                    }
                 }
             }
             
@@ -212,6 +228,14 @@
                 cardBorderColor = 'border-emerald-500/80 shadow-[0_0_20px_rgba(16,185,129,0.25)]';
                 badgeBg = 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80';
                 textGlow = 'text-emerald-400';
+            } else if (boss.id === 'WB003' || boss.poseType === 'neck_quiz') {
+                displayName = 'วิทยาการคำนวณ ม.2 (Neck-Tilt Quiz AI)';
+                poseLabel = '🧘‍♂️ เอียงคอซ้าย-ขวาเลือกคำตอบ';
+                bossDesc = 'ฝึกสมองประลองปัญญาตอบคำถามวิทยาการคำนวณ ม.2! 🧠 ใช้กล้องเว็บแคมตรวจจับการเอียงคอของคุณ 👈 เอียงซ้ายเลือกข้อซ้าย, 👉 เอียงขวาเลือกข้อขวา เพื่อพิชิตคะแนนระดับท็อป!';
+                emoji = '🧘‍♂️';
+                cardBorderColor = 'border-pink-500/80 shadow-[0_0_20px_rgba(236,72,153,0.25)]';
+                badgeBg = 'bg-pink-950/80 text-pink-300 border-pink-800/80';
+                textGlow = 'text-pink-400';
             } else if (isWb002 || boss.poseType === 'speed_runner') {
                 displayName = 'สมรภูมิมือปราบภัย AI (AI Safety Hand-Tracker)';
                 poseLabel = '🛡️ มือปราบภัย AI (AI Safety)';
@@ -231,7 +255,8 @@
             
             // แทนที่ชื่อบอสเพื่อส่งต่อไปหน้าเล่นเกมด้วยชื่อใหม่
             const bossToStart = { ...boss, name: displayName };
-            const targetLabel = isWb002 ? 'ลากวางจำกัดเวลา (15s/20s/30s)' : (boss.targetReps + ' ครั้ง');
+            const targetLabel = isWb002 ? 'ลากวางจำกัดเวลา (15s/20s/30s)' : 
+                               (boss.id === 'WB003' ? 'โหมด 10 หรือ 20 ข้อ' : (boss.targetReps + ' ครั้ง'));
             
             html += '<div class="rpg-box bg-slate-900/95 text-white p-6 rounded-3xl border-4 ' + cardBorderColor + ' flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:scale-[1.01]">' +
                 '<div class="absolute inset-0 bg-gradient-to-tr from-slate-950/40 via-slate-900/40 to-transparent pointer-events-none"></div>' +
@@ -413,6 +438,8 @@
     function startWorldBossBattle(boss) {
         console.log('TRACE: [startWorldBossBattle] เริ่มท้าทายมินิเกมแบบแยกส่วนภายนอก:', boss.name);
         
+        const isNeckQuiz = boss.id === 'WB003' || boss.poseType === 'neck_quiz';
+
         // ดึง Web App URL ปัจจุบันแบบไดนามิก เพื่อให้หน้าภายนอกส่งผลคะแนนกลับหลังบ้านได้ถูกต้อง
         if (typeof google !== 'undefined' && google.script && google.script.run) {
             // แสดงสถานะสปินเนอร์เพื่อความสวยงามในขณะรอสร้างประตูเชื่อมต่อ
@@ -428,8 +455,11 @@
                 .withSuccessHandler(function(webAppUrl) {
                     listContainer.innerHTML = originalContent;
                     
+                    // เลือก Base URL ของหน้าภายนอกให้ถูกต้องตามประเภทบอส
+                    const baseUrl = isNeckQuiz ? WORLD_BOSS_EXTERNAL_URL.replace('fitness.html', 'neck_quiz.html') : WORLD_BOSS_EXTERNAL_URL;
+
                     // สร้าง URL ส่งข้อมูลไปยัง GitHub Pages/External Host แบบปลอดภัย
-                    const targetUrl = WORLD_BOSS_EXTERNAL_URL + 
+                    const targetUrl = baseUrl + 
                         "?userId=" + encodeURIComponent(currentUser ? currentUser.id : "U-LOCAL") +
                         "&userName=" + encodeURIComponent(currentUser ? currentUser.name : "ผู้กล้าไร้นาม") +
                         "&className=" + encodeURIComponent(currentUser ? currentUser.class : "ป.5/1") +
@@ -454,7 +484,8 @@
                 .getScriptUrl();
         } else {
             // โหมดจำลอง Local/Offline Development
-            const targetUrl = "fitness.html" + 
+            const pageName = isNeckQuiz ? "neck_quiz.html" : "fitness.html";
+            const targetUrl = pageName + 
                 "?userId=U-MOCK" +
                 "&userName=" + encodeURIComponent("สมรภูมิ ม็อค") +
                 "&className=" + encodeURIComponent("ป.5/2") +
