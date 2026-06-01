@@ -342,13 +342,13 @@
                         <span class="text-[10px] font-black text-purple-400 uppercase cyber-font">ขวา (ขวา)</span>
                     </div>
                     
-                    <!-- ปุ่มเปิดปิดหรือปรับเทียบ (Calibration) และสลับโหมดจำลองสำหรับทดสอบ -->
+                    <!-- ปุ่มเปิดปิดหรือปรับเทียบ (Calibration) และสลับซ้าย-ขวาแก้ปัญหากล้องนักเรียน -->
                     <div class="grid grid-cols-2 gap-2 mt-4">
-                        <button onclick="calibrateNose()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition">
+                        <button onclick="calibrateNose()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition text-slate-200">
                             🧘‍♂️ ตั้งศูนย์ตาตรง
                         </button>
-                        <button onclick="toggleSimulator()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition text-yellow-400">
-                            💻 สลับจำลอง (MOCK)
+                        <button onclick="toggleCameraMirror()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition text-pink-400">
+                            🔄 สลับซ้าย-ขวา
                         </button>
                     </div>
                 </div>
@@ -615,6 +615,7 @@
         // 💻 ตัวแปรระบบจำลองผู้กล้า (Simulator Mode Variables)
         let isSimulatorActive = false;
         let simMockAngle = 0; // องศาสมมุติของหัวจำลอง
+        let isCameraMirrored = true; // 🔄 ตัวแปรสลับมุมกล้องซ้าย-ขวา (Mirror/Reverse Mode)
 
         // 🔊 ระบบสังเคราะห์เสียงดิจิทัลเพื่อความตื่นเต้น (Web Audio API Synthesizer)
         let audioCtx = null;
@@ -965,22 +966,28 @@
                 if (nose && leftEye && rightEye && leftEye.visibility > 0.5 && rightEye.visibility > 0.5) {
                     // คำนวณมุมเอียงหัวจากระนาบตาซ้ายและตาขวา
                     const rawAngle = Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x) * (180 / Math.PI);
-                    headTiltAngle = rawAngle - eyeAngleOffset; // หักล้างค่าความเอียงที่ผู้เล่นปรับจูน (Calibrate)
+                    
+                    // ปรับทิศทางการคำนวณตามสถานะการกลับด้านกล้อง
+                    const adjustedAngle = isCameraMirrored ? rawAngle : -rawAngle;
+                    headTiltAngle = adjustedAngle - eyeAngleOffset; // หักล้างค่าความเอียงที่ผู้เล่นปรับจูน (Calibrate)
                     
                     // ป้องกันความคลาดเคลื่อนเกินระดับจริง
                     if (headTiltAngle > 90) headTiltAngle = 90;
                     if (headTiltAngle < -90) headTiltAngle = -90;
 
-                    // 1) วาดเส้นแกนสายตาเชื่อมต่อเรืองแสงสีนีออน (Eye axis guide)
-                    const lex = (1 - leftEye.x) * w; // กลับแกน X บนจอ (Mirror frame)
+                    // คำนวณพิกัดดวงตาและจมูกตามระนาบ Mirror หรือปกติ
+                    const lex = isCameraMirrored ? (1 - leftEye.x) * w : leftEye.x * w;
                     const ley = leftEye.y * h;
-                    const rex = (1 - rightEye.x) * w;
+                    const rex = isCameraMirrored ? (1 - rightEye.x) * w : rightEye.x * w;
                     const rey = rightEye.y * h;
+                    const nex = isCameraMirrored ? (1 - nose.x) * w : nose.x * w;
+                    const ney = nose.y * h;
                     
+                    // 1) วาดเส้นแกนสายตาเชื่อมต่อเรืองแสงสีนีออน (Eye axis guide)
                     ctx.beginPath();
                     ctx.moveTo(lex, ley);
                     ctx.lineTo(rex, rey);
-                    ctx.strokeStyle = "rgba(6, 182, 21 cyan-300, 0.8)";
+                    ctx.strokeStyle = "rgba(6, 182, 212, 0.8)";
                     ctx.lineWidth = 4;
                     ctx.shadowBlur = 10;
                     ctx.shadowColor = "#06b6d4";
@@ -995,8 +1002,6 @@
                     ctx.fill();
 
                     // 3) วาดเส้นศูนย์วิเคราะห์ศีรษะแนวตั้ง
-                    const nex = (1 - nose.x) * w;
-                    const ney = nose.y * h;
                     ctx.beginPath();
                     ctx.moveTo(nex, ney - 50);
                     ctx.lineTo(nex, ney + 30);
@@ -1108,6 +1113,29 @@
             }
             
             gaugeText.innerText = `${angle.toFixed(0)}°`;
+        }
+
+        // ==========================================
+        // 🔄 ระบบปรับมุมกล้องสลับซ้าย-ขวา (CAMERA MIRROR CONTROLLER)
+        // ==========================================
+        function toggleCameraMirror() {
+            playSynthesizedSound('click');
+            isCameraMirrored = !isCameraMirrored;
+            
+            const canvasEl = document.getElementById('ar-canvas');
+            if (isCameraMirrored) {
+                canvasEl.classList.add('mirror-view');
+            } else {
+                canvasEl.classList.remove('mirror-view');
+            }
+            
+            Swal.fire({
+                title: '🔄 สลับมุมกล้องสำเร็จ!',
+                text: isCameraMirrored ? 'สลับเป็นโหมดกระจกเงา (Mirror View) เรียบร้อยแล้วครับ' : 'สลับเป็นโหมดกล้องปกติ (Normal View) เรียบร้อยแล้วครับ',
+                icon: 'info',
+                confirmButtonColor: '#ec4899',
+                timer: 1500
+            });
         }
 
         // ==========================================

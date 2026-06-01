@@ -431,11 +431,75 @@
             </div>
 
             <!-- กล่องหัวข้อหลัก -->
-            <div class="z-10 text-center mb-6 mt-4 shrink-0">
+            <div id="cyber-title-header" class="z-10 text-center mb-6 mt-4 shrink-0">
                 <h2 class="text-4xl md:text-5xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]" style="text-shadow: 2px 2px 0 #0369a1, -1px -1px 0 #0369a1, 1px -1px 0 #0369a1, -1px 1px 0 #0369a1, 1px 1px 0 #0369a1;">
                     ผู้พิทักษ์ภัยไซเบอร์
                 </h2>
                 <p class="text-lg text-cyan-200 font-bold mt-1 drop-shadow-md">ตะลุย 1 วันอันตรายบนไซเบอร์ของน้องเซฟ</p>
+            </div>
+
+            <!-- หน้าปกเริ่มต้นเกม (Cyber Safety Start Screen) -->
+            <div id="cyber-start-screen" class="w-full max-w-lg z-10 my-auto flex flex-col items-center justify-center animate-fadeIn hidden">
+                <div class="glass-card bg-slate-950/80 border-4 border-cyan-400 rounded-3xl p-6 md:p-8 text-center text-white shadow-[0_20px_50px_rgba(0,0,0,0.6)] w-full relative overflow-hidden flex flex-col items-center">
+                    <!-- เอฟเฟกต์แสงวิบวับเบื้องหลัง -->
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(6,182,212,0.15),transparent_70%)] pointer-events-none"></div>
+                    
+                    <!-- โล่ผู้พิทักษ์ภัยไซเบอร์อนิเมชั่นเรืองแสง -->
+                    <div class="w-36 h-36 relative mb-6">
+                        <div class="absolute inset-0 bg-cyan-500/20 rounded-full blur-xl animate-pulse"></div>
+                        <svg class="w-full h-full filter drop-shadow-[0_0_15px_rgba(6,182,212,0.8)] animate-bounce" viewBox="0 0 100 100" style="animation-duration: 4s;">
+                            <path d="M50,15 L80,25 C80,25 83,55 73,78 C65,95 50,100 50,100 C50,100 35,95 27,78 C17,55 20,25 20,25 L50,15 Z" fill="url(#startShieldGrad)" stroke="#22d3ee" stroke-width="3"/>
+                            <path d="M50,22 L73,30 C73,30 75,52 67,71 C60,85 50,89 50,89 C50,89 40,85 33,71 C25,52 27,30 27,30 L50,22 Z" fill="#0891b2" opacity="0.3"/>
+                            <!-- แม่กุญแจความปลอดภัยสีขาวทอง -->
+                            <circle cx="50" cy="45" r="7" fill="#ffffff" />
+                            <rect x="47" y="45" width="6" height="12" fill="#ffffff" />
+                            <circle cx="50" cy="48" r="2" fill="#eab308" />
+                            <defs>
+                                <linearGradient id="startShieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#06b6d4" />
+                                    <stop offset="100%" stop-color="#3b82f6" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+
+                    <h3 class="text-3xl md:text-4xl font-black mb-3 text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-300 drop-shadow-[0_2px_10px_rgba(34,211,238,0.4)]">
+                        ผู้พิทักษ์ภัยไซเบอร์
+                    </h3>
+                    
+                    <p class="text-sm md:text-base text-cyan-100 font-bold mb-6 max-w-sm leading-relaxed">
+                        ยินดีต้อนรับผู้กล้าเข้าสู่ภารกิจ! ช่วย <span class="text-yellow-300">"น้องเซฟ"</span> ตัดสินใจแก้ไขสถานการณ์จำลองและช่วยกันรักษา <span class="text-cyan-300">Cyber Shield</span> ให้ครบ 100%!
+                    </p>
+
+                    <!-- สถานะและข้อมูลย่อ -->
+                    <div class="grid grid-cols-3 gap-2 w-full mb-6 text-slate-800">
+                        <div class="bg-sky-950/60 border border-sky-400/30 rounded-2xl p-2 md:p-3 text-center">
+                            <div class="text-xl md:text-2xl mb-1">🛡️</div>
+                            <div class="text-[10px] font-black text-cyan-300">Cyber Shield</div>
+                            <div class="text-xs font-bold text-white mt-0.5">100% HP</div>
+                        </div>
+                        <div class="bg-sky-950/60 border border-sky-400/30 rounded-2xl p-2 md:p-3 text-center">
+                            <div class="text-xl md:text-2xl mb-1">🪙</div>
+                            <div class="text-[10px] font-black text-cyan-300">รางวัลเหรียญ</div>
+                            <div class="text-xs font-bold text-yellow-300 mt-0.5">+20⭐ / ด่าน</div>
+                        </div>
+                        <div class="bg-sky-950/60 border border-sky-400/30 rounded-2xl p-2 md:p-3 text-center">
+                            <div class="text-xl md:text-2xl mb-1">📖</div>
+                            <div class="text-[10px] font-black text-cyan-300">การผจญภัย</div>
+                            <div class="text-xs font-bold text-white mt-0.5">4 ด่านท้าทาย</div>
+                        </div>
+                    </div>
+
+                    <!-- ปุ่มเล่นเกม -->
+                    <button onclick="startCyberSafetyGame()" class="ui-jelly-btn w-full py-4 text-lg bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 hover:from-cyan-300 hover:to-indigo-400 text-white font-black rounded-2xl border-b-8 border-blue-800 shadow-[0_10px_20px_rgba(6,182,212,0.3)] transition-all flex items-center justify-center gap-2 cursor-pointer mb-4">
+                        <span>🎮 เริ่มภารกิจปกป้องภัยไซเบอร์</span>
+                    </button>
+
+                    <!-- กลับหน้าหลัก -->
+                    <button onclick="exitCyberSafetyMode()" class="text-sm text-cyan-300/80 hover:text-cyan-200 transition-colors font-bold cursor-pointer underline flex items-center justify-center gap-1">
+                        <span>🏃‍♂️ กลับหน้าหลักเลือกโหมด</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Loader -->
@@ -444,97 +508,108 @@
                 <p class="text-cyan-900 font-black text-lg animate-pulse">กำลังร่ายเวทมนตร์ป้องภัยไซเบอร์...</p>
             </div>
 
-            <!-- Game Container (เพิ่มคลาส flex เพื่อรับประกันการแสดงผลที่ถูกต้อง) -->
-            <div id="cyber-game-container" class="w-full max-w-2xl z-10 hidden flex flex-col">
-                <!-- Top Status Bar -->
-                <div class="grid grid-cols-3 gap-3 items-center bg-sky-950/80 backdrop-blur-md border-2 border-sky-400 p-3 rounded-2xl mb-4 shadow-lg text-white">
-                    <!-- ด่าน/ช่วงเวลา -->
-                    <div class="flex items-center gap-2 pl-2">
-                        <span id="cyber-time-icon" class="text-3xl animate-pulse text-yellow-500">☀️</span>
-                        <div class="flex flex-col">
-                            <span class="text-[9px] text-cyan-300 font-black uppercase">ช่วงเวลา</span>
-                            <span id="cyber-scenario-time" class="text-sm font-extrabold text-white">เช้า</span>
-                        </div>
+            <!-- Game Container (Visual Novel Layout) -->
+                <!-- คอนเทนเนอร์ใหญ่ฝั่งซ้ายบน (ป้ายชื่อเกมส์เรียงเป็นบรรทัดเดียว + HUD ชิดกรอบซ้ายห้อยลงมา) -->
+                <div id="cyber-hud-container" class="absolute top-4 left-4 z-40 flex flex-col gap-2.5 pointer-events-auto select-none max-w-xl hidden">
+                    <!-- 1. ป้ายชื่อเกมส์แถวบนสุดเรียงเป็นบรรทัดเดียวสุดหรู -->
+                    <div class="bg-slate-950/85 border border-cyan-500/30 backdrop-blur-md px-3.5 py-2 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.4)] flex items-center gap-2 max-w-max">
+                        <span class="text-xs md:text-sm font-black text-white tracking-wide">🛡️ ผู้พิทักษ์ภัยไซเบอร์</span>
+                        <span class="text-[9px] md:text-[11px] text-cyan-300 font-semibold opacity-90 border-l border-white/20 pl-2">ตะลุย 1 วันอันตรายบนไซเบอร์ของน้องเซฟ</span>
                     </div>
 
-                    <!-- พลังชีวิต HP (Cyber Shield) -->
-                    <div class="flex flex-col items-center">
-                        <span class="text-[9px] text-cyan-300 font-black uppercase mb-1">Cyber Shield</span>
-                        <div class="relative w-full h-4 bg-sky-900/50 border border-sky-400 rounded-full overflow-hidden shadow-inner flex items-center">
-                            <div id="cyber-hp-bar" class="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500" style="width: 100%;"></div>
-                            <div class="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white drop-shadow" id="cyber-hp-text">
-                                Cyber Shield: 100%
+                    <!-- 2. แดชบอร์ดสถานะ HUD (ถัดลงมาจากชื่อเกมส์ชิดกรอบซ้าย) -->
+                    <div class="flex flex-col gap-2.5 bg-slate-950/85 border-2 border-cyan-500/80 backdrop-blur-md p-3 px-4 rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.5)] text-white w-44 transition-all hover:scale-105 origin-top-left">
+                        <!-- แถวที่ 1: ด่าน/ช่วงเวลา -->
+                        <div class="flex items-center gap-2.5">
+                            <span id="cyber-time-icon" class="text-2xl animate-pulse text-yellow-500">☀️</span>
+                            <div class="flex flex-col">
+                                <span class="text-[9px] text-cyan-300 font-black uppercase tracking-wider">ช่วงเวลา</span>
+                                <span id="cyber-scenario-time" class="text-xs font-black text-white">เช้า</span>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- เหรียญสะสมในโหมด -->
-                    <div class="flex items-center gap-2 justify-end pr-2">
-                        <div class="text-right">
-                            <span class="text-[9px] text-cyan-300 font-black uppercase">เหรียญสะสม</span>
-                            <div class="text-sm font-extrabold text-yellow-300"><span id="cyber-score-current">0</span> ⭐</div>
+                        <!-- แถวที่ 2: พลังชีวิต HP (Cyber Shield) -->
+                        <div class="flex flex-col">
+                            <span class="text-[9px] text-cyan-300 font-black uppercase tracking-wider mb-1">Cyber Shield</span>
+                            <div class="relative w-full h-2.5 bg-sky-900/40 border border-cyan-500/30 rounded-full overflow-hidden shadow-inner flex items-center">
+                                <div id="cyber-hp-bar" class="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500" style="width: 100%;"></div>
+                            </div>
+                            <span id="cyber-hp-text" class="text-[8px] text-slate-300 font-bold mt-0.5">Shield: 100%</span>
                         </div>
-                        <span class="text-2xl">🪙</span>
+
+                        <!-- แถวที่ 3: เหรียญสะสม -->
+                        <div class="flex items-center justify-between border-t border-white/10 pt-1.5 mt-0.5">
+                            <span class="text-[9px] text-cyan-300 font-black uppercase tracking-wider">เหรียญสะสม</span>
+                            <div class="text-xs font-black text-yellow-300 flex items-center gap-0.5">
+                                <span id="cyber-score-current">0</span> ⭐
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Comic Frame View Area (ครอบด้วย cyber-game-play-area เพื่อควบคุมการซ่อน/แสดงอย่างปลอดภัย) -->
-                <div id="cyber-game-play-area" class="hidden flex flex-col gap-4">
-                    <div id="cyber-comic-frame" class="bg-white/95 backdrop-blur-sm rounded-3xl border-4 border-sky-700 shadow-2xl p-4 md:p-6 flex flex-col gap-4 relative transition-transform duration-300">
-                        <div class="absolute top-3 right-3 bg-sky-600 text-white font-black text-xs px-3 py-1 rounded-full shadow border border-sky-400">Comic Quest 📖</div>
-                        
-                        <!-- หัวข้อสถานการณ์ -->
-                        <h3 class="text-xl md:text-2xl font-black text-sky-900 border-b-2 border-sky-100 pb-2 pr-20" id="cyber-scenario-title">
-                            หัวข้อสถานการณ์
-                        </h3>
-
-                        <!-- ภาพการ์ตูนประกอบ (SVG) -->
-                        <div id="cyber-comic-image-area" class="w-full h-44 md:h-52 rounded-xl overflow-hidden flex items-center justify-center bg-sky-50/50">
-                            <!-- SVG จะถูกโหลดเข้ามาจาก JavaScript -->
-                        </div>
-
-                        <!-- คำถามบรรยาย -->
-                        <div class="bg-sky-50/60 border border-sky-100 rounded-2xl p-4 shadow-inner">
-                            <p class="text-gray-700 text-sm md:text-base font-bold leading-relaxed" id="cyber-scenario-text">
-                                เนื้อหาเหตุการณ์สมมติ...
-                            </p>
-                        </div>
-
-                        <!-- ช้อยส์ตัวเลือก 3D -->
-                        <div id="cyber-options-container" class="flex flex-col gap-3 mt-2">
-                            <!-- ปุ่มจะเด้งขึ้นมาตรงนี้ -->
-                        </div>
-
-                        <!-- กล่องบทสนทนาอัจฉริยะ (NPC Dialog) -->
-                        <div id="cyber-npc-dialog-box" class="hidden mt-4 bg-emerald-50/95 border-4 border-emerald-400 p-5 rounded-2xl flex gap-4 items-start shadow-inner animate-fadeIn">
-                            <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-indigo-100 to-purple-200 border-2 border-indigo-400 rounded-2xl flex items-center justify-center text-4xl shadow flex-shrink-0">
-                                <span id="cyber-npc-avatar">🧙‍♂️</span>
+                <!-- Comic Frame View Area (แปลงโฉมเป็น Visual Novel Game Play Area) -->
+                <div id="cyber-game-play-area" class="hidden flex-1 flex flex-col justify-between relative w-full h-full min-h-[400px]">
+                    
+                    <!-- ตัวเลือกตัดสินใจแบบลอยตัวกลางจอ (Sleek Visual Novel Choices Stack - สไตล์ ref1) -->
+                    <div id="cyber-choices-overlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-transparent hidden p-4 md:p-6 pb-28 md:pb-36 animate-fadeIn rounded-3xl pointer-events-none">
+                        <div class="w-full max-w-[94%] md:max-w-4xl flex flex-col gap-3.5 text-center pointer-events-auto">
+                            <!-- คอนเทนเนอร์ชอยส์คำตอบ (แนวยาวเรียงซ้อนแนวตั้งสไตล์ประหยัดพื้นที่ตาม ref2) -->
+                            <div id="cyber-options-container" class="flex flex-col gap-4 w-full px-6 justify-center items-center">
+                                <!-- ชอยส์ตัดสินใจจะถูกเรนเดอร์ตรงนี้ผ่าน JS -->
                             </div>
-                            <div class="flex-1 flex flex-col">
-                                <h4 id="cyber-npc-name" class="font-extrabold text-sm md:text-base text-indigo-900 mb-1">จอมเวทย์คู่หู</h4>
-                                <div id="cyber-npc-text" class="text-xs md:text-sm text-gray-700 font-bold leading-relaxed">
-                                    คำสอนการป้องภัยไซเบอร์...
+                        </div>
+                    </div>
+
+                    <!-- พื้นที่กลางจอว่างเปล่า (เพื่อโชว์ภาพพื้นหลังเต็มจอแบบ Steins;Gate) -->
+                    <div class="flex-1 flex items-center justify-center pointer-events-none relative">
+                        <!-- เอฟเฟกต์สะท้อนของจอภาพไซเบอร์ (HUD Scanlines) -->
+                        <div class="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[size:100%_4px,6px_100%] opacity-20 pointer-events-none"></div>
+                    </div>
+
+                    <!-- กล่องบทสนทนาขอบล่าง (Glassmorphism Dialogue Terminal) -->
+                    <div class="w-full max-w-4xl mx-auto px-2 md:px-4 pb-4 md:pb-6 z-20 mt-auto">
+                        <div id="cyber-dialog-box" class="glass-card bg-slate-950/90 border-4 border-cyan-400 p-5 md:p-6 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.6)] flex flex-col gap-3 relative min-h-[160px] animate-fadeIn transition-all duration-300 cursor-pointer" onclick="skipOrContinueDialogue()">
+                            
+                            <!-- ป้ายชื่อผู้พูดเรืองแสงลอยตัว -->
+                            <div class="absolute -top-5 left-6 bg-gradient-to-r from-cyan-500 to-blue-600 border-2 border-cyan-300 text-white font-black text-xs md:text-sm px-5 py-1.5 rounded-full shadow-lg tracking-wide" id="cyber-speaker-badge">
+                                📢 กำลังเตรียมระบบ...
+                            </div>
+
+                            <!-- เนื้อเรื่อง / คำบรรยาย -->
+                            <div class="mt-2 flex-1 flex items-start">
+                                <p id="cyber-dialog-text" class="text-sm md:text-base font-bold text-white leading-relaxed drop-shadow-sm select-none">
+                                    ยินดีต้อนรับเข้าสู่โลกแห่งไซเบอร์ผู้พิทักษ์...
+                                </p>
+                            </div>
+
+                            <!-- ส่วนควบคุมขอบล่าง -->
+                            <div class="flex justify-between items-center border-t border-white/10 pt-3 mt-1 select-none pointer-events-none">
+                                <!-- ข้อมูลคู่หูผู้กล้า -->
+                                <div class="flex items-center gap-2 text-xs md:text-sm font-black text-cyan-200">
+                                    <span id="cyber-npc-avatar" class="text-2xl animate-bounce">🧙‍♂️</span>
+                                    <span id="cyber-npc-name">คู่หูผู้พิทักษ์</span>
                                 </div>
-                                <div class="mt-4 flex justify-end">
-                                    <button id="cyber-npc-btn-action" class="px-6 py-2.5 bg-indigo-600 text-white font-black text-sm rounded-xl border-b-4 border-indigo-900 shadow">
-                                        ก้าวต่อไป
+
+                                <!-- ปุ่มกด/สัญลักษณ์แนะนำสถานะ -->
+                                <div id="cyber-dialog-footer-action" class="pointer-events-auto">
+                                    <button id="cyber-dialog-next-btn" class="px-5 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-white font-black text-xs md:text-sm rounded-xl border-b-4 border-blue-800 active:translate-y-0.5 shadow-lg flex items-center gap-1 cursor-pointer transition-all">
+                                        <span id="cyber-dialog-btn-text">ข้ามเรื่องเล่า</span> <span class="text-xs">▶</span>
                                     </button>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- ออกจากโหมดชั่วคราว -->
-                    <div class="mt-4 text-center">
-                        <button onclick="exitCyberSafetyMode()" class="px-6 py-2 bg-black/30 hover:bg-black/50 text-white font-bold rounded-full backdrop-blur-md border border-white/20 transition-colors shadow">
-                            🏃‍♂️ กลับหน้าหลัก (ไม่บันทึกคะแนน)
-                        </button>
+                        <!-- แถบปุ่มถอยกลับ -->
+                        <div class="mt-3.5 text-center">
+                            <button onclick="exitCyberSafetyMode()" class="px-5 py-1.5 bg-black/45 hover:bg-black/60 text-white font-bold text-xs rounded-full backdrop-blur-md border border-white/15 transition-colors shadow">
+                                🏃‍♂️ กลับหน้าหลักเลือกโหมด (ไม่บันทึกแต้ม)
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
             <!-- Victory Screen -->
-            <div id="cyber-victory-screen" class="w-full max-w-lg bg-gradient-to-b from-sky-500 to-blue-700 border-4 border-cyan-200 rounded-3xl p-6 text-center text-white hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-10 my-auto animate-fadeIn">
+            <div id="cyber-victory-screen" class="w-full max-w-lg bg-gradient-to-b from-sky-500 to-blue-700 border-4 border-cyan-200 rounded-3xl p-6 text-center text-white hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 mx-auto mt-10 md:mt-20 mb-10 animate-fadeIn">
                 <div class="w-24 h-24 bg-yellow-300 border-4 border-white rounded-full flex items-center justify-center text-5xl mx-auto shadow-lg mb-4 animate-bounce">🛡️</div>
                 <h3 class="text-4xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-100">ผู้พิทักษ์ภัยไซเบอร์!</h3>
                 <p class="text-cyan-100 font-bold mb-6">คุณได้ช่วยน้องเซฟตัดสินใจเลือกชีวิตดิจิทัลที่ปลอดภัยตลอด 1 วันเสร็จสมบูรณ์!</p>
@@ -2223,7 +2298,7 @@
                 </div>
 
                 <!-- Grid รายการบอส -->
-                <div id="wb-boss-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto mb-8">
+                <div id="wb-boss-list" class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-6xl mx-auto mb-8">
                     <!-- จะเรนเดอร์บอสการ์ดด้วย JS -->
                 </div>
 
