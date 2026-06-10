@@ -1259,6 +1259,7 @@
         let rightHipYHistory = [];
         let motionHistory = [];
         let previousMarioState = 'IDLE';
+        let isLeaningLeft = false; // ทิศทางการเอียงตัวเพื่อวิ่งถอยหลัง
         let stateConfidenceCounter = 0;
         let runConfidenceCounter = 0;
         let jumpConfidenceCounter = 0;
@@ -1310,13 +1311,14 @@
                         marioJumpCarryTimeout = setTimeout(() => {
                             try {
                                 iframeWin.pressMarioKey(39, false);
+                                iframeWin.pressMarioKey(37, false);
                                 iframeWin.pressMarioKey(90, false);
                                 console.log("🍃 [Jump Momentum] สิ้นสุดแรงส่งแรงเฉื่อยพุ่งขวาของมาริโอ้");
                             } catch (e) {}
                         }, 250);
                     } else {
                         // กรณีเปลี่ยนผ่านท่าอื่น ๆ ให้ล้างปุ่มทั้งหมดทันทีรวมถึงปุ่มวิ่งขวา (39, 90) ด้วย
-                        keysToRelease.push(39, 90);
+                        keysToRelease.push(37, 39, 90);
                         keysToRelease.forEach(code => iframeWin.pressMarioKey(code, false));
                     }
                     
@@ -1324,12 +1326,24 @@
                 }
 
                 if (marioState === 'RUNNING') {
-                    // วิ่งขวา (39) + วิ่งเร็วพิเศษ Sprint (90 - ปุ่ม Z ใน Super Mario Bros 1)
-                    iframeWin.pressMarioKey(39, true);
+                    // วิ่งซ้าย (37) หรือ วิ่งขวา (39) + วิ่งเร็วพิเศษ Sprint (90)
+                    if (isLeaningLeft) {
+                        iframeWin.pressMarioKey(37, true);
+                        iframeWin.pressMarioKey(39, false);
+                    } else {
+                        iframeWin.pressMarioKey(39, true);
+                        iframeWin.pressMarioKey(37, false);
+                    }
                     iframeWin.pressMarioKey(90, true);
                 } else if (marioState === 'JUMPING') {
-                    // กระโดด (88 - ปุ่ม X ใน Super Mario Bros 1) + เคลื่อนขวา (39) + วิ่งเร็ว (90)
-                    iframeWin.pressMarioKey(39, true);
+                    // กระโดด (88) + ทิศทางเคลื่อนที่ + วิ่งเร็ว (90)
+                    if (isLeaningLeft) {
+                        iframeWin.pressMarioKey(37, true);
+                        iframeWin.pressMarioKey(39, false);
+                    } else {
+                        iframeWin.pressMarioKey(39, true);
+                        iframeWin.pressMarioKey(37, false);
+                    }
                     iframeWin.pressMarioKey(88, true);
                     iframeWin.pressMarioKey(90, true);
                 } else if (marioState === 'CROUCHING') {
@@ -1350,13 +1364,15 @@
                 }
 
                 if (marioState === 'RUNNING') {
-                    const downRight = new iframeWin.KeyboardEvent('keydown', { keyCode: 39, which: 39, bubbles: true });
+                    const moveKey = isLeaningLeft ? 37 : 39;
+                    const downMove = new iframeWin.KeyboardEvent('keydown', { keyCode: moveKey, which: moveKey, bubbles: true });
                     const downShift = new iframeWin.KeyboardEvent('keydown', { keyCode: 16, which: 16, bubbles: true });
-                    iframeDoc.body.dispatchEvent(downRight);
+                    iframeDoc.body.dispatchEvent(downMove);
                     iframeDoc.body.dispatchEvent(downShift);
                 } else if (marioState === 'JUMPING') {
                     const downJump = new iframeWin.KeyboardEvent('keydown', { keyCode: 32, which: 32, bubbles: true });
-                    const downRight = new iframeWin.KeyboardEvent('keydown', { keyCode: 39, which: 39, bubbles: true });
+                    const moveKey = isLeaningLeft ? 37 : 39;
+                    const downMove = new iframeWin.KeyboardEvent('keydown', { keyCode: moveKey, which: moveKey, bubbles: true });
                     iframeDoc.body.dispatchEvent(downJump);
                     iframeDoc.body.dispatchEvent(downRight);
                 } else if (marioState === 'CROUCHING') {
@@ -2028,8 +2044,8 @@
                     
                     // ระบบ Calibrate และสแกนตำแหน่งในช่วง PREPARING / COUNTDOWN
                     if (wbGameState === 'PREPARING' || wbGameState === 'COUNTDOWN') {
-                        // เพื่อให้แม่นยำครึ่งตัวถึงต้นขา ผู้เล่นต้องจัดตัวให้กล้องเห็นสะโพกด้วย
-                        if (hasShoulders && hasHips) {
+                        // เพื่อความยืดหยุ่นในด่านมาริโอ้: ไม่บังคับให้ต้องเห็นสะโพก ขอแค่เห็นศีรษะและไหล่ก็เริ่มเล่นได้ทันที!
+                        if (hasShoulders) {
                             isPositionOk = true; 
                             
                             if (baseNoseY === -1) {
@@ -2045,19 +2061,37 @@
                                 baseShoulderY = baseShoulderY * 0.9 + avgS * 0.1;
                             }
                             
-                            const avgH = (leftHip.y + rightHip.y) / 2;
-                            if (baseHipY === -1) {
-                                baseHipY = avgH;
+                            if (hasHips) {
+                                const avgH = (leftHip.y + rightHip.y) / 2;
+                                if (baseHipY === -1) {
+                                    baseHipY = avgH;
+                                } else {
+                                    baseHipY = baseHipY * 0.9 + avgH * 0.1;
+                                }
+                                
+                                // คำนวณอัตราส่วนความยาวลำตัวจริง (ไหล่ถึงสะโพก)
+                                const currentLen = avgH - avgS;
+                                if (baseBodyLength === -1) {
+                                    baseBodyLength = currentLen;
+                                } else {
+                                    baseBodyLength = baseBodyLength * 0.9 + currentLen * 0.1;
+                                }
                             } else {
-                                baseHipY = baseHipY * 0.9 + avgH * 0.1;
-                            }
-                            
-                            // คำนวณอัตราส่วนความยาวลำตัวจริง (ไหล่ถึงสะโพก)
-                            const currentLen = avgH - avgS;
-                            if (baseBodyLength === -1) {
-                                baseBodyLength = currentLen;
-                            } else {
-                                baseBodyLength = baseBodyLength * 0.9 + currentLen * 0.1;
+                                // จำลองความยาวลำตัวจากความกว้างของหัวไหล่แทน
+                                const currentShoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                                const estimatedLen = currentShoulderWidth * 1.3;
+                                if (baseBodyLength === -1) {
+                                    baseBodyLength = estimatedLen;
+                                } else {
+                                    baseBodyLength = baseBodyLength * 0.9 + estimatedLen * 0.1;
+                                }
+                                
+                                const estimatedH = avgS + estimatedLen;
+                                if (baseHipY === -1) {
+                                    baseHipY = estimatedH;
+                                } else {
+                                    baseHipY = baseHipY * 0.9 + estimatedH * 0.1;
+                                }
                             }
                         } else {
                             isPositionOk = false;
@@ -2087,7 +2121,7 @@
                         } else {
                             if (statusOverlay) {
                                 if (isWb001) {
-                                    statusOverlay.innerHTML = '⚠️ ยืนให้กล้องเห็น หัว ไหล่ และสะโพก เพื่อสแกน Calibrate ความสูงจมูก!';
+                                    statusOverlay.innerHTML = '⚠️ ขยับให้กล้องเห็น ศีรษะ และ หัวไหล่ ทั้งสองข้างเพื่อสแกน Calibrate!';
                                     statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/90 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md animate-pulse z-30";
                                 } else {
                                     statusOverlay.innerHTML = '⚠️ ขยับตัวถอยหลังให้อยู่กึ่งกลาง และให้เห็น ไหล่ สะโพก ข้อเท้า ครบถ้วน';
@@ -2105,19 +2139,39 @@
                     if (wbGameState === 'BATTLE') {
                         // 🛡️ Continuous Real-time Dynamic Calibration: ปรับระดับพิกัดสรีระอ้างอิงตามระยะยืนจริงของนักเรียนในเฟรมนั้นๆ แบบเรียลไทม์!
                         // ทำให้นักเรียนสามารถเดินหน้า-ถอยหลัง หรือหลุดจากมุมเดิมได้ โดยที่แกนพุงเอวและเกณฑ์กระโดดยังคงแม่นยำเป๊ะ 100%
-                        if (hasShoulders && hasHips) {
-                            const currentLen = (leftHip.y + rightHip.y)/2 - (leftShoulder.y + rightShoulder.y)/2;
+                        if (hasShoulders) {
                             const currentS = (leftShoulder.y + rightShoulder.y) / 2;
-                            const currentH = (leftHip.y + rightHip.y) / 2;
+                            let currentLen = baseBodyLength;
+                            
+                            if (hasHips) {
+                                currentLen = (leftHip.y + rightHip.y)/2 - currentS;
+                                const currentH = (leftHip.y + rightHip.y) / 2;
+                                baseHipY = baseHipY * 0.95 + currentH * 0.05;
+                            } else {
+                                const currentShoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+                                currentLen = currentShoulderWidth * 1.3;
+                                const estimatedH = currentS + currentLen;
+                                baseHipY = baseHipY * 0.95 + estimatedH * 0.05;
+                            }
                             
                             // ใช้ Exponential Moving Average กรองค่าให้นุ่มนวล ป้องกันจุดกระดูกสั่นสะดุด
                             if (baseBodyLength > 0) {
                                 baseBodyLength = baseBodyLength * 0.95 + currentLen * 0.05;
                                 baseShoulderY = baseShoulderY * 0.95 + currentS * 0.05;
-                                baseHipY = baseHipY * 0.95 + currentH * 0.05;
                                 
                                 // ปรับค่าอ้างอิงของหัวและจมูกตามระดับไหล่และระยะยืนในเฟรมปัจจุบันทันที!
                                 baseNoseY = baseShoulderY - baseBodyLength * 0.38;
+                            }
+                        }
+
+                        // 🔍 ตรวจจับการเอียงไหล่เพื่อระบุทิศทางการวิ่ง (เอียงซ้าย = วิ่งถอยหลัง)
+                        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.5 && rightShoulder.visibility > 0.5) {
+                            const shoulderYDiff = leftShoulder.y - rightShoulder.y;
+                            // ถ้าไหล่ซ้ายต่ำกว่าไหล่ขวาอย่างชัดเจน (ผู้เล่นเอียงตัวไปทางซ้ายของตนเอง)
+                            if (shoulderYDiff > 0.03) {
+                                isLeaningLeft = true;
+                            } else if (shoulderYDiff < 0.01) {
+                                isLeaningLeft = false;
                             }
                         }
 
@@ -2326,8 +2380,8 @@
                                 statusText = '🕳️ กำลังก้มย่อ! (CROUCH)';
                                 statusColor = '#fb923c';
                             } else if (detectedActiveState === 'RUNNING') {
-                                statusText = '🏃 กำลังวิ่งลุยด่าน! (RUN)';
-                                statusColor = '#39ff14';
+                                statusText = isLeaningLeft ? '🏃‍♂️ วิ่งถอยหลัง (LEFT)' : '🏃 วิ่งไปข้างหน้า (RIGHT)';
+                                statusColor = isLeaningLeft ? '#f43f5e' : '#39ff14';
                             }
                             
                             wbCanvasCtx.font = 'bold 22px Prompt, sans-serif';
