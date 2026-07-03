@@ -1,16 +1,22 @@
 {
-  "name": "ict-game-v5",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "nextgen-play",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Root scripts for the Vite + React + Firestore migration.",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "devDependencies": {
-    "@google/clasp": "^3.3.0"
+    "postinstall": "npm run install:app",
+    "install:app": "npm --prefix firebase-app install",
+    "dev": "npm --prefix firebase-app run dev",
+    "build": "npm --prefix firebase-app run build",
+    "test": "npm --prefix firebase-app test -- --run",
+    "test:rules": "npm --prefix firebase-app run test:rules",
+    "lint": "npm --prefix firebase-app run lint",
+    "typecheck": "npm --prefix firebase-app run typecheck",
+    "audit:prod": "npm --prefix firebase-app run audit:prod",
+    "preflight": "npm --prefix firebase-app run preflight",
+    "verify:dist": "npm --prefix firebase-app run verify:dist",
+    "verify": "npm --prefix firebase-app run verify",
+    "migrate": "npm --prefix firebase-app run migrate --"
   }
 }

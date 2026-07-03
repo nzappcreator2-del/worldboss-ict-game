@@ -235,31 +235,359 @@
         document.getElementById('question-number').textContent = currentQuestionIndex + 1;
         document.getElementById('question-text').textContent = q.text;
 
+        // แสดงรูปภาพโจทย์ (ถ้ามี)
+        const imgContainer = document.getElementById('question-image-container');
+        const imgDisplay = document.getElementById('question-image-display');
+        if (q.image) {
+            imgDisplay.src = q.image;
+            imgContainer.classList.remove('hidden');
+        } else {
+            imgDisplay.src = "";
+            imgContainer.classList.add('hidden');
+        }
+
         const optsContainer = document.getElementById('options-container');
         optsContainer.innerHTML = '';
 
-        q.options.forEach((optText, idx) => {
-            // ไม่เอาตัวว่าง
-            if (!optText) return;
+        const pattern = q.pattern || 'choice';
 
-            const btn = document.createElement('button');
-            const colors = ['border-blue-500', 'border-green-500', 'border-purple-500', 'border-orange-500'];
+        if (pattern === 'choice') {
+            optsContainer.className = "grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto";
 
-            btn.className = `w-full p-4 md:p-6 text-left border-2 ${colors[idx % 4]} rounded-2xl hover:bg-gray-50 transition transform hover:-translate-y-1 shadow-sm font-medium text-gray-700 bg-white group flex items-start gap-3 relative overflow-hidden`;
-            btn.onclick = () => submitAnswer(idx);
+            // สะสมช้อยส์ลวงสำรองจากคำถามข้ออื่นๆ เพื่อช่วยกรอกช่องช้อยส์ว่าง
+            let fallbackPool = [];
+            if (questionsData && questionsData.length > 0) {
+                questionsData.forEach(otherQ => {
+                    if (otherQ && otherQ.options) {
+                        otherQ.options.forEach(opt => {
+                            const optStr = (opt !== undefined && opt !== null) ? String(opt).trim() : "";
+                            if (optStr && !fallbackPool.includes(optStr)) {
+                                fallbackPool.push(optStr);
+                            }
+                        });
+                    }
+                });
+            }
+            const defaultFallbacks = ["ตัวเลือกข้อนี้ไม่ถูกต้อง", "ไม่มีคำตอบที่ถูก", "ยังไม่มีข้อมูลแน่ชัด", "คำตอบอื่นเพิ่มเติม"];
+            defaultFallbacks.forEach(opt => {
+                if (!fallbackPool.includes(opt)) fallbackPool.push(opt);
+            });
 
-            // เอฟเฟกต์ hover 
-            const ripple = document.createElement('div');
-            ripple.className = "absolute inset-0 bg-black/5 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 z-0";
+            // คัดลอกและเติมเต็ม options ให้ครบ 4 ตัวเลือกโดยไม่มีช้อยส์ว่างเปล่า
+            let finalOptions = [];
+            for (let i = 0; i < 4; i++) {
+                let opt = q.options && q.options[i] !== undefined && q.options[i] !== null ? String(q.options[i]).trim() : "";
+                if (!opt) {
+                    // สุ่มหาจาก pool
+                    let candidate = "";
+                    const firstOptStr = q.options && q.options[0] !== undefined && q.options[0] !== null ? String(q.options[0]).trim() : "";
+                    for (let j = 0; j < fallbackPool.length; j++) {
+                        if (!finalOptions.includes(fallbackPool[j]) && fallbackPool[j] !== firstOptStr) {
+                            candidate = fallbackPool[j];
+                            break;
+                        }
+                    }
+                    opt = candidate || `ตัวเลือกสำรองที่ ${i + 1}`;
+                }
+                finalOptions.push(opt);
+            }
 
-            btn.innerHTML = `
-                <span class="relative z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 flex-shrink-0 group-hover:bg-blue-100 group-hover:text-blue-600">${idx + 1}</span>
-                <span class="relative z-10 text-lg md:text-xl">${optText}</span>
-            `;
-            btn.appendChild(ripple);
-            optsContainer.appendChild(btn);
-        });
+            finalOptions.forEach((optText, idx) => {
+                const btn = document.createElement('button');
+                const colors = ['border-blue-500', 'border-green-500', 'border-purple-500', 'border-orange-500'];
+
+                btn.className = `w-full p-4 md:p-6 text-left border-2 ${colors[idx % 4]} rounded-2xl hover:bg-gray-50 transition transform hover:-translate-y-1 shadow-sm font-medium text-gray-700 bg-white group flex items-start gap-3 relative overflow-hidden`;
+                btn.onclick = () => submitAnswer(idx);
+
+                // เอฟเฟกต์ hover 
+                const ripple = document.createElement('div');
+                ripple.className = "absolute inset-0 bg-black/5 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 z-0";
+
+                btn.innerHTML = `
+                    <span class="relative z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 flex-shrink-0 group-hover:bg-blue-100 group-hover:text-blue-600">${idx + 1}</span>
+                    <span class="relative z-10 text-lg md:text-xl">${optText}</span>
+                `;
+                btn.appendChild(ripple);
+                optsContainer.appendChild(btn);
+            });
+        } else if (pattern === 'matching') {
+            // ปรับ layout ของ optsContainer เป็นแนวตั้งและอิสระจาก grid
+            optsContainer.className = "flex flex-col gap-4 mt-auto";
+
+            // แบบจับคู่ (Matching)
+            window.selectedLeftKey = null;
+            window.currentMatches = {}; // { leftText: rightText }
+            
+            const pairs = q.matchingPairs || [];
+            const leftItems = pairs.map(p => p.left).sort(() => Math.random() - 0.5);
+            const rightItems = pairs.map(p => p.right).sort(() => Math.random() - 0.5);
+            
+            const matchingGrid = document.createElement('div');
+            matchingGrid.className = "w-full grid grid-cols-2 gap-4 md:gap-6 mb-2";
+            
+            const leftCol = document.createElement('div');
+            leftCol.className = "flex flex-col gap-3";
+            leftCol.id = "matching-left-col";
+            
+            const rightCol = document.createElement('div');
+            rightCol.className = "flex flex-col gap-3";
+            rightCol.id = "matching-right-col";
+            
+            // วาดฝั่งซ้าย
+            leftItems.forEach(leftVal => {
+                const btn = document.createElement('button');
+                btn.className = "matching-left-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+                btn.dataset.value = leftVal;
+                btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> <span class="text-sm md:text-base">${leftVal}</span>`;
+                btn.onclick = () => selectMatchingLeft(btn, leftVal);
+                leftCol.appendChild(btn);
+            });
+            
+            // วาดฝั่งขวา
+            rightItems.forEach(rightVal => {
+                const btn = document.createElement('button');
+                btn.className = "matching-right-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+                btn.dataset.value = rightVal;
+                btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500"></span> <span class="text-sm md:text-base">${rightVal}</span>`;
+                btn.onclick = () => selectMatchingRight(btn, rightVal);
+                rightCol.appendChild(btn);
+            });
+            
+            matchingGrid.appendChild(leftCol);
+            matchingGrid.appendChild(rightCol);
+            optsContainer.appendChild(matchingGrid);
+            
+            // ปุ่มยืนยันจับคู่ (ปรับปรุงให้อยู่ตรงกลางขนาดกำลังพอเหมาะ)
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = "w-full max-w-xs mx-auto py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold text-base rounded-2xl shadow-lg hover:scale-102 hover:shadow-xl transition-all flex justify-center items-center gap-2 cursor-pointer z-10 relative mt-2";
+            confirmBtn.innerHTML = `<span>⚔️</span> ยืนยันการจับคู่`;
+            confirmBtn.onclick = () => submitMatchingAnswer();
+            optsContainer.appendChild(confirmBtn);
+        }
     }
+
+    // ตัวช่วยเลือกจับคู่ฝั่งซ้าย
+    window.selectMatchingLeft = function(btnEl, value) {
+        document.querySelectorAll('.matching-left-btn').forEach(b => {
+            b.classList.remove('ring-4', 'ring-yellow-400');
+        });
+        window.selectedLeftKey = value;
+        btnEl.classList.add('ring-4', 'ring-yellow-400');
+    };
+
+    // ตัวช่วยเลือกจับคู่ฝั่งขวา
+    window.selectMatchingRight = function(btnEl, value) {
+        if (!window.selectedLeftKey) {
+            Swal.fire({
+                title: 'โปรดเลือกฝั่งซ้ายก่อน!',
+                text: 'กรุณาเลือกรายการทางฝั่งซ้ายก่อนนำมาจับคู่กับคำตอบฝั่งขวาจ้า',
+                icon: 'warning',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            return;
+        }
+
+        const leftVal = window.selectedLeftKey;
+        const rightVal = value;
+
+        // ล้างความเชื่อมโยงเดิมของ leftVal หรือ rightVal ที่เคยมี (1-to-1)
+        for (const k in window.currentMatches) {
+            if (k === leftVal || window.currentMatches[k] === rightVal) {
+                delete window.currentMatches[k];
+            }
+        }
+
+        window.currentMatches[leftVal] = rightVal;
+        window.selectedLeftKey = null;
+
+        // เคลียร์ไฮไลต์เลือกฝั่งซ้าย
+        document.querySelectorAll('.matching-left-btn').forEach(b => {
+            b.classList.remove('ring-4', 'ring-yellow-400');
+        });
+
+        updateMatchingColors();
+    };
+
+    // อัปเดตสีพาสเทลและสัญลักษณ์ให้กับปุ่มที่จับคู่กันแล้ว
+    window.updateMatchingColors = function() {
+        const leftBtns = document.querySelectorAll('.matching-left-btn');
+        const rightBtns = document.querySelectorAll('.matching-right-btn');
+
+        leftBtns.forEach(btn => {
+            btn.className = "matching-left-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+            const badge = btn.querySelector('.matching-badge');
+            if (badge) badge.remove();
+        });
+        rightBtns.forEach(btn => {
+            btn.className = "matching-right-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+            const badge = btn.querySelector('.matching-badge');
+            if (badge) badge.remove();
+        });
+
+        const colors = [
+            { border: 'border-pink-500', bg: 'bg-pink-50', text: 'text-pink-700', badge: '💖' },
+            { border: 'border-cyan-500', bg: 'bg-cyan-50', text: 'text-cyan-700', badge: '💎' },
+            { border: 'border-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', badge: '⭐' },
+            { border: 'border-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', badge: '🔮' }
+        ];
+
+        let idx = 0;
+        for (const leftVal in window.currentMatches) {
+            const rightVal = window.currentMatches[leftVal];
+            const color = colors[idx % colors.length];
+
+            leftBtns.forEach(btn => {
+                if (btn.dataset.value === leftVal) {
+                    btn.className = `matching-left-btn w-full p-3 text-left border-2 ${color.border} ${color.bg} ${color.text} rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-sm";
+                    badgeSpan.textContent = color.badge;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            rightBtns.forEach(btn => {
+                if (btn.dataset.value === rightVal) {
+                    btn.className = `matching-right-btn w-full p-3 text-left border-2 ${color.border} ${color.bg} ${color.text} rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-sm";
+                    badgeSpan.textContent = color.badge;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            idx++;
+        }
+    };
+
+    // ส่งตรวจคำตอบแบบจับคู่
+    window.submitMatchingAnswer = function() {
+        const q = questionsData[currentQuestionIndex];
+        const pairs = q.matchingPairs || [];
+        const statusEl = document.getElementById('battle-status');
+        const bossZone = document.getElementById('boss-zone');
+        const playerZone = document.getElementById('player-zone');
+
+        // ตรวจสอบว่าผู้เรียนจับคู่ครบทุกคำหรือยัง
+        const leftBtns = document.querySelectorAll('.matching-left-btn');
+        const matchesCount = Object.keys(window.currentMatches).length;
+        if (matchesCount < leftBtns.length) {
+            Swal.fire({
+                title: 'ยังจับคู่ไม่ครบ!',
+                text: 'กรุณาเลือกจับคู่รายการให้ครบทุกคู่ก่อนส่งตรวจคำตอบนะครับ',
+                icon: 'warning',
+                timer: 2500,
+                showConfirmButton: false
+            });
+            return;
+        }
+
+        // บล็อกไม่ให้กดซ้ำ
+        const btns = document.getElementById('options-container').querySelectorAll('button');
+        btns.forEach(b => b.disabled = true);
+
+        let correctCount = 0;
+        pairs.forEach(pair => {
+            if (window.currentMatches[pair.left] === pair.right) {
+                correctCount++;
+            }
+        });
+
+        const allCorrect = (correctCount === pairs.length);
+
+        if (allCorrect) {
+            score++;
+            if (typeof updateDailyProgressLocal === 'function') updateDailyProgressLocal('correct5', 1, q.qId);
+            
+            statusEl.textContent = '✅ ยอดเยี่ยม! จับคู่ถูกต้องทั้งหมด';
+            statusEl.className = 'text-sm font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full border border-green-300 shadow-sm animate-bounce block';
+
+            playerZone.classList.add('translate-x-10', 'scale-110');
+            setTimeout(() => playerZone.classList.remove('translate-x-10', 'scale-110'), 300);
+
+            const baseDamage = maxBossHp / questionsData.length;
+            currentBossHp -= baseDamage;
+
+            showDamageEffect(baseDamage, combo > 1, 'boss');
+            combo += 0.2;
+
+            setTimeout(() => {
+                bossZone.classList.add('animate-shake-strong');
+                setTimeout(() => bossZone.classList.remove('animate-shake-strong'), 500);
+            }, 150);
+        } else {
+            statusEl.textContent = `❌ ผิดพลาด! (ถูกต้อง ${correctCount}/${pairs.length} คู่)`;
+            statusEl.className = 'text-sm font-bold text-red-700 bg-red-100 px-3 py-1 rounded-full border border-red-300 shadow-sm block';
+            combo = 1;
+
+            const playerDamage = maxPlayerHp / (questionsData.length > 3 ? 3 : 2);
+            currentPlayerHp -= playerDamage;
+
+            bossZone.classList.add('-translate-x-10', 'scale-110');
+            setTimeout(() => bossZone.classList.remove('-translate-x-10', 'scale-110'), 300);
+
+            setTimeout(() => {
+                showDamageEffect(playerDamage, false, 'player');
+                playerZone.classList.add('animate-shake');
+                setTimeout(() => playerZone.classList.remove('animate-shake'), 500);
+            }, 150);
+
+            showCorrectMatchingPairs();
+        }
+
+        updateHpUI();
+        updateComboUI();
+
+        setTimeout(() => {
+            statusEl.classList.add('hidden');
+            if (currentBossHp <= 0) {
+                endBattle(true, "ชัยชนะ!");
+            } else if (currentPlayerHp <= 0) {
+                endBattle(false, "คุณพ่ายแพ้! พลังชีวิตหมด");
+            } else {
+                currentQuestionIndex++;
+                loadQuestion();
+            }
+        }, 3000); // ดีเลย์ 3 วินาทีสำหรับจับคู่ เพื่อให้มีเวลาอ่านเฉลย
+    };
+
+    // แสดงเฉลยคู่ที่ถูกต้องในหน้าจอต่อสู้บอส
+    window.showCorrectMatchingPairs = function() {
+        const q = questionsData[currentQuestionIndex];
+        const pairs = q.matchingPairs || [];
+        const leftBtns = document.querySelectorAll('.matching-left-btn');
+        const rightBtns = document.querySelectorAll('.matching-right-btn');
+
+        let idx = 0;
+        pairs.forEach(pair => {
+            leftBtns.forEach(btn => {
+                if (btn.dataset.value === pair.left) {
+                    btn.className = `matching-left-btn w-full p-3 text-left border-2 border-green-500 bg-green-50 text-green-700 rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const oldBadge = btn.querySelector('.matching-badge');
+                    if (oldBadge) oldBadge.remove();
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-xs px-2 py-0.5 bg-green-200 rounded-full font-bold";
+                    badgeSpan.textContent = `💚 คู่ ${idx + 1}`;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            rightBtns.forEach(btn => {
+                if (btn.dataset.value === pair.right) {
+                    btn.className = `matching-right-btn w-full p-3 text-left border-2 border-green-500 bg-green-50 text-green-700 rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const oldBadge = btn.querySelector('.matching-badge');
+                    if (oldBadge) oldBadge.remove();
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-xs px-2 py-0.5 bg-green-200 rounded-full font-bold";
+                    badgeSpan.textContent = `💚 คู่ ${idx + 1}`;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            idx++;
+        });
+    };
 
     // 🟢 6.5 ตรวจคำตอบ (ทำดาเมจบอส หรือโดนดาเมจเอง)
     function submitAnswer(selectedIndex) {
@@ -363,8 +691,11 @@
             updateHpUI();
             Swal.fire({ title: 'ฟื้นฟูสำเร็จ!', text: 'พลังชีวิตเพิ่มขึ้น 30%', icon: 'success', timer: 1000, showConfirmButton: false });
         } else if (itemId === 'magnifier') {
-            if (usedMagnifierInTurn) return Swal.fire('ใช้ไปแล้ว!', 'คุณตัดชอยส์ในข้อนี้ไปแล้ว', 'warning');
             const q = questionsData[currentQuestionIndex];
+            if (q.pattern && q.pattern !== 'choice') {
+                return Swal.fire('ไม่สามารถใช้ไอเทมนี้ได้!', 'แว่นขยายใช้ได้เฉพาะกับข้อสอบแบบเลือกตอบ (ปรนัย) เท่านั้นนะจ๊ะ', 'info');
+            }
+            if (usedMagnifierInTurn) return Swal.fire('ใช้ไปแล้ว!', 'คุณตัดชอยส์ในข้อนี้ไปแล้ว', 'warning');
             const btns = document.getElementById('options-container').querySelectorAll('button');
 
             let wrongIndexes = [];
@@ -655,6 +986,7 @@
             .getPreTestQuestions(lessonId);
     }
 
+    // 🟢 10.2 แสดงคำถามก่อนเรียน (Pre-test)
     function renderPreTestQuestion() {
         if (pretestIndex >= pretestQuestions.length) {
             // แสดงสรุปผล
@@ -670,19 +1002,293 @@
         document.getElementById('pretest-question-text').textContent = q.text;
         document.getElementById('pretest-question-text').parentElement.classList.remove('hidden');
 
-        const optColors = ['bg-blue-500 hover:bg-blue-600', 'bg-green-500 hover:bg-green-600', 'bg-yellow-500 hover:bg-yellow-600', 'bg-red-500 hover:bg-red-600'];
-        const optLabels = ['ก', 'ข', 'ค', 'ง'];
-        let html = '';
-        q.options.forEach((opt, i) => {
-            html += `<button onclick="submitPreTestAnswer(${i})"
-                class="p-4 ${optColors[i]} text-white rounded-2xl font-bold text-lg shadow-lg hover:scale-105 transition-all text-left flex items-center gap-3">
-                <span class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl font-black">${optLabels[i]}</span>
-                <span>${opt}</span>
-            </button>`;
-        });
-        document.getElementById('pretest-options-container').innerHTML = html;
+        // แสดงรูปภาพโจทย์ (ถ้ามี)
+        const imgContainer = document.getElementById('pretest-question-image-container');
+        const imgDisplay = document.getElementById('pretest-question-image-display');
+        if (q.image) {
+            imgDisplay.src = q.image;
+            imgContainer.classList.remove('hidden');
+        } else {
+            imgDisplay.src = "";
+            imgContainer.classList.add('hidden');
+        }
+
+        const optsContainer = document.getElementById('pretest-options-container');
+        optsContainer.innerHTML = '';
+
+        const pattern = q.pattern || 'choice';
+
+        if (pattern === 'choice') {
+            optsContainer.className = "grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto";
+
+            // สะสมช้อยส์ลวงสำรองจากคำถามข้ออื่นๆ (Pre-test)
+            let fallbackPool = [];
+            if (pretestQuestions && pretestQuestions.length > 0) {
+                pretestQuestions.forEach(otherQ => {
+                    if (otherQ && otherQ.options) {
+                        otherQ.options.forEach(opt => {
+                            const optStr = (opt !== undefined && opt !== null) ? String(opt).trim() : "";
+                            if (optStr && !fallbackPool.includes(optStr)) {
+                                fallbackPool.push(optStr);
+                            }
+                        });
+                    }
+                });
+            }
+            const defaultFallbacks = ["ตัวเลือกข้อนี้ไม่ถูกต้อง", "ไม่มีคำตอบที่ถูก", "ยังไม่มีข้อมูลแน่ชัด", "คำตอบอื่นเพิ่มเติม"];
+            defaultFallbacks.forEach(opt => {
+                if (!fallbackPool.includes(opt)) fallbackPool.push(opt);
+            });
+
+            // คัดลอกและเติมเต็ม options ให้ครบ 4 ตัวเลือก
+            let finalOptions = [];
+            for (let i = 0; i < 4; i++) {
+                let opt = q.options && q.options[i] !== undefined && q.options[i] !== null ? String(q.options[i]).trim() : "";
+                if (!opt) {
+                    let candidate = "";
+                    const firstOptStr = q.options && q.options[0] !== undefined && q.options[0] !== null ? String(q.options[0]).trim() : "";
+                    for (let j = 0; j < fallbackPool.length; j++) {
+                        if (!finalOptions.includes(fallbackPool[j]) && fallbackPool[j] !== firstOptStr) {
+                            candidate = fallbackPool[j];
+                            break;
+                        }
+                    }
+                    opt = candidate || `ตัวเลือกสำรองที่ ${i + 1}`;
+                }
+                finalOptions.push(opt);
+            }
+
+            const optColors = ['bg-blue-500 hover:bg-blue-600', 'bg-green-500 hover:bg-green-600', 'bg-yellow-500 hover:bg-yellow-600', 'bg-red-500 hover:bg-red-600'];
+            const optLabels = ['ก', 'ข', 'ค', 'ง'];
+            finalOptions.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.onclick = () => submitPreTestAnswer(i);
+                btn.className = `p-4 ${optColors[i % 4]} text-white rounded-2xl font-bold text-lg shadow-lg hover:scale-105 transition-all text-left flex items-center gap-3`;
+                btn.innerHTML = `<span class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl font-black">${optLabels[i % 4]}</span>
+                    <span>${opt}</span>`;
+                optsContainer.appendChild(btn);
+            });
+        } else if (pattern === 'matching') {
+            optsContainer.className = "flex flex-col gap-4 mt-auto";
+
+            // แบบจับคู่สำหรับ Pre-test
+            window.pretestSelectedLeftKey = null;
+            window.pretestCurrentMatches = {};
+            
+            const pairs = q.matchingPairs || [];
+            const leftItems = pairs.map(p => p.left).sort(() => Math.random() - 0.5);
+            const rightItems = pairs.map(p => p.right).sort(() => Math.random() - 0.5);
+            
+            const matchingGrid = document.createElement('div');
+            matchingGrid.className = "w-full grid grid-cols-2 gap-4 mb-2";
+            
+            const leftCol = document.createElement('div');
+            leftCol.className = "flex flex-col gap-3";
+            leftCol.id = "pretest-matching-left-col";
+            
+            const rightCol = document.createElement('div');
+            rightCol.className = "flex flex-col gap-3";
+            rightCol.id = "pretest-matching-right-col";
+            
+            leftItems.forEach(leftVal => {
+                const btn = document.createElement('button');
+                btn.className = "pretest-matching-left-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+                btn.dataset.value = leftVal;
+                btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> <span class="text-sm">${leftVal}</span>`;
+                btn.onclick = () => selectPretestMatchingLeft(btn, leftVal);
+                leftCol.appendChild(btn);
+            });
+            
+            rightItems.forEach(rightVal => {
+                const btn = document.createElement('button');
+                btn.className = "pretest-matching-right-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+                btn.dataset.value = rightVal;
+                btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500"></span> <span class="text-sm">${rightVal}</span>`;
+                btn.onclick = () => selectPretestMatchingRight(btn, rightVal);
+                rightCol.appendChild(btn);
+            });
+            
+            matchingGrid.appendChild(leftCol);
+            matchingGrid.appendChild(rightCol);
+            optsContainer.appendChild(matchingGrid);
+            
+            // ปุ่มยืนยัน (ปรับปรุงให้อยู่ตรงกลางขนาดกำลังพอเหมาะ)
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = "w-full max-w-xs mx-auto py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-base rounded-2xl shadow-lg hover:scale-102 hover:shadow-xl transition-all flex justify-center items-center gap-2 cursor-pointer z-10 relative mt-2";
+            confirmBtn.innerHTML = `<span>⚔️</span> ยืนยันการจับคู่ Pre-test`;
+            confirmBtn.onclick = () => submitPretestMatchingAnswer();
+            optsContainer.appendChild(confirmBtn);
+        }
     }
 
+    // ตัวเลือกจับคู่ Pre-test ฝั่งซ้าย
+    window.selectPretestMatchingLeft = function(btnEl, value) {
+        document.querySelectorAll('.pretest-matching-left-btn').forEach(b => {
+            b.classList.remove('ring-4', 'ring-yellow-400');
+        });
+        window.pretestSelectedLeftKey = value;
+        btnEl.classList.add('ring-4', 'ring-yellow-400');
+    };
+
+    // ตัวเลือกจับคู่ Pre-test ฝั่งขวา
+    window.selectPretestMatchingRight = function(btnEl, value) {
+        if (!window.pretestSelectedLeftKey) {
+            Swal.fire({
+                title: 'โปรดเลือกฝั่งซ้ายก่อน!',
+                text: 'กรุณาเลือกรายการทางฝั่งซ้ายก่อนนำมาจับคู่กับคำตอบฝั่งขวาจ้า',
+                icon: 'warning',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            return;
+        }
+
+        const leftVal = window.pretestSelectedLeftKey;
+        const rightVal = value;
+
+        for (const k in window.pretestCurrentMatches) {
+            if (k === leftVal || window.pretestCurrentMatches[k] === rightVal) {
+                delete window.pretestCurrentMatches[k];
+            }
+        }
+
+        window.pretestCurrentMatches[leftVal] = rightVal;
+        window.pretestSelectedLeftKey = null;
+
+        document.querySelectorAll('.pretest-matching-left-btn').forEach(b => {
+            b.classList.remove('ring-4', 'ring-yellow-400');
+        });
+
+        updatePretestMatchingColors();
+    };
+
+    // อัปเดตสีพาสเทลและสัญลักษณ์ของคู่จับคู่ Pre-test
+    window.updatePretestMatchingColors = function() {
+        const leftBtns = document.querySelectorAll('.pretest-matching-left-btn');
+        const rightBtns = document.querySelectorAll('.pretest-matching-right-btn');
+
+        leftBtns.forEach(btn => {
+            btn.className = "pretest-matching-left-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+            const badge = btn.querySelector('.matching-badge');
+            if (badge) badge.remove();
+        });
+        rightBtns.forEach(btn => {
+            btn.className = "pretest-matching-right-btn w-full p-3 text-left border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition font-bold text-gray-700 bg-white flex items-center gap-2 relative overflow-hidden";
+            const badge = btn.querySelector('.matching-badge');
+            if (badge) badge.remove();
+        });
+
+        const colors = [
+            { border: 'border-pink-500', bg: 'bg-pink-50', text: 'text-pink-700', badge: '💖' },
+            { border: 'border-cyan-500', bg: 'bg-cyan-50', text: 'text-cyan-700', badge: '💎' },
+            { border: 'border-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', badge: '⭐' },
+            { border: 'border-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', badge: '🔮' }
+        ];
+
+        let idx = 0;
+        for (const leftVal in window.pretestCurrentMatches) {
+            const rightVal = window.pretestCurrentMatches[leftVal];
+            const color = colors[idx % colors.length];
+
+            leftBtns.forEach(btn => {
+                if (btn.dataset.value === leftVal) {
+                    btn.className = `pretest-matching-left-btn w-full p-3 text-left border-2 ${color.border} ${color.bg} ${color.text} rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-sm";
+                    badgeSpan.textContent = color.badge;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            rightBtns.forEach(btn => {
+                if (btn.dataset.value === rightVal) {
+                    btn.className = `pretest-matching-right-btn w-full p-3 text-left border-2 ${color.border} ${color.bg} ${color.text} rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-sm";
+                    badgeSpan.textContent = color.badge;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            idx++;
+        }
+    };
+
+    // ส่งตรวจจับคู่ Pre-test
+    window.submitPretestMatchingAnswer = function() {
+        const q = pretestQuestions[pretestIndex];
+        const pairs = q.matchingPairs || [];
+
+        const leftBtns = document.querySelectorAll('.pretest-matching-left-btn');
+        const matchesCount = Object.keys(window.pretestCurrentMatches).length;
+        if (matchesCount < leftBtns.length) {
+            Swal.fire({ title: 'ยังจับคู่ไม่ครบ!', text: 'กรุณาเลือกจับคู่รายการให้ครบทุกคู่ก่อนส่งตรวจนะครับ', icon: 'warning', timer: 2500, showConfirmButton: false });
+            return;
+        }
+
+        const btns = document.getElementById('pretest-options-container').querySelectorAll('button');
+        btns.forEach(b => b.disabled = true);
+
+        let correctCount = 0;
+        pairs.forEach(pair => {
+            if (window.pretestCurrentMatches[pair.left] === pair.right) {
+                correctCount++;
+            }
+        });
+
+        const allCorrect = (correctCount === pairs.length);
+        if (allCorrect) {
+            pretestScore++;
+            Swal.fire({ title: 'ยอดเยี่ยม!', text: 'จับคู่ถูกต้องทั้งหมด!', icon: 'success', timer: 1500, showConfirmButton: false });
+        } else {
+            Swal.fire({ title: 'พยายามใหม่นะ!', text: `คุณจับคู่ถูกต้อง ${correctCount}/${pairs.length} คู่`, icon: 'error', timer: 1500, showConfirmButton: false });
+            showCorrectPretestMatchingPairs();
+        }
+
+        setTimeout(() => {
+            pretestIndex++;
+            renderPreTestQuestion();
+        }, 2500);
+    };
+
+    // แสดงเฉลยคู่ที่ถูกต้องในหน้าจอ Pre-test
+    window.showCorrectPretestMatchingPairs = function() {
+        const q = pretestQuestions[pretestIndex];
+        const pairs = q.matchingPairs || [];
+        const leftBtns = document.querySelectorAll('.pretest-matching-left-btn');
+        const rightBtns = document.querySelectorAll('.pretest-matching-right-btn');
+
+        let idx = 0;
+        pairs.forEach(pair => {
+            leftBtns.forEach(btn => {
+                if (btn.dataset.value === pair.left) {
+                    btn.className = `pretest-matching-left-btn w-full p-3 text-left border-2 border-green-500 bg-green-50 text-green-700 rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const oldBadge = btn.querySelector('.matching-badge');
+                    if (oldBadge) oldBadge.remove();
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-xs px-2 py-0.5 bg-green-200 rounded-full font-bold";
+                    badgeSpan.textContent = `💚 คู่ ${idx + 1}`;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            rightBtns.forEach(btn => {
+                if (btn.dataset.value === pair.right) {
+                    btn.className = `pretest-matching-right-btn w-full p-3 text-left border-2 border-green-500 bg-green-50 text-green-700 rounded-xl transition font-bold flex items-center justify-between gap-2 relative overflow-hidden`;
+                    const oldBadge = btn.querySelector('.matching-badge');
+                    if (oldBadge) oldBadge.remove();
+                    const badgeSpan = document.createElement('span');
+                    badgeSpan.className = "matching-badge text-xs px-2 py-0.5 bg-green-200 rounded-full font-bold";
+                    badgeSpan.textContent = `💚 คู่ ${idx + 1}`;
+                    btn.appendChild(badgeSpan);
+                }
+            });
+
+            idx++;
+        });
+    };
+
+    // 🟢 10.3 ส่งตรวจคำตอบแบบปรนัย (Pre-test)
     function submitPreTestAnswer(selectedIndex) {
         const q = pretestQuestions[pretestIndex];
         const isCorrect = (selectedIndex === q.answer);
@@ -1391,4 +1997,33 @@
         document.getElementById('worksheet-result-modal').classList.add('hidden');
         document.getElementById('worksheet-result-modal').classList.remove('flex');
     }
+
+    // ==================== 🛠️ ฟีเจอร์ Lightbox สำหรับขยายรูปโจทย์คำถาม ====================
+    window.openImageLightbox = function(src) {
+        const modal = document.getElementById('image-lightbox-modal');
+        const display = document.getElementById('image-lightbox-display');
+        if (modal && display) {
+            display.src = src;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex', 'opacity-0');
+            
+            // Trigger reflow for transition
+            modal.offsetWidth;
+            
+            modal.classList.remove('opacity-0');
+            modal.classList.add('opacity-100');
+        }
+    };
+
+    window.closeImageLightbox = function() {
+        const modal = document.getElementById('image-lightbox-modal');
+        if (modal) {
+            modal.classList.remove('opacity-100');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex', 'opacity-0');
+            }, 300);
+        }
+    };
 </script>

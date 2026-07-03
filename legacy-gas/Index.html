@@ -550,20 +550,20 @@
                 <!-- Comic Frame View Area (แปลงโฉมเป็น Visual Novel Game Play Area) -->
                 <div id="cyber-game-play-area" class="hidden flex-1 flex flex-col justify-between relative w-full h-full min-h-[400px]">
                     
-                    <!-- ตัวเลือกตัดสินใจแบบลอยตัวกลางจอ (Sleek Visual Novel Choices Stack - สไตล์ ref1) -->
-                    <div id="cyber-choices-overlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-transparent hidden p-4 md:p-6 pb-28 md:pb-36 animate-fadeIn rounded-3xl pointer-events-none">
-                        <div class="w-full max-w-[94%] md:max-w-4xl flex flex-col gap-3.5 text-center pointer-events-auto">
-                            <!-- คอนเทนเนอร์ชอยส์คำตอบ (แนวยาวเรียงซ้อนแนวตั้งสไตล์ประหยัดพื้นที่ตาม ref2) -->
-                            <div id="cyber-options-container" class="flex flex-col gap-4 w-full px-6 justify-center items-center">
-                                <!-- ชอยส์ตัดสินใจจะถูกเรนเดอร์ตรงนี้ผ่าน JS -->
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- พื้นที่กลางจอว่างเปล่า (เพื่อโชว์ภาพพื้นหลังเต็มจอแบบ Steins;Gate) -->
-                    <div class="flex-1 flex items-center justify-center pointer-events-none relative">
+                    <div class="flex-1 flex flex-col items-center justify-end pointer-events-none relative p-4 pb-6 md:pb-8">
                         <!-- เอฟเฟกต์สะท้อนของจอภาพไซเบอร์ (HUD Scanlines) -->
                         <div class="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[size:100%_4px,6px_100%] opacity-20 pointer-events-none"></div>
+
+                        <!-- ตัวเลือกตัดสินใจแบบลอยตัวกลางจอ (ย้ายเข้ามาอยู่ในพื้นที่กึ่งกลางจอเพื่อไม่ให้ทับกล่องคำถาม 100%) -->
+                        <div id="cyber-choices-overlay" class="w-full max-w-4xl z-30 flex flex-col items-center justify-end bg-transparent hidden p-2 md:p-4 animate-fadeIn pointer-events-auto">
+                            <div class="w-full max-w-[94%] md:max-w-3xl flex flex-col gap-3 text-center">
+                                <!-- คอนเทนเนอร์ชอยส์คำตอบ (แนวยาวเรียงซ้อนแนวตั้งสไตล์ประหยัดพื้นที่ตาม ref2) -->
+                                <div id="cyber-options-container" class="flex flex-col gap-3 w-full px-2 justify-end items-center overflow-y-auto max-h-[35vh] py-2 scrollbar-thin">
+                                    <!-- ชอยส์ตัดสินใจจะถูกเรนเดอร์ตรงนี้ผ่าน JS -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- กล่องบทสนทนาขอบล่าง (Glassmorphism Dialogue Terminal) -->
@@ -1766,9 +1766,12 @@
                     </div>
                 </div>
 
-                <h3 id="pretest-question-text" class="text-xl md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">
+                <h3 id="pretest-question-text" class="text-xl md:text-2xl font-bold text-gray-800 mb-4 leading-relaxed">
                     กำลังโหลดคำถาม...
                 </h3>
+                <div id="pretest-question-image-container" class="hidden mb-6 flex justify-center">
+                    <img id="pretest-question-image-display" src="" class="max-h-80 md:max-h-[380px] rounded-2xl border-4 border-blue-100 shadow-md cursor-zoom-in hover:scale-[1.02] transition-transform duration-200 object-contain w-auto" onclick="openImageLightbox(this.src)" title="คลิกเพื่อขยายรูปภาพ">
+                </div>
 
                 <div id="pretest-options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
                     <!-- ปุ่มตัวเลือกจะถูกสร้างด้วย JS -->
@@ -2053,9 +2056,12 @@
                             ✅ ตอบถูก!</div>
                     </div>
 
-                    <h3 id="question-text" class="text-xl md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">
+                    <h3 id="question-text" class="text-xl md:text-2xl font-bold text-gray-800 mb-4 leading-relaxed">
                         กำลังร่ายเวทย์อัญเชิญคำถาม...
                     </h3>
+                    <div id="question-image-container" class="hidden mb-6 flex justify-center">
+                        <img id="question-image-display" src="" class="max-h-80 md:max-h-[380px] rounded-2xl border-4 border-emerald-100 shadow-md cursor-zoom-in hover:scale-[1.02] transition-transform duration-200 object-contain w-auto" onclick="openImageLightbox(this.src)" title="คลิกเพื่อขยายรูปภาพ">
+                    </div>
 
                     <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
                         <!-- ปุ่มตัวเลือกจะถูกสร้างด้วย JS -->
@@ -2674,6 +2680,12 @@
     <?!= include('JS_PVP'); ?>
     <?!= include('JS_Fitness'); ?>
     <?!= include('JS_CyberSafety'); ?>
+
+    <!-- Lightbox สำหรับขยายรูปโจทย์คำถาม -->
+    <div id="image-lightbox-modal" class="hidden fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center cursor-zoom-out transition-opacity duration-300 animate-fade-in" onclick="closeImageLightbox()">
+        <span class="absolute top-4 right-4 text-white text-5xl font-black cursor-pointer hover:text-red-500 transition-colors z-[10000]">&times;</span>
+        <img id="image-lightbox-display" src="" class="max-w-[92vw] max-h-[88vh] object-contain rounded-2xl border-4 border-white/20 shadow-2xl">
+    </div>
 </body>
 
 </html>

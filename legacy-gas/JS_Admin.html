@@ -346,6 +346,35 @@
             .getAdminQuestionsByLessonAndType(lessonId, type, window.currentAdminPin);
     }
 
+    // ฟังก์ชันยูทิลิตี้สำหรับพรีวิวรูปภาพและซ่อนแสดงฟิลด์แบบไดนามิก
+    window.previewQuestionImage = function(inputEl) {
+        const container = inputEl.nextElementSibling;
+        const img = container.querySelector('.q-image-preview');
+        const url = inputEl.value.trim();
+        if (url) {
+            img.src = url;
+            container.classList.remove('hidden');
+        } else {
+            img.src = "";
+            container.classList.add('hidden');
+        }
+    };
+
+    window.toggleQuestionPatternFields = function(selectEl) {
+        const block = selectEl.closest('.q-block');
+        const pattern = selectEl.value;
+        const choiceSection = block.querySelector('.q-choice-section');
+        const matchingSection = block.querySelector('.q-matching-section');
+        
+        if (pattern === 'choice') {
+            choiceSection.classList.remove('hidden');
+            matchingSection.classList.add('hidden');
+        } else if (pattern === 'matching') {
+            choiceSection.classList.add('hidden');
+            matchingSection.classList.remove('hidden');
+        }
+    };
+
     let globalQuestionCounter = 0; // เอาไว้นับแยก id ให้ input radio
 
     function addQuestionBlock(existingData = null, forcedIndex = null) {
@@ -366,6 +395,9 @@
         const op4 = existingData && existingData.options ? existingData.options[3] : '';
         const exp = existingData ? existingData.explanation : '';
         const ans = existingData ? parseInt(existingData.answer) : 1;
+        const pattern = existingData && existingData.pattern ? existingData.pattern : 'choice';
+        const image = existingData && existingData.image ? existingData.image : '';
+        const matchingPairs = existingData && existingData.matchingPairs ? existingData.matchingPairs : [];
 
         div.innerHTML = `
             <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -380,8 +412,26 @@
                 <label class="block text-sm font-bold text-gray-700 mb-1">โจทย์คำถาม <span class="text-red-500">*</span></label>
                 <textarea class="q-form-text w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-lg text-gray-800 bg-gray-50" rows="2" required placeholder="พิมพ์ข้อสอบของคุณที่นี่...">${qText}</textarea>
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">รูปแบบข้อสอบ</label>
+                    <select class="q-form-pattern w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none cursor-pointer" onchange="toggleQuestionPatternFields(this)">
+                        <option value="choice" ${pattern === 'choice' ? 'selected' : ''}>4 ตัวเลือก (ปรนัย)</option>
+                        <option value="matching" ${pattern === 'matching' ? 'selected' : ''}>จับคู่ (Matching)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์รูปภาพประกอบโจทย์ (URL) - <i>Optional</i></label>
+                    <input type="url" class="q-form-image w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" placeholder="https://..." value="${image}" oninput="previewQuestionImage(this)">
+                    <div class="q-image-preview-container mt-2 hidden">
+                        <img src="" class="q-image-preview max-h-32 rounded-lg border shadow-sm">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Choice Section -->
+            <div class="q-choice-section grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 ${pattern === 'choice' ? '' : 'hidden'}">
                 <!-- Option 1 -->
                 <div>
                     <label class="block text-sm font-semibold flex items-center justify-between mb-1">
@@ -391,7 +441,7 @@
                             <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
                         </label>
                     </label>
-                    <input type="text" class="q-form-opt1 w-full px-4 py-2 border border-blue-200 bg-blue-50/30 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op1}">
+                    <input type="text" class="q-form-opt1 w-full px-4 py-2 border border-blue-200 bg-blue-50/30 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="พิมพ์ตัวเลือก..." value="${op1}">
                 </div>
                 
                 <!-- Option 2 -->
@@ -403,7 +453,7 @@
                             <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
                         </label>
                     </label>
-                    <input type="text" class="q-form-opt2 w-full px-4 py-2 border border-green-200 bg-green-50/30 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op2}">
+                    <input type="text" class="q-form-opt2 w-full px-4 py-2 border border-green-200 bg-green-50/30 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="พิมพ์ตัวเลือก..." value="${op2}">
                 </div>
 
                 <!-- Option 3 -->
@@ -415,7 +465,7 @@
                             <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
                         </label>
                     </label>
-                    <input type="text" class="q-form-opt3 w-full px-4 py-2 border border-purple-200 bg-purple-50/30 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op3}">
+                    <input type="text" class="q-form-opt3 w-full px-4 py-2 border border-purple-200 bg-purple-50/30 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none transition" placeholder="พิมพ์ตัวเลือก..." value="${op3}">
                 </div>
 
                 <!-- Option 4 -->
@@ -427,7 +477,42 @@
                             <span class="text-xs text-green-800 font-bold">✅ ตั้งเป็นเฉลย</span>
                         </label>
                     </label>
-                    <input type="text" class="q-form-opt4 w-full px-4 py-2 border border-orange-200 bg-orange-50/30 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition" required placeholder="พิมพ์ตัวเลือก..." value="${op4}">
+                    <input type="text" class="q-form-opt4 w-full px-4 py-2 border border-orange-200 bg-orange-50/30 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition" placeholder="พิมพ์ตัวเลือก..." value="${op4}">
+                </div>
+            </div>
+
+            <!-- Matching Section -->
+            <div class="q-matching-section mb-4 ${pattern === 'matching' ? '' : 'hidden'}">
+                <label class="block text-sm font-bold text-emerald-800 mb-2">📌 ระบุคู่จับคู่ซ้ายและขวา (สูงสุด 4 คู่, อย่างน้อย 2 คู่)</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- คู่ที่ 1 -->
+                    <div class="flex items-center gap-2 border p-3 bg-gray-50/50 rounded-xl">
+                        <span class="text-xs font-bold text-gray-500">คู่ที่ 1:</span>
+                        <input type="text" class="q-match-left-1 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คำฝั่งซ้าย (เช่น Cat)" value="${matchingPairs[0] ? matchingPairs[0].left || '' : ''}">
+                        <span class="text-gray-400 font-bold">=</span>
+                        <input type="text" class="q-match-right-1 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คู่ฝั่งขวา (เช่น แมว)" value="${matchingPairs[0] ? matchingPairs[0].right || '' : ''}">
+                    </div>
+                    <!-- คู่ที่ 2 -->
+                    <div class="flex items-center gap-2 border p-3 bg-gray-50/50 rounded-xl">
+                        <span class="text-xs font-bold text-gray-500">คู่ที่ 2:</span>
+                        <input type="text" class="q-match-left-2 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คำฝั่งซ้าย (เช่น Dog)" value="${matchingPairs[1] ? matchingPairs[1].left || '' : ''}">
+                        <span class="text-gray-400 font-bold">=</span>
+                        <input type="text" class="q-match-right-2 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คู่ฝั่งขวา (เช่น สุนัข)" value="${matchingPairs[1] ? matchingPairs[1].right || '' : ''}">
+                    </div>
+                    <!-- คู่ที่ 3 -->
+                    <div class="flex items-center gap-2 border p-3 bg-gray-50/50 rounded-xl">
+                        <span class="text-xs font-bold text-gray-500">คู่ที่ 3:</span>
+                        <input type="text" class="q-match-left-3 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คำฝั่งซ้าย" value="${matchingPairs[2] ? matchingPairs[2].left || '' : ''}">
+                        <span class="text-gray-400 font-bold">=</span>
+                        <input type="text" class="q-match-right-3 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คู่ฝั่งขวา" value="${matchingPairs[2] ? matchingPairs[2].right || '' : ''}">
+                    </div>
+                    <!-- คู่ที่ 4 -->
+                    <div class="flex items-center gap-2 border p-3 bg-gray-50/50 rounded-xl">
+                        <span class="text-xs font-bold text-gray-500">คู่ที่ 4:</span>
+                        <input type="text" class="q-match-left-4 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คำฝั่งซ้าย" value="${matchingPairs[3] ? matchingPairs[3].left || '' : ''}">
+                        <span class="text-gray-400 font-bold">=</span>
+                        <input type="text" class="q-match-right-4 w-1/2 px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" placeholder="คู่ฝั่งขวา" value="${matchingPairs[3] ? matchingPairs[3].right || '' : ''}">
+                    </div>
                 </div>
             </div>
             
@@ -438,6 +523,12 @@
         `;
 
         container.appendChild(div);
+
+        // โหลดและพรีวิวรูปภาพที่มีอยู่เดิมทันที
+        if (image) {
+            const imgEl = div.querySelector('.q-form-image');
+            if (imgEl) previewQuestionImage(imgEl);
+        }
 
         // Scroll to bottom
         setTimeout(() => {
@@ -465,30 +556,59 @@
         for (let i = 0; i < blocks.length; i++) {
             const block = blocks[i];
             const text = block.querySelector('.q-form-text').value.trim();
-            const opt1 = block.querySelector('.q-form-opt1').value.trim();
-            const opt2 = block.querySelector('.q-form-opt2').value.trim();
-            const opt3 = block.querySelector('.q-form-opt3').value.trim();
-            const opt4 = block.querySelector('.q-form-opt4').value.trim();
+            const pattern = block.querySelector('.q-form-pattern').value;
+            const image = block.querySelector('.q-form-image').value.trim();
             const exp = block.querySelector('.q-form-exp').value.trim();
 
-            // หา radio ที่ถูกเลือกใน block นี้
-            let ans = 1;
-            const radios = block.querySelectorAll('.q-form-ans-radio');
-            radios.forEach(r => {
-                if (r.checked) ans = parseInt(r.value);
-            });
-
-            // Validate: ไม่ควรอนุญาตถ้าโจทย์ว่าง
-            if (!text || !opt1 || !opt2 || !opt3 || !opt4) {
-                customAlert(`กรุณากรอกข้อมูลให้ครบถ้วนในข้อที่ ${i + 1}`);
+            if (!text) {
+                customAlert(`กรุณากรอกข้อมูลโจทย์คำถามให้ครบถ้วนในข้อที่ ${i + 1}`);
                 return;
+            }
+
+            let opt1 = '', opt2 = '', opt3 = '', opt4 = '', ans = 1, matchingPairs = [];
+
+            if (pattern === 'choice') {
+                opt1 = block.querySelector('.q-form-opt1').value.trim();
+                opt2 = block.querySelector('.q-form-opt2').value.trim();
+                opt3 = block.querySelector('.q-form-opt3').value.trim();
+                opt4 = block.querySelector('.q-form-opt4').value.trim();
+                
+                // หา radio ที่ถูกเลือกใน block นี้
+                const radios = block.querySelectorAll('.q-form-ans-radio');
+                radios.forEach(r => {
+                    if (r.checked) ans = parseInt(r.value);
+                });
+
+                if (!opt1 || !opt2 || !opt3 || !opt4) {
+                    customAlert(`กรุณากรอกตัวเลือกให้ครบถ้วนในข้อที่ ${i + 1} (แบบปรนัย)`);
+                    return;
+                }
+            } else if (pattern === 'matching') {
+                // รวบรวมข้อมูลจับคู่
+                for (let k = 1; k <= 4; k++) {
+                    const left = block.querySelector(`.q-match-left-${k}`).value.trim();
+                    const right = block.querySelector(`.q-match-right-${k}`).value.trim();
+                    if (left && right) {
+                        matchingPairs.push({ left: left, right: right });
+                    }
+                }
+
+                if (matchingPairs.length < 2) {
+                    customAlert(`กรุณากรอกคู่จับคู่อย่างน้อย 2 คู่ขึ้นไปในข้อที่ ${i + 1}`);
+                    return;
+                }
+                
+                ans = 1; // Default
             }
 
             questionsArray.push({
                 text: text,
                 options: [opt1, opt2, opt3, opt4],
                 answer: ans,
-                explanation: exp
+                explanation: exp,
+                pattern: pattern,
+                image: image,
+                matchingPairs: matchingPairs
             });
         }
 
@@ -501,7 +621,11 @@
         btnSubmit.disabled = true;
         btnSubmit.innerHTML = '⏳ กำลังบันทึกชุดข้อสอบ...';
 
-        if (typeof google === 'undefined') return customAlert('Mock: ' + JSON.stringify(questionsArray));
+        if (typeof google === 'undefined') {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '💾 บันทึกข้อมูลทั้งชุด';
+            return customAlert('Mock: ' + JSON.stringify(questionsArray));
+        }
 
         google.script.run
             .withSuccessHandler(function (res) {

@@ -1,0 +1,290 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function admin() {
+      return signedIn() && request.auth.token.get('email', '') == 'admin@nextgen-play.local';
+    }
+
+    function ownsUser(userId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(userId)).data.ownerUid == request.auth.uid;
+    }
+
+    function userDocumentShapeValid() {
+      return request.resource.data.keys().hasOnly(['userId', 'name', 'class', 'avatar', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'createdAt', 'lastLogin']);
+    }
+
+    function userInitialValuesValid() {
+      return request.resource.data.xp == 0
+        && request.resource.data.coins == 0
+        && request.resource.data.level == 1
+        && request.resource.data.rank == 'BRONZE';
+    }
+
+    function userChangedFieldsAllowed() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatar', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'lastLogin']);
+    }
+
+    function pvpPrimaryStable() {
+      return request.resource.data.matchId == resource.data.matchId
+        && request.resource.data.p1Uid == resource.data.p1Uid
+        && request.resource.data.p1Id == resource.data.p1Id
+        && request.resource.data.p1Name == resource.data.p1Name
+        && request.resource.data.p1Avatar == resource.data.p1Avatar;
+    }
+
+    function pvpDocumentShapeValid() {
+      return request.resource.data.keys().hasOnly(['matchId', 'p1Uid', 'p2Uid', 'p1Id', 'p2Id', 'p1Name', 'p2Name', 'p1Avatar', 'p2Avatar', 'p1Hp', 'p2Hp', 'p1Ready', 'p2Ready', 'status', 'createdAt', 'updatedAt']);
+    }
+
+    function pvpChangedFieldsAllowed() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['p2Uid', 'p2Id', 'p2Name', 'p2Avatar', 'p1Hp', 'p2Hp', 'p1Ready', 'p2Ready', 'status', 'updatedAt']);
+    }
+
+    function pvpSecondPlayerStable() {
+      return request.resource.data.p2Uid == resource.data.p2Uid
+        && request.resource.data.p2Id == resource.data.p2Id
+        && request.resource.data.p2Name == resource.data.p2Name
+        && request.resource.data.p2Avatar == resource.data.p2Avatar;
+    }
+
+    function pvpSecondPlayerJoin() {
+      return resource.data.status == 'WAITING'
+        && resource.data.p2Uid == null
+        && resource.data.p2Id == null
+        && request.resource.data.p2Uid == request.auth.uid
+        && ownsUser(request.resource.data.p2Id)
+        && request.resource.data.p2Ready == false
+        && request.resource.data.status == 'LOBBY'
+        && request.resource.data.p1Hp == resource.data.p1Hp
+        && request.resource.data.p2Hp == resource.data.p2Hp
+        && request.resource.data.p1Ready == resource.data.p1Ready;
+    }
+
+    function pvpInitialMatch(matchId) {
+      return request.resource.data.matchId == matchId
+        && request.resource.data.p1Uid == request.auth.uid
+        && ownsUser(request.resource.data.p1Id)
+        && request.resource.data.p2Id == null
+        && request.resource.data.p2Uid == null
+        && request.resource.data.p2Name == ''
+        && request.resource.data.p2Avatar == ''
+        && request.resource.data.p1Hp == 100
+        && request.resource.data.p2Hp == 100
+        && request.resource.data.p1Ready == false
+        && request.resource.data.p2Ready == false
+        && request.resource.data.status == 'WAITING';
+    }
+
+    function pvpMutableValuesValid() {
+      return request.resource.data.p1Hp >= 0
+        && request.resource.data.p1Hp <= 100
+        && request.resource.data.p2Hp >= 0
+        && request.resource.data.p2Hp <= 100
+        && request.resource.data.p1Ready in [false, true, 'FINISHED']
+        && request.resource.data.p2Ready in [false, true, 'FINISHED']
+        && request.resource.data.status in ['WAITING', 'LOBBY', 'PLAYING', 'FINISHED', 'CANCELLED'];
+    }
+
+    function pvpPlayerOneOwnMutation() {
+      return resource.data.p1Uid == request.auth.uid
+        && request.resource.data.p2Hp == resource.data.p2Hp
+        && request.resource.data.p2Ready == resource.data.p2Ready;
+    }
+
+    function pvpPlayerTwoOwnMutation() {
+      return resource.data.p2Uid == request.auth.uid
+        && request.resource.data.p1Hp == resource.data.p1Hp
+        && request.resource.data.p1Ready == resource.data.p1Ready;
+    }
+
+    function pvpStatusConsistent() {
+      return request.resource.data.status in ['WAITING', 'LOBBY']
+        || (
+          request.resource.data.status == 'PLAYING'
+          && request.resource.data.p1Ready in [true, 'FINISHED']
+          && request.resource.data.p2Ready in [true, 'FINISHED']
+        )
+        || (
+          request.resource.data.status == 'FINISHED'
+          && (
+            request.resource.data.p1Hp == 0
+            || request.resource.data.p2Hp == 0
+            || (
+              request.resource.data.p1Ready == 'FINISHED'
+              && request.resource.data.p2Ready == 'FINISHED'
+            )
+          )
+        )
+        || (
+          request.resource.data.status == 'CANCELLED'
+          && request.resource.data.p1Hp == resource.data.p1Hp
+          && request.resource.data.p2Hp == resource.data.p2Hp
+          && request.resource.data.p1Ready == resource.data.p1Ready
+          && request.resource.data.p2Ready == resource.data.p2Ready
+        );
+    }
+
+    function progressDocumentMatches(progressId) {
+      return progressId == request.resource.data.userId + '_' + request.resource.data.lessonId;
+    }
+
+    function progressDocumentShapeValid() {
+      return request.resource.data.keys().hasOnly(['userId', 'lessonId', 'status', 'score', 'maxScore', 'updatedAt']);
+    }
+
+    function progressValuesValid() {
+      return request.resource.data.status in ['Passed', 'Completed', 'Failed']
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 1000
+        && (
+          !('maxScore' in request.resource.data)
+          || (
+            request.resource.data.maxScore >= 0
+            && request.resource.data.maxScore <= 1000
+          )
+        );
+    }
+
+    function progressChangedFieldsAllowed() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'score', 'maxScore', 'updatedAt']);
+    }
+
+    function worldBossScoreDocumentMatches(scoreId) {
+      return scoreId == request.resource.data.userId + '_' + request.resource.data.bossId;
+    }
+
+    function worldBossScoreDocumentShapeValid() {
+      return request.resource.data.keys().hasOnly(['userId', 'bossId', 'name', 'className', 'class', 'bestTime', 'bestScore', 'bestTimeSeconds', 'date', 'ownerUid', 'updatedAt']);
+    }
+
+    function worldBossScoreValuesValid() {
+      return request.resource.data.ownerUid == request.auth.uid
+        && (
+          !('bestTime' in request.resource.data)
+          || (
+            request.resource.data.bestTime >= 0
+            && request.resource.data.bestTime <= 100000
+          )
+        )
+        && (
+          !('bestScore' in request.resource.data)
+          || (
+            request.resource.data.bestScore >= 0
+            && request.resource.data.bestScore <= 100000
+          )
+        )
+        && (
+          !('bestTimeSeconds' in request.resource.data)
+          || (
+            request.resource.data.bestTimeSeconds >= 0
+            && request.resource.data.bestTimeSeconds <= 100000
+          )
+        );
+    }
+
+    function worldBossScoreChangedFieldsAllowed() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'className', 'class', 'bestTime', 'bestScore', 'bestTimeSeconds', 'date', 'ownerUid', 'updatedAt']);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && userDocumentShapeValid()
+        && request.resource.data.ownerUid == request.auth.uid
+        && userInitialValuesValid();
+      allow update: if admin() || (
+        signedIn()
+        && userChangedFieldsAllowed()
+        && (
+          resource.data.ownerUid == request.auth.uid
+          || (!('ownerUid' in resource.data) && request.resource.data.ownerUid == request.auth.uid)
+        )
+        && request.resource.data.ownerUid == request.auth.uid
+      );
+      allow delete: if admin();
+    }
+
+    match /progress/{progressId} {
+      allow get: if signedIn() && (
+        !exists(/databases/$(database)/documents/progress/$(progressId))
+        || admin()
+        || ownsUser(resource.data.userId)
+      );
+      allow list: if admin() || ownsUser(resource.data.userId);
+      allow create: if progressDocumentMatches(progressId)
+        && progressDocumentShapeValid()
+        && progressValuesValid()
+        && ownsUser(request.resource.data.userId);
+      allow update: if resource.data.userId == request.resource.data.userId
+        && resource.data.lessonId == request.resource.data.lessonId
+        && progressDocumentMatches(progressId)
+        && progressValuesValid()
+        && progressChangedFieldsAllowed()
+        && ownsUser(resource.data.userId);
+      allow delete: if admin();
+    }
+
+    match /pvpMatches/{matchId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && pvpDocumentShapeValid()
+        && pvpInitialMatch(matchId);
+      allow update: if signedIn()
+        && pvpDocumentShapeValid()
+        && pvpChangedFieldsAllowed()
+        && pvpPrimaryStable()
+        && (pvpSecondPlayerStable() || pvpSecondPlayerJoin())
+        && pvpMutableValuesValid()
+        && pvpStatusConsistent()
+        && (pvpSecondPlayerJoin() || pvpPlayerOneOwnMutation() || pvpPlayerTwoOwnMutation())
+        && (
+          resource.data.p1Uid == request.auth.uid
+          || resource.data.p2Uid == request.auth.uid
+          || pvpSecondPlayerJoin()
+        );
+      allow delete: if admin();
+    }
+
+    match /worldBossScores/{scoreId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && worldBossScoreDocumentMatches(scoreId)
+        && worldBossScoreDocumentShapeValid()
+        && worldBossScoreValuesValid()
+        && request.resource.data.ownerUid == request.auth.uid
+        && ownsUser(request.resource.data.userId);
+      allow update: if signedIn()
+        && worldBossScoreDocumentMatches(scoreId)
+        && resource.data.userId == request.resource.data.userId
+        && resource.data.bossId == request.resource.data.bossId
+        && worldBossScoreValuesValid()
+        && worldBossScoreChangedFieldsAllowed()
+        && request.resource.data.ownerUid == request.auth.uid
+        && ownsUser(request.resource.data.userId);
+      allow delete: if admin();
+    }
+
+    match /settings/public {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
+    match /settings/{documentId} {
+      allow read, write: if admin();
+    }
+
+    match /{collectionName}/{documentId} {
+      allow read: if signedIn() && collectionName in [
+        'lessons', 'questions', 'news', 'cyberSafetyScenarios',
+        'worldBossConfig', 'dailyQuests'
+      ];
+      allow write: if admin();
+    }
+  }
+}

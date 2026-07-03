@@ -1,0 +1,65 @@
+# NextGen Play — Firebase app
+
+Vite + React frontend สำหรับย้ายระบบเดิมจาก Google Apps Script/Sheets ไปยัง Firebase Hosting และ Cloud Firestore โดยไม่ใช้ Cloud Functions
+
+## เริ่มใช้งาน
+
+1. เปิด Firebase Console ของโปรเจกต์ `nextgen-play-19dd2`
+2. สร้าง Cloud Firestore database
+3. เปิด Authentication > Sign-in method > Anonymous และ Email/Password
+4. สร้างผู้ใช้ Email/Password ชื่อ `admin@nextgen-play.local` ด้วยรหัสผ่านที่คาดเดายากสำหรับ Admin Panel
+5. จากโฟลเดอร์ `firebase-app` รัน `npm install` และ `npm run dev`
+6. เมื่อพร้อม deploy ให้รัน `npm run build` แล้วรัน `firebase deploy --only hosting,firestore:rules` จาก root ของ repository
+
+ก่อน deploy Rules ให้ติดตั้ง Java 21 ขึ้นไปและรัน `npm run test:rules` จาก root เพื่อทดสอบ Rules ผ่าน Firestore emulator จริง
+
+## ย้ายข้อมูลจาก Google Sheets
+
+1. เพิ่ม `legacy-gas/ExportForFirestore.js` เข้า Apps Script เดิม แล้วรัน `exportSheetsForFirestore()` หนึ่งครั้ง
+2. ดาวน์โหลดไฟล์ JSON ที่สคริปต์สร้างใน Google Drive
+3. สร้าง service-account key สำหรับงาน migration ในเครื่อง และตั้ง environment variable `GOOGLE_APPLICATION_CREDENTIALS` เป็น path ของไฟล์ key (ห้าม commit key)
+4. ตรวจจำนวนเอกสารแบบไม่เขียนข้อมูลด้วย `npm run migrate -- path/to/sheet-export.json`
+5. เมื่อจำนวนถูกต้องจึงเขียนจริงด้วย `npm run migrate -- path/to/sheet-export.json --commit`
+
+Importer ใช้ Admin SDK เฉพาะบนเครื่องผู้ดูแล ไม่ถูก bundle ไปหน้าเว็บและไม่ใช่ Cloud Functions
+
+Importer รองรับชีตหลักจากระบบเดิม: `Users`, `Lessons`, `Questions`, `Progress`, `Settings`, `News`, `PVP_Matches`, `WorldBoss_Config`, `WorldBoss_Scores` และ `CyberSafety_Scenarios` โดยแปลงชื่อ field เป็น camelCase ให้ตรงกับ React/Firestore service เช่น `LessonID` → `lessonId`, `QuestionText` → `questionText`, `Player1ID` → `p1Id`, `Player1Score` → `p1Hp` และตัด `AdminPIN`/`GeminiAPIKey` ออกจาก `settings/public`
+
+The Admin Panel is now a React component backed by a separate Firebase Admin Auth session and direct Firestore CRUD. Legacy Admin markup, dialogs, and browser script are excluded from the Vite bundle.
+
+Current implementation note: React now owns the visible app surfaces for landing/login, lobby, dashboard shell/HUD/navigation, dashboard home, map, profile, leaderboard, certificate, lesson, pretest, boss battle, worksheet, cyber safety, PVP, AI tutor, shop/inventory/gacha, World Boss lobby/leaderboard, login bonus overlay, lesson preview overlay, and Admin Panel. The remaining legacy script in the production bundle is a compatibility bridge for global navigation/state helpers and preserved styling/background behavior; it does not call GAS, `doGet`, `doPost`, Google Sheets, or Cloud Functions.
+
+## Collections
+
+- `users`: โปรไฟล์นักเรียน มี `ownerUid` ผูกกับ Firebase Auth session
+- `lessons`, `questions`: บทเรียนและแบบทดสอบ
+- `progress`: เอกสาร ID รูปแบบ `{userId}_{lessonId}`
+- `settings/public`: ค่าระบบที่ผู้เล่นอ่านได้ เช่น `TimerPerQuestion`, `Classes`, `Rooms`
+- `news`, `cyberSafetyScenarios`: ข่าวและสถานการณ์ความปลอดภัยไซเบอร์
+- `pvpMatches`, `worldBossConfig`, `worldBossScores`, `dailyQuests`: ข้อมูลฟีเจอร์เกมที่ทยอยย้าย
+
+ชื่อ field ใช้ camelCase เช่น `lessonId`, `questionText`, `isActive` และเก็บชนิดข้อมูลให้ตรงจริง (number/boolean/array/object) ไม่เก็บ JSON เป็น string แบบ Sheet
+
+## สถานะ migration
+
+หน้า Landing/Login, Lobby, Dashboard Home, Profile, Leaderboard, Certificate, แผนที่บทเรียน, เนื้อหาบทเรียน, Pre-test, Boss Battle, Worksheet และ Cyber Safety ถูกย้ายเป็น React components แล้ว โดยหน้าที่แปลงแล้วเรียก Firebase service โดยตรง ส่วนเกมที่เหลือยังประกอบ markup, CSS และ browser scripts จาก `../legacy-gas` เพื่อรักษาหน้าตาเดิมระหว่างทยอยแปลง component ภายใน การส่งผู้ใช้จาก React เข้า flow เกมเดิมใช้ bridge ขนาดเล็กเฉพาะ state และ navigation ที่ legacy ยังต้องใช้
+
+Vite แทน landing, lobby, dashboard home, profile, leaderboard, certificate, map, lesson, pretest, boss-battle, worksheet และ cyber-safety sections ด้วย React mount points และแปลง backend calls ที่เหลือเป็น `firebaseServices` ตั้งแต่ build time ดังนั้น production bundle ไม่มี `google.script.run`
+
+ย้ายแล้ว: bootstrap/login, settings/news, lessons/questions, progress, leaderboard, guild leaderboard, Daily Quest, inventory/shop/gacha, profile/stats/certificate, Cyber Safety, World Boss, PVP และ Admin CRUD/report
+
+- PVP Arena ย้ายเป็น React component และใช้ Firestore realtime listener (`onSnapshot`) แทน polling เพื่อลดจำนวน reads บนแผนฟรี
+- AI Tutor ย้ายเป็น React component แล้ว โดยใช้ local fallback ที่ไม่ส่งคำถามหรือข้อมูลนักเรียนไปยังบริการภายนอก
+- Shop, Inventory และ Gacha ย้ายเป็น React components แล้ว และใช้ Firestore service ที่กำหนดราคาไอเทมฝั่ง logic กลางแทนค่าราคาจากหน้าเว็บ
+- World Boss lobby/leaderboard ย้ายเป็น React แล้ว ส่วนเกมกล้องและ Mario engine ถูกเสิร์ฟเป็น static assets จาก Vite/Firebase Hosting origin เดียวกัน และส่งผลกลับ React ผ่าน `postMessage` เพื่อบันทึก Firestore โดยไม่ใช้ `doPost` หรือ Cloud Functions
+
+AI Tutor ใช้คำแนะนำพื้นฐานแบบ local fallback และรายงานนักเรียนสร้างจากข้อมูลในระบบโดยไม่ส่งออกภายนอก ส่วน Gemini lesson generator ถูกปิดอย่างชัดเจนเพราะไม่มี trusted backend สำหรับเก็บ credential
+
+## ข้อจำกัดด้านความปลอดภัย
+
+- Firebase web config และ API key เป็นข้อมูล public ตามรูปแบบ Firebase; ห้ามใส่ service-account key หรือ Gemini key ใน frontend
+- Admin UI ตรวจรหัสผ่านด้วยบัญชี Firebase Auth `admin@nextgen-play.local` บน auth session แยกจากนักเรียน และ Rules อนุญาตการเขียนเฉพาะ email นี้
+- `AdminPIN` และ `GeminiAPIKey` จะถูกตัดออกจากไฟล์ migration และไม่ถูกบันทึกใน `settings/public`; Rules ปิดการอ่านเอกสาร settings อื่นจากผู้เล่น หากเคย import รุ่นก่อนให้ลบ `settings/game` จาก Firestore Console
+- Gemini tutor/generator ไม่สามารถเก็บ API key อย่างปลอดภัยใน static Hosting ได้ เมื่อห้าม Cloud Functions จึงยังไม่เชื่อม API จริง
+- Logic รางวัล ราคาไอเทม กาชา และคะแนนรันใน browser จึงป้องกันการดัดแปลงแบบ server-authoritative ไม่ได้ 100% แม้ Rules จะจำกัดให้แก้ได้เฉพาะโปรไฟล์และห้องของตนเอง หากต้องการการแข่งขันที่ป้องกันโกงจริงจำเป็นต้องมี trusted backend
+- Anonymous Auth รักษา session ใน browser เดิม แต่ไม่ใช่บัญชีนักเรียนถาวร หากต้องใช้งานข้ามเครื่องควรเปลี่ยนเป็น Email/Password, Google หรือบัญชีที่โรงเรียนจัดการ

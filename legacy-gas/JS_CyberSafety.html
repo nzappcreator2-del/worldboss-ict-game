@@ -10,8 +10,14 @@
     let earnedXp = 0;
     let currentScenarioAttempts = 0; // นับครั้งที่พยายามในด่านปัจจุบันสำหรับคำนวณคะแนนไดนามิก
 
+    // ตัวแปรเพิ่มเข้ามาสำหรับระบบ Visual Novel
+    let lastSelectedIdx = -1;
+    let gameState = 'story'; // 'story' | 'feedback'
+    let isTyping = false;
+    let currentTypingTimer = null;
+
     /**
-     * สลับหน้าเข้าเล่นโหมด Cyber Safety
+     * สลับหน้าเข้าเล่นโหมด Cyber Safety (เปิดหน้าปกเริ่มต้นก่อน)
      */
     function enterCyberSafetyMode() {
         if (typeof playClickSound === 'function') playClickSound();
@@ -22,9 +28,9 @@
             return;
         }
 
-        // แสดงหน้าจอและโหลดตัวเล่น
+        // แสดงหน้าจอของโหมด Cyber Safety
         showPage('cyber-safety');
-        
+
         // รีเซ็ตเกมสเตต
         cyberSafetyHp = 100;
         currentScenarioIdx = 0;
@@ -32,18 +38,60 @@
         earnedXp = 0;
         currentScenarioAttempts = 0;
 
-        // ซ่อนหน้าจอผลลัพธ์ชัยชนะและแสดงหน้าเนื้อหาเกม
+        // สั่งเคลียร์ Background layer กลับสู่ค่าตั้งต้น
+        resetCyberBackground();
+
+        // แสดงหน้าปกเริ่มต้น (Start Screen) และซ่อนองค์ประกอบเกมอื่นชั่วคราว
+        const startScreen = document.getElementById('cyber-start-screen');
+        if (startScreen) startScreen.classList.remove('hidden');
+
+        const titleHeader = document.getElementById('cyber-title-header');
+        if (titleHeader) titleHeader.classList.remove('hidden');
+
         const container = document.getElementById('cyber-game-container');
-        if (container) container.classList.remove('hidden');
+        if (container) container.classList.add('hidden');
+
         const victory = document.getElementById('cyber-victory-screen');
         if (victory) victory.classList.add('hidden');
-        
-        // เรียกโหลดโจทย์จาก Sheet
+
         const loader = document.getElementById('cyber-loader');
-        if (loader) loader.classList.remove('hidden');
+        if (loader) loader.classList.add('hidden');
+
         const playArea = document.getElementById('cyber-game-play-area');
         if (playArea) playArea.classList.add('hidden');
 
+        const hudContainer = document.getElementById('cyber-hud-container');
+        if (hudContainer) hudContainer.classList.add('hidden');
+    }
+
+    /**
+     * ฟังก์ชันเริ่มต้นรันเกมและโหลดคำถามอย่างเป็นทางการ (เมื่อคลิกปุ่มเริ่มเกมจากหน้าปก)
+     */
+    function startCyberSafetyGame() {
+        if (typeof playClickSound === 'function') playClickSound();
+
+        // ซ่อนหน้าปกเริ่มต้น
+        const startScreen = document.getElementById('cyber-start-screen');
+        if (startScreen) startScreen.classList.add('hidden');
+
+        // ซ่อนหัวข้อหลักดั้งเดิมตรงกลางไม่ให้บดบัง Visual Novel (เพราะย้ายไปอยู่ป้ายชื่อซ้ายบนแล้ว)
+        const titleHeader = document.getElementById('cyber-title-header');
+        if (titleHeader) titleHeader.classList.add('hidden');
+
+        const container = document.getElementById('cyber-game-container');
+        if (container) container.classList.remove('hidden');
+
+        // เปิดหน้าจอร่ายเวทย์โหลดข้อมูล
+        const loader = document.getElementById('cyber-loader');
+        if (loader) loader.classList.remove('hidden');
+
+        const playArea = document.getElementById('cyber-game-play-area');
+        if (playArea) playArea.classList.add('hidden');
+
+        const hudContainer = document.getElementById('cyber-hud-container');
+        if (hudContainer) hudContainer.classList.add('hidden');
+
+        // ดึงโจทย์ภัยไซเบอร์
         if (typeof google !== 'undefined') {
             google.script.run
                 .withSuccessHandler(onLoadScenariosSuccess)
@@ -56,7 +104,179 @@
                     success: true,
                     data: getMockCyberScenarios()
                 });
-            }, 1000);
+            }, 1200);
+        }
+    }
+
+    /**
+     * ฟังก์ชันปรับภาพพื้นหลังโหมด Cyber Safety ให้กางเต็มจอสมจริงแบบ Visual Novel
+     */
+    function updateCyberBackground(scenario) {
+        const cyberBg = document.getElementById('cyber-bg-layer');
+        if (!cyberBg) return;
+
+        const imgUrl = String(scenario.imageSvg || '').trim();
+        if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
+            cyberBg.style.backgroundImage = `linear-gradient(rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.3)), url('${imgUrl}')`;
+        } else {
+            // โหลด SVG ดั้งเดิมมาเข้ารหัสและใช้เป็นภาพพื้นหลังจำลอง
+            const svgContent = getScenarioSvg(scenario.id);
+            const dataUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}")`;
+            cyberBg.style.backgroundImage = `linear-gradient(rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.3)), ${dataUrl}`;
+        }
+        cyberBg.style.backgroundSize = 'cover';
+        cyberBg.style.backgroundPosition = 'center';
+        cyberBg.style.transition = 'background-image 0.8s ease-in-out';
+    }
+
+    /**
+     * รีเซ็ตภาพพื้นหลังกลับสู่ค่าตั้งต้น
+     */
+    function resetCyberBackground() {
+        const cyberBg = document.getElementById('cyber-bg-layer');
+        if (cyberBg) {
+            cyberBg.style.backgroundImage = "linear-gradient(rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.65)), url('https://i.postimg.cc/XJvHvNjX/re-0.png')";
+            cyberBg.style.backgroundSize = 'cover';
+            cyberBg.style.backgroundPosition = 'center';
+        }
+    }
+
+    /**
+     * ฟังก์ชันแอนิเมชันพิมพ์บทบรรยายแบบ Typewriter (สไตล์ Visual Novel)
+     */
+    function typeWriterEffect(element, text, speed = 20, onComplete = null) {
+        if (currentTypingTimer) clearInterval(currentTypingTimer);
+        element.textContent = '';
+        isTyping = true;
+
+        const nextBtn = document.getElementById('cyber-dialog-next-btn');
+        const btnText = document.getElementById('cyber-dialog-btn-text');
+        if (nextBtn) nextBtn.classList.remove('hidden');
+        if (btnText) {
+            btnText.textContent = (gameState === 'feedback') ? "ข้ามการอธิบาย ⏭️" : "ข้ามเรื่องเล่า ⏭️";
+        }
+
+        let i = 0;
+        currentTypingTimer = setInterval(() => {
+            if (i < text.length) {
+                element.textContent += text.charAt(i);
+                i++;
+            } else {
+                clearInterval(currentTypingTimer);
+                currentTypingTimer = null;
+                isTyping = false;
+
+                if (btnText) {
+                    if (gameState === 'story') {
+                        btnText.textContent = "ร่วมตัดสินใจ ⚡";
+                    } else if (gameState === 'feedback') {
+                        const scenario = cyberScenarios[currentScenarioIdx];
+                        if (scenario) {
+                            const isCorrect = (lastSelectedIdx === scenario.answerIdx);
+                            btnText.textContent = isCorrect ? (currentScenarioIdx === cyberScenarios.length - 1 ? "สรุปผล 🏁" : "เดินทางต่อไป 🚶") : "เลือกใหม่ 🔄";
+                        }
+                    }
+                }
+                if (onComplete) onComplete();
+            }
+        }, speed);
+    }
+
+    /**
+     * ฟังก์ชันกดข้ามบทสนทนา (Skip) หรือรันคำสั่งดำเนินการต่อ
+     */
+    function skipOrContinueDialogue() {
+        const scenario = cyberScenarios[currentScenarioIdx];
+        if (!scenario) return;
+
+        const textEl = document.getElementById('cyber-dialog-text');
+        const btnText = document.getElementById('cyber-dialog-btn-text');
+
+        if (isTyping) {
+            // กรณีที่ 1: กำลังรันพ่นบทบรรยาย -> กดข้าม (Skip) ให้ตัวหนังสือออกครบในทันที
+            if (currentTypingTimer) {
+                clearInterval(currentTypingTimer);
+                currentTypingTimer = null;
+            }
+            isTyping = false;
+
+            if (gameState === 'story') {
+                if (textEl) textEl.textContent = scenario.text;
+                if (btnText) btnText.textContent = "ร่วมตัดสินใจ ⚡";
+                // เปิดกล่องชอยส์ตัดสินใจหลังหน่วงเวลาเล็กน้อยเพื่อความไหลลื่น
+                setTimeout(showCyberChoices, 300);
+            } else if (gameState === 'feedback') {
+                const isCorrect = (lastSelectedIdx === scenario.answerIdx);
+                if (textEl) textEl.textContent = isCorrect ? scenario.feedbackRight : scenario.feedbackWrong;
+                if (btnText) btnText.textContent = isCorrect ? (currentScenarioIdx === cyberScenarios.length - 1 ? "สรุปผล 🏁" : "เดินทางต่อไป 🚶") : "เลือกใหม่ 🔄";
+            }
+        } else {
+            // กรณีที่ 2: บทบรรยายพ่นเสร็จสิ้นแล้ว -> ย้ายไปขั้นตอนถัดไปตามโหมดรัฐ
+            if (gameState === 'story') {
+                showCyberChoices();
+            } else if (gameState === 'feedback') {
+                const isCorrect = (lastSelectedIdx === scenario.answerIdx);
+                if (isCorrect) {
+                    currentScenarioIdx++;
+                    renderCyberScenario();
+                } else {
+                    // ปรับเกมสเตตกลับมาเล่าเรื่อง เพื่อยอมให้เลือกตัดสินใจใหม่
+                    gameState = 'story';
+                    resetDialogStyle();
+                    renderCyberScenario();
+                }
+            }
+        }
+    }
+
+    /**
+     * เรียกแสดงตัวเลือกการตัดสินใจลอยขึ้นมาตรงกลางหน้าจอ (แนวยาวแคบสุดหรูแบบ ref1)
+     */
+    function showCyberChoices() {
+        const scenario = cyberScenarios[currentScenarioIdx];
+        if (!scenario) return;
+
+        const optContainer = document.getElementById('cyber-options-container');
+        if (optContainer) {
+            optContainer.innerHTML = '';
+            const opts = [scenario.opt1, scenario.opt2];
+            opts.forEach((optText, idx) => {
+                if (!optText) return;
+                const btn = document.createElement('button');
+
+                // ดีไซน์ปุ่มแนวยาวเรียวแบนและยืดหยุ่นหดตัวได้จริง ไม่จำกัดความกว้างสูงสุดแคบเกินไป ป้องกันการล้นทะลุขอบ (สไตล์ ref2 ยืดหยุ่นโอบล้อมรอบตัวอักษร และรองรับการตัดคำขึ้นบรรทัดใหม่อ่านง่ายสวยงาม)
+                btn.className = `w-full max-w-[94%] sm:max-w-[85%] mx-auto text-center py-2 md:py-3 px-4 md:px-8 rounded-2xl md:rounded-3xl text-white border border-white/40 bg-black/95 hover:bg-white hover:text-black hover:border-white font-bold text-[11px] sm:text-xs md:text-sm shadow-[0_0_8px_rgba(255,255,255,0.1)] hover:shadow-[0_0_18px_rgba(255,255,255,0.3)] transform transition-all active:scale-95 duration-150 cursor-pointer inline-flex items-center justify-center gap-2 md:gap-3 whitespace-normal break-words flex-shrink-0`;
+                btn.onclick = (e) => {
+                    e.stopPropagation(); // กันการคลิกทะลุลงไปโดน Dialog กล่องล่าง
+                    selectCyberOption(idx);
+                };
+
+                // ประดับดวงดาว ✦✦ ส่องสว่างซ้ายขวาอย่างสมดุล ข้อความอยู่ตรงกลาง (ไม่มี flex-1 เพื่อป้องกันดาวลอยนอกขอบ และจัดวางแบบ flex-shrink เพื่อความมั่นคง)
+                btn.innerHTML = `
+                    <span class="text-cyan-300 text-xs md:text-sm select-none animate-pulse flex-shrink-0">✦✦</span>
+                    <span class="leading-relaxed tracking-wider drop-shadow-sm select-none font-extrabold px-1 md:px-2 text-center whitespace-normal break-words">${optText}</span>
+                    <span class="text-cyan-300 text-xs md:text-sm select-none animate-pulse flex-shrink-0">✦✦</span>
+                `;
+                optContainer.appendChild(btn);
+            });
+        }
+
+        // แสดงผลหน้าจอ Overlay ชอยส์ลอยตัว
+        const overlay = document.getElementById('cyber-choices-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+
+        // ซ่อนปุ่มกดเล่าต่อด้านล่างชั่วคราวขณะให้ตัดสินใจ
+        const nextBtn = document.getElementById('cyber-dialog-next-btn');
+        if (nextBtn) nextBtn.classList.add('hidden');
+    }
+
+    /**
+     * คืนค่ารูปโฉมกรอบข้อความล่างสู่ความปกติเป็นกลาง
+     */
+    function resetDialogStyle() {
+        const dialogBox = document.getElementById('cyber-dialog-box');
+        if (dialogBox) {
+            dialogBox.className = 'glass-card bg-slate-950/90 border-4 border-cyan-400 p-5 md:p-6 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.6)] flex flex-col gap-3 relative min-h-[160px] animate-fadeIn transition-all duration-300 cursor-pointer';
         }
     }
 
@@ -70,6 +290,8 @@
             if (loader) loader.classList.add('hidden');
             const playArea = document.getElementById('cyber-game-play-area');
             if (playArea) playArea.classList.remove('hidden');
+            const hudContainer = document.getElementById('cyber-hud-container');
+            if (hudContainer) hudContainer.classList.remove('hidden');
             renderCyberScenario();
         } catch (e) {
             console.error("Critical error in loadBackupMockScenarios:", e);
@@ -85,11 +307,13 @@
         try {
             const loader = document.getElementById('cyber-loader');
             if (loader) loader.classList.add('hidden');
-            
+
             if (res && res.success && res.data && res.data.length > 0) {
                 cyberScenarios = res.data;
                 const playArea = document.getElementById('cyber-game-play-area');
                 if (playArea) playArea.classList.remove('hidden');
+                const hudContainer = document.getElementById('cyber-hud-container');
+                if (hudContainer) hudContainer.classList.remove('hidden');
                 renderCyberScenario();
             } else {
                 console.warn("getCyberSafetyScenarios success but no data or invalid response:", res);
@@ -128,7 +352,9 @@
                 return;
             }
 
-            currentScenarioAttempts = 0; // รีเซ็ตความพยายามของด่านนี้
+            // ตั้งค่าสถานะเริ่มต้นเมื่อเข้าสู่บทบรรยายด่านใหม่
+            gameState = 'story';
+            currentScenarioAttempts = 0;
             const scenario = cyberScenarios[currentScenarioIdx];
             if (!scenario) {
                 console.error("Scenario is null at index:", currentScenarioIdx);
@@ -137,20 +363,17 @@
                 return;
             }
 
-            // อัปเดตข้อมูลช่วงเวลาและหัวข้อ
+            // 1. อัปเดตพื้นหลังเต็มจอแบบ Visual Novel
+            updateCyberBackground(scenario);
+
+            // 2. อัปเดตข้อมูลช่วงเวลาและคะแนนด้านบน
             const timeEl = document.getElementById('cyber-scenario-time');
             if (timeEl) timeEl.textContent = scenario.timeOfDay || 'ทั่วไป';
-            
-            const titleEl = document.getElementById('cyber-scenario-title');
-            if (titleEl) titleEl.textContent = scenario.title || 'สถานการณ์ไซเบอร์';
-            
-            const textEl = document.getElementById('cyber-scenario-text');
-            if (textEl) textEl.textContent = scenario.text || '';
-            
+
             const scoreEl = document.getElementById('cyber-score-current');
             if (scoreEl) scoreEl.textContent = earnedCoins;
 
-            // กำหนดไอคอนช่วงเวลา (แปลงเป็น String ป้องกัน Runtime Error ในกรณีข้อมูลในชีตว่างเปล่า)
+            // กำหนดไอคอนช่วงเวลา
             const timeIconEl = document.getElementById('cyber-time-icon');
             if (timeIconEl) {
                 const timeStr = String(scenario.timeOfDay || '').trim();
@@ -169,47 +392,41 @@
                 }
             }
 
-            // จัดการหลอดเลือด HP
+            // 3. จัดการหลอดเลือด HP
             updateCyberHpUI();
 
-            // โหลดรูปประกอบฉาก (รองรับทั้ง Image URL จากชีตและ SVG ดั้งเดิม)
-            const imageArea = document.getElementById('cyber-comic-image-area');
-            if (imageArea) {
-                const imgUrl = String(scenario.imageSvg || '').trim();
-                if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
-                    imageArea.innerHTML = `<img src="${imgUrl}" alt="${scenario.title || 'เหตุการณ์ไซเบอร์'}" class="w-full h-full object-contain rounded-xl shadow-inner border border-sky-100" />`;
-                } else {
-                    imageArea.innerHTML = getScenarioSvg(scenario.id);
-                }
-            }
+            // 4. ตั้งค่าคาแรคเตอร์ผู้พูด/ป้ายหัวข้อด้านล่าง
+            const speakerBadge = document.getElementById('cyber-speaker-badge');
+            if (speakerBadge) speakerBadge.textContent = `📖 เหตุการณ์: ${scenario.title || 'ความเสี่ยงไซเบอร์'}`;
 
-            // ซ่อนกล่องบทเรียนแจ้งเตือน / Dialog NPC
-            const npcDialogBox = document.getElementById('cyber-npc-dialog-box');
-            if (npcDialogBox) npcDialogBox.classList.add('hidden');
-            
-            const optContainer = document.getElementById('cyber-options-container');
-            if (optContainer) {
-                optContainer.classList.remove('hidden');
-                optContainer.innerHTML = '';
+            // ค้นหารายละเอียดคู่หูผจญภัย
+            const helperAvatar = (currentUser && currentUser.avatar) || '🧙‍♂️';
+            let helperName = "คู่หูผู้กล้า";
+            if (helperAvatar === '🧙‍♂️') helperName = "จอมเวทย์แนะแนว";
+            else if (helperAvatar === '🧝‍♀️') helperName = "เอลฟ์ผู้รอบรู้";
+            else helperName = "นักรบผู้พิทักษ์";
 
-                // ตัวเลือกมี 2 ข้อ (Opt1, Opt2 ในชีท)
-                const opts = [scenario.opt1, scenario.opt2];
-                opts.forEach((optText, idx) => {
-                    if (!optText) return;
-                    const btn = document.createElement('button');
-                    
-                    // ทางเลือกการออกแบบ 3D
-                    const colorClass = idx === 0 
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-700 hover:from-emerald-400 hover:to-teal-500'
-                        : 'bg-gradient-to-r from-amber-500 to-orange-600 border-amber-700 hover:from-amber-400 hover:to-orange-500';
+            const npcAvatarEl = document.getElementById('cyber-npc-avatar');
+            const npcNameEl = document.getElementById('cyber-npc-name');
+            if (npcAvatarEl) npcAvatarEl.textContent = helperAvatar;
+            if (npcNameEl) npcNameEl.textContent = helperName;
 
-                    btn.className = `w-full text-left p-4 md:p-5 rounded-2xl text-white border-b-4 ${colorClass} font-bold text-sm md:text-base shadow-lg transform transition-all active:translate-y-0.5 hover:-translate-y-0.5 duration-200 cursor-pointer flex items-start gap-3`;
-                    btn.onclick = () => selectCyberOption(idx);
-                    btn.innerHTML = `
-                        <span class="bg-white/20 w-7 h-7 rounded-full flex items-center justify-center font-extrabold flex-shrink-0 text-white">${idx + 1}</span>
-                        <span class="leading-relaxed drop-shadow-sm">${optText}</span>
-                    `;
-                    optContainer.appendChild(btn);
+            // 5. ปิดบังกล่องชอยส์เลือกตอบชั่วคราว
+            const overlay = document.getElementById('cyber-choices-overlay');
+            if (overlay) overlay.classList.add('hidden');
+
+            // 6. คืนสภาพสีกรอบและสั่งรัน Typewriter พ่นบทบรรยายเนื้อเรื่องหลัก
+            resetDialogStyle();
+
+            const textEl = document.getElementById('cyber-dialog-text');
+            if (textEl) {
+                typeWriterEffect(textEl, scenario.text, 20, () => {
+                    // เมื่อรันอักษรจบโดยธรรมชาติ ให้หน่วงเวลาและเปิดตัวเลือกกลางจออัตโนมัติ
+                    setTimeout(() => {
+                        if (gameState === 'story' && !isTyping) {
+                            showCyberChoices();
+                        }
+                    }, 800);
                 });
             }
         } catch (e) {
@@ -225,10 +442,9 @@
     function updateCyberHpUI() {
         const hpBar = document.getElementById('cyber-hp-bar');
         const hpText = document.getElementById('cyber-hp-text');
-        
+
         if (hpBar) {
             hpBar.style.width = cyberSafetyHp + '%';
-            // สลับสีหลอดเลือดตามความแรง
             if (cyberSafetyHp >= 75) {
                 hpBar.className = 'h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-500';
             } else if (cyberSafetyHp >= 50) {
@@ -237,37 +453,56 @@
                 hpBar.className = 'h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-500';
             }
         }
-        
+
         if (hpText) {
             hpText.textContent = `Cyber Shield: ${cyberSafetyHp}%`;
         }
     }
 
     /**
-     * เมื่อผู้เล่นเลือกตัวเลือก
+     * เมื่อผู้เล่นเลือกตัวเลือกตัดสินใจ
      */
     function selectCyberOption(selectedIdx) {
+        lastSelectedIdx = selectedIdx;
+        gameState = 'feedback';
+
         const scenario = cyberScenarios[currentScenarioIdx];
+        if (!scenario) return;
+
         const isCorrect = selectedIdx === scenario.answerIdx;
 
-        // ค้นหา NPC อวาตาร์คู่หูที่ดึงมาจากผู้ใช้งานล็อกอิน
+        // ค้นหา NPC อวาตาร์คู่หู
         const helperAvatar = (currentUser && currentUser.avatar) || '🧙‍♂️';
         let helperName = "คู่หูผู้กล้า";
-        if (helperAvatar === '🧙‍♂️') helperName = "🧙‍♂️ ท่านจอมเวทย์แนะแนว";
+        if (helperAvatar === '🧙‍♂️') helperName = "🧙‍♂️ จอมเวทย์แนะแนว";
         else if (helperAvatar === '🧝‍♀️') helperName = "🧝‍♀️ เอลฟ์ผู้รอบรู้";
         else helperName = "⚔️ นักรบผู้พิทักษ์";
 
-        const npcAvatarEl = document.getElementById('cyber-npc-avatar');
-        const npcNameEl = document.getElementById('cyber-npc-name');
-        const npcTextEl = document.getElementById('cyber-npc-text');
-        const npcDialogBox = document.getElementById('cyber-npc-dialog-box');
-        const npcBtnAction = document.getElementById('cyber-npc-btn-action');
+        // ซ่อนชอยส์ลอยตัวกลางหน้าจอ
+        const overlay = document.getElementById('cyber-choices-overlay');
+        if (overlay) overlay.classList.add('hidden');
 
-        if (npcAvatarEl) npcAvatarEl.textContent = helperAvatar;
-        if (npcNameEl) npcNameEl.textContent = helperName;
+        // แสดงป้ายชื่อผู้แนะแนวทาง
+        const speakerBadge = document.getElementById('cyber-speaker-badge');
+        if (speakerBadge) {
+            speakerBadge.textContent = isCorrect ? `🎉 ยอดเยี่ยม! (ถูกต้อง)` : `🚨 มีความเสี่ยงเกิดขึ้น!`;
+        }
+
+        const dialogBox = document.getElementById('cyber-dialog-box');
+        const textEl = document.getElementById('cyber-dialog-text');
+        const btnText = document.getElementById('cyber-dialog-btn-text');
+
+        // ปรับเปลี่ยนสีของกรอบกล่องข้อความตามความถูกต้อง
+        if (dialogBox) {
+            if (isCorrect) {
+                dialogBox.className = 'glass-card bg-slate-950/95 border-4 border-emerald-500 p-5 md:p-6 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.6)] flex flex-col gap-3 relative min-h-[160px] animate-fadeIn transition-all duration-300 cursor-pointer';
+            } else {
+                dialogBox.className = 'glass-card bg-slate-950/95 border-4 border-rose-500 p-5 md:p-6 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.6)] flex flex-col gap-3 relative min-h-[160px] animate-fadeIn transition-all duration-300 cursor-pointer';
+            }
+        }
 
         if (isCorrect) {
-            // เคสเลือกถูก
+            // กรณีเลือกตอบถูกต้อง
             if (typeof playSuccessSound === 'function') playSuccessSound();
 
             // คำนวณคะแนนแบบ Dynamic
@@ -288,31 +523,14 @@
             const scoreEl = document.getElementById('cyber-score-current');
             if (scoreEl) scoreEl.textContent = earnedCoins;
 
-            // แสดงคำชมเชยและการเรียนรู้เพิ่มเติม
-            if (npcTextEl) {
-                npcTextEl.innerHTML = `
-                    <div class="text-emerald-700 font-extrabold text-lg mb-2">🎉 ${rewardMsg} (+${coinReward} ⭐)</div>
-                    <p class="text-gray-800 leading-relaxed font-bold">${scenario.feedbackRight}</p>
-                `;
-            }
+            const feedbackText = `🎉 ${rewardMsg} (+${coinReward} ⭐)\n\n${scenario.feedbackRight || ''}`;
 
-            // กำหนดปุ่มก้าวต่อไป
-            if (npcBtnAction) {
-                npcBtnAction.textContent = currentScenarioIdx === cyberScenarios.length - 1 ? '🏁 สรุปผลความปลอดภัย' : '🚶 เดินทางต่อไป';
-                npcBtnAction.className = 'px-8 py-3 bg-gradient-to-r from-emerald-50 to-teal-600 border-b-4 border-emerald-800 text-white font-black rounded-2xl shadow-lg hover:from-emerald-400 active:translate-y-0.5 transition-all cursor-pointer';
-                npcBtnAction.onclick = () => {
-                    currentScenarioIdx++;
-                    renderCyberScenario();
-                };
-            }
-
-            // ซ่อนปุ่มเลือกชั่วคราวและเปิด Dialog
-            const optContainer = document.getElementById('cyber-options-container');
-            if (optContainer) optContainer.classList.add('hidden');
-            
-            if (npcDialogBox) {
-                npcDialogBox.classList.remove('hidden');
-                npcDialogBox.className = 'mt-6 bg-emerald-50/95 border-4 border-emerald-400 p-5 rounded-2xl flex gap-4 items-start shadow-inner animate-fadeIn';
+            if (textEl) {
+                typeWriterEffect(textEl, feedbackText, 15, () => {
+                    if (btnText) {
+                        btnText.textContent = (currentScenarioIdx === cyberScenarios.length - 1) ? 'สรุปผล 🏁' : 'เดินทางต่อไป 🚶';
+                    }
+                });
             }
 
         } else {
@@ -320,10 +538,10 @@
             if (typeof playErrorSound === 'function') playErrorSound();
 
             // สั่นหน้าจอป้องกันภัย
-            const gameFrame = document.getElementById('cyber-comic-frame');
-            if (gameFrame) {
-                gameFrame.classList.add('animate-shake-strong');
-                setTimeout(() => gameFrame.classList.remove('animate-shake-strong'), 500);
+            const gameContainer = document.getElementById('cyber-game-container');
+            if (gameContainer) {
+                gameContainer.classList.add('animate-shake-strong');
+                setTimeout(() => gameContainer.classList.remove('animate-shake-strong'), 500);
             }
 
             // หักค่า HP (ขั้นต่ำ 0)
@@ -331,32 +549,14 @@
             updateCyberHpUI();
             currentScenarioAttempts++; // นับครั้งพยายามกดผิด
 
-            // แสดงคำอธิบายบทเรียนเพื่อสอนเด็ก
-            if (npcTextEl) {
-                npcTextEl.innerHTML = `
-                    <div class="text-rose-700 font-extrabold text-lg mb-2">🚨 มีความเสี่ยงเกิดขึ้น! (Shield ลดลง)</div>
-                    <p class="text-gray-800 leading-relaxed font-bold">${scenario.feedbackWrong}</p>
-                `;
-            }
+            const feedbackText = `🚨 เกราะป้องกัน Cyber Shield เสียหาย! (Shield ลดลง)\n\n${scenario.feedbackWrong || ''}`;
 
-            // ปล่อยให้เด็กกดคิดใหม่
-            if (npcBtnAction) {
-                npcBtnAction.textContent = '🔄 พิจารณาและเลือกตัดสินใจใหม่';
-                npcBtnAction.className = 'px-8 py-3 bg-gradient-to-r from-amber-50 to-orange-600 border-b-4 border-amber-800 text-white font-black rounded-2xl shadow-lg hover:from-amber-400 active:translate-y-0.5 transition-all cursor-pointer';
-                npcBtnAction.onclick = () => {
-                    if (npcDialogBox) npcDialogBox.classList.add('hidden');
-                    const optContainer = document.getElementById('cyber-options-container');
-                    if (optContainer) optContainer.classList.remove('hidden');
-                };
-            }
-
-            // ซ่อนปุ่มเลือกชั่วคราวและเปิด Dialog
-            const optContainer = document.getElementById('cyber-options-container');
-            if (optContainer) optContainer.classList.add('hidden');
-            
-            if (npcDialogBox) {
-                npcDialogBox.classList.remove('hidden');
-                npcDialogBox.className = 'mt-6 bg-rose-50/95 border-4 border-rose-400 p-5 rounded-2xl flex gap-4 items-start shadow-inner animate-fadeIn';
+            if (textEl) {
+                typeWriterEffect(textEl, feedbackText, 15, () => {
+                    if (btnText) {
+                        btnText.textContent = 'เลือกใหม่ 🔄';
+                    }
+                });
             }
         }
     }
@@ -365,16 +565,26 @@
      * หน้าจอเมื่อจบเกมน้องเซฟมีชีวิตรอด
      */
     function showCyberVictoryScreen() {
+        // ซ่อนหน้าต่างตัวเกมหลักและ HUD ซ้ายบนเพื่อความสวยงามพรีเมียม ไร้สิ่งบดบัง
+        const playArea = document.getElementById('cyber-game-play-area');
+        if (playArea) playArea.classList.add('hidden');
+
+        const hudContainer = document.getElementById('cyber-hud-container');
+        if (hudContainer) hudContainer.classList.add('hidden');
+
         const container = document.getElementById('cyber-game-container');
         if (container) container.classList.add('hidden');
-        
+
+        // รีเซ็ตภาพพื้นหลังให้กลับมามืดสลัวสวยงาม คลุมทับภาพประกอบด่านสุดท้าย เพื่อให้ตัวหนังสือในหน้าจอ Victory เด่นสง่า
+        resetCyberBackground();
+
         const victory = document.getElementById('cyber-victory-screen');
         if (victory) victory.classList.remove('hidden');
 
         // จัดการหน้าจอ Victory
         const coinEl = document.getElementById('victory-coins-earned');
         if (coinEl) coinEl.textContent = earnedCoins;
-        
+
         const xpEl = document.getElementById('victory-xp-earned');
         if (xpEl) xpEl.textContent = earnedXp;
 
@@ -429,10 +639,10 @@
                     currentUser.xp = (currentUser.xp || 0) + earnedXp;
                     currentUser.level = Math.floor(currentUser.xp / 100) + 1;
                 }
-                
+
                 // อัปเดต Topbar ทันที
                 if (typeof updateDashboardStats === 'function') updateDashboardStats();
-                
+
                 onSaveProgressSuccess({ success: true, coins: (currentUser && currentUser.coins) || 0, xp: (currentUser && currentUser.xp) || 0, level: (currentUser && currentUser.level) || 1 });
             }, 1000);
         }
@@ -451,7 +661,7 @@
         }).then(() => {
             // อัปเดตข้อมูลฝั่ง Dashboard ทันที
             if (res.success && typeof refreshUserData === 'function') {
-                refreshUserData(); 
+                refreshUserData();
             } else if (typeof updateDashboardStats === 'function') {
                 updateDashboardStats();
             }
@@ -635,7 +845,7 @@
                 </g>
             </svg>`;
         }
-        
+
         // กรณีด่านอื่นๆ ที่ครูอาจจะสร้างเพิ่มขึ้นมาภายหลัง
         return `
         <svg viewBox="0 0 400 220" class="w-full h-full rounded-xl bg-gradient-to-br from-indigo-50 to-blue-100 p-2 shadow-inner" xmlns="http://www.w3.org/2000/svg">

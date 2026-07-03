@@ -117,14 +117,23 @@ function getAdminQuestionsByLessonAndType(lessonId, type, pin) {
         const qType = String(data[i][9] || 'posttest').toLowerCase();
         
         if (qLessonId === String(lessonId) && qType === String(type).toLowerCase()) {
+            let matchingPairs = [];
+            try {
+                matchingPairs = (data[i][12] && typeof data[i][12] === 'string') ? JSON.parse(data[i][12]) : [];
+            } catch (e) {
+                matchingPairs = [];
+            }
             questions.push({
                 id: data[i][0],
                 lessonId: data[i][1],
                 text: data[i][2],
                 options: [data[i][3], data[i][4], data[i][5], data[i][6]],
-                answer: parseInt(data[i][7]),
+                answer: data[i][7], // ดึงค่าคำตอบตรงๆ เผื่อเป็นข้อสอบแบบจับคู่หรือแบบช้อยส์
                 explanation: data[i][8] || '',
-                type: qType
+                type: qType,
+                pattern: data[i][10] || 'choice',
+                image: data[i][11] || '',
+                matchingPairs: matchingPairs
             });
         }
     }
@@ -179,13 +188,16 @@ function saveBatchQuestions(lessonId, type, questionsArray, pin) {
                newId,
                lessonId,
                q.text,
-               q.options[0],
-               q.options[1],
-               q.options[2],
-               q.options[3],
+               q.options ? q.options[0] || '' : '',
+               q.options ? q.options[1] || '' : '',
+               q.options ? q.options[2] || '' : '',
+               q.options ? q.options[3] || '' : '',
                q.answer,
                q.explanation,
-               String(type).toLowerCase()
+               String(type).toLowerCase(),
+               q.pattern || 'choice',
+               q.image || '',
+               q.matchingPairs ? JSON.stringify(q.matchingPairs) : '[]'
             ]);
         }
     }

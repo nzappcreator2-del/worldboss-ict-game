@@ -107,7 +107,7 @@ function setupDatabase() {
   const requiredSheets = [
     { name: 'Users', columns: ['UserID', 'Name', 'Class', 'XP', 'Rank', 'Level', 'Avatar', 'Coins', 'Inventory', 'LastLogin', 'Streak'] },
     { name: 'Lessons', columns: ['LessonID', 'Title', 'Description', 'VideoURL', 'Icon', 'IsActive', 'EnablePretest', 'WorksheetURL', 'Content'] },
-    { name: 'Questions', columns: ['QuestionID', 'LessonID', 'QuestionText', 'Opt1', 'Opt2', 'Opt3', 'Opt4', 'Answer', 'Explanation', 'Type'] },
+    { name: 'Questions', columns: ['QuestionID', 'LessonID', 'QuestionText', 'Opt1', 'Opt2', 'Opt3', 'Opt4', 'Answer', 'Explanation', 'Type', 'QuestionPattern', 'QuestionImage', 'MatchingPairs'] },
     { name: 'Progress', columns: ['UserID', 'LessonID', 'Status', 'Score'] },
     { name: 'Settings', columns: ['Key', 'Value'] },
     { name: 'News', columns: ['NewsID', 'Icon', 'Type', 'Title', 'Content', 'Date', 'IsActive'] },
@@ -232,6 +232,25 @@ function ensureDatabaseSetup() {
       if (uHeaderRow.indexOf('Inventory') === -1) {
         uLength++;
         usersSheet.getRange(1, uLength).setValue('Inventory');
+      }
+    }
+
+    // 🛠️ ตรวจสอบคอลัมน์ใหม่ในชีต Questions (Auto-Migration)
+    const questionsSheet = ss.getSheetByName('Questions');
+    if (questionsSheet) {
+      const qHeaderRow = questionsSheet.getRange(1, 1, 1, Math.max(1, questionsSheet.getLastColumn())).getValues()[0];
+      let qLength = qHeaderRow.length;
+      if (qHeaderRow.indexOf('QuestionPattern') === -1) {
+        qLength++;
+        questionsSheet.getRange(1, qLength).setValue('QuestionPattern');
+      }
+      if (qHeaderRow.indexOf('QuestionImage') === -1) {
+        qLength++;
+        questionsSheet.getRange(1, qLength).setValue('QuestionImage');
+      }
+      if (qHeaderRow.indexOf('MatchingPairs') === -1) {
+        qLength++;
+        questionsSheet.getRange(1, qLength).setValue('MatchingPairs');
       }
     }
 

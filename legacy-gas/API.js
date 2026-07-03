@@ -614,12 +614,25 @@ function getQuestions(lessonId) {
       for (let i = 1; i < data.length; i++) {
         const qType = String(data[i][9] || 'posttest').toLowerCase();
         if (qType !== 'pretest' && data[i][2]) {
+          const pattern = data[i][10] || 'choice';
+          if (pattern !== 'choice') continue; // PVP_MODE รองรับเฉพาะข้อสอบแบบ Choice เท่านั้น
+          
+          const image = data[i][11] || '';
+          let matchingPairs = [];
+          try {
+            matchingPairs = (data[i][12] && typeof data[i][12] === 'string') ? JSON.parse(data[i][12]) : [];
+          } catch (e) {
+            matchingPairs = [];
+          }
           const qObj = {
             qId: data[i][0],
             text: data[i][2],
             options: [data[i][3], data[i][4], data[i][5], data[i][6]],
-            answer: parseInt(data[i][7] || 1) - 1,
-            explanation: data[i][8]
+            answer: pattern === 'choice' ? (parseInt(data[i][7] || 1) - 1) : data[i][7],
+            explanation: data[i][8],
+            pattern: pattern,
+            image: image,
+            matchingPairs: matchingPairs
           };
           if (String(data[i][1]) === 'PVP_MODE') {
             pvpQs.push(qObj);
@@ -639,17 +652,28 @@ function getQuestions(lessonId) {
       return { success: true, data: finalQuestions.slice(0, 10) };
     }
 
-    // โครงสร้างชีท: QuestionID, LessonID, QuestionText, Opt1, Opt2, Opt3, Opt4, Answer, Explanation, Type
+    // โครงสร้างชีท: QuestionID, LessonID, QuestionText, Opt1, Opt2, Opt3, Opt4, Answer, Explanation, Type, QuestionPattern, QuestionImage, MatchingPairs
     for (let i = 1; i < data.length; i++) {
       // หาคำถามที่รหัส LessonID ตรงกัน และเป็น posttest (หรือไม่ได้ระบุ type)
       const qType = String(data[i][9] || 'posttest').toLowerCase();
       if (String(data[i][1]) === String(lessonId) && qType !== 'pretest') {
+        const pattern = data[i][10] || 'choice';
+        const image = data[i][11] || '';
+        let matchingPairs = [];
+        try {
+          matchingPairs = (data[i][12] && typeof data[i][12] === 'string') ? JSON.parse(data[i][12]) : [];
+        } catch (e) {
+          matchingPairs = [];
+        }
         questions.push({
           qId: data[i][0],
           text: data[i][2],
           options: [data[i][3], data[i][4], data[i][5], data[i][6]],
-          answer: parseInt(data[i][7] || 1) - 1,
-          explanation: data[i][8]
+          answer: pattern === 'choice' ? (parseInt(data[i][7] || 1) - 1) : data[i][7],
+          explanation: data[i][8],
+          pattern: pattern,
+          image: image,
+          matchingPairs: matchingPairs
         });
       }
     }
@@ -675,12 +699,23 @@ function getPreTestQuestions(lessonId) {
     for (let i = 1; i < data.length; i++) {
       const qType = String(data[i][9] || 'posttest').toLowerCase();
       if (String(data[i][1]) === String(lessonId) && qType === 'pretest') {
+        const pattern = data[i][10] || 'choice';
+        const image = data[i][11] || '';
+        let matchingPairs = [];
+        try {
+          matchingPairs = (data[i][12] && typeof data[i][12] === 'string') ? JSON.parse(data[i][12]) : [];
+        } catch (e) {
+          matchingPairs = [];
+        }
         questions.push({
           qId: data[i][0],
           text: data[i][2],
           options: [data[i][3], data[i][4], data[i][5], data[i][6]],
-          answer: parseInt(data[i][7]) - 1,
-          explanation: data[i][8]
+          answer: pattern === 'choice' ? (parseInt(data[i][7]) - 1) : data[i][7],
+          explanation: data[i][8],
+          pattern: pattern,
+          image: image,
+          matchingPairs: matchingPairs
         });
       }
     }
