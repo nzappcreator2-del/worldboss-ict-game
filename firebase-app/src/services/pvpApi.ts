@@ -12,7 +12,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db, ensureSignedIn } from '../firebase/client'
-import { finishPlayer, matchResponse, setReady, updateHp, type MatchState } from './pvpLogic'
+import { canJoinWaitingMatch, finishPlayer, matchResponse, setReady, updateHp, type MatchState } from './pvpLogic'
 import type { FirebaseServices } from './legacyRunner'
 
 type MatchData = Record<string, unknown>
@@ -46,33 +46,8 @@ async function createOrJoinMatch(rawUserId: unknown, rawName: unknown, rawAvatar
   const avatar = String(rawAvatar || '')
   const roomCode = String(rawRoomCode || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20)
   const identity = await ownsStudent(userId)
-  let target = roomCode ? doc(db, 'pvpMatches', `PRIVATE_${roomCode}`) : undefined
-
-  if (!target) {
-    const waiting = await getDocs(query(collection(db, 'pvpMatches'), where('status', '==', 'WAITING'), limit(20)))
-    const candidate = waiting.docs.find((row) => !row.id.startsWith('PRIVATE_') && row.data().p1Id !== userId)
-    if (candidate) target = candidate.ref
-  }
-
-  if (target) {
-    const joined = await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(target)
-      if (!snapshot.exists()) return null
-      const match = asMatch(snapshot.id, snapshot.data())
-      if (match.status !== 'WAITING' || match.p1Id === userId) return null
-      const next = {
-        ...match, p2Id: userId, p2Uid: identity.uid, p2Name: name, p2Avatar: avatar,
-        p2Ready: false, status: 'LOBBY', updatedAt: serverTimestamp(),
-      }
-      transaction.update(target, next)
-      return next
-    })
-    if (joined) return { ...matchResponse(joined), role: 'Player2' }
-  }
-
-  const ref = roomCode ? doc(db, 'pvpMatches', `PRIVATE_${roomCode}`) : doc(collection(db, 'pvpMatches'))
-  const match: MatchState & MatchData = {
-    matchId: ref.id,
+  const createMatch = (matchId: string): MatchState & MatchData => ({
+    matchId,
     p1Id: userId,
     p1Uid: identity.uid,
     p2Id: null,
@@ -88,7 +63,52 @@ async function createOrJoinMatch(rawUserId: unknown, rawName: unknown, rawAvatar
     status: 'WAITING',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  })
+
+  if (roomCode) {
+    const target = doc(db, 'pvpMatches', `PRIVATE_${roomCode}`)
+    return runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(target)
+      if (!snapshot.exists()) {
+        const created = createMatch(target.id)
+        transaction.set(target, created)
+        return { ...matchResponse(created), role: 'Player1' as const }
+      }
+      const match = asMatch(snapshot.id, snapshot.data())
+      if (!canJoinWaitingMatch(match, userId)) throw new Error('ห้องนี้กำลังใช้งานหรือคุณอยู่ในห้องนี้แล้ว')
+      const joined = {
+        ...match, p2Id: userId, p2Uid: identity.uid, p2Name: name, p2Avatar: avatar,
+        p2Ready: false, status: 'LOBBY', updatedAt: serverTimestamp(),
+      }
+      transaction.update(target, joined)
+      return { ...matchResponse(joined), role: 'Player2' as const }
+    })
   }
+
+  let target: ReturnType<typeof doc> | undefined
+
+  const waiting = await getDocs(query(collection(db, 'pvpMatches'), where('status', '==', 'WAITING'), limit(20)))
+  const candidate = waiting.docs.find((row) => !row.id.startsWith('PRIVATE_') && row.data().p1Id !== userId)
+  if (candidate) target = candidate.ref
+
+  if (target) {
+    const joined = await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(target)
+      if (!snapshot.exists()) return null
+      const match = asMatch(snapshot.id, snapshot.data())
+      if (!canJoinWaitingMatch(match, userId)) return null
+      const next = {
+        ...match, p2Id: userId, p2Uid: identity.uid, p2Name: name, p2Avatar: avatar,
+        p2Ready: false, status: 'LOBBY', updatedAt: serverTimestamp(),
+      }
+      transaction.update(target, next)
+      return next
+    })
+    if (joined) return { ...matchResponse(joined), role: 'Player2' }
+  }
+
+  const ref = doc(collection(db, 'pvpMatches'))
+  const match = createMatch(ref.id)
   await setDoc(ref, match)
   return { ...matchResponse(match), role: 'Player1' }
 }

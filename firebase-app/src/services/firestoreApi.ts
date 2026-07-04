@@ -190,11 +190,22 @@ async function questionsFor(rawLessonId: unknown, pretest: boolean) {
   await ensureSignedIn()
   const lessonId = String(rawLessonId || '')
   const rows = await values('questions')
+  const selected = selectQuestionsForLesson(rows, lessonId, pretest)
+  return { success: true, data: selected.map(normalizeQuestion).slice(0, lessonId === 'PVP_MODE' ? 10 : undefined) }
+}
+
+export function selectQuestionsForLesson(rows: Data[], lessonId: string, pretest: boolean): Data[] {
   const selected = rows.filter((item) => {
     const isPretest = String(item.type || 'posttest').toLowerCase() === 'pretest'
-    return (lessonId === 'PVP_MODE' || String(item.lessonId) === lessonId) && isPretest === pretest
+    if (isPretest !== pretest) return false
+    if (lessonId !== 'PVP_MODE') return String(item.lessonId) === lessonId
+    return String(item.pattern || item.questionPattern || 'choice').toLowerCase() === 'choice'
   })
-  return { success: true, data: selected.map(normalizeQuestion).slice(0, lessonId === 'PVP_MODE' ? 10 : undefined) }
+  if (lessonId !== 'PVP_MODE') return selected
+  return [
+    ...selected.filter((item) => String(item.lessonId) === 'PVP_MODE'),
+    ...selected.filter((item) => String(item.lessonId) !== 'PVP_MODE'),
+  ].slice(0, 10)
 }
 
 async function getQuestions(lessonId: unknown) {

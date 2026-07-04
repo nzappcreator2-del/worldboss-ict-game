@@ -15,6 +15,10 @@ export type MatchState = {
   [key: string]: unknown
 }
 
+export function canJoinWaitingMatch(match: MatchState, userId: string): boolean {
+  return match.status === 'WAITING' && !match.p2Id && match.p1Id !== userId
+}
+
 export function matchResponse(match: MatchState) {
   return {
     success: true,

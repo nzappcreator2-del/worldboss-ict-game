@@ -110,6 +110,26 @@ describe('Firestore security rules in the emulator', () => {
     await assertFails(updateDoc(doc(playerOne, 'pvpMatches/M1'), { p2Hp: 75, updatedAt: serverTimestamp() }))
   })
 
+  it('allows two authenticated players to create, join, and ready a realtime PVP room', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('users/U2', student('player-2', 'U2'))
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+    const playerTwo = environment.authenticatedContext('player-2').firestore()
+    const match = {
+      matchId: 'PRIVATE_1234', p1Uid: 'player-1', p2Uid: null, p1Id: 'U1', p2Id: null,
+      p1Name: 'One', p2Name: '', p1Avatar: '🧙‍♂️', p2Avatar: '',
+      p1Hp: 100, p2Hp: 100, p1Ready: false, p2Ready: false, status: 'WAITING',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }
+
+    await assertSucceeds(setDoc(doc(playerOne, 'pvpMatches/PRIVATE_1234'), match))
+    await assertSucceeds(updateDoc(doc(playerTwo, 'pvpMatches/PRIVATE_1234'), {
+      p2Uid: 'player-2', p2Id: 'U2', p2Name: 'Two', p2Avatar: '🧝‍♀️', status: 'LOBBY', updatedAt: serverTimestamp(),
+    }))
+    await assertSucceeds(updateDoc(doc(playerOne, 'pvpMatches/PRIVATE_1234'), { p1Ready: true, updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(doc(playerTwo, 'pvpMatches/PRIVATE_1234'), { p2Ready: true, status: 'PLAYING', updatedAt: serverTimestamp() }))
+  })
+
   it('allows only an admin to delete student data', async () => {
     await seed('users/U1', student('player-1', 'U1'))
     const player = environment.authenticatedContext('player-1').firestore()

@@ -40,6 +40,9 @@ describe('PvpMode', () => {
     const page = document.getElementById('page-pvp')
     expect(await screen.findByRole('heading', { name: 'ศึกประลองความรู้ PVP' })).toBeTruthy()
     expect(page?.classList.contains('flex')).toBe(true)
+    expect(page?.classList.contains('pointer-events-auto')).toBe(true)
+    expect(page?.classList.contains('z-[60]')).toBe(true)
+    expect(page?.style.backgroundImage).toContain('2-3.png')
   })
 
   it('validates private PIN before creating a room', async () => {

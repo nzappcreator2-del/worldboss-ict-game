@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { finishPlayer, matchResponse, setReady, updateHp } from './pvpLogic'
+import { canJoinWaitingMatch, finishPlayer, matchResponse, setReady, updateHp } from './pvpLogic'
 
 const match = {
   matchId: 'M1', p1Id: 'U1', p2Id: 'U2', p1Name: 'A', p2Name: 'B',
@@ -23,5 +23,13 @@ describe('PVP state transitions', () => {
 
   it('returns the legacy response field names', () => {
     expect(matchResponse(match)).toMatchObject({ success: true, matchId: 'M1', p1Hp: 100, p2Hp: 100 })
+  })
+
+  it('allows only a different second player to join an empty waiting room', () => {
+    const waiting = { ...match, p2Id: null, status: 'WAITING' }
+    expect(canJoinWaitingMatch(waiting, 'U2')).toBe(true)
+    expect(canJoinWaitingMatch(waiting, 'U1')).toBe(false)
+    expect(canJoinWaitingMatch({ ...waiting, p2Id: 'U3' }, 'U2')).toBe(false)
+    expect(canJoinWaitingMatch({ ...waiting, status: 'LOBBY' }, 'U2')).toBe(false)
   })
 })
