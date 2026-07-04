@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canJoinWaitingMatch, finishPlayer, matchResponse, setReady, updateHp } from './pvpLogic'
+import { canJoinWaitingMatch, canReusePrivateRoom, finishPlayer, matchResponse, setReady, updateHp } from './pvpLogic'
 
 const match = {
   matchId: 'M1', p1Id: 'U1', p2Id: 'U2', p1Name: 'A', p2Name: 'B',
@@ -31,5 +31,13 @@ describe('PVP state transitions', () => {
     expect(canJoinWaitingMatch(waiting, 'U1')).toBe(false)
     expect(canJoinWaitingMatch({ ...waiting, p2Id: 'U3' }, 'U2')).toBe(false)
     expect(canJoinWaitingMatch({ ...waiting, status: 'LOBBY' }, 'U2')).toBe(false)
+  })
+
+  it('reuses a private room only after the previous match is terminal', () => {
+    expect(canReusePrivateRoom({ ...match, status: 'FINISHED' })).toBe(true)
+    expect(canReusePrivateRoom({ ...match, status: 'CANCELLED' })).toBe(true)
+    expect(canReusePrivateRoom({ ...match, status: 'WAITING' })).toBe(false)
+    expect(canReusePrivateRoom({ ...match, status: 'LOBBY' })).toBe(false)
+    expect(canReusePrivateRoom({ ...match, status: 'PLAYING' })).toBe(false)
   })
 })

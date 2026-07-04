@@ -19,6 +19,10 @@ export function canJoinWaitingMatch(match: MatchState, userId: string): boolean 
   return match.status === 'WAITING' && !match.p2Id && match.p1Id !== userId
 }
 
+export function canReusePrivateRoom(match: MatchState): boolean {
+  return match.status === 'FINISHED' || match.status === 'CANCELLED'
+}
+
 export function matchResponse(match: MatchState) {
   return {
     success: true,

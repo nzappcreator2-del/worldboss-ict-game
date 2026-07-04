@@ -130,6 +130,29 @@ describe('Firestore security rules in the emulator', () => {
     await assertSucceeds(updateDoc(doc(playerTwo, 'pvpMatches/PRIVATE_1234'), { p2Ready: true, status: 'PLAYING', updatedAt: serverTimestamp() }))
   })
 
+  it('allows a finished private room code to be reset but rejects replacing an active room', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('users/U3', student('player-3', 'U3'))
+    const playerThree = environment.authenticatedContext('player-3').firestore()
+    const replacement = {
+      matchId: 'PRIVATE_1234', p1Uid: 'player-3', p2Uid: null, p1Id: 'U3', p2Id: null,
+      p1Name: 'Three', p2Name: '', p1Avatar: '⚔️', p2Avatar: '',
+      p1Hp: 100, p2Hp: 100, p1Ready: false, p2Ready: false, status: 'WAITING',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }
+
+    await seed('pvpMatches/PRIVATE_1234', {
+      ...replacement, p1Uid: 'player-1', p1Id: 'U1', p1Name: 'One', status: 'FINISHED', p1Hp: 0,
+    })
+    await assertSucceeds(setDoc(doc(playerThree, 'pvpMatches/PRIVATE_1234'), replacement))
+
+    await seed('pvpMatches/PRIVATE_5678', {
+      ...replacement, matchId: 'PRIVATE_5678', p1Uid: 'player-1', p1Id: 'U1', p1Name: 'One', status: 'PLAYING',
+      p1Ready: true, p2Ready: true,
+    })
+    await assertFails(setDoc(doc(playerThree, 'pvpMatches/PRIVATE_5678'), { ...replacement, matchId: 'PRIVATE_5678' }))
+  })
+
   it('allows only an admin to delete student data', async () => {
     await seed('users/U1', student('player-1', 'U1'))
     const player = environment.authenticatedContext('player-1').firestore()

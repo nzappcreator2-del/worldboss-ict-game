@@ -81,6 +81,12 @@ service cloud.firestore {
         && request.resource.data.status == 'WAITING';
     }
 
+    function pvpPrivateRoomReuse(matchId) {
+      return matchId.matches('PRIVATE_.*')
+        && resource.data.status in ['FINISHED', 'CANCELLED']
+        && pvpInitialMatch(matchId);
+    }
+
     function pvpMutableValuesValid() {
       return request.resource.data.p1Hp >= 0
         && request.resource.data.p1Hp <= 100
@@ -237,16 +243,22 @@ service cloud.firestore {
         && pvpInitialMatch(matchId);
       allow update: if signedIn()
         && pvpDocumentShapeValid()
-        && pvpChangedFieldsAllowed()
-        && pvpPrimaryStable()
-        && (pvpSecondPlayerStable() || pvpSecondPlayerJoin())
-        && pvpMutableValuesValid()
-        && pvpStatusConsistent()
-        && (pvpSecondPlayerJoin() || pvpPlayerOneOwnMutation() || pvpPlayerTwoOwnMutation())
         && (
-          resource.data.p1Uid == request.auth.uid
-          || resource.data.p2Uid == request.auth.uid
-          || pvpSecondPlayerJoin()
+          pvpPrivateRoomReuse(matchId)
+          || (
+            signedIn()
+            && pvpChangedFieldsAllowed()
+            && pvpPrimaryStable()
+            && (pvpSecondPlayerStable() || pvpSecondPlayerJoin())
+            && pvpMutableValuesValid()
+            && pvpStatusConsistent()
+            && (pvpSecondPlayerJoin() || pvpPlayerOneOwnMutation() || pvpPlayerTwoOwnMutation())
+            && (
+              resource.data.p1Uid == request.auth.uid
+              || resource.data.p2Uid == request.auth.uid
+              || pvpSecondPlayerJoin()
+            )
+          )
         );
       allow delete: if admin();
     }

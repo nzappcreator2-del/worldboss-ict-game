@@ -12,7 +12,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db, ensureSignedIn } from '../firebase/client'
-import { canJoinWaitingMatch, finishPlayer, matchResponse, setReady, updateHp, type MatchState } from './pvpLogic'
+import { canJoinWaitingMatch, canReusePrivateRoom, finishPlayer, matchResponse, setReady, updateHp, type MatchState } from './pvpLogic'
 import type { FirebaseServices } from './legacyRunner'
 
 type MatchData = Record<string, unknown>
@@ -75,6 +75,11 @@ async function createOrJoinMatch(rawUserId: unknown, rawName: unknown, rawAvatar
         return { ...matchResponse(created), role: 'Player1' as const }
       }
       const match = asMatch(snapshot.id, snapshot.data())
+      if (canReusePrivateRoom(match)) {
+        const created = createMatch(target.id)
+        transaction.set(target, created)
+        return { ...matchResponse(created), role: 'Player1' as const }
+      }
       if (!canJoinWaitingMatch(match, userId)) throw new Error('ห้องนี้กำลังใช้งานหรือคุณอยู่ในห้องนี้แล้ว')
       const joined = {
         ...match, p2Id: userId, p2Uid: identity.uid, p2Name: name, p2Avatar: avatar,
