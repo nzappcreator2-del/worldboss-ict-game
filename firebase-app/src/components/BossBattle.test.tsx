@@ -90,7 +90,7 @@ describe('BossBattle', () => {
 
     await waitFor(() => expect(service.consumeItem).toHaveBeenCalledWith('u1', 'magnifier'))
     expect(screen.getByRole('button', { name: /ตัดช้อยส์/ }).hasAttribute('disabled')).toBe(true)
-    expect(screen.queryByRole('button', { name: /ผิด 1/ })).toBeNull()
+    expect(screen.queryByText('ผิด 1')).toBeNull()
   })
 
   it('does not heal the player when consuming a potion fails', async () => {
