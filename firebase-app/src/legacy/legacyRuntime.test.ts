@@ -115,4 +115,8 @@ describe('generated legacy compatibility runtime', () => {
     expect(legacyScript).not.toContain('window.closeImageLightbox')
     expect(legacyScript).not.toContain('google.script.run')
   })
+
+  it('keeps the React app container visible when opening PVP', () => {
+    expect(legacyScript).not.toContain("pageId === 'map' || pageId === 'pvp'")
+  })
 })

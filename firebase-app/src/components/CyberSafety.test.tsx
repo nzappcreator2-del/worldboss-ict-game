@@ -31,6 +31,9 @@ describe('CyberSafety', () => {
     fireEvent.click(screen.getByRole('button', { name: /เริ่มภารกิจ/ }))
     expect(await screen.findByText('มีคนส่งลิงก์น่าสงสัยมา')).toBeTruthy()
     expect(service.loadScenarios).toHaveBeenCalledOnce()
+    const eventPanel = screen.getByTestId('cyber-event-panel')
+    expect(eventPanel.className).toContain('bg-slate-950')
+    expect(eventPanel.className).toContain('text-white')
   })
 
   it('reduces shield on a wrong answer and gives retry rewards only after correcting it', async () => {

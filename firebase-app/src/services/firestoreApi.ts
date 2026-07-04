@@ -24,7 +24,7 @@ import {
   type Inventory,
 } from './gameLogic'
 import { sanitizePublicSettings } from './adminLogic'
-import { normalizeUser, rankForXp } from './normalizers'
+import { normalizeCyberScenario, normalizeUser, rankForXp } from './normalizers'
 import type { FirebaseServices } from './legacyRunner'
 import { adminApi } from './adminApi'
 import { aiFallbackApi } from './aiFallbackApi'
@@ -253,7 +253,8 @@ async function getGuildLeaderboard() {
 
 async function getCyberSafetyScenarios() {
   await ensureSignedIn()
-  return { success: true, data: await values('cyberSafetyScenarios') }
+  const scenarios = await values('cyberSafetyScenarios')
+  return { success: true, data: scenarios.map((scenario) => normalizeCyberScenario(String(scenario.id || ''), scenario)) }
 }
 
 async function saveCyberSafetyResult(rawUserId: unknown, rawScore: unknown, rawCoins: unknown, rawXp: unknown) {

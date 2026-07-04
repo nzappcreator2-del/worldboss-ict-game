@@ -155,16 +155,16 @@
             }
         });
 
-        // จัดการ #app container — ซ่อนเมื่อเปิดหน้า map หรือ pvp
+        // จัดการ #app container — หน้า PVP แบบ React อยู่ภายใน #app จึงห้ามซ่อน container
         const appContainer = document.getElementById('app');
         if (appContainer) {
-            if (pageId === 'map' || pageId === 'pvp') {
+            if (pageId === 'map') {
                 appContainer.classList.add('hidden');
             } else {
                 appContainer.classList.remove('hidden');
 
                 // ถ้าเป็นหน้า Dashboard หรือ หน้าอ่านบทเรียน (Lesson) หรือหน้าทำใบงาน หรือหน้าเวิลด์บอส หรือหน้าภัยไซเบอร์ ให้ขยายเต็มหน้าจอ
-                if (pageId === 'dashboard' || pageId === 'lesson' || pageId === 'worksheet' || pageId === 'world-boss' || pageId === 'cyber-safety') {
+                if (pageId === 'dashboard' || pageId === 'lesson' || pageId === 'worksheet' || pageId === 'world-boss' || pageId === 'cyber-safety' || pageId === 'pvp') {
                     appContainer.classList.remove('p-4', 'sm:p-8', 'my-4', 'sm:my-10', 'rounded-3xl', 'max-w-5xl');
                     appContainer.classList.add('p-0', 'my-0', 'rounded-none', 'w-full', 'h-screen', 'max-w-none');
 

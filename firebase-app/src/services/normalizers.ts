@@ -1,5 +1,24 @@
 export type UserRecord = Record<string, unknown>
 
+export function normalizeCyberScenario(id: string, value: Record<string, unknown>) {
+  const migratedSheetShape = value.scenarioText !== undefined || value.scenarioId !== undefined
+  const rawAnswer = Number(value.answerIdx)
+
+  return {
+    ...value,
+    id: String(value.scenarioId || id),
+    timeOfDay: String(value.timeOfDay || ''),
+    title: String(value.title || ''),
+    text: String(value.text || value.scenarioText || ''),
+    opt1: String(value.opt1 || ''),
+    opt2: String(value.opt2 || ''),
+    answerIdx: migratedSheetShape ? Math.max(0, rawAnswer - 1) : Math.max(0, rawAnswer || 0),
+    feedbackWrong: String(value.feedbackWrong || ''),
+    feedbackRight: String(value.feedbackRight || ''),
+    imageSvg: String(value.imageSvg || ''),
+  }
+}
+
 export function rankForXp(rawXp: unknown): string {
   const xp = Number(rawXp) || 0
   if (xp >= 10000) return 'GRANDMASTER'
