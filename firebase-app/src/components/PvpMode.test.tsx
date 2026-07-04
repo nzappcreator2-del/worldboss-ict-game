@@ -35,6 +35,13 @@ function setup() {
 }
 
 describe('PvpMode', () => {
+  it('stays visible after React replaces the legacy active page element', async () => {
+    setup()
+    const page = document.getElementById('page-pvp')
+    expect(await screen.findByRole('heading', { name: 'ศึกประลองความรู้ PVP' })).toBeTruthy()
+    expect(page?.classList.contains('flex')).toBe(true)
+  })
+
   it('validates private PIN before creating a room', async () => {
     const { service } = setup()
     fireEvent.change(await screen.findByPlaceholderText('กรอกรหัสห้อง 4 หลัก'), { target: { value: '12A' } })
