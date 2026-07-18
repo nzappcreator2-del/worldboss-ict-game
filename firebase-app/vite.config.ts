@@ -1,10 +1,11 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import type { Plugin, ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { extname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { extractLegacyBody, migrateLegacyBackendCalls, removeElementById, replaceElementWithPortal, stripHtmlTag } from './src/legacy/legacyDocument'
+import { extractLegacyBody, migrateLegacyBackendCalls, migrateLegacyPageCss, removeElementById, replaceElementWithPortal, stripHtmlTag } from './src/legacy/legacyDocument'
 import { stripLegacyFunctions } from './src/legacy/stripLegacyFunctions'
 import { prepareStandaloneGame } from './src/worldBoss/standaloneGame'
 
@@ -188,6 +189,7 @@ window.nextGenLegacyBridge = {
     if (reward.coins !== undefined) currentUser.coins = reward.coins;
     if (reward.xp !== undefined) currentUser.xp = reward.xp;
     if (reward.streak !== undefined) currentUser.streak = reward.streak;
+    if (reward.inventory !== undefined) currentUser.inventory = reward.inventory;
     window.dispatchEvent(new Event('nextgen:user-updated'));
   },
   setMapData(payload) {
@@ -450,7 +452,7 @@ function closeCertificate() {
       const body = removeElementById(bodyWithoutLessonPreview, 'div', 'image-lightbox-modal')
       return [
         `export const legacyBody = ${JSON.stringify(body)};`,
-        `export const legacyCss = ${JSON.stringify(stripHtmlTag(css, 'style'))};`,
+        `export const legacyCss = ${JSON.stringify(migrateLegacyPageCss(stripHtmlTag(css, 'style')))};`,
         `export const legacyScript = ${JSON.stringify(script)};`,
       ].join('\n')
     },
@@ -459,6 +461,11 @@ function closeCertificate() {
 
 export default defineConfig({
   publicDir: false,
+  // The lesson RPG tests grind long fake-timer combat cycles; under a fully
+  // parallel suite run the default 5s per-test budget flakes on slower CPUs.
+  test: {
+    testTimeout: 20000,
+  },
   build: {
     rollupOptions: {
       output: {

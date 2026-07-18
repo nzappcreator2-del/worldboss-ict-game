@@ -65,6 +65,17 @@ describe('Firestore security rules in the emulator', () => {
     await assertFails(setDoc(doc(player, 'users/U3'), { ...student('player-1', 'U3'), xp: 999 }))
   })
 
+  it('accepts a valid registration gender but keeps it immutable afterwards', async () => {
+    const player = environment.authenticatedContext('player-1').firestore()
+
+    await assertSucceeds(setDoc(doc(player, 'users/U1'), { ...student('player-1', 'U1'), gender: 'male' }))
+    await assertSucceeds(setDoc(doc(player, 'users/U2'), { ...student('player-1', 'U2'), gender: 'female' }))
+    await assertFails(setDoc(doc(player, 'users/U3'), { ...student('player-1', 'U3'), gender: 'dragon' }))
+    await assertFails(updateDoc(doc(player, 'users/U1'), { gender: 'female' }))
+    // Untouched gender must not block normal owner updates.
+    await assertSucceeds(updateDoc(doc(player, 'users/U1'), { xp: 100 }))
+  })
+
   it('isolates progress writes to the owner and enforces the canonical progress id', async () => {
     await seed('users/U1', student('player-1', 'U1'))
     await seed('users/U2', student('player-2', 'U2'))
@@ -153,6 +164,97 @@ describe('Firestore security rules in the emulator', () => {
     await assertFails(setDoc(doc(playerThree, 'pvpMatches/PRIVATE_5678'), { ...replacement, matchId: 'PRIVATE_5678' }))
   })
 
+  it('allows creating, joining, and playing a renovated pvpRooms lobby while blocking outsiders', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('users/U2', student('player-2', 'U2'))
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+    const playerTwo = environment.authenticatedContext('player-2').firestore()
+    const playerThree = environment.authenticatedContext('player-3').firestore()
+    const hostEntry = {
+      uid: 'player-1', name: 'One', avatar: '🧙‍♂️', gender: 'male', equipped: {}, level: 1,
+      stats: { str: 0, vit: 0, dex: 0, luk: 0 }, team: 0, ready: false, hp: 100, maxHp: 100,
+      damageDealt: 0, kills: 0, answersWon: 0,
+    }
+    const room = {
+      roomId: 'PRIVATE_ABCD', mode: 'team', teamSize: 2, isPrivate: true,
+      hostId: 'U1', hostUid: 'player-1', status: 'LOBBY', memberUids: ['player-1'],
+      players: { U1: hostEntry }, battle: null, winnerTeam: null,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }
+
+    await assertSucceeds(setDoc(doc(playerOne, 'pvpRooms/PRIVATE_ABCD'), room))
+    // A stranger cannot create a room for someone else's student profile.
+    await assertFails(setDoc(doc(playerThree, 'pvpRooms/PRIVATE_XYZ1'), { ...room, roomId: 'PRIVATE_XYZ1' }))
+
+    const joinerEntry = { ...hostEntry, uid: 'player-2', name: 'Two', team: 1 }
+    // Joining may only append your own uid to memberUids.
+    await assertFails(updateDoc(doc(playerTwo, 'pvpRooms/PRIVATE_ABCD'), {
+      players: { U1: hostEntry, U2: joinerEntry }, memberUids: ['player-1', 'player-9'], updatedAt: serverTimestamp(),
+    }))
+    await assertSucceeds(updateDoc(doc(playerTwo, 'pvpRooms/PRIVATE_ABCD'), {
+      players: { U1: hostEntry, U2: joinerEntry }, memberUids: ['player-1', 'player-2'], updatedAt: serverTimestamp(),
+    }))
+
+    // Members mutate the shared battle state; outsiders are rejected.
+    await assertSucceeds(updateDoc(doc(playerTwo, 'pvpRooms/PRIVATE_ABCD'), {
+      players: { U1: { ...hostEntry, ready: true }, U2: { ...joinerEntry, ready: true } },
+      status: 'PLAYING',
+      battle: { round: 1, questionIds: ['q1'], lastAction: null, roundStartAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    }))
+    await assertFails(updateDoc(doc(playerThree, 'pvpRooms/PRIVATE_ABCD'), { status: 'CANCELLED', updatedAt: serverTimestamp() }))
+    // Only the host may resize teams.
+    await assertFails(updateDoc(doc(playerTwo, 'pvpRooms/PRIVATE_ABCD'), { teamSize: 3, updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(doc(playerOne, 'pvpRooms/PRIVATE_ABCD'), { teamSize: 3, updatedAt: serverTimestamp() }))
+  })
+
+  it('limits pvp room chat and presence writes to the author', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('pvpRooms/R1', {
+      roomId: 'R1', mode: 'duel', teamSize: 1, isPrivate: false, hostId: 'U1', hostUid: 'player-1',
+      status: 'LOBBY', memberUids: ['player-1'], players: {}, battle: null, winnerTeam: null,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    })
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+
+    await assertSucceeds(setDoc(doc(playerOne, 'pvpRooms/R1/chat/C1'), {
+      uid: 'player-1', userId: 'U1', name: 'One', text: 'สวัสดี', createdAt: serverTimestamp(),
+    }))
+    await assertFails(setDoc(doc(playerOne, 'pvpRooms/R1/chat/C2'), {
+      uid: 'player-9', userId: 'U1', name: 'One', text: 'ปลอมตัว', createdAt: serverTimestamp(),
+    }))
+    await assertFails(setDoc(doc(playerOne, 'pvpRooms/R1/chat/C3'), {
+      uid: 'player-1', userId: 'U1', name: 'One', text: 'x'.repeat(201), createdAt: serverTimestamp(),
+    }))
+
+    await assertSucceeds(setDoc(doc(playerOne, 'pvpRooms/R1/presence/player-1'), {
+      uid: 'player-1', userId: 'U1', x: 50, y: 60, direction: 'down', action: 'walk', updatedAt: serverTimestamp(),
+    }))
+    await assertFails(setDoc(doc(playerOne, 'pvpRooms/R1/presence/player-2'), {
+      uid: 'player-2', userId: 'U2', x: 50, y: 60, direction: 'down', action: 'walk', updatedAt: serverTimestamp(),
+    }))
+    await assertFails(setDoc(doc(playerOne, 'pvpRooms/R1/presence/player-1'), {
+      uid: 'player-1', userId: 'U1', x: 500, y: 60, direction: 'down', action: 'walk', updatedAt: serverTimestamp(),
+    }))
+  })
+
+  it('bounds pvp ranking writes to one match per update on your own ladder row', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+    const playerTwo = environment.authenticatedContext('player-2').firestore()
+    const row = {
+      userId: 'U1', name: 'One', avatar: '🧙‍♂️', level: 1, class: 'ป.5',
+      wins: 1, losses: 0, rating: 25, matches: 1, updatedAt: serverTimestamp(),
+    }
+
+    await assertFails(setDoc(doc(playerTwo, 'pvpRankings/U1'), row))
+    await assertFails(setDoc(doc(playerOne, 'pvpRankings/U1'), { ...row, rating: 500 }))
+    await assertSucceeds(setDoc(doc(playerOne, 'pvpRankings/U1'), row))
+    await assertFails(updateDoc(doc(playerOne, 'pvpRankings/U1'), { wins: 5, rating: 50, matches: 2, updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(doc(playerOne, 'pvpRankings/U1'), { wins: 2, rating: 200, matches: 2, updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(doc(playerOne, 'pvpRankings/U1'), { wins: 2, rating: 50, matches: 2, updatedAt: serverTimestamp() }))
+  })
+
   it('allows only an admin to delete student data', async () => {
     await seed('users/U1', student('player-1', 'U1'))
     const player = environment.authenticatedContext('player-1').firestore()
@@ -160,5 +262,70 @@ describe('Firestore security rules in the emulator', () => {
 
     await assertFails(deleteDoc(doc(player, 'users/U1')))
     await assertSucceeds(deleteDoc(doc(admin, 'users/U1')))
+  })
+
+  it('hides full user documents from other players while keeping the owner and admin reads', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('users/U2', student('player-2', 'U2'))
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+    const admin = environment.authenticatedContext('admin-1', { email: 'admin@nextgen-play.local' }).firestore()
+
+    await assertSucceeds(getDoc(doc(playerOne, 'users/U1')))
+    await assertFails(getDoc(doc(playerOne, 'users/U2')))
+    await assertSucceeds(getDoc(doc(admin, 'users/U2')))
+  })
+
+  it('exposes only the reduced directory profile to signed-in players', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('directory/U1', { name: 'Student U1', class: 'ป.5', avatar: '🧙‍♂️', xp: 0, level: 1, rank: 'BRONZE', updatedAt: serverTimestamp() })
+    const playerTwo = environment.authenticatedContext('player-2').firestore()
+    const guest = environment.unauthenticatedContext().firestore()
+
+    await assertSucceeds(getDoc(doc(playerTwo, 'directory/U1')))
+    await assertFails(getDoc(doc(guest, 'directory/U1')))
+    await assertFails(setDoc(doc(playerTwo, 'directory/U1'), { name: 'Hacked', class: 'ป.5', avatar: '😈', xp: 0, level: 1, rank: 'BRONZE', updatedAt: serverTimestamp() }))
+  })
+
+  it('lets the owner mirror their reduced directory entry but rejects extra fields', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+    const entry = { name: 'Student U1', class: 'ป.5', avatar: '🧙‍♂️', xp: 100, level: 2, rank: 'BRONZE', updatedAt: serverTimestamp() }
+
+    await assertSucceeds(setDoc(doc(playerOne, 'directory/U1'), entry))
+    await assertFails(setDoc(doc(playerOne, 'directory/U1'), { ...entry, coins: 999 }))
+  })
+
+  it('bounds per-write XP and coin deltas for player-owned updates', async () => {
+    await seed('users/U1', { ...student('player-1', 'U1'), xp: 500, coins: 500, level: 6 })
+    const playerOne = environment.authenticatedContext('player-1').firestore()
+    const admin = environment.authenticatedContext('admin-1', { email: 'admin@nextgen-play.local' }).firestore()
+
+    await assertSucceeds(updateDoc(doc(playerOne, 'users/U1'), { xp: 1000, coins: 700, level: 11, rank: 'GOLD' }))
+    await assertFails(updateDoc(doc(playerOne, 'users/U1'), { xp: 99999 }))
+    await assertFails(updateDoc(doc(playerOne, 'users/U1'), { xp: 500 }))
+    await assertFails(updateDoc(doc(playerOne, 'users/U1'), { coins: 99999 }))
+    await assertFails(updateDoc(doc(playerOne, 'users/U1'), { streak: 50 }))
+    await assertFails(updateDoc(doc(playerOne, 'users/U1'), { rank: 'CHEATER' }))
+    await assertSucceeds(updateDoc(doc(admin, 'users/U1'), { xp: 99999 }))
+  })
+
+  it('reopens the one-shot claim after an admin unbinds the owner', async () => {
+    await seed('users/U1', { ...student('player-1', 'U1'), ownerUid: null })
+    const playerTwo = environment.authenticatedContext('player-2').firestore()
+
+    await assertSucceeds(updateDoc(doc(playerTwo, 'users/U1'), { ownerUid: 'player-2', lastLogin: serverTimestamp() }))
+    const playerThree = environment.authenticatedContext('player-3').firestore()
+    await assertFails(updateDoc(doc(playerThree, 'users/U1'), { ownerUid: 'player-3' }))
+  })
+
+  it('accepts bounded client error reports but reserves reads for the admin', async () => {
+    const player = environment.authenticatedContext('player-1').firestore()
+    const admin = environment.authenticatedContext('admin-1', { email: 'admin@nextgen-play.local' }).firestore()
+    const report = { message: 'TypeError: boom', stack: 'at somewhere', source: 'window.onerror', userAgent: 'test-agent', createdAt: serverTimestamp() }
+
+    await assertSucceeds(setDoc(doc(player, 'clientErrors/E1'), report))
+    await assertFails(setDoc(doc(player, 'clientErrors/E2'), { ...report, message: 'x'.repeat(1001) }))
+    await assertFails(getDoc(doc(player, 'clientErrors/E1')))
+    await assertSucceeds(getDoc(doc(admin, 'clientErrors/E1')))
   })
 })

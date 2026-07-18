@@ -15,6 +15,10 @@ export const adminDb = getFirestore(adminApp)
 let persistenceTask: Promise<void> | undefined
 
 export async function ensureAdminSession(password: unknown) {
+  // Reuse the live session: signing in once per admin action hammers the
+  // Firebase Auth endpoint and risks a mid-class rate-limit lockout.
+  const current = adminAuth.currentUser
+  if (current && current.email === ADMIN_EMAIL) return current
   const cleanPassword = String(password || '')
   if (!cleanPassword) throw new Error('กรุณาระบุรหัสผ่านผู้ดูแลระบบ')
   persistenceTask ??= setPersistence(adminAuth, browserSessionPersistence)

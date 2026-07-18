@@ -11,7 +11,14 @@ let authTask: ReturnType<typeof signInAnonymously> | undefined
 
 export async function ensureSignedIn() {
   if (auth.currentUser) return auth.currentUser
-  authTask ??= signInAnonymously(auth)
+  if (!authTask) {
+    // Clear the cached task on failure so a flaky network doesn't poison
+    // every later call with the same rejected promise.
+    authTask = signInAnonymously(auth)
+    authTask.catch(() => {
+      authTask = undefined
+    })
+  }
   const credential = await authTask
   return credential.user
 }

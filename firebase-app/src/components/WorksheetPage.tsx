@@ -2,9 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createWorksheetDownload, drawWorksheetCanvas, type WorksheetUser } from './worksheetCanvas'
 
 export type WorksheetLesson = { id: string; title: string; content?: string; worksheetUrl?: string }
-export type WorksheetService = { getCurrentLesson(): WorksheetLesson | null; getCurrentUser(): WorksheetUser | null }
+export type WorksheetSubmissionStats = { xp: number; coins: number; level: number; rank: string; gainedXp: number; gainedCoins: number }
+export type WorksheetSubmissionResult = { success: boolean; firstSubmission?: boolean; stats?: WorksheetSubmissionStats; error?: string }
+export type WorksheetService = {
+  getCurrentLesson(): WorksheetLesson | null
+  getCurrentUser(): WorksheetUser | null
+  saveSubmission?(lessonId: string, answer: string): Promise<WorksheetSubmissionResult>
+}
 type DrawWorksheet = (canvas: HTMLCanvasElement, lesson: WorksheetLesson, user: WorksheetUser | null, answer: string) => Promise<void | string>
-type Props = { service: WorksheetService; onBack(): void; draw?: DrawWorksheet }
+type SubmitState = '' | 'saving' | 'saved-first' | 'saved-again' | 'save-failed'
+type Props = { service: WorksheetService; onBack(): void; onUserUpdate?(stats: WorksheetSubmissionStats): void; draw?: DrawWorksheet }
 
 const defaultDraw: DrawWorksheet = async (canvas, lesson, user, answer) => {
   await drawWorksheetCanvas(canvas, lesson, user, answer)
@@ -25,11 +32,13 @@ function drivePreview(url: string) {
   return match ? `https://drive.google.com/file/d/${match[1]}/preview` : url
 }
 
-export function WorksheetPage({ service, onBack, draw = defaultDraw }: Props) {
+export function WorksheetPage({ service, onBack, onUserUpdate, draw = defaultDraw }: Props) {
   const [lesson, setLesson] = useState<WorksheetLesson | null>(null)
   const [answer, setAnswer] = useState('')
   const [validation, setValidation] = useState('')
   const [preview, setPreview] = useState('')
+  const [submitState, setSubmitState] = useState<SubmitState>('')
+  const [rewardStats, setRewardStats] = useState<WorksheetSubmissionStats | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const open = useCallback(() => {
@@ -37,6 +46,8 @@ export function WorksheetPage({ service, onBack, draw = defaultDraw }: Props) {
     setAnswer('')
     setValidation('')
     setPreview('')
+    setSubmitState('')
+    setRewardStats(null)
   }, [service])
 
   useEffect(() => {
@@ -47,6 +58,7 @@ export function WorksheetPage({ service, onBack, draw = defaultDraw }: Props) {
   if (!lesson) return <section id="page-worksheet" className="hidden" />
   const url = safeUrl(lesson.worksheetUrl)
   const classroom = url.includes('classroom.google.com')
+  const googleWorkspace = url.includes('docs.google.com')
   const image = /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(url)
   const drive = url.includes('drive.google.com')
 
@@ -61,6 +73,22 @@ export function WorksheetPage({ service, onBack, draw = defaultDraw }: Props) {
     setValidation('')
     const dataUrl = await draw(canvas, lesson, service.getCurrentUser(), clean)
     setPreview(typeof dataUrl === 'string' ? dataUrl : 'data:image/png;base64,')
+    // Online copy for the teacher plus the one-time study reward; the PNG flow
+    // above already succeeded, so a failed save must never block the download.
+    if (!service.saveSubmission) return
+    setSubmitState('saving')
+    setRewardStats(null)
+    try {
+      const saved = await service.saveSubmission(lesson.id, clean)
+      if (!saved.success) throw new Error(saved.error || 'save failed')
+      setSubmitState(saved.firstSubmission ? 'saved-first' : 'saved-again')
+      if (saved.stats) {
+        setRewardStats(saved.stats)
+        onUserUpdate?.(saved.stats)
+      }
+    } catch {
+      setSubmitState('save-failed')
+    }
   }
 
   const download = () => {
@@ -77,11 +105,16 @@ export function WorksheetPage({ service, onBack, draw = defaultDraw }: Props) {
     <section id="page-worksheet" className="flex-1 flex flex-col relative z-20 p-4 md:p-8 h-full overflow-y-auto">
       <div className="flex items-center justify-between mb-4 gap-2"><button type="button" onClick={onBack} className="btn-action text-blue-800 font-black bg-blue-100 px-5 py-2.5 rounded-xl">← กลับสู่บทเรียน</button><h2 className="rpg-title text-2xl text-white">📝 ทำใบงาน</h2></div>
       <div className="flex flex-col lg:flex-row gap-6 w-full h-full flex-1 min-h-0">
-        <div className="flex-1 rpg-box bg-white/90 p-4 md:p-6 rounded-3xl overflow-y-auto min-h-[30vh]"><h3 className="text-xl font-bold text-gray-800 mb-2 border-b-2 pb-2">📖 สรุปเนื้อหาใบงาน</h3><div className="text-gray-700 whitespace-pre-wrap">{lesson.content || 'ไม่มีเนื้อหาใบงาน'}</div>{url && <div className="mt-4"><a href={url} target="_blank" rel="noreferrer" className="w-full text-center text-blue-800 font-extrabold bg-blue-50 border-2 border-blue-300 p-4 rounded-xl flex flex-col items-center">🔗 <span className="underline">คลิกเปิดลิงก์ต้นฉบับ / Classroom</span></a></div>}{classroom && <div className="mt-3 text-center p-4 bg-gray-100 rounded-xl text-gray-500 font-bold border-2 border-dashed">Classroom ไม่อนุญาตให้แสดงแบบฝัง กรุณาเปิดจากลิงก์ด้านบน</div>}{image && <img src={url} alt="ใบงานประกอบบทเรียน" className="w-full h-auto object-contain rounded-lg mt-3 border-2" />}{drive && <iframe src={drivePreview(url)} title="ตัวอย่างใบงาน" className="w-full h-[500px] mt-3 rounded-xl border-2" allow="autoplay; encrypted-media" />}{url && !classroom && !image && !drive && <iframe src={url} title="ตัวอย่างใบงาน" sandbox="allow-forms allow-scripts allow-same-origin" className="w-full h-[500px] mt-3 rounded-xl border-2" />}</div>
+        <div className="flex-1 rpg-box bg-white/90 p-4 md:p-6 rounded-3xl overflow-y-auto min-h-[30vh]"><h3 className="text-xl font-bold text-gray-800 mb-2 border-b-2 pb-2">📖 สรุปเนื้อหาใบงาน</h3><div className="text-gray-700 whitespace-pre-wrap">{lesson.content || 'ไม่มีเนื้อหาใบงาน'}</div>{url && <div className="mt-4"><a href={url} target="_blank" rel="noreferrer" className="w-full text-center text-blue-800 font-extrabold bg-blue-50 border-2 border-blue-300 p-4 rounded-xl flex flex-col items-center">🔗 <span className="underline">คลิกเปิดลิงก์ต้นฉบับ / Classroom</span></a></div>}{classroom && <div className="mt-3 text-center p-4 bg-gray-100 rounded-xl text-gray-500 font-bold border-2 border-dashed">Classroom ไม่อนุญาตให้แสดงแบบฝัง กรุณาเปิดจากลิงก์ด้านบน</div>}{googleWorkspace && <div className="mt-3 text-center p-4 bg-gray-100 rounded-xl text-gray-500 font-bold border-2 border-dashed">Google Docs ไม่อนุญาตให้แสดงหน้าแก้ไขแบบฝังอย่างปลอดภัย กรุณาเปิดจากลิงก์ด้านบน</div>}{image && <img src={url} alt="ใบงานประกอบบทเรียน" className="w-full h-auto object-contain rounded-lg mt-3 border-2" />}{drive && <iframe src={drivePreview(url)} title="ตัวอย่างใบงาน" className="w-full h-[500px] mt-3 rounded-xl border-2" allow="autoplay; encrypted-media" />}{url && !classroom && !googleWorkspace && !image && !drive && <iframe src={url} title="ตัวอย่างใบงาน" sandbox="allow-forms allow-scripts allow-same-origin allow-presentation" className="w-full h-[500px] mt-3 rounded-xl border-2" />}</div>
         <div className="flex-1 rpg-box bg-blue-50/90 border-[3px] border-blue-200 p-4 md:p-6 rounded-3xl flex flex-col"><h3 className="text-xl font-bold text-blue-800 mb-2 border-b-2 border-blue-200 pb-2">✏️ พื้นที่ตอบคำถาม / ส่งงาน</h3><p className="text-sm text-gray-600 mb-4 font-bold">พิมพ์สรุปความรู้หรือตอบคำถามจากเนื้อหาด้านซ้าย</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} className="w-full flex-1 rounded-xl p-4 text-gray-800 text-lg border-2 border-blue-300 resize-none" placeholder="พิมพ์ส่งงาน หรือ สรุปความรู้ได้ที่นี่..." />{validation && <p className="text-red-600 font-bold mt-2">{validation}</p>}<button type="button" onClick={() => void submit()} className="w-full btn-arcade py-4 text-xl mt-4">✅ บันทึกและรับรูปใบงาน</button></div>
       </div>
       <canvas ref={canvasRef} width="1200" height="800" className="hidden" />
-      {preview && <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-gray-100 rounded-3xl p-6 md:p-8 max-w-2xl w-full flex flex-col items-center"><h3 className="text-3xl font-black text-green-600 mb-2">🎉 บันทึกใบงานสำเร็จ!</h3><p className="text-gray-600 font-bold mb-6 text-center">บันทึกรูปไว้เป็นผลงาน แล้วแนบส่งใน Classroom ได้เลย</p><img src={preview} alt="ตัวอย่างใบงานที่สร้าง" className="max-h-[40vh] object-contain rounded-lg border-4 mb-6" /><button type="button" onClick={download} className="w-full btn-action bg-blue-500 text-white font-bold py-4 text-xl rounded-xl">⬇️ เซฟรูปใบงานเก็บไว้ส่ง</button><a href="https://classroom.google.com/" target="_blank" rel="noreferrer" className="w-full mt-3 bg-white border-4 border-green-600 text-green-700 font-bold py-4 text-xl rounded-xl text-center">เข้า Classroom เพื่อส่งงาน</a><button type="button" onClick={() => setPreview('')} className="mt-4 text-gray-500 font-bold underline">ปิดหน้าต่างเพื่อพิมพ์ใหม่</button></div></div>}
+      {preview && <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-gray-100 rounded-3xl p-6 md:p-8 max-w-2xl w-full flex flex-col items-center"><h3 className="text-3xl font-black text-green-600 mb-2">🎉 บันทึกใบงานสำเร็จ!</h3><p className="text-gray-600 font-bold mb-2 text-center">บันทึกรูปไว้เป็นผลงาน แล้วแนบส่งใน Classroom ได้เลย</p>
+        {submitState === 'saving' && <p className="text-blue-600 font-bold mb-4 text-center">⏳ กำลังบันทึกส่งครูออนไลน์...</p>}
+        {submitState === 'saved-first' && rewardStats && <p data-testid="worksheet-reward" className="text-amber-600 font-black mb-4 text-center bg-amber-100 border-2 border-amber-300 rounded-xl px-4 py-2">🎁 ส่งงานถึงครูแล้ว! ได้รับ +{rewardStats.gainedXp} XP +{rewardStats.gainedCoins} เหรียญ</p>}
+        {submitState === 'saved-again' && <p className="text-blue-700 font-bold mb-4 text-center">📮 ส่งฉบับใหม่ถึงครูแล้ว (รางวัลรับได้เฉพาะครั้งแรก)</p>}
+        {submitState === 'save-failed' && <p className="text-orange-600 font-bold mb-4 text-center">⚠️ บันทึกส่งครูออนไลน์ไม่สำเร็จ — ยังดาวน์โหลดรูปไปส่งใน Classroom ได้ตามปกติ</p>}
+        <img src={preview} alt="ตัวอย่างใบงานที่สร้าง" className="max-h-[40vh] object-contain rounded-lg border-4 mb-6" /><button type="button" onClick={download} className="w-full btn-action bg-blue-500 text-white font-bold py-4 text-xl rounded-xl">⬇️ เซฟรูปใบงานเก็บไว้ส่ง</button><a href="https://classroom.google.com/" target="_blank" rel="noreferrer" className="w-full mt-3 bg-white border-4 border-green-600 text-green-700 font-bold py-4 text-xl rounded-xl text-center">เข้า Classroom เพื่อส่งงาน</a><button type="button" onClick={() => setPreview('')} className="mt-4 text-gray-500 font-bold underline">ปิดหน้าต่างเพื่อพิมพ์ใหม่</button></div></div>}
     </section>
   )
 }

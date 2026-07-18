@@ -1,17 +1,43 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  TEST_CHARACTER_SPRITE,
+  directionForKey,
+  directionTowardTarget,
+  movementStepForElapsed,
+  nextWalkFrame,
+  spriteBackgroundPosition,
+  type CharacterPosition,
+  type WalkDirection,
+} from './dashboardCharacter'
+import {
+  MAP_START_POSITION,
+  MAP_MANUAL_SPEED,
+  autoWalkDuration,
+  lessonNodePosition,
+  mapPointerPosition,
+  moveMapCharacter,
+} from './adventureMapLogic'
+import { characterLayerImages } from './characterAssets'
+import { LESSON_MAP_ICON_IMAGES } from './lessonUiAssets'
+import { entranceTemplateForLesson } from './mapEntranceTemplates'
+import { VirtualJoystick } from './VirtualJoystick'
+import iconBook from '../assets/ui/icon-book.png'
 
 export type MapLesson = {
   id: string
   title: string
   description: string
   icon: string
+  mapStyle?: string
 }
 
 export type MapUser = {
   id: string
   avatar?: string
+  gender?: string
   passedLessons?: string[]
+  inventory?: unknown
 }
 
 export type MapResult = {
@@ -31,24 +57,107 @@ type Props = {
   onSelectLesson(lessonId: string): void
 }
 
-const positions = [
-  [25, 88], [60, 82], [80, 65], [45, 55], [18, 45],
-  [45, 35], [80, 25], [58, 15], [35, 12], [15, 8],
+const regionNames = [
+  'สะพานแห่งบทเรียน', 'หลักการทำงานของคอมพิวเตอร์', 'ป่าความลับเห็ด',
+  'อาณาจักรทะเลทราย', 'หุบเขาหิมะ', 'เส้นทางนักสำรวจ',
+  'ที่ราบแห่งความรู้', 'ช่องเขาผจญภัย', 'หมู่บ้านปัญญา',
+  'ป่าต้นไม้แห่งความรู้', 'ปราสาทแห่งปัญญา', 'ยอดเขานักปราชญ์',
 ]
 
 export function AdventureMap({ service, onSelectLesson }: Props) {
   const [lessons, setLessons] = useState<MapLesson[]>([])
   const [passed, setPassed] = useState<string[]>([])
-  const [avatar, setAvatar] = useState('🧙‍♂️')
+  const [avatar, setAvatar] = useState('🧙')
+  const [heroInventory, setHeroInventory] = useState<unknown>(undefined)
+  const [heroGender, setHeroGender] = useState<string | undefined>(undefined)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [preview, setPreview] = useState<MapLesson | null>(null)
+  const [position, setPosition] = useState<CharacterPosition>(MAP_START_POSITION)
+  const [direction, setDirection] = useState<WalkDirection>('down')
+  const [frame, setFrame] = useState(0)
+  const [walking, setWalking] = useState(false)
+  const [transitionMs, setTransitionMs] = useState(0)
+  const walkTimer = useRef<number | null>(null)
+  const frameTimer = useRef<number | null>(null)
+  const heldMoveTimer = useRef<number | null>(null)
+  const heldFrameTimer = useRef<number | null>(null)
+  const heldDirection = useRef<WalkDirection | null>(null)
+  const positionRef = useRef<CharacterPosition>(MAP_START_POSITION)
+
+  const stopWalk = useCallback(() => {
+    if (walkTimer.current !== null) window.clearTimeout(walkTimer.current)
+    if (frameTimer.current !== null) window.clearInterval(frameTimer.current)
+    walkTimer.current = null
+    frameTimer.current = null
+    setWalking(false)
+    setFrame(0)
+  }, [])
+
+  const stopHeldMove = useCallback(() => {
+    if (heldMoveTimer.current !== null) window.clearInterval(heldMoveTimer.current)
+    if (heldFrameTimer.current !== null) window.clearInterval(heldFrameTimer.current)
+    heldMoveTimer.current = null
+    heldFrameTimer.current = null
+    heldDirection.current = null
+    setWalking(false)
+    setFrame(0)
+  }, [])
+
+  const stepManualMove = useCallback((nextDirection: WalkDirection, elapsedMs = 16) => {
+    setDirection(nextDirection)
+    setTransitionMs(0)
+    setWalking(true)
+    const nextPosition = moveMapCharacter(positionRef.current, nextDirection, movementStepForElapsed(elapsedMs, MAP_MANUAL_SPEED))
+    positionRef.current = nextPosition
+    setPosition(nextPosition)
+  }, [])
+
+  const startHeldMove = useCallback((nextDirection: WalkDirection) => {
+    stopWalk()
+    if (heldDirection.current === nextDirection && heldMoveTimer.current !== null) return
+    stopHeldMove()
+    heldDirection.current = nextDirection
+    setDirection(nextDirection)
+    setTransitionMs(0)
+    setWalking(true)
+    heldMoveTimer.current = window.setInterval(() => {
+      const activeDirection = heldDirection.current
+      if (activeDirection) stepManualMove(activeDirection)
+    }, 16)
+    heldFrameTimer.current = window.setInterval(() => {
+      setFrame((current) => nextWalkFrame(current, TEST_CHARACTER_SPRITE.walkFrames.length))
+    }, 110)
+  }, [stepManualMove, stopHeldMove, stopWalk])
+
+  const walkTo = useCallback((target: CharacterPosition, lesson?: MapLesson) => {
+    stopWalk()
+    const duration = autoWalkDuration(positionRef.current, target)
+    setDirection(directionTowardTarget(positionRef.current, target))
+    setTransitionMs(duration)
+    setWalking(duration > 0)
+    positionRef.current = target
+    setPosition(target)
+    if (duration === 0) {
+      if (lesson) setPreview(lesson)
+      return
+    }
+    frameTimer.current = window.setInterval(() => {
+      setFrame((current) => nextWalkFrame(current, TEST_CHARACTER_SPRITE.walkFrames.length))
+    }, 90)
+    walkTimer.current = window.setTimeout(() => {
+      stopWalk()
+      if (lesson) setPreview(lesson)
+    }, duration)
+  }, [stopWalk])
 
   const load = useCallback(async () => {
     const user = service.getCurrentUser()
     if (!user) return
     setStatus('loading')
     setPreview(null)
-    setAvatar(user.avatar || '🧙‍♂️')
+    setAvatar(user.avatar || '🧙')
+    setHeroInventory(user.inventory)
+    setHeroGender(user.gender)
     try {
       const result = await service.loadLessons(user.id)
       if (!result.success) throw new Error(result.error || 'load failed')
@@ -65,6 +174,19 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
     return () => window.removeEventListener('nextgen:open-map', load)
   }, [load])
 
+  // Live outfit sync: re-read the hero after shop/bag changes so the map
+  // character redraws its layers without a page refresh.
+  useEffect(() => {
+    const sync = () => {
+      const user = service.getCurrentUser()
+      if (!user) return
+      setAvatar(user.avatar || '🧙')
+      setHeroInventory(user.inventory ? { ...(user.inventory as Record<string, unknown>) } : undefined)
+    }
+    window.addEventListener('nextgen:user-updated', sync)
+    return () => window.removeEventListener('nextgen:user-updated', sync)
+  }, [service])
+
   useEffect(() => {
     if (!preview) return
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPreview(null) }
@@ -72,60 +194,169 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
     return () => window.removeEventListener('keydown', close)
   }, [preview])
 
-  let foundCurrent = false
+  useEffect(() => {
+    const keyDown = (event: KeyboardEvent) => {
+      if (status !== 'ready') return
+      const target = event.target
+      if (target instanceof Element && target.matches('input, textarea, select, button, [contenteditable="true"]')) return
+      const nextDirection = directionForKey(event.key)
+      if (!nextDirection) return
+      event.preventDefault()
+      startHeldMove(nextDirection)
+    }
+    const keyUp = (event: KeyboardEvent) => {
+      const nextDirection = directionForKey(event.key)
+      if (nextDirection && heldDirection.current === nextDirection) {
+        setDirection(nextDirection)
+        stopHeldMove()
+      }
+    }
+    window.addEventListener('keydown', keyDown)
+    window.addEventListener('keyup', keyUp)
+    return () => {
+      window.removeEventListener('keydown', keyDown)
+      window.removeEventListener('keyup', keyUp)
+    }
+  }, [startHeldMove, status, stopHeldMove])
+
+  useEffect(() => () => {
+    stopWalk()
+    stopHeldMove()
+  }, [stopHeldMove, stopWalk])
+
+  const routePoints = useMemo(
+    () => lessons.map((_, index) => {
+      const point = lessonNodePosition(index)
+      return `${point.x},${point.y}`
+    }).join(' '),
+    [lessons],
+  )
+
+  const currentLessonIndex = lessons.findIndex((lesson, index) => {
+    const unlocked = index === 0 || passed.includes(String(lessons[index - 1]?.id))
+    return unlocked && !passed.includes(String(lesson.id))
+  })
+
+  const characterSize = 96
+  const characterStyle: CSSProperties = {
+    left: `${position.x}%`,
+    top: `${position.y}%`,
+    width: `${characterSize}px`,
+    height: `${characterSize}px`,
+    transitionDuration: `${transitionMs}ms`,
+    backgroundImage: characterLayerImages(heroInventory, heroGender),
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: `${TEST_CHARACTER_SPRITE.columns * characterSize}px ${TEST_CHARACTER_SPRITE.rows * characterSize}px`,
+    backgroundPosition: spriteBackgroundPosition(TEST_CHARACTER_SPRITE, direction, frame, characterSize),
+  }
+
+  const moveFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (status !== 'ready' || event.button > 0) return
+    const target = event.target
+    if (target instanceof Element && target.closest('button, .map-lesson-card, .map-move-controls')) return
+    walkTo(mapPointerPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()))
+  }
+
+  const manualMove = (nextDirection: WalkDirection) => {
+    stepManualMove(nextDirection, 34)
+    setFrame((current) => nextWalkFrame(current, TEST_CHARACTER_SPRITE.walkFrames.length))
+    window.setTimeout(stopHeldMove, 80)
+  }
 
   return (
-    <div id="dash-tab-map" className="flex flex-1 flex-col rounded-2xl overflow-hidden relative glass-card bg-white/70 backdrop-blur-md border-[3px] md:border-4 border-white/80 shadow-2xl p-1 md:p-3">
-      <div className="absolute top-4 left-4 z-30 pointer-events-none drop-shadow-lg">
-        <h2 className="font-mali text-4xl md:text-5xl font-black text-[#5a78b5] tracking-wide" style={{ textShadow: '3px 3px 0 #fff, -3px -3px 0 #fff, 0 8px 15px rgba(0,0,0,.2)' }}>
-          แผนที่ผจญภัย
-        </h2>
-      </div>
-      <div className="rpg-box rpg-box-wood flex-1 relative overflow-auto rounded-3xl border-[6px] border-[#8b5a2b] shadow-2xl m-1 md:m-2 mt-24 md:mt-2 bg-[#a7f3d0]">
-        <div className="relative w-[1000px] md:w-full h-full min-h-[562px] mx-auto bg-center bg-no-repeat" style={{ backgroundImage: "url('https://i.postimg.cc/FFTrYGRw/hn-ale-xkmap.png')", backgroundSize: '100% 100%' }}>
-          {status === 'loading' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 text-white font-bold">กำลังสอดแนมพื้นที่...</div>}
-          {status === 'error' && <div className="absolute inset-0 z-40 flex flex-col gap-3 items-center justify-center bg-black/40"><p className="bg-white px-5 py-3 rounded-xl font-bold text-red-600">โหลดแผนที่ไม่สำเร็จ</p><button className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold" onClick={load}>ลองใหม่</button></div>}
-          {status === 'ready' && lessons.length === 0 && <div className="absolute inset-0 flex items-center justify-center"><div className="bg-white/85 p-6 rounded-2xl text-center"><div className="text-4xl">🚧</div><h3 className="text-xl font-bold">ยังไม่มีด่านผจญภัย</h3></div></div>}
-          {lessons.map((lesson, index) => {
-            const unlocked = index === 0 || passed.includes(String(lessons[index - 1]?.id))
-            const cleared = passed.includes(String(lesson.id))
-            const current = unlocked && !cleared && !foundCurrent
-            if (current) foundCurrent = true
-            const [x, y] = positions[index] || [index % 2 ? 70 : 30, 90 + (index - positions.length) * 15]
-            return (
-              <div key={lesson.id} className={`absolute -translate-x-1/2 -translate-y-1/2 group ${current ? 'z-[60]' : 'z-20'}`} style={{ left: `${x}%`, top: `${y}%` }}>
-                {current && <div className="absolute -top-14 left-1/2 -translate-x-1/2 text-4xl bg-white rounded-full w-14 h-14 flex items-center justify-center border-4 border-[#5a78b5] shadow-lg animate-bounce">{avatar}</div>}
-                <button
-                  type="button"
-                  disabled={!unlocked}
-                  aria-label={unlocked ? `เล่นด่าน ${lesson.title}` : `ด่านล็อก ${lesson.title}`}
-                  onClick={() => setPreview(lesson)}
-                  className={`relative w-16 h-16 md:w-20 md:h-20 rounded-full border-4 flex items-center justify-center text-3xl md:text-4xl shadow-xl transition-transform ${unlocked ? 'bg-yellow-100 border-yellow-500 hover:scale-110' : 'bg-gray-300 border-gray-500 grayscale opacity-70 cursor-not-allowed'}`}
-                >
-                  {unlocked ? lesson.icon : '🔒'}
-                  <span className="absolute -top-2 -right-2 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold border-2 border-white">{cleared ? '✓' : index + 1}</span>
-                </button>
-                <div className={`absolute left-1/2 -translate-x-1/2 w-[220px] bg-[#d4a373] border-4 border-[#8b5a2b] rounded-xl px-4 py-2 text-center shadow-lg pointer-events-none ${current ? 'bottom-full mb-16' : 'bottom-full mb-2 opacity-0 group-hover:opacity-100'}`}>
-                  <h4 className="font-bold text-[#5c3a21] text-sm">{lesson.title}</h4>
-                  <p className="text-[10px] font-bold text-[#5c3a21]">{!unlocked ? '🔒 ต้องผ่านด่านก่อนหน้า' : cleared ? '⭐ เล่นซ้ำได้' : 'คลิกบุกโจมตี ⚔️'}</p>
-                </div>
-              </div>
-            )
-          })}
+    <div id="dash-tab-map" className="adventure-map" data-testid="adventure-map">
+      <div className="adventure-map-vignette" aria-hidden="true" />
+      <div className="adventure-map-title" aria-hidden="true"><span>◆</span> แผนที่การผจญภัย <span>◆</span></div>
+
+      <div className="adventure-map-world" data-testid="map-world" onPointerDown={moveFromPointer}>
+        <svg className="map-route-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={routePoints} />
+        </svg>
+
+        {status === 'loading' && <div className="map-status-overlay"><span className="map-loader">◆</span><strong>กำลังเปิดแผนที่...</strong></div>}
+        {status === 'error' && <div className="map-status-overlay error"><strong>โหลดแผนที่ไม่สำเร็จ</strong><button type="button" onClick={load}>ลองใหม่</button></div>}
+        {status === 'ready' && lessons.length === 0 && <div className="map-status-overlay"><span>🏗️</span><strong>ยังไม่มีด่านผจญภัย</strong></div>}
+
+        {lessons.map((lesson, index) => {
+          const unlocked = index === 0 || passed.includes(String(lessons[index - 1]?.id))
+          const cleared = passed.includes(String(lesson.id))
+          const current = index === currentLessonIndex
+          const node = lessonNodePosition(index)
+          const template = entranceTemplateForLesson(lesson.mapStyle, index)
+          return <div
+            key={lesson.id}
+            className={`map-lesson-card ${unlocked ? 'unlocked' : 'locked'} ${cleared ? 'cleared' : ''} ${current ? 'current' : ''}`}
+            style={{ left: `${node.x}%`, top: `${node.y}%` }}
+          >
+            {current && <div className="map-current-callout"><strong>{lesson.title}</strong><small>คลิกเพื่อเดินไปยังบทเรียน ⚔️</small></div>}
+            <button
+              type="button"
+              data-testid={`lesson-node-${lesson.id}`}
+              data-entrance={template.id}
+              disabled={!unlocked}
+              aria-label={unlocked ? `เล่นด่าน ${lesson.title}` : `ด่านล็อก ${lesson.title}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (unlocked) walkTo(node, lesson)
+              }}
+            >
+              <span className="map-entrance-ring" aria-hidden="true" />
+              <span className="map-entrance-art" aria-hidden="true"><template.Art /></span>
+              {!unlocked && <span className="map-entrance-lock" aria-hidden="true">
+                <img src={LESSON_MAP_ICON_IMAGES.locked} alt="" draggable={false} />
+              </span>}
+              <b>{cleared ? '✓' : index + 1}</b>
+            </button>
+            <div className="map-node-label"><span>{regionNames[index] || lesson.title}</span>{!unlocked && <i aria-hidden="true"><img src={LESSON_MAP_ICON_IMAGES.locked} alt="" className="map-node-lock-icon-small" draggable={false} /></i>}</div>
+          </div>
+        })}
+
+        <div
+          className={`dashboard-character-sprite map-character-sprite ${walking ? 'walking' : ''}`}
+          data-testid="map-character"
+          data-avatar={avatar}
+          data-direction={direction}
+          data-walking={String(walking)}
+          aria-label="ตัวละครผู้เล่นบนแผนที่"
+          style={characterStyle}
+        >
+          <span className="map-character-arrow" aria-hidden="true">◆</span>
+          <span className="map-character-ring" aria-hidden="true" />
+        </div>
+
+        <div className="map-move-controls" aria-label="ปุ่มควบคุมแผนที่">
+          <button type="button" aria-label="เดินขึ้นบนแผนที่" onPointerDown={() => startHeldMove('up')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('up')}>▲</button>
+          <button type="button" aria-label="เดินซ้ายบนแผนที่" onPointerDown={() => startHeldMove('left')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('left')}>◀</button>
+          <button type="button" aria-label="เดินลงบนแผนที่" onPointerDown={() => startHeldMove('down')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('down')}>▼</button>
+          <button type="button" aria-label="เดินขวาบนแผนที่" onPointerDown={() => startHeldMove('right')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('right')}>▶</button>
+        </div>
+
+        <div className="map-joystick-dock">
+          <VirtualJoystick label="จอยสติ๊กควบคุมแผนที่" onDirection={(direction) => (direction ? startHeldMove(direction) : stopHeldMove())} />
         </div>
       </div>
+
       {preview && createPortal(
-        <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-md" role="dialog" aria-label="ตัวอย่างบทเรียน" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null) }}>
-          <div className="relative w-full max-w-sm rounded-md border-4 border-[#8b5a2b] bg-[#e6d5b8] p-6 text-center shadow-[0_0_30px_rgba(0,0,0,0.8)] md:p-8" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/aged-paper.png')" }}>
-            <div className="absolute -top-4 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full border-4 border-gray-600 bg-gray-300 shadow-md" />
-            <button type="button" aria-label="ปิดตัวอย่างบทเรียน" onClick={() => setPreview(null)} className="absolute -right-3 -top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border-4 border-red-900 bg-red-600 text-xl font-bold text-white shadow-lg transition-transform hover:scale-110 hover:bg-red-500">×</button>
-            <h3 className="mb-1 mt-2 font-mali text-3xl font-black tracking-wide text-[#5c3a21] md:text-4xl">🔥 จุดหมายถัดไป 🔥</h3>
-            <div className="mx-auto mb-4 mt-2 h-1 w-24 rounded-full bg-[#5c3a21] opacity-50" />
-            <div className="relative mx-auto mb-4 flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border-4 border-[#5c3a21] bg-gradient-to-b from-gray-200 to-gray-400 text-6xl shadow-inner md:h-40 md:w-40 md:text-7xl">{preview.icon || '🐉'}</div>
-            <h4 className="mb-2 px-2 text-2xl font-bold leading-tight text-[#5c3a21] md:text-3xl">{preview.title}</h4>
-            <p className="mb-6 rounded border border-[#c2b08f] bg-[#d9c4a1] px-4 py-2 text-sm font-medium italic text-[#7c5030] shadow-inner md:text-base">“{preview.description}”</p>
-            <div className="mb-6 rounded-xl border border-[#5c3a21]/20 bg-black/10 p-3"><div className="mb-2 text-xs font-black uppercase tracking-widest text-[#5c3a21]">🏆 ของรางวัลที่คาดหวัง 🏆</div><div className="flex items-center justify-center gap-4"><span className="rounded-full bg-yellow-100 px-3 py-1 font-bold text-yellow-700 shadow-sm">⭐ +XP</span><span className="rounded-full bg-green-100 px-3 py-1 font-bold text-green-700 shadow-sm">🎓 ความรู้</span></div></div>
-            <button type="button" aria-label="บุกโจมตี!" onClick={() => { const lessonId = preview.id; setPreview(null); onSelectLesson(lessonId) }} className="flex w-full items-center justify-center gap-2 rounded-xl border-b-4 border-red-900 bg-gradient-to-b from-red-500 to-red-700 py-4 text-2xl font-black text-white shadow-[0_5px_15px_rgba(220,38,38,0.5)] transition-all active:translate-y-1 active:border-b-0">⚔️ บุกโจมตี!</button>
+        <div className="map-preview-backdrop" role="dialog" aria-label="ตัวอย่างบทเรียน" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null) }}>
+          <div className="map-preview-panel">
+            <button type="button" className="map-preview-close" aria-label="ปิดตัวอย่างบทเรียน" onClick={() => setPreview(null)}>×</button>
+            <span className="map-preview-entrance" aria-hidden="true">
+              {(() => {
+                const previewIndex = lessons.findIndex((lesson) => lesson.id === preview.id)
+                const Template = entranceTemplateForLesson(preview.mapStyle, Math.max(0, previewIndex)).Art
+                return <Template />
+              })()}
+              {preview.icon && <em aria-hidden="true">{preview.icon}</em>}
+            </span>
+            <p>จุดหมายถัดไป</p>
+            <h3>{preview.title}</h3>
+            <div className="map-preview-divider">◆ ◆ ◆</div>
+            <blockquote>“{preview.description}”</blockquote>
+            <div className="map-preview-rewards">
+              <span><img src={LESSON_MAP_ICON_IMAGES.reward} alt="" className="map-reward-icon" draggable={false} /> โบนัส XP</span>
+              <span><img src={iconBook} alt="" className="map-reward-icon" draggable={false} /> ความรู้ใหม่</span>
+            </div>
+            <button type="button" className="map-preview-enter" aria-label="บุกโจมตี!" onClick={() => { const lessonId = preview.id; setPreview(null); onSelectLesson(lessonId) }}>⚔️ บุกโจมตี!</button>
           </div>
         </div>,
         document.body,

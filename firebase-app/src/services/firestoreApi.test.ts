@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { claimLegacyUserData, selectQuestionsForLesson } from './firestoreApi'
+import { active, claimLegacyUserData, firestoreApi, selectQuestionsForLesson, sortActiveNews } from './firestoreApi'
+
+describe('active flag parsing', () => {
+  it('treats sheet-era falsy spellings as inactive and defaults missing values to active', () => {
+    expect(active(undefined)).toBe(true)
+    expect(active(true)).toBe(true)
+    expect(active('TRUE')).toBe(true)
+    expect(active(false)).toBe(false)
+    expect(active('false')).toBe(false)
+    expect(active(' FALSE ')).toBe(false)
+    expect(active(0)).toBe(false)
+    expect(active('0')).toBe(false)
+  })
+})
+
+describe('sortActiveNews', () => {
+  it('uses Firestore update time ahead of mixed Thai and ISO display dates', () => {
+    const rows = [
+      { id: 'older', title: 'ข่าวเดิม', date: '2026-05-31', updatedAt: { toMillis: () => 1_700_000_000_000 }, isActive: true },
+      { id: 'newer', title: 'ข่าวใหม่', date: '15/7/2569', updatedAt: { toMillis: () => 1_800_000_000_000 }, isActive: true },
+      { id: 'hidden', title: 'ไม่เผยแพร่', date: '2027-01-01', updatedAt: { toMillis: () => 1_900_000_000_000 }, isActive: false },
+    ]
+
+    expect(sortActiveNews(rows).map((item) => item.id)).toEqual(['newer', 'older'])
+  })
+})
 
 describe('claimLegacyUserData', () => {
   it('returns the selected avatar immediately when claiming an imported user without one', () => {
@@ -17,6 +42,12 @@ describe('claimLegacyUserData', () => {
       ownerUid: 'auth-1',
       avatar: '🧙‍♂️',
     })
+  })
+})
+
+describe('allocateStatPoint', () => {
+  it('is exposed as a server-authoritative mutation on the Firebase service surface', () => {
+    expect(firestoreApi.allocateStatPoint).toBeTypeOf('function')
   })
 })
 

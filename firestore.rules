@@ -15,8 +15,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(userId)).data.ownerUid == request.auth.uid;
     }
 
+    function ownsUserAfterWrite(userId) {
+      return signedIn()
+        && getAfter(/databases/$(database)/documents/users/$(userId)).data.ownerUid == request.auth.uid;
+    }
+
     function userDocumentShapeValid() {
-      return request.resource.data.keys().hasOnly(['userId', 'name', 'class', 'avatar', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'createdAt', 'lastLogin']);
+      return request.resource.data.keys().hasOnly(['userId', 'name', 'class', 'avatar', 'gender', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'createdAt', 'lastLogin']);
+    }
+
+    // Body type picked once at registration; immutable afterwards because it is
+    // deliberately absent from userChangedFieldsAllowed().
+    function userGenderValid() {
+      return !('gender' in request.resource.data) || request.resource.data.gender in ['male', 'female'];
     }
 
     function userInitialValuesValid() {
@@ -28,6 +39,41 @@ service cloud.firestore {
 
     function userChangedFieldsAllowed() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatar', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'lastLogin']);
+    }
+
+    function oldNumber(field) {
+      return field in resource.data && resource.data[field] is number ? resource.data[field] : 0;
+    }
+
+    // Per-write value bounds: raises the bar against console cheating even
+    // though the game logic itself runs in the browser.
+    function userValueBoundsValid() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return (!changed.hasAny(['xp']) || (
+          request.resource.data.xp is number
+          && request.resource.data.xp >= oldNumber('xp')
+          && request.resource.data.xp - oldNumber('xp') <= 1000
+        ))
+        && (!changed.hasAny(['coins']) || (
+          request.resource.data.coins is number
+          && request.resource.data.coins >= 0
+          && request.resource.data.coins - oldNumber('coins') <= 1000
+          && oldNumber('coins') - request.resource.data.coins <= 1000
+        ))
+        && (!changed.hasAny(['streak']) || (
+          request.resource.data.streak is number
+          && request.resource.data.streak >= 0
+          && request.resource.data.streak <= oldNumber('streak') + 1
+        ))
+        && (!changed.hasAny(['level']) || (
+          request.resource.data.level is number
+          && request.resource.data.level >= 1
+        ))
+        && (!changed.hasAny(['rank']) || request.resource.data.rank in ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER', 'GRANDMASTER']);
+    }
+
+    function directoryShapeValid() {
+      return request.resource.data.keys().hasOnly(['name', 'class', 'avatar', 'xp', 'level', 'rank', 'updatedAt']);
     }
 
     function pvpPrimaryStable() {
@@ -136,6 +182,78 @@ service cloud.firestore {
         );
     }
 
+    // ---- Renovated PVP arena: pvpRooms (duel + team quiz battles) ----------
+    // Battle math runs on the clients (no Cloud Functions by design), so these
+    // rules focus on membership, shape, and bounded sizes: only players inside
+    // memberUids may mutate a room, and joining may only append your own uid.
+    function pvpRoomShapeValid() {
+      return request.resource.data.keys().hasOnly(['roomId', 'mode', 'teamSize', 'isPrivate', 'hostId', 'hostUid', 'status', 'memberUids', 'players', 'battle', 'winnerTeam', 'createdAt', 'updatedAt']);
+    }
+
+    function pvpRoomValuesValid() {
+      return request.resource.data.mode in ['duel', 'team']
+        && request.resource.data.status in ['LOBBY', 'PLAYING', 'FINISHED', 'CANCELLED']
+        && request.resource.data.teamSize is int
+        && request.resource.data.teamSize >= 1
+        && request.resource.data.teamSize <= 4
+        && request.resource.data.isPrivate is bool
+        && request.resource.data.memberUids is list
+        && request.resource.data.memberUids.size() <= 8
+        && request.resource.data.players is map
+        && request.resource.data.players.size() <= 8
+        && (request.resource.data.winnerTeam == null || request.resource.data.winnerTeam in [0, 1]);
+    }
+
+    function pvpRoomInitial(roomId) {
+      return request.resource.data.roomId == roomId
+        && request.resource.data.hostUid == request.auth.uid
+        && ownsUser(request.resource.data.hostId)
+        && request.resource.data.status == 'LOBBY'
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.players.size() == 1
+        && request.resource.data.battle == null
+        && request.resource.data.winnerTeam == null;
+    }
+
+    function pvpRoomStale() {
+      return !(resource.data.updatedAt is timestamp)
+        || resource.data.updatedAt < request.time - duration.value(10, 'm');
+    }
+
+    // Private rooms are reusable once finished/cancelled; abandoned rooms may
+    // also be reclaimed after 10 minutes so a dead lobby can't squat a code.
+    function pvpRoomReuse(roomId) {
+      return roomId.matches('PRIVATE_.*')
+        && (resource.data.status in ['FINISHED', 'CANCELLED'] || pvpRoomStale())
+        && pvpRoomInitial(roomId);
+    }
+
+    function pvpRoomJoin() {
+      return resource.data.status == 'LOBBY'
+        && !(request.auth.uid in resource.data.memberUids)
+        && request.resource.data.memberUids == resource.data.memberUids.concat([request.auth.uid])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'memberUids', 'updatedAt'])
+        && request.resource.data.players.size() == resource.data.players.size() + 1;
+    }
+
+    function pvpRoomMemberUpdate() {
+      return request.auth.uid in resource.data.memberUids
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'memberUids', 'teamSize', 'battle', 'status', 'winnerTeam', 'updatedAt'])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['teamSize'])
+          || request.auth.uid == resource.data.hostUid
+        );
+    }
+
+    function pvpRankingShapeValid() {
+      return request.resource.data.keys().hasOnly(['userId', 'name', 'avatar', 'level', 'class', 'wins', 'losses', 'rating', 'matches', 'updatedAt'])
+        && request.resource.data.wins is number
+        && request.resource.data.losses is number
+        && request.resource.data.rating is number
+        && request.resource.data.matches is number
+        && request.resource.data.rating >= 0;
+    }
+
     function progressDocumentMatches(progressId) {
       return progressId == request.resource.data.userId + '_' + request.resource.data.lessonId;
     }
@@ -199,9 +317,13 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn();
+      // Full user documents contain child PII plus economy state: only the
+      // owning session and the admin may read them. The public roster lives
+      // in the reduced /directory collection instead.
+      allow read: if admin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
       allow create: if signedIn()
         && userDocumentShapeValid()
+        && userGenderValid()
         && request.resource.data.ownerUid == request.auth.uid
         && userInitialValuesValid();
       allow update: if admin() || (
@@ -210,10 +332,38 @@ service cloud.firestore {
         && (
           resource.data.ownerUid == request.auth.uid
           || (!('ownerUid' in resource.data) && request.resource.data.ownerUid == request.auth.uid)
+          || (resource.data.ownerUid == null && request.resource.data.ownerUid == request.auth.uid)
         )
         && request.resource.data.ownerUid == request.auth.uid
+        && userValueBoundsValid()
       );
       allow delete: if admin();
+    }
+
+    match /directory/{userId} {
+      // Reduced public profile (name/class/avatar/xp/level/rank) used by the
+      // login picker and leaderboards. Never mirror coins/inventory here.
+      allow read: if signedIn();
+      allow create, update: if admin() || (
+        signedIn()
+        && directoryShapeValid()
+        && ownsUserAfterWrite(userId)
+      );
+      allow delete: if admin();
+    }
+
+    match /clientErrors/{errorId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['message', 'stack', 'source', 'userAgent', 'createdAt'])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 1000
+        && request.resource.data.stack is string
+        && request.resource.data.stack.size() <= 4000
+        && request.resource.data.source is string
+        && request.resource.data.source.size() <= 300
+        && request.resource.data.userAgent is string
+        && request.resource.data.userAgent.size() <= 300;
+      allow read, delete: if admin();
     }
 
     match /progress/{progressId} {
@@ -260,6 +410,76 @@ service cloud.firestore {
             )
           )
         );
+      allow delete: if admin();
+    }
+
+    match /pvpRooms/{roomId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && pvpRoomShapeValid()
+        && pvpRoomValuesValid()
+        && pvpRoomInitial(roomId);
+      allow update: if signedIn()
+        && pvpRoomShapeValid()
+        && pvpRoomValuesValid()
+        && (
+          pvpRoomReuse(roomId)
+          || pvpRoomJoin()
+          || pvpRoomMemberUpdate()
+        );
+      allow delete: if admin();
+
+      match /chat/{messageId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['uid', 'userId', 'name', 'text', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 200
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 60;
+        allow update: if false;
+        allow delete: if admin();
+      }
+
+      match /presence/{presenceUid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn()
+          && presenceUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'userId', 'x', 'y', 'direction', 'action', 'updatedAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.x is number
+          && request.resource.data.x >= 0
+          && request.resource.data.x <= 100
+          && request.resource.data.y is number
+          && request.resource.data.y >= 0
+          && request.resource.data.y <= 100
+          && request.resource.data.direction in ['up', 'down', 'left', 'right']
+          && request.resource.data.action in ['idle', 'walk'];
+        allow delete: if admin() || (signedIn() && presenceUid == request.auth.uid);
+      }
+    }
+
+    // Own-doc PVP ladder: one ranking document per student, bounded per-match
+    // deltas so a single write can never fabricate a season of victories.
+    match /pvpRankings/{userId} {
+      allow read: if signedIn();
+      allow create: if pvpRankingShapeValid()
+        && ownsUser(userId)
+        && request.resource.data.userId == userId
+        && request.resource.data.wins + request.resource.data.losses <= 1
+        && request.resource.data.matches == 1
+        && request.resource.data.rating <= 25;
+      allow update: if pvpRankingShapeValid()
+        && ownsUser(userId)
+        && request.resource.data.userId == userId
+        && request.resource.data.wins >= oldNumber('wins')
+        && request.resource.data.wins - oldNumber('wins') <= 1
+        && request.resource.data.losses >= oldNumber('losses')
+        && request.resource.data.losses - oldNumber('losses') <= 1
+        && request.resource.data.matches == oldNumber('matches') + 1
+        && request.resource.data.rating - oldNumber('rating') <= 25;
       allow delete: if admin();
     }
 

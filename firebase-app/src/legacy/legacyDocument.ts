@@ -11,6 +11,27 @@ export function stripHtmlTag(source: string, tag: 'script' | 'style'): string {
   return (match?.[1] ?? source).trim()
 }
 
+// The GAS page router hides every bare <section> and reveals the active page.
+// React windows portaled to <body> (กระเป๋าไอเทม/ตู้เสื้อผ้า) render their own
+// <section> elements, so the shipped rule must only target the legacy page
+// shells — every one of which carries an id="page-*". The scoped selector is
+// wrapped in :where() to keep specificity at zero (matching the original bare
+// `section` selector's negligible specificity) — otherwise the added
+// attribute selector out-specifies single-class rules like Tailwind's
+// `.flex`/`.hidden`, which real pages (e.g. #page-dashboard) rely on to
+// control their own display and would get stuck hidden.
+export function migrateLegacyPageCss(source: string): string {
+  return source.replace(
+    /(^|[}/]|\*\/)(\s*)section(\s*\{|\.page-active\b)/g,
+    (_match, boundary, spacing, tail) => {
+      const scoped = tail.trimStart().startsWith('{')
+        ? `:where(section[id^="page-"])${tail}`
+        : `:where(section[id^="page-"]${tail})`
+      return `${boundary}${spacing}${scoped}`
+    },
+  )
+}
+
 export function migrateLegacyBackendCalls(source: string): string {
   return source
     .replaceAll('google.script.run', 'firebaseServices')

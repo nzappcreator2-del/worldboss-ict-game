@@ -13,3 +13,5 @@ service-account*.json
 sheet-export*.json
 *-sheet-export*.json
 firestore-export*.json
+backups/
+firestore-backup*.json

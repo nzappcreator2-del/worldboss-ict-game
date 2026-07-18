@@ -1,13 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { legacyBody, legacyScript } from './sources'
+import { legacyBody, legacyCss, legacyScript } from './sources'
 
 describe('generated legacy compatibility runtime', () => {
   const appSource = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 'utf8')
 
   it('remains valid JavaScript after migrated functions are stripped', () => {
     expect(() => new Function(legacyScript)).not.toThrow()
+  })
+
+  it('never hides React <section> windows with the legacy page router CSS', () => {
+    // The GAS router hid every bare <section>; portaled React windows (กระเป๋า/
+    // ตู้เสื้อผ้า) also use <section>, so the shipped rule must stay scoped.
+    expect(legacyCss).not.toMatch(/(^|[}/]|\*\/)\s*section\s*\{/)
+    expect(legacyCss).toContain(':where(section[id^="page-"]) {')
+    expect(legacyCss).toContain(':where(section[id^="page-"].page-active) {')
+  })
+
+  it('never lets the scoped page-router rule out-specify a page\'s own display class', () => {
+    // Regression guard: an un-:where()-wrapped `section[id^="page-"]` selector
+    // (specificity 0,1,1) beats a single Tailwind class like `.flex`
+    // (0,1,0) that React pages (e.g. #page-dashboard) use to control their own
+    // display — which left the whole dashboard stuck at display:none after
+    // navigating from the lobby. :where() keeps the scoped rule at zero
+    // specificity so component-level display classes always win.
+    expect(legacyCss).not.toMatch(/(?<!:where\()section\[id\^="page-"\]/)
   })
 
   it('provides every React mount point required by App.tsx', () => {

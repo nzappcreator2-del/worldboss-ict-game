@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AdventureMap, type MapService } from './AdventureMap'
 
@@ -21,7 +21,26 @@ function setup(passedLessons: string[] = ['L1']) {
   return { service, onSelectLesson }
 }
 
+function positionStyle(node: HTMLElement) {
+  const style = node.getAttribute('style') || ''
+  return style.match(/left:[^;]+; top:[^;]+;/)?.[0] || style
+}
+
+function backgroundPosition(node: HTMLElement) {
+  const style = node.getAttribute('style') || ''
+  return style.match(/background-position:[^;]+;/)?.[0] || ''
+}
+
 describe('AdventureMap', () => {
+  it('renders the full-screen RPG map surface with the current player character', async () => {
+    setup()
+    window.dispatchEvent(new Event('nextgen:open-map'))
+
+    expect(await screen.findByTestId('adventure-map')).toBeTruthy()
+    expect(screen.getByTestId('map-world')).toBeTruthy()
+    expect(screen.getByTestId('map-character').getAttribute('data-avatar')).toBe('🧙')
+  })
+
   it('loads progress only when the legacy dashboard opens the map', async () => {
     const { service } = setup()
     expect(service.loadLessons).not.toHaveBeenCalled()
@@ -40,21 +59,131 @@ describe('AdventureMap', () => {
     expect((screen.getByRole('button', { name: 'ด่านล็อก ปราสาทมังกร' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('draws each lesson entrance as big SVG landmark art with template fallback by index', async () => {
+    setup()
+    window.dispatchEvent(new Event('nextgen:open-map'))
+
+    const first = await screen.findByTestId('lesson-node-L1')
+    expect(first.querySelector('svg')).toBeTruthy()
+    expect(first.getAttribute('data-entrance')).toBe('forest-gate')
+    expect(screen.getByTestId('lesson-node-L2').getAttribute('data-entrance')).toBe('stone-keep')
+  })
+
+  it('uses the lesson mapStyle template when the teacher picked one', async () => {
+    const service: MapService = {
+      getCurrentUser: () => ({ id: 'user-1', avatar: '🧙', passedLessons: [] }),
+      loadLessons: vi.fn().mockResolvedValue({
+        success: true,
+        data: [{ id: 'L9', title: 'ด่านพิเศษ', description: 'ทดสอบ', icon: '🔥', mapStyle: 'volcano-forge' }],
+        passedLessons: [],
+      }),
+    }
+    render(<AdventureMap service={service} onSelectLesson={vi.fn()} />)
+    window.dispatchEvent(new Event('nextgen:open-map'))
+
+    const node = await screen.findByTestId('lesson-node-L9')
+    expect(node.getAttribute('data-entrance')).toBe('volcano-forge')
+  })
+
+  it('shows painted reward chips inside the lesson preview panel', async () => {
+    setup()
+    window.dispatchEvent(new Event('nextgen:open-map'))
+
+    const lesson = await screen.findByRole('button', { name: 'เล่นด่าน ถ้ำแห่งความมืด' })
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(lesson)
+      await vi.advanceTimersByTimeAsync(1000)
+      const dialog = screen.getByRole('dialog', { name: 'ตัวอย่างบทเรียน' })
+      expect(dialog.textContent).toContain('โบนัส XP')
+      expect(dialog.textContent).toContain('ความรู้ใหม่')
+      expect(dialog.querySelector('.map-preview-entrance svg')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('previews an unlocked lesson and enters it only after confirmation', async () => {
     const { onSelectLesson } = setup()
     window.dispatchEvent(new Event('nextgen:open-map'))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'เล่นด่าน ถ้ำแห่งความมืด' }))
-    expect(screen.getByRole('dialog', { name: 'ตัวอย่างบทเรียน' })).toBeTruthy()
-    expect(onSelectLesson).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'บุกโจมตี!' }))
-    expect(onSelectLesson).toHaveBeenCalledWith('L2')
+    const lesson = await screen.findByRole('button', { name: 'เล่นด่าน ถ้ำแห่งความมืด' })
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(lesson)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(screen.getByRole('dialog', { name: 'ตัวอย่างบทเรียน' })).toBeTruthy()
+      expect(onSelectLesson).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'บุกโจมตี!' }))
+      expect(onSelectLesson).toHaveBeenCalledWith('L2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('auto-walks to an unlocked lesson before opening its preview', async () => {
+    setup()
+    window.dispatchEvent(new Event('nextgen:open-map'))
+    const node = await screen.findByTestId('lesson-node-L2')
+
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(node)
+      expect(screen.getByTestId('map-character').getAttribute('data-walking')).toBe('true')
+      expect(screen.queryByRole('dialog', { name: 'ตัวอย่างบทเรียน' })).toBeNull()
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(screen.getByRole('dialog', { name: 'ตัวอย่างบทเรียน' })).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('supports smooth held-key movement while the map is active', async () => {
+    setup()
+    window.dispatchEvent(new Event('nextgen:open-map'))
+    await screen.findByTestId('lesson-node-L1')
+    const character = screen.getByTestId('map-character')
+    const start = character.getAttribute('style')
+
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+        await vi.advanceTimersByTimeAsync(16)
+      })
+      const firstStep = character.getAttribute('style')
+      const firstFrame = backgroundPosition(character)
+      await act(() => vi.advanceTimersByTimeAsync(16))
+      const secondStep = character.getAttribute('style')
+      const secondFrame = backgroundPosition(character)
+      await act(() => vi.advanceTimersByTimeAsync(80))
+      const animatedFrame = backgroundPosition(character)
+      await act(async () => {
+        fireEvent.keyUp(window, { key: 'ArrowRight' })
+      })
+      const stoppedPosition = positionStyle(character)
+      await act(() => vi.advanceTimersByTimeAsync(64))
+
+      expect(character.getAttribute('data-direction')).toBe('right')
+      expect(firstStep).not.toBe(start)
+      expect(secondStep).not.toBe(firstStep)
+      expect(secondFrame).toBe(firstFrame)
+      expect(animatedFrame).not.toBe(firstFrame)
+      expect(positionStyle(character)).toBe(stoppedPosition)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('closes the React lesson preview without entering the lesson', async () => {
     const { onSelectLesson } = setup()
     window.dispatchEvent(new Event('nextgen:open-map'))
-    fireEvent.click(await screen.findByRole('button', { name: 'เล่นด่าน ถ้ำแห่งความมืด' }))
+    const lesson = await screen.findByRole('button', { name: 'เล่นด่าน ถ้ำแห่งความมืด' })
+    vi.useFakeTimers()
+    fireEvent.click(lesson)
+    await vi.advanceTimersByTimeAsync(1000)
+    vi.useRealTimers()
     fireEvent.click(screen.getByRole('button', { name: 'ปิดตัวอย่างบทเรียน' }))
 
     expect(screen.queryByRole('dialog', { name: 'ตัวอย่างบทเรียน' })).toBeNull()

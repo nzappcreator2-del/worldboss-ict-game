@@ -9,9 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;700;900&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- MediaPipe Pose and Camera utilities CDN -->
+    <!-- MediaPipe Pose CDN (ระบบส่งเฟรมเข้าโมเดลเขียนเองแบบ decoupled ไม่ต้องพึ่ง camera_utils แล้ว) -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     
     <!-- SweetAlert2 สำหรับป๊อปอัปสุดอลังการ -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -196,6 +195,7 @@
                     <li>ขยับตัวให้อยู่กึ่งกลางกล้อง และเห็น <b class="text-pink-400">ศีรษะและหัวไหล่</b> ทั้งสองข้างชัดเจน</li>
                     <li><b class="text-pink-400">เอียงศีรษะไปทางซ้าย</b> เพื่อตอบช้อยส์ซ้าย (ฝั่งสีชมพู)</li>
                     <li><b class="text-pink-400">เอียงศีรษะไปทางขวา</b> เพื่อตอบช้อยส์ขวา (ฝั่งสีม่วง)</li>
+                    <li><b class="text-emerald-400">เอียงค้างไว้ประมาณครึ่งวินาที</b> ให้วงแหวนพลังชาร์จเต็มเพื่อยืนยันคำตอบ (กันการตอบพลาด)</li>
                     <li>มีระบบ <b class="text-emerald-400">คีย์บอร์ดจำลอง</b> (กดลูกศร ◀ หรือ ▶) ในการทดสอบหรือเล่นเมื่อไม่มีกล้อง</li>
                 </ul>
             </div>
@@ -225,6 +225,7 @@
                             <span class="text-xl">⭐</span>
                             <span id="score-text" class="text-xl font-black text-yellow-400 cyber-font">0</span>
                         </div>
+                        <span id="streak-text" class="text-[10px] font-black text-slate-500 mt-0.5">🔥 สตรีค 0</span>
                     </div>
                 </div>
 
@@ -322,7 +323,7 @@
                     </div>
                     
                     <p class="text-[11px] text-slate-400 leading-relaxed font-medium">
-                        เมื่อเอียงศีรษะ <b class="text-pink-400">เกิน 15°</b> ระบบจะทำการล็อกและกดตอบตัวเลือกนั้นทันทีพร้อมระบบ Cooldown 1.5 วินาทีเพื่อความเสถียรสูงสุด
+                        เอียงศีรษะ <b class="text-pink-400">เกิน 15°</b> แล้ว<b class="text-emerald-400">ค้างไว้ประมาณครึ่งวินาที</b> วงแหวนพลังรอบใบหน้าจะชาร์จจนเต็มเพื่อยืนยันคำตอบ — แม่นยำ ไม่ตอบพลาดแม้เผลอขยับหัว
                     </p>
                     
                     <!-- แถบเกจบ่งชี้มุมเอียงศีรษะ (Visual Gauge Bar) -->
@@ -342,13 +343,16 @@
                         <span class="text-[10px] font-black text-purple-400 uppercase cyber-font">ขวา (ขวา)</span>
                     </div>
                     
-                    <!-- ปุ่มเปิดปิดหรือปรับเทียบ (Calibration) และสลับซ้าย-ขวาแก้ปัญหากล้องนักเรียน -->
-                    <div class="grid grid-cols-2 gap-2 mt-4">
+                    <!-- ปุ่มเปิดปิดหรือปรับเทียบ (Calibration) สลับซ้าย-ขวา และโหมดจำลองสำหรับเครื่องไม่มีกล้อง -->
+                    <div class="grid grid-cols-3 gap-2 mt-4">
                         <button onclick="calibrateNose()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition text-slate-200">
                             🧘‍♂️ ตั้งศูนย์ตาตรง
                         </button>
                         <button onclick="toggleCameraMirror()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition text-pink-400">
                             🔄 สลับซ้าย-ขวา
+                        </button>
+                        <button onclick="toggleSimulator()" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition text-emerald-400">
+                            💻 โหมดจำลอง
                         </button>
                     </div>
                 </div>
@@ -392,6 +396,21 @@
                     <div class="flex items-end mt-1">
                         <span id="summary-grade" class="text-4xl font-black neon-text-cyan text-cyan-300 cyber-font">A</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- สถิติรอบนี้: เวลาเล่นและสตรีคสูงสุด -->
+            <div class="w-full mt-4 bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-around gap-4 text-xs font-bold">
+                <div class="flex items-center gap-1.5">
+                    <span>⏱️</span>
+                    <span class="text-slate-400">เวลาที่ใช้:</span>
+                    <span id="summary-time" class="text-cyan-300 font-black cyber-font">0:00</span>
+                </div>
+                <div class="w-px h-6 bg-slate-800"></div>
+                <div class="flex items-center gap-1.5">
+                    <span>🔥</span>
+                    <span class="text-slate-400">สตรีคสูงสุด:</span>
+                    <span id="summary-streak" class="text-orange-400 font-black cyber-font">0 ข้อติด</span>
                 </div>
             </div>
 
@@ -592,6 +611,9 @@
         let activeQuestions = []; // ข้อสอบที่สุ่มมาใช้งานจริงในรอบนี้
         let currentQuestionIdx = 0;
         let score = 0;
+        let streak = 0;        // 🔥 สตรีคตอบถูกติดต่อกันปัจจุบัน
+        let bestStreak = 0;    // 🏅 สตรีคสูงสุดที่ทำได้ในรอบนี้
+        let runStartTime = 0;  // ⏱️ เวลาเริ่มรอบ (สรุปเวลาเล่นในหน้าชัยชนะ)
         let selectedTotalQuestions = 10;
         
         let localPlayerName = "ผู้กล้าไร้นาม";
@@ -739,6 +761,10 @@
             activeQuestions = shuffleArray([...QUESTION_BANK]).slice(0, totalCount);
             currentQuestionIdx = 0;
             score = 0;
+            streak = 0;
+            bestStreak = 0;
+            runStartTime = performance.now();
+            updateStreakDisplay();
             isSelectionCooldown = false;
             
             // เปลี่ยนบานหน้าต่างและเปิดกล้องตรวจจับ
@@ -834,35 +860,52 @@
             if (isCorrect) {
                 // ตอบถูก! เพิ่มเอฟเฟกต์สีเขียวระเบิดความสุข
                 score++;
+                streak++;
+                if (streak > bestStreak) bestStreak = streak;
                 playSynthesizedSound('correct');
-                
+
                 if (choice === 'L') {
                     leftCard.classList.add('correct-effect');
                 } else {
                     rightCard.classList.add('correct-effect');
                 }
-                
-                feedbackBar.innerHTML = `<span class="text-emerald-400 neon-text-emerald">✨ ถูกต้อง! +1 คะแนน 🌟</span>`;
+
+                const streakSuffix = streak >= 3 ? ` 🔥 สตรีค x${streak}!` : '';
+                feedbackBar.innerHTML = `<span class="text-emerald-400 neon-text-emerald">✨ ถูกต้อง! +1 คะแนน 🌟${streakSuffix}</span>`;
             } else {
                 // ตอบผิด! เพิ่มเอฟเฟกต์สั่นการ์ดเตือนใจ
+                streak = 0;
                 playSynthesizedSound('wrong');
-                
+
                 if (choice === 'L') {
                     leftCard.classList.add('shake-effect');
                 } else {
                     rightCard.classList.add('shake-effect');
                 }
                 qCard.classList.add('shake-effect');
-                
+
                 const rightAnsText = qData.ans === 'L' ? qData.a : qData.b;
                 feedbackBar.innerHTML = `<span class="text-rose-500 font-bold">❌ ยังไม่ถูก! เฉลยที่ถูกต้องคือ: ${rightAnsText}</span>`;
             }
+            updateStreakDisplay();
             
             // รอดีเลย์เอฟเฟกต์ 1.8 วินาที แล้วข้ามไปหน้าคำถามข้อถัดไป
             setTimeout(() => {
                 currentQuestionIdx++;
                 displayQuestion();
             }, 1800);
+        }
+
+        /**
+         * 🔥 อัปเดตป้ายสตรีคบน HUD ความคืบหน้า
+         */
+        function updateStreakDisplay() {
+            const streakEl = document.getElementById('streak-text');
+            if (!streakEl) return;
+            streakEl.innerText = `🔥 สตรีค ${streak}`;
+            streakEl.className = streak >= 3
+                ? "text-[10px] font-black text-orange-400 mt-0.5 animate-pulse"
+                : "text-[10px] font-black text-slate-500 mt-0.5";
         }
 
         /**
@@ -881,58 +924,75 @@
 
         // ==========================================
         // 🧠 ระบบ AI TRACKING (MEDIAPIPE ENGINE)
+        // สถาปัตยกรรมใหม่: แยก "ลูปวาดภาพ 60 FPS" ออกจาก "ลูปส่งเฟรมเข้าโมเดล AI" โดยสมบูรณ์
+        // ภาพกล้องและ HUD จึงลื่นไหลเต็มอัตรารีเฟรชจอเสมอ ไม่ว่าโมเดลจะวิเคราะห์ได้กี่เฟรมต่อวินาที
         // ==========================================
+
+        const videoEl = document.getElementById('webcam-video');
+        const arCanvasEl = document.getElementById('ar-canvas');
+        const arCanvasCtx = arCanvasEl.getContext('2d', { desynchronized: true });
+        arCanvasEl.width = 640;
+        arCanvasEl.height = 480;
+
+        let renderLoopId = null;        // rAF id ของลูปวาดภาพ 60 FPS
+        let inferencePumpId = null;     // timer id ของลูปส่งเฟรมเข้าโมเดล
+        let poseInferenceBusy = false;  // กันการส่งเฟรมซ้อนระหว่างที่โมเดลยังประมวลผลเฟรมก่อนหน้าไม่เสร็จ
+        let latestLandmarks = null;     // ผลตรวจจับโครงร่างล่าสุดจากโมเดล
+        let lastPoseSeenAt = 0;         // เวลาที่ตรวจพบใบหน้าครั้งล่าสุด
+        let targetTiltAngle = 0;        // มุมเอียงดิบล่าสุดจากโมเดล (อัปเดตที่อัตราเฟรมของโมเดล)
+        let displayTiltAngle = 0;       // มุมเอียงที่ถูกสมูทในเรนเดอร์ลูป (ใช้วาดภาพและตัดสินใจ)
+        let inferenceCanvas = null;     // เฟรมย่อส่วน 256x192 สำหรับส่งเข้าโมเดล ลดภาระ CPU มหาศาล
+        let inferenceCtx = null;
+        const INFERENCE_MIN_INTERVAL = 33; // ส่งเฟรมเข้าโมเดล ~30 FPS (เพียงพอสำหรับท่าเอียงคอ และเบากับเครื่องนักเรียน)
+
+        // 🎯 ระบบยืนยันคำตอบแบบ "เอียงค้าง" (Hold-to-Confirm) กันการเผลอเอียงหัวแวบเดียวแล้วถูกนับเป็นคำตอบ
+        const HOLD_TO_CONFIRM_MS = 450;  // ต้องเอียงค้างต่อเนื่องนานเท่านี้จึงยืนยันคำตอบ
+        const TILT_RELEASE_ANGLE = 10;   // องศาที่ถือว่ากลับสู่หน้าตรงแล้ว (Hysteresis กันอาการติดๆ ดับๆ ที่ขอบเกณฑ์)
+        let holdDirection = null;        // ทิศที่กำลังเอียงค้าง ('L' | 'R')
+        let holdProgressMs = 0;          // เวลาสะสมของการเอียงค้างในทิศปัจจุบัน
 
         /**
          * 📸 เตรียมความพร้อมติดตั้งและวิเคราะห์เว็บแคมผู้เล่น
          */
         async function initWebcamAndPose() {
-            const videoEl = document.getElementById('webcam-video');
-            const canvasEl = document.getElementById('ar-canvas');
-            const canvasCtx = canvasEl.getContext('2d');
             const statusOverlay = document.getElementById('camera-status');
-            
-            canvasEl.width = 640;
-            canvasEl.height = 480;
 
             try {
-                // 1) ร้องขออนุญาตสิทธิ์การเข้าถึงกล้องและสตรีมภาพ
+                // 1) ร้องขออนุญาตสิทธิ์การเข้าถึงกล้องและสตรีมภาพ (ขอ 60 FPS ถ้ากล้องรองรับ)
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 640, height: 480, facingMode: "user" }
+                    video: { width: 640, height: 480, facingMode: "user", frameRate: { ideal: 60 } }
                 });
                 videoEl.srcObject = stream;
                 webcamStream = stream;
-                
-                // 2) สร้างและโหลดโมเดลตรวจจับ MediaPipe Pose
-                mpPose = new Pose({
-                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-                });
-                
-                mpPose.setOptions({
-                    modelComplexity: 0, // ⚡ ใช้ระดับ 0 เพื่อให้ประมวลผลเร็วที่สุด ไม่กินทรัพยากรบนคอมฯพกพาหรือมือถือโรงเรียน
-                    smoothLandmarks: true,
-                    minDetectionConfidence: 0.6,
-                    minTrackingConfidence: 0.6
+
+                await new Promise((resolve) => {
+                    videoEl.onloadedmetadata = () => {
+                        videoEl.play();
+                        resolve();
+                    };
                 });
 
-                mpPose.onResults((results) => {
-                    processPoseAndDrawHUD(results, canvasEl, canvasCtx);
-                });
+                // 2) สร้างและโหลดโมเดลตรวจจับ MediaPipe Pose (สร้างครั้งเดียวแล้วใช้ซ้ำทุกรอบการเล่น)
+                if (!mpPose) {
+                    mpPose = new Pose({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+                    });
 
-                // 3) สตาร์ทชุดกล้องตรวจจับเฟรมเรตภาพ
-                cameraUtility = new Camera(videoEl, {
-                    onFrame: async () => {
-                        if (isSimulatorActive) return; // หากสลับใช้โหมดจำลองจะไม่ส่งภาพไปโมเดล
-                        await mpPose.send({ image: videoEl });
-                    },
-                    width: 640,
-                    height: 480
-                });
-                
-                cameraUtility.start().then(() => {
-                    console.log("🧠 ระบบกล้อง AI MediaPipe ทำงานเรียบร้อยแล้ว!");
-                    statusOverlay.classList.add('hidden'); // ซ่อนจอโหลดกล้องเมื่อพร้อม
-                });
+                    mpPose.setOptions({
+                        modelComplexity: 0, // ⚡ ใช้ระดับ 0 เพื่อให้ประมวลผลเร็วที่สุด ไม่กินทรัพยากรบนคอมฯพกพาหรือมือถือโรงเรียน
+                        smoothLandmarks: true,
+                        minDetectionConfidence: 0.6,
+                        minTrackingConfidence: 0.6
+                    });
+
+                    mpPose.onResults(onPoseModelResults);
+                }
+
+                statusOverlay.classList.add('hidden');
+                console.log("🧠 ระบบกล้อง AI MediaPipe ทำงานเรียบร้อยแล้ว (เรนเดอร์ 60 FPS แยกอิสระจากโมเดล)");
+
+                startRenderLoop();
+                startInferencePump();
 
             } catch (err) {
                 console.warn("ไม่สามารถเปิดการทำงานกล้องเว็บแคมได้จริง หรือเบราว์เซอร์บล็อกสิทธิ์:", err);
@@ -941,67 +1001,162 @@
         }
 
         /**
-         * 🔮 ประมวลผลและวาดส่วนประสานผู้ใช้ HUD ทับหน้าจอกล้องเรียลไทม์
+         * 🧠 คอลแบ็กผลลัพธ์จากโมเดล — ทำหน้าที่เป็น "เซนเซอร์" อัปเดตมุมเป้าหมายเท่านั้น (ไม่วาดภาพ ไม่แตะ DOM)
          */
-        function processPoseAndDrawHUD(results, canvas, ctx) {
+        function onPoseModelResults(results) {
             if (isSimulatorActive) return;
-            
-            const w = canvas.width;
-            const h = canvas.height;
-            
+            const landmarks = results.poseLandmarks || null;
+            latestLandmarks = landmarks;
+            if (!landmarks) return;
+
+            const nose = landmarks[0];
+            const leftEye = landmarks[2];
+            const rightEye = landmarks[5];
+
+            if (nose && leftEye && rightEye && leftEye.visibility > 0.5 && rightEye.visibility > 0.5) {
+                lastPoseSeenAt = performance.now();
+
+                // คำนวณมุมเอียงหัวจากระนาบตาซ้ายและตาขวา
+                const rawAngle = Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x) * (180 / Math.PI);
+                const adjustedAngle = isCameraMirrored ? rawAngle : -rawAngle;
+                let angle = adjustedAngle - eyeAngleOffset; // หักล้างค่าปรับเทียบศูนย์ตาตรง (Calibrate)
+
+                if (angle > 90) angle = 90;
+                if (angle < -90) angle = -90;
+                targetTiltAngle = angle;
+            }
+        }
+
+        /**
+         * 🚿 ลูปส่งเฟรมเข้าโมเดล: ส่งเฟรมใหม่เฉพาะเมื่อเฟรมก่อนหน้าประมวลผลเสร็จแล้วเท่านั้น (ไม่เกิดคิวค้างจนเครื่องหน่วง)
+         */
+        function startInferencePump() {
+            stopInferencePump();
+            if (!inferenceCanvas) {
+                inferenceCanvas = document.createElement('canvas');
+                inferenceCanvas.width = 256;
+                inferenceCanvas.height = 192;
+                inferenceCtx = inferenceCanvas.getContext('2d');
+            }
+
+            const pump = async () => {
+                inferencePumpId = null;
+                if (!webcamStream || isSimulatorActive || !mpPose) return;
+
+                if (!poseInferenceBusy && videoEl.readyState >= 2 && !document.hidden) {
+                    poseInferenceBusy = true;
+                    try {
+                        inferenceCtx.drawImage(videoEl, 0, 0, inferenceCanvas.width, inferenceCanvas.height);
+                        await mpPose.send({ image: inferenceCanvas });
+                    } catch (e) {
+                        console.warn("Pose inference error:", e);
+                    } finally {
+                        poseInferenceBusy = false;
+                    }
+                }
+
+                inferencePumpId = window.setTimeout(pump, INFERENCE_MIN_INTERVAL);
+            };
+            pump();
+        }
+
+        function stopInferencePump() {
+            if (inferencePumpId) {
+                clearTimeout(inferencePumpId);
+                inferencePumpId = null;
+            }
+        }
+
+        /**
+         * 🎬 เรนเดอร์ลูป 60 FPS: วาดภาพวิดีโอสด สมูทมุมเอียง อัปเดต HUD และตรรกะยืนยันคำตอบ
+         */
+        function startRenderLoop() {
+            if (renderLoopId) cancelAnimationFrame(renderLoopId);
+            let lastTs = 0;
+
+            const step = (ts) => {
+                if (!webcamStream || isSimulatorActive) {
+                    renderLoopId = null;
+                    return;
+                }
+                const dt = lastTs ? Math.min(50, ts - lastTs) : 16.7;
+                lastTs = ts;
+
+                // สมูทมุมเอียงแบบ exponential smoothing อิงเวลาจริง — นุ่มเท่ากันทุกเครื่องไม่ว่าเฟรมเรตเท่าไร
+                const smoothing = 1 - Math.exp(-dt / 80);
+                displayTiltAngle += (targetTiltAngle - displayTiltAngle) * smoothing;
+                headTiltAngle = displayTiltAngle;
+
+                drawCameraFrame(ts);
+                if (!document.getElementById('gameplay-screen').classList.contains('hidden')) {
+                    processDecisionControl(displayTiltAngle, dt);
+                }
+                updateTiltHUDIndicators(displayTiltAngle);
+
+                renderLoopId = requestAnimationFrame(step);
+            };
+            renderLoopId = requestAnimationFrame(step);
+        }
+
+        /**
+         * ✍️ วาดข้อความบน Canvas ให้อ่านออกเสมอ แม้ Canvas จะถูกกลับด้านด้วยโหมดกระจกเงา (CSS mirror)
+         */
+        function drawReadableText(ctx, text, x, y, w) {
             ctx.save();
-            ctx.clearRect(0, 0, w, h);
-            
-            // วาดภาพสตรีมกล้องหลักลง Canvas
-            ctx.drawImage(results.image, 0, 0, w, h);
-            
-            const landmarks = results.poseLandmarks;
-            
-            if (landmarks) {
-                // ดึงจุดสำคัญบนใบหน้าและไหล่
+            if (isCameraMirrored) {
+                ctx.translate(w, 0);
+                ctx.scale(-1, 1);
+            }
+            ctx.textAlign = "center";
+            ctx.fillText(text, x, y);
+            ctx.restore();
+        }
+
+        /**
+         * 🎥 วาดภาพกล้องสด + HUD โครงร่าง + วงแหวนยืนยันคำตอบ ที่ 60 FPS
+         */
+        function drawCameraFrame(now) {
+            const w = arCanvasEl.width;
+            const h = arCanvasEl.height;
+            const ctx = arCanvasCtx;
+
+            if (videoEl.readyState >= 2) {
+                ctx.drawImage(videoEl, 0, 0, w, h);
+            } else {
+                ctx.fillStyle = "#020617";
+                ctx.fillRect(0, 0, w, h);
+            }
+
+            const landmarks = latestLandmarks;
+            const faceIsFresh = (now - lastPoseSeenAt) < 800;
+
+            if (landmarks && faceIsFresh) {
                 const nose = landmarks[0];
                 const leftEye = landmarks[2];
                 const rightEye = landmarks[5];
-                
-                if (nose && leftEye && rightEye && leftEye.visibility > 0.5 && rightEye.visibility > 0.5) {
-                    // คำนวณมุมเอียงหัวจากระนาบตาซ้ายและตาขวา
-                    const rawAngle = Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x) * (180 / Math.PI);
-                    
-                    // ปรับทิศทางการคำนวณตามสถานะการกลับด้านกล้อง
-                    const adjustedAngle = isCameraMirrored ? rawAngle : -rawAngle;
-                    headTiltAngle = adjustedAngle - eyeAngleOffset; // หักล้างค่าความเอียงที่ผู้เล่นปรับจูน (Calibrate)
-                    
-                    // ป้องกันความคลาดเคลื่อนเกินระดับจริง
-                    if (headTiltAngle > 90) headTiltAngle = 90;
-                    if (headTiltAngle < -90) headTiltAngle = -90;
 
-                    // คำนวณพิกัดดวงตาและจมูกตามระนาบ Mirror หรือปกติ
-                    const lex = isCameraMirrored ? (1 - leftEye.x) * w : leftEye.x * w;
-                    const ley = leftEye.y * h;
-                    const rex = isCameraMirrored ? (1 - rightEye.x) * w : rightEye.x * w;
-                    const rey = rightEye.y * h;
-                    const nex = isCameraMirrored ? (1 - nose.x) * w : nose.x * w;
-                    const ney = nose.y * h;
-                    
-                    // 1) วาดเส้นแกนสายตาเชื่อมต่อเรืองแสงสีนีออน (Eye axis guide)
+                if (nose && leftEye && rightEye) {
+                    // พิกัดในสเปซวิดีโอโดยตรง — โหมดกระจกเงาถูกจัดการด้วย CSS ทั้งภาพ จึงซ้อนทับตรงตำแหน่งเสมอ
+                    const lex = leftEye.x * w, ley = leftEye.y * h;
+                    const rex = rightEye.x * w, rey = rightEye.y * h;
+                    const nex = nose.x * w, ney = nose.y * h;
+
+                    // 1) เส้นแกนสายตาเรืองแสงนีออน
                     ctx.beginPath();
                     ctx.moveTo(lex, ley);
                     ctx.lineTo(rex, rey);
-                    ctx.strokeStyle = "rgba(6, 182, 212, 0.8)";
+                    ctx.strokeStyle = "rgba(6, 182, 212, 0.85)";
                     ctx.lineWidth = 4;
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = "#06b6d4";
                     ctx.stroke();
-                    ctx.shadowBlur = 0; // เคลียร์แสง
 
-                    // 2) วาดวงกลมเรืองแสงที่จุดดวงตาสองฝั่ง
+                    // 2) จุดดวงตาสองฝั่ง
                     ctx.beginPath();
                     ctx.arc(lex, ley, 6, 0, 2 * Math.PI);
                     ctx.arc(rex, rey, 6, 0, 2 * Math.PI);
                     ctx.fillStyle = "#ec4899";
                     ctx.fill();
 
-                    // 3) วาดเส้นศูนย์วิเคราะห์ศีรษะแนวตั้ง
+                    // 3) เส้นศูนย์วิเคราะห์ศีรษะแนวตั้ง
                     ctx.beginPath();
                     ctx.moveTo(nex, ney - 50);
                     ctx.lineTo(nex, ney + 30);
@@ -1009,23 +1164,37 @@
                     ctx.lineWidth = 2;
                     ctx.stroke();
 
-                    // ตรวจจับการเอียงตัดสินใจตอบ
-                    processDecisionControl(headTiltAngle);
+                    // 4) วงแหวนพลังยืนยันคำตอบ (Hold-to-Confirm Ring) รอบใบหน้า
+                    if (holdDirection && !isSelectionCooldown) {
+                        const progress = Math.min(1, holdProgressMs / HOLD_TO_CONFIRM_MS);
+                        const ringColor = holdDirection === 'L' ? '#ec4899' : '#8b5cf6';
+
+                        ctx.beginPath();
+                        ctx.arc(nex, ney - 10, 58, 0, 2 * Math.PI);
+                        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+                        ctx.lineWidth = 6;
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.arc(nex, ney - 10, 58, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
+                        ctx.strokeStyle = ringColor;
+                        ctx.lineWidth = 6;
+                        ctx.lineCap = "round";
+                        ctx.stroke();
+
+                        ctx.fillStyle = ringColor;
+                        ctx.font = "bold 15px Prompt";
+                        drawReadableText(ctx, holdDirection === 'L' ? 'ยืนยันซ้าย...' : 'ยืนยันขวา...', nex, ney - 82, w);
+                    }
                 }
             } else {
-                // หากระบบกล้องมี แต่ไม่พบตัวบุคคลผู้เล่นชั่วคราว
-                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                // หากระบบกล้องทำงาน แต่ยังไม่พบตัวผู้เล่นในเฟรม
+                ctx.fillStyle = "rgba(2, 6, 23, 0.55)";
                 ctx.fillRect(0, 0, w, h);
                 ctx.fillStyle = "#ff007f";
                 ctx.font = "bold 16px Prompt";
-                ctx.textAlign = "center";
-                ctx.fillText("⚠️ ตรวจไม่พบโครงร่างใบหน้าผู้เล่นกึ่งกลางภาพ", w / 2, h / 2);
+                drawReadableText(ctx, "⚠️ ขยับให้เห็นศีรษะและหัวไหล่กึ่งกลางภาพ", w / 2, h / 2, w);
             }
-            
-            ctx.restore();
-            
-            // อัปเดตข้อมูลบนป้าย Badge HUD
-            updateTiltHUDIndicators(headTiltAngle);
         }
 
         /**
@@ -1049,70 +1218,102 @@
         }
 
         /**
-         * 👈👉 ตรรกะตรวจเช็คความเอียงคอเพื่อตอบคำถาม (Instant with Cooldown)
+         * 👈👉 ตรรกะตรวจเช็คความเอียงคอเพื่อตอบคำถาม (Hold-to-Confirm with Hysteresis)
+         * ต้องเอียงค้างต่อเนื่องครบ HOLD_TO_CONFIRM_MS จึงยืนยันคำตอบ — แม่นยำและกันการตอบพลาดแบบมืออาชีพ
          */
-        function processDecisionControl(angle) {
-            if (isSelectionCooldown) return;
-            
-            const leftCard = document.getElementById('option-left-card');
-            const rightCard = document.getElementById('option-right-card');
-            
-            // เอียงไปทางซ้ายของผู้เล่น (ค่านำส่งเป็นมุมบวกเกินเกณฑ์กำหนด)
+        const optionLeftCard = document.getElementById('option-left-card');
+        const optionRightCard = document.getElementById('option-right-card');
+
+        function processDecisionControl(angle, dt) {
+            if (isSelectionCooldown) {
+                holdDirection = null;
+                holdProgressMs = 0;
+                return;
+            }
+
+            let direction = null;
             if (angle >= TILT_THRESHOLD) {
-                leftCard.classList.add('card-tilt-left');
-                rightCard.classList.remove('card-tilt-right');
-                
-                evaluateAnswer('L');
-            } 
-            // เอียงไปทางขวาของผู้เล่น (ค่านำส่งเป็นมุมลบเกินเกณฑ์กำหนด)
-            else if (angle <= -TILT_THRESHOLD) {
-                rightCard.classList.add('card-tilt-right');
-                leftCard.classList.remove('card-tilt-left');
-                
-                evaluateAnswer('R');
-            } 
-            // อยู่ในระนาบแนวตรงปกติ
-            else {
-                leftCard.className = leftCard.className.replace(/\bcard-tilt-left\b/g, '').trim();
-                rightCard.className = rightCard.className.replace(/\bcard-tilt-right\b/g, '').trim();
+                direction = 'L';
+            } else if (angle <= -TILT_THRESHOLD) {
+                direction = 'R';
+            } else if (holdDirection && Math.abs(angle) >= TILT_RELEASE_ANGLE) {
+                direction = holdDirection; // Hysteresis: ยังไม่กลับหน้าตรงสนิท ให้นับทิศเดิมต่อ
+            }
+
+            if (direction !== holdDirection) {
+                holdDirection = direction;
+                holdProgressMs = 0;
+            }
+            if (holdDirection) {
+                holdProgressMs += (dt || 16.7);
+            }
+
+            // การ์ดเอียงตามทิศที่กำลังเลือก (classList.toggle เขียนซ้ำค่าเดิมไม่มีผลกับ layout)
+            optionLeftCard.classList.toggle('card-tilt-left', holdDirection === 'L');
+            optionRightCard.classList.toggle('card-tilt-right', holdDirection === 'R');
+
+            if (holdDirection && holdProgressMs >= HOLD_TO_CONFIRM_MS) {
+                const chosen = holdDirection;
+                holdDirection = null;
+                holdProgressMs = 0;
+                evaluateAnswer(chosen);
             }
         }
 
         /**
          * 📊 อัปเดตข้อมูลแถบเกจและป้ายสถานะองศา
+         * ⚡ Throttle ที่ ~12 ครั้ง/วินาที และเขียน DOM เฉพาะเมื่อค่าเปลี่ยนจริง — เรนเดอร์ลูป 60 FPS ไม่โดนถ่วง
          */
+        const hudAngleBadge = document.getElementById('hud-angle-badge');
+        const hudStatusBadge = document.getElementById('hud-status-badge');
+        const hudGaugeText = document.getElementById('gauge-text');
+        const hudGaugeLeft = document.getElementById('gauge-left');
+        const hudGaugeRight = document.getElementById('gauge-right');
+        let lastHudUpdateAt = 0;
+        let lastHudState = '';
+
         function updateTiltHUDIndicators(angle) {
-            document.getElementById('hud-angle-badge').innerText = `องศา: ${angle.toFixed(1)}°`;
-            
-            const badge = document.getElementById('hud-status-badge');
-            const gaugeText = document.getElementById('gauge-text');
-            const gLeft = document.getElementById('gauge-left');
-            const gRight = document.getElementById('gauge-right');
-            
-            // คำนวณความยาวแถบเกจ (%)
+            const now = performance.now();
+            if (now - lastHudUpdateAt < 80) return;
+            lastHudUpdateAt = now;
+
+            const angleText = `องศา: ${angle.toFixed(1)}°`;
+            if (hudAngleBadge.innerText !== angleText) hudAngleBadge.innerText = angleText;
+
+            const gaugeTextValue = `${angle.toFixed(0)}°`;
+            if (hudGaugeText.innerText !== gaugeTextValue) hudGaugeText.innerText = gaugeTextValue;
+
+            // เกจแสดงองศาต่อเนื่องทั้งสองฝั่ง ให้ผู้เล่นเห็นแรงเอียงของตัวเองตลอดเวลา
             const absPercent = Math.min((Math.abs(angle) / 30) * 100, 100);
-            
-            if (angle >= TILT_THRESHOLD) {
-                badge.innerText = "เอียงซ้าย 👈";
-                badge.className = "px-2.5 py-1 bg-pink-950/90 border border-pink-800 rounded-lg text-[10px] font-black cyber-font text-pink-400 uppercase tracking-wider";
-                
-                gLeft.style.width = `${absPercent / 2}%`;
-                gRight.style.width = `0%`;
-            } else if (angle <= -TILT_THRESHOLD) {
-                badge.innerText = "เอียงขวา 👉";
-                badge.className = "px-2.5 py-1 bg-purple-950/90 border border-purple-800 rounded-lg text-[10px] font-black cyber-font text-purple-400 uppercase tracking-wider";
-                
-                gRight.style.width = `${absPercent / 2}%`;
-                gLeft.style.width = `0%`;
+            if (angle > 1) {
+                hudGaugeLeft.style.width = `${(absPercent / 2).toFixed(1)}%`;
+                hudGaugeRight.style.width = '0%';
+            } else if (angle < -1) {
+                hudGaugeRight.style.width = `${(absPercent / 2).toFixed(1)}%`;
+                hudGaugeLeft.style.width = '0%';
             } else {
-                badge.innerText = "หน้าตรง 🧘‍♂️";
-                badge.className = "px-2.5 py-1 bg-emerald-950/90 border border-emerald-800 rounded-lg text-[10px] font-black cyber-font text-emerald-400 uppercase tracking-wider";
-                
-                gLeft.style.width = `0%`;
-                gRight.style.width = `0%`;
+                hudGaugeLeft.style.width = '0%';
+                hudGaugeRight.style.width = '0%';
             }
-            
-            gaugeText.innerText = `${angle.toFixed(0)}°`;
+
+            // ป้ายสถานะเปลี่ยนเฉพาะเมื่อสถานะเปลี่ยนจริง
+            let state = 'center';
+            if (angle >= TILT_THRESHOLD) state = 'left';
+            else if (angle <= -TILT_THRESHOLD) state = 'right';
+
+            if (state !== lastHudState) {
+                lastHudState = state;
+                if (state === 'left') {
+                    hudStatusBadge.innerText = "เอียงซ้าย 👈";
+                    hudStatusBadge.className = "px-2.5 py-1 bg-pink-950/90 border border-pink-800 rounded-lg text-[10px] font-black cyber-font text-pink-400 uppercase tracking-wider";
+                } else if (state === 'right') {
+                    hudStatusBadge.innerText = "เอียงขวา 👉";
+                    hudStatusBadge.className = "px-2.5 py-1 bg-purple-950/90 border border-purple-800 rounded-lg text-[10px] font-black cyber-font text-purple-400 uppercase tracking-wider";
+                } else {
+                    hudStatusBadge.innerText = "หน้าตรง 🧘‍♂️";
+                    hudStatusBadge.className = "px-2.5 py-1 bg-emerald-950/90 border border-emerald-800 rounded-lg text-[10px] font-black cyber-font text-emerald-400 uppercase tracking-wider";
+                }
+            }
         }
 
         // ==========================================
@@ -1208,10 +1409,9 @@
             // วาดหัวกระโหลกจำลองเรืองแสงสีชมพูลงบน Canvas แทนภาพกล้องจริง
             drawVectorSkeletonOnCanvas();
             
-            // อัปเดตแถบวัดเกจ
+            // อัปเดตแถบวัดเกจ (โหมดจำลองตอบด้วยปุ่ม/คีย์บอร์ดโดยตรง จึงแสดงเฉพาะ HUD ไม่เข้าตรรกะเอียงค้าง)
             updateTiltHUDIndicators(simMockAngle);
-            processDecisionControl(simMockAngle);
-            
+
             requestAnimationFrame(runSimulatorFrame);
         }
 
@@ -1294,15 +1494,26 @@
          * สั่งปิดและเคลียร์แชร์กล้อง
          */
         function stopWebcamStream() {
+            stopInferencePump();
+            if (renderLoopId) {
+                cancelAnimationFrame(renderLoopId);
+                renderLoopId = null;
+            }
             if (webcamStream) {
                 webcamStream.getTracks().forEach(track => track.stop());
                 webcamStream = null;
             }
-            if (cameraUtility) {
-                cameraUtility.stop();
-                cameraUtility = null;
-            }
+            latestLandmarks = null;
+            targetTiltAngle = 0;
+            displayTiltAngle = 0;
+            holdDirection = null;
+            holdProgressMs = 0;
         }
+
+        // 🛡️ ปิดกล้องให้เรียบร้อยเสมอเมื่อผู้เล่นปิดแท็บหรือออกจากหน้า (กันไฟกล้องค้าง)
+        window.addEventListener('pagehide', () => {
+            try { stopWebcamStream(); } catch (e) {}
+        });
 
         // ==========================================
         // 🏆 ฟังก์ชันสำเร็จการท้าทาย และจบการแข่งขัน
@@ -1327,6 +1538,15 @@
             document.getElementById('summary-correct').innerText = correctCount;
             document.getElementById('summary-total').innerText = `/${totalCount} ข้อ`;
             document.getElementById('summary-percent').innerText = `${percent}%`;
+
+            // สรุปเวลาที่ใช้และสตรีคสูงสุดของรอบนี้
+            const elapsedSec = runStartTime ? Math.max(0, Math.round((performance.now() - runStartTime) / 1000)) : 0;
+            const minutes = Math.floor(elapsedSec / 60);
+            const seconds = String(elapsedSec % 60).padStart(2, '0');
+            const elSummaryTime = document.getElementById('summary-time');
+            if (elSummaryTime) elSummaryTime.innerText = `${minutes}:${seconds} นาที`;
+            const elSummaryStreak = document.getElementById('summary-streak');
+            if (elSummaryStreak) elSummaryStreak.innerText = `${bestStreak} ข้อติด`;
             
             // ตัดเกรด (S, A, B, C)
             const gradeEl = document.getElementById('summary-grade');

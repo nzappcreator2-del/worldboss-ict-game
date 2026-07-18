@@ -25,6 +25,15 @@ describe('WorksheetPage', () => {
     expect(document.querySelector('iframe')).toBeNull()
   })
 
+  it('opens Google Docs externally instead of creating a blocked iframe', async () => {
+    const docsLesson = { ...lesson, worksheetUrl: 'https://docs.google.com/document/d/doc-id/edit' }
+    setup(undefined, docsLesson)
+
+    expect(await screen.findByText(/Google Docs ไม่อนุญาต/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /ลิงก์ต้นฉบับ/ }).getAttribute('href')).toBe(docsLesson.worksheetUrl)
+    expect(document.querySelector('iframe')).toBeNull()
+  })
+
   it('previews direct images and converts Drive links to preview embeds', async () => {
     const { unmount } = render(<WorksheetPage service={{ getCurrentLesson: () => ({ ...lesson, worksheetUrl: 'https://example.com/work.png' }), getCurrentUser: () => user }} onBack={vi.fn()} />)
     window.dispatchEvent(new Event('nextgen:open-worksheet'))
@@ -52,6 +61,58 @@ describe('WorksheetPage', () => {
     const { onBack } = setup()
     fireEvent.click(await screen.findByRole('button', { name: /กลับสู่บทเรียน/ }))
     expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('saves the submission online, pays the first-time study reward, and syncs the player', async () => {
+    const saveSubmission = vi.fn().mockResolvedValue({
+      success: true,
+      firstSubmission: true,
+      stats: { xp: 140, coins: 45, level: 2, rank: 'BRONZE', gainedXp: 40, gainedCoins: 25 },
+    })
+    const onUserUpdate = vi.fn()
+    render(
+      <WorksheetPage
+        service={{ getCurrentLesson: () => lesson, getCurrentUser: () => user, saveSubmission }}
+        onBack={vi.fn()}
+        onUserUpdate={onUserUpdate}
+        draw={vi.fn().mockResolvedValue(undefined)}
+      />,
+    )
+    window.dispatchEvent(new Event('nextgen:open-worksheet'))
+
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'คำตอบของฉัน' } })
+    fireEvent.click(screen.getByRole('button', { name: /บันทึกและรับรูปใบงาน/ }))
+
+    expect(await screen.findByText(/\+40 XP \+25 เหรียญ/)).toBeTruthy()
+    expect(saveSubmission).toHaveBeenCalledWith('l1', 'คำตอบของฉัน')
+    expect(onUserUpdate).toHaveBeenCalledWith({ xp: 140, coins: 45, level: 2, rank: 'BRONZE', gainedXp: 40, gainedCoins: 25 })
+  })
+
+  it('notes that repeat submissions update the teacher copy without repeating the reward', async () => {
+    const saveSubmission = vi.fn().mockResolvedValue({ success: true, firstSubmission: false, stats: { xp: 140, coins: 45, level: 2, rank: 'BRONZE', gainedXp: 0, gainedCoins: 0 } })
+    render(
+      <WorksheetPage service={{ getCurrentLesson: () => lesson, getCurrentUser: () => user, saveSubmission }} onBack={vi.fn()} draw={vi.fn().mockResolvedValue(undefined)} />,
+    )
+    window.dispatchEvent(new Event('nextgen:open-worksheet'))
+
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'คำตอบรอบสอง' } })
+    fireEvent.click(screen.getByRole('button', { name: /บันทึกและรับรูปใบงาน/ }))
+
+    expect(await screen.findByText(/ส่งฉบับใหม่ถึงครูแล้ว/)).toBeTruthy()
+  })
+
+  it('still delivers the PNG preview when the online save fails', async () => {
+    const saveSubmission = vi.fn().mockRejectedValue(new Error('offline'))
+    render(
+      <WorksheetPage service={{ getCurrentLesson: () => lesson, getCurrentUser: () => user, saveSubmission }} onBack={vi.fn()} draw={vi.fn().mockResolvedValue(undefined)} />,
+    )
+    window.dispatchEvent(new Event('nextgen:open-worksheet'))
+
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'คำตอบของฉัน' } })
+    fireEvent.click(screen.getByRole('button', { name: /บันทึกและรับรูปใบงาน/ }))
+
+    expect(await screen.findByRole('heading', { name: /บันทึกใบงานสำเร็จ/ })).toBeTruthy()
+    expect(screen.getByText(/บันทึกส่งครูออนไลน์ไม่สำเร็จ/)).toBeTruthy()
   })
 })
 

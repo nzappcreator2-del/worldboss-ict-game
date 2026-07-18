@@ -1156,7 +1156,8 @@
         const wbCanvasCtx = wbCanvasEl.getContext('2d');
         
         const runnerCanvasEl = document.getElementById('wb-runner-canvas');
-        const runnerCanvasCtx = runnerCanvasEl ? runnerCanvasEl.getContext('2d') : null;
+        // ⚡ alpha:false + desynchronized:true ช่วยให้เบราว์เซอร์ composite เร็วขึ้นและลดเฟรมดีเลย์ของเกมลูป 60 FPS
+        const runnerCanvasCtx = runnerCanvasEl ? runnerCanvasEl.getContext('2d', { alpha: false, desynchronized: true }) : null;
         
         // ⚡ ป้องกันการใช้ shadowBlur เพื่อเพิ่มประสิทธิภาพ 60 FPS ป้องกันอาการกระตุกค้างบนแท็บเล็ตและอุปกรณ์สเปคต่ำ
         if (wbCanvasCtx) {
@@ -1179,6 +1180,8 @@
         
         // ⚡ อาร์เรย์รูปภาพพื้นหลังและสถานะกลับทิศทาง AI สำหรับมินิเกมผู้ช่วยปราบภัย AI (บอส 2) บูสสปีด 60 FPS
         const wbSafetyBgImg = new Image();
+        let wbSafetyBgFailed = false; // ถ้าโหลดภาพพื้นหลังจากอินเทอร์เน็ตไม่ได้ ให้ใช้พื้นหลังสำรองในเครื่องแทน (เกมเล่นต่อได้ปกติ)
+        wbSafetyBgImg.onerror = () => { wbSafetyBgFailed = true; };
         wbSafetyBgImg.src = "https://i.postimg.cc/dVm5LhQx/Gemini-Generated-Image-p9omm7p9omm7p9om.png";
         
         // ⚡ Cache พื้นหลังที่ขนาดตรง เพื่อไม่ต้อง scale ทุกเฟรม (ลดภาระ CPU ในเกมลูป)
@@ -1227,7 +1230,16 @@
         let isPinching = false;
         let draggedItem = null;
         let handLossFrames = 0; // ตัวนับเฟรมที่สูญเสียการจับมือ เพื่อทำระบบ Grace Period กันคีบหลุด
-        let handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
+        // target = พิกัดดิบจากโมเดล AI (อัปเดตที่อัตราเฟรมของโมเดล) / smooth = พิกัดที่ถูกสมูทในเรนเดอร์ลูป 60 FPS
+        let handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240, targetX: 320, targetY: 240 };
+        let lastHandSeenAt = 0;        // เวลาที่ตรวจพบมือครั้งล่าสุด (ระบบ Grace Period กันการ์ดหลุดมือ)
+        let lastHandLandmarks = null;  // พิกัดข้อนิ้วมือชุดล่าสุด ใช้วาดจอกล้องจิ๋วในเรนเดอร์ลูปแทนการวาดในคอลแบ็ก AI
+        let pointerDragActive = false; // เมาส์/นิ้วสัมผัสกำลังลากการ์ดอยู่ — ให้สิทธิ์เหนือสัญญาณจากกล้อง
+        let aiInferenceBusy = false;   // ป้องกันการส่งเฟรมภาพซ้อนเข้าโมเดลระหว่างที่เฟรมก่อนหน้ายังไม่เสร็จ
+        // จีบนิ้วแบบ Hysteresis: เริ่มจับที่ระยะแคบ ปล่อยที่ระยะกว้าง เพื่อกันอาการจับๆ หลุดๆ ตรงขอบเกณฑ์
+        const PINCH_ON_DISTANCE = 0.075;
+        const PINCH_OFF_DISTANCE = 0.115;
+        const HAND_LOSS_RELEASE_MS = 1500; // มือหายจากกล้องนานเกินนี้ระหว่างคีบการ์ด ให้ดีดการ์ดกลับจุดเริ่ม
         
         // 3 บล็อกเป้าหมาย (Drop Zones) พิกัด X, Y บน canvas 640x480 พร้อมค่า hx, hy, hw, hh สำหรับพิกัด Hitbox ตรวจจับการชนที่กว้างและง่ายขึ้นพิเศษ
         const DROP_ZONES = {
@@ -1635,6 +1647,13 @@
             fetchQuizQuestions(); // ดึงคำถามควิซเมื่อเปิดด่าน!
         });
 
+        // 🛡️ ปิดกล้องและเกมลูปให้เรียบร้อยเสมอเมื่อผู้เล่นปิดแท็บ/ออกจากหน้า (กันไฟกล้องค้างและทรัพยากรรั่ว)
+        window.addEventListener('pagehide', () => {
+            try { stopCamera(); } catch (e) {}
+            try { stopSafetyGameLoop(); } catch (e) {}
+            try { stopMarioStatsLoop(); } catch (e) {}
+        });
+
         // 🔊 ฟังก์ชันสะพานเชื่อมปลดล็อกสิทธิ์เสียงของเบราว์เซอร์ข้ามไปยังหน้า Emulator มาริโอ้
         function unlockRealMarioAudio() {
             // ปิดระบบปลดล็อกเสียงดนตรีประกอบมาริโอ้ NES อย่างถาวร
@@ -1730,33 +1749,38 @@
                             // ซึ่งการเคลื่อนไหวของนักเรียนในการออกกำลังกายไม่ได้รวดเร็วแบบเสี้ยววินาที 15 FPS จึงแม่นยำ 100%
                             // แต่จะช่วยลดภาระ CPU/GPU ลงมหาศาลกว่า 50%! ส่งผลให้ Emulator มาริโอ้ใน iframe รันได้ลื่นไหลปกติ 60 FPS
                             // และป้องกันปัญหาคอขวดบนเธรดเสียง (Web Audio starvation) ทำให้เสียงดนตรี NES ดังชัดเจนไม่หายหรือกระตุกสโลว์!
+                            const isHandsModeFrame = String(bossId).indexOf('WB002') === 0;
                             let throttleLimit = 33.3; // ความเร็วมาตรฐานสำหรับโหมดทั่วไป
                             if (bossId === 'WB001') {
                                 throttleLimit = 66.6; // ~15 FPS เพื่อประสิทธิภาพและความลื่นไหลสูงสุดในด่านมาริโอ้
-                            } else if (String(bossId).indexOf('WB002') === 0) {
-                                throttleLimit = 75.0; // ⚡ ~13 FPS เพื่อความเสถียรขีดสุดและลดภาระ CPU ในด่านปราบภัย AI (กู้ชีพเครื่องคอมสเปกต่ำของเด็ก)
+                            } else if (isHandsModeFrame) {
+                                throttleLimit = 45.0; // ~22 FPS ให้พิกัดมืออัปเดตถี่พอสำหรับการลากที่แม่นยำ (การสมูทที่ 60 FPS อยู่ในเรนเดอร์ลูปแล้ว)
                             }
-                            
-                            // ในช่วง 4 วินาทีแรกของการอุ่นเครื่อง AI เพื่อเปิดทางให้ Emulator โหลดเพลงและจัดระเบียบเธรด
-                            if (now - cameraStartTime < 4000) {
-                                throttleLimit = 200.0; // 5 FPS รันเบาบางสุดๆ ช่วงเปิดตัวเพื่อไม่ให้ดนตรีคอขวดสะดุด
+
+                            // ช่วงอุ่นเครื่อง AI: ด่านมาริโอ้รอ 4 วินาทีให้ Emulator โหลดเพลงก่อน ส่วนด่านมือปราบภัย AI ไม่มี iframe แข่งทรัพยากร รอสั้นๆ พอ
+                            const warmupMs = isHandsModeFrame ? 1200 : 4000;
+                            if (now - cameraStartTime < warmupMs) {
+                                throttleLimit = isHandsModeFrame ? 100.0 : 200.0;
                             }
-                            
+
                             if (now - lastPoseProcessTime < throttleLimit) return;
+                            if (aiInferenceBusy) return; // เฟรมก่อนหน้ายังประมวลผลไม่เสร็จ อย่าส่งซ้อนจนคิวท่วมเครื่องช้า
                             lastPoseProcessTime = now;
-                            
+
                             try {
-                                const isHandsMode = String(bossId).indexOf('WB002') === 0;
+                                aiInferenceBusy = true;
+                                const isHandsMode = isHandsModeFrame;
                                 if (isHandsMode) {
-                                    // 🌟 นวัตกรรมย่อพิกเซลเว็บแคมเหลือ 160x120 (ลดโหลดลงจากเดิมอีก 55%!) เพื่อให้ CPU เครื่องเด็กทำงานสบายปรี๊ดไร้อาการค้าง
+                                    // 🌟 ย่อภาพเว็บแคมเหลือ 256x192 ก่อนส่งวิเคราะห์ — จุดสมดุลระหว่างความแม่นยำของการจับนิ้วมือกับภาระ CPU
+                                    //    (160x120 เดิมเล็กเกินไปจนโมเดลจับมือหลุดบ่อย ทำให้เกมรู้สึกไม่เสถียร)
                                     if (!offscreenCanvas) {
                                         offscreenCanvas = document.createElement('canvas');
-                                        offscreenCanvas.width = 160;
-                                        offscreenCanvas.height = 120;
+                                        offscreenCanvas.width = 256;
+                                        offscreenCanvas.height = 192;
                                         offscreenCtx = offscreenCanvas.getContext('2d');
                                     }
-                                    
-                                    offscreenCtx.drawImage(wbVideoEl, 0, 0, 160, 120);
+
+                                    offscreenCtx.drawImage(wbVideoEl, 0, 0, 256, 192);
                                     await wbHands.send({ image: offscreenCanvas });
                                 } else {
                                     // 🌟 นวัตกรรมลดพิกเซลรูปภาพเว็บแคมระดับอัจฉริยะ (ย่อขนาดเหลือ 160x120 เพื่อความนิ่งเป็นพิเศษและเบาสบายเธรดหลักที่สุด!)
@@ -1774,6 +1798,8 @@
                                 }
                             } catch(e) {
                                 console.error('AI parsing error:', e);
+                            } finally {
+                                aiInferenceBusy = false;
                             }
                         }
                     },
@@ -1817,7 +1843,19 @@
                 } else {
                     errorHelp = err.message || errorHelp;
                 }
-                
+
+                // 🖱️ Graceful Degradation: ด่านมือปราบภัย AI เล่นต่อได้ด้วยเมาส์/นิ้วสัมผัส แม้เปิดกล้องไม่สำเร็จ
+                if (String(bossId).indexOf('WB002') === 0) {
+                    wbGameState = 'RUNNER_SELECT_TIME';
+                    const modal = document.getElementById('wb-runner-time-modal');
+                    if (modal) modal.classList.remove('hidden');
+                    if (statusOverlay) {
+                        statusOverlay.innerHTML = `🖱️ เปิดกล้องไม่สำเร็จ — สลับเป็นโหมดเมาส์/นิ้วสัมผัส ลากการ์ดลงถังได้เลย!`;
+                        statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/85 backdrop-blur-sm border border-amber-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md z-30";
+                    }
+                    return;
+                }
+
                 statusOverlay.innerHTML = `❌ ไม่สามารถเชื่อมต่อเว็บแคมได้: ${errorHelp}`;
                 statusOverlay.className = "absolute top-1 left-1 right-1 lg:top-4 lg:left-4 lg:right-4 py-1 px-1.5 lg:py-2 lg:px-3 rounded-lg lg:rounded-xl bg-black/80 backdrop-blur-sm border border-red-500 text-center font-bold text-white text-[7px] lg:text-xs shadow-md z-30";
                 alert("❌ เกิดข้อผิดพลาดในการเปิดกล้องเว็บแคม:\n\n" + errorHelp);
@@ -2402,99 +2440,97 @@
         }
     }
 
-        // --- 🧠 [คอลแบ็กของ MediaPipe Hands] ประมวลผลตำแหน่งการ Pinch คีบลากการ์ด และตรวจชนถังขยะ ---
+        // 📐 ขนาดพิกัดตรรกะของสนามเกม (ความสูงคงที่ 480 กว้างผันตามสัดส่วนจอจริง)
+        function logicalCanvasSize() {
+            const cssW = runnerCanvasEl ? (runnerCanvasEl.clientWidth || 640) : 640;
+            const cssH = runnerCanvasEl ? (runnerCanvasEl.clientHeight || 480) : 480;
+            const height = 480;
+            return { width: height * (cssW / cssH), height };
+        }
+
+        // --- 🧠 [คอลแบ็กของ MediaPipe Hands] ทำหน้าที่เป็น "เซนเซอร์" เท่านั้น: อัปเดตพิกัดเป้าหมายและสถานะจีบนิ้ว
+        //     ส่วนการสมูทเคอร์เซอร์ การขยับการ์ด และการวาดภาพทั้งหมดถูกย้ายไปทำในเรนเดอร์ลูป 60 FPS อิสระ ---
         function onHandsResults(results) {
             try {
                 if (wbGameState !== 'BATTLE' || !runnerCanvasCtx) return;
-                
-                const cssW = runnerCanvasEl ? (runnerCanvasEl.clientWidth || 640) : 640;
-                const cssH = runnerCanvasEl ? (runnerCanvasEl.clientHeight || 480) : 480;
-                const height = 480;
-                const width = height * (cssW / cssH);
 
-                // 🧠 [การประมวลผลพิกัดกล้องเว็บแคมสแกนนิ้วมือจริง]
-                if (results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                    const landmarks = results.multiHandLandmarks[0];
-                    const thumbTip = landmarks[4];
-                    const indexTip = landmarks[8];
-                    
-                    if (thumbTip && indexTip) {
-                        const handXNorm = (thumbTip.x + indexTip.x) / 2;
-                        const handYNorm = (thumbTip.y + indexTip.y) / 2;
-                        
-                        const targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * width;
-                        const targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * height;
-                        
-                        // ปรับความเร็วตามรอยให้นุ่มนวล รวดเร็ว และลื่นไหล
-                        handCursor.smoothX += (targetX - handCursor.smoothX) * 0.45;
-                        handCursor.smoothY += (targetY - handCursor.smoothY) * 0.45;
-                        
-                        // ตรวจจับท่าทางจีบนิ้ว (Pinch Gesture)
-                        const dx = thumbTip.x - indexTip.x;
-                        const dy = thumbTip.y - indexTip.y;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-                        
-                        const isCurrentlyPinching = distance < 0.088;
-                        
-                        if (isCurrentlyPinching) {
-                            if (!isPinching && aiCurrentItem) {
-                                // เริ่มการจีบคีบการ์ดคำถาม
-                                const cardX = aiCurrentItem.x;
-                                const cardY = aiCurrentItem.y;
-                                const cardW = aiCurrentItem.w;
-                                const cardH = aiCurrentItem.h;
-                                
-                                const boxLeft = cardX - cardW / 2;
-                                const boxRight = cardX + cardW / 2;
-                                const boxTop = cardY - cardH / 2;
-                                const boxBottom = cardY + cardH / 2;
-                                
-                                if (handCursor.smoothX >= boxLeft && handCursor.smoothX <= boxRight &&
-                                    handCursor.smoothY >= boxTop && handCursor.smoothY <= boxBottom) {
-                                    isPinching = true;
-                                    draggedItem = aiCurrentItem;
-                                    draggedItem.offsetX = handCursor.smoothX - cardX;
-                                    draggedItem.offsetY = handCursor.smoothY - cardY;
-                                    playBeep('rep');
-                                }
-                            }
-                            
-                            // ขยับตำแหน่งการ์ดตามตำแหน่งมือ
-                            if (isPinching && draggedItem) {
-                                draggedItem.x = handCursor.smoothX - draggedItem.offsetX;
-                                draggedItem.y = handCursor.smoothY - draggedItem.offsetY;
-                                
-                                // ป้องกันการ์ดหลุดขอบเขตการแสดงผล
-                                draggedItem.x = Math.max(80, Math.min(width - 80, draggedItem.x));
-                                draggedItem.y = Math.max(50, Math.min(height - 50, draggedItem.y));
-                            }
-                        } else {
-                            // ปล่อยการ์ดเมื่อแบมือ
-                            if (isPinching) {
-                                isPinching = false;
-                                if (draggedItem) {
-                                    handleDropRelease();
-                                    draggedItem = null;
-                                }
-                            }
+                const { width, height } = logicalCanvasSize();
+                const hasHand = !!(results && results.multiHandLandmarks && results.multiHandLandmarks.length > 0);
+                lastHandLandmarks = hasHand ? results.multiHandLandmarks[0] : null;
+
+                if (!hasHand) {
+                    // 🛡️ Grace Period: มือหลุดจากกล้องชั่วคราวไม่ปล่อยการ์ดทันที แต่ถ้าหายนานเกินกำหนดให้ดีดการ์ดกลับ
+                    if (isPinching && !pointerDragActive && lastHandSeenAt && (performance.now() - lastHandSeenAt) > HAND_LOSS_RELEASE_MS) {
+                        isPinching = false;
+                        draggedItem = null;
+                        if (aiCurrentItem) {
+                            aiCurrentItem.x = width / 2;
+                            aiCurrentItem.y = height * 0.15;
                         }
                     }
+                    return;
                 }
 
-                // 🛡️ วาดภาพเว็บแคมลงในจอกล้องจิ๋วเสมอเพื่อความเสถียร
-                if (results && results.image && wbCanvasCtx) {
-                    wbCanvasCtx.save();
-                    wbCanvasCtx.clearRect(0, 0, wbCanvasEl.width, wbCanvasEl.height);
-                    wbCanvasCtx.drawImage(results.image, 0, 0, wbCanvasEl.width, wbCanvasEl.height);
-                    
-                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                        drawGlowingHandSkeleton(wbCanvasCtx, results.multiHandLandmarks[0]);
+                lastHandSeenAt = performance.now();
+                if (pointerDragActive) return; // เมาส์/นิ้วสัมผัสกำลังควบคุมอยู่ ไม่ให้สัญญาณกล้องแทรก
+
+                const landmarks = results.multiHandLandmarks[0];
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+                if (!thumbTip || !indexTip) return;
+
+                const handXNorm = (thumbTip.x + indexTip.x) / 2;
+                const handYNorm = (thumbTip.y + indexTip.y) / 2;
+                handCursor.targetX = (wbAiHandFlip ? handXNorm : (1 - handXNorm)) * width;
+                handCursor.targetY = (wbAiHandFlip ? (1 - handYNorm) : handYNorm) * height;
+
+                // ตรวจจับท่าทางจีบนิ้ว (Pinch Gesture) แบบ Hysteresis สองเกณฑ์ กันอาการจับๆ หลุดๆ
+                const dx = thumbTip.x - indexTip.x;
+                const dy = thumbTip.y - indexTip.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (!isPinching && distance < PINCH_ON_DISTANCE && aiCurrentItem) {
+                    // เริ่มการจีบคีบการ์ดคำถาม (เช็คจากพิกัดสมูทปัจจุบันเพื่อให้ตรงกับที่ผู้เล่นเห็นบนจอ)
+                    const boxLeft = aiCurrentItem.x - aiCurrentItem.w / 2;
+                    const boxRight = aiCurrentItem.x + aiCurrentItem.w / 2;
+                    const boxTop = aiCurrentItem.y - aiCurrentItem.h / 2;
+                    const boxBottom = aiCurrentItem.y + aiCurrentItem.h / 2;
+
+                    if (handCursor.smoothX >= boxLeft && handCursor.smoothX <= boxRight &&
+                        handCursor.smoothY >= boxTop && handCursor.smoothY <= boxBottom) {
+                        isPinching = true;
+                        draggedItem = aiCurrentItem;
+                        draggedItem.offsetX = handCursor.smoothX - aiCurrentItem.x;
+                        draggedItem.offsetY = handCursor.smoothY - aiCurrentItem.y;
+                        playBeep('rep');
                     }
-                    wbCanvasCtx.restore();
+                } else if (isPinching && distance > PINCH_OFF_DISTANCE) {
+                    // ปล่อยการ์ดเมื่อแบมือ
+                    isPinching = false;
+                    if (draggedItem) {
+                        handleDropRelease();
+                        draggedItem = null;
+                    }
                 }
             } catch (e) {
                 console.error("Error in onHandsResults AI Loop:", e);
             }
+        }
+
+        // 🎥 วาดจอกล้องจิ๋วจากสตรีมวิดีโอโดยตรง (คมชัดและลื่นไหล ไม่ผูกกับอัตราเฟรมของโมเดล AI)
+        let lastWebcamPreviewAt = 0;
+        function drawWebcamPreview(now) {
+            if (!wbCanvasCtx) return;
+            if (now - lastWebcamPreviewAt < 33) return; // จอจิ๋ววาดที่ ~30 FPS ก็ลื่นตาแล้ว เก็บงบ CPU ไว้ให้เกมหลัก
+            lastWebcamPreviewAt = now;
+            if (!wbVideoEl || wbVideoEl.readyState < 2) return;
+
+            wbCanvasCtx.save();
+            wbCanvasCtx.drawImage(wbVideoEl, 0, 0, wbCanvasEl.width, wbCanvasEl.height);
+            if (lastHandLandmarks && (now - lastHandSeenAt) < 700) {
+                drawGlowingHandSkeleton(wbCanvasCtx, lastHandLandmarks);
+            }
+            wbCanvasCtx.restore();
         }
 
         // ==========================================
@@ -3081,20 +3117,32 @@
             isPinching = false;
         }
 
-        // ⚡ [60 FPS Game Loop Control] ระบบเกมลูปและเรนเดอร์ภาพหลักแยกเป็นอิสระ 60 FPS เพื่อบูสความลื่นไหลขั้นสุดยอด!
+        // ⚡ [60 FPS Game Loop Control] เรนเดอร์ลูปหลักวิ่งเต็มอัตรารีเฟรชจอ (ปกติ 60 FPS) แยกอิสระจากโมเดล AI 100%
+        //    การสมูทเคอร์เซอร์และการขยับการ์ดทำที่นี่ด้วยสูตร frame-rate independent จึงลื่นเท่ากันทุกเครื่อง
         function startSafetyGameLoop() {
             if (safetyGameLoopId) cancelAnimationFrame(safetyGameLoopId);
             let lastGameFrameTime = 0;
-            
-            function tick() {
+
+            function tick(now) {
                 const isWb002 = String(bossId).indexOf('WB002') === 0;
                 if (wbGameState === 'BATTLE' && isWb002) {
-                    // ⚡ จำกัดเรนเดอร์ ~30 FPS (33.3ms) แทน 60 FPS — ลดภาระ CPU ลง 50% เกมลากการ์ดไม่จำเป็นต้อง 60 FPS
-                    const now = performance.now();
-                    if (now - lastGameFrameTime >= 33.3) {
-                        lastGameFrameTime = now;
-                        updateAndDrawSafetyGame();
+                    const dt = lastGameFrameTime ? Math.min(50, now - lastGameFrameTime) : 16.7;
+                    lastGameFrameTime = now;
+
+                    // สมูทเคอร์เซอร์มือแบบ exponential smoothing อิงเวลาจริง (ค่าคงที่ ~55ms ให้ความรู้สึกไวแต่นุ่ม)
+                    const smoothing = 1 - Math.exp(-dt / 55);
+                    handCursor.smoothX += (handCursor.targetX - handCursor.smoothX) * smoothing;
+                    handCursor.smoothY += (handCursor.targetY - handCursor.smoothY) * smoothing;
+
+                    // การ์ดที่ถูกคีบ/ลากจะวิ่งตามเคอร์เซอร์ที่ 60 FPS (ไม่กระตุกตามอัตราเฟรมของโมเดลอีกต่อไป)
+                    if (isPinching && draggedItem) {
+                        const { width, height } = logicalCanvasSize();
+                        draggedItem.x = Math.max(80, Math.min(width - 80, handCursor.smoothX - draggedItem.offsetX));
+                        draggedItem.y = Math.max(50, Math.min(height - 50, handCursor.smoothY - draggedItem.offsetY));
                     }
+
+                    updateAndDrawSafetyGame(dt);
+                    drawWebcamPreview(now);
                     safetyGameLoopId = requestAnimationFrame(tick);
                 } else {
                     safetyGameLoopId = null;
@@ -3111,9 +3159,10 @@
         }
 
         // ฟังก์ชันอัปเดตและเรนเดอร์ตัวเกมหลัก ด่านบอส 2 ด้วยความเร็ว 60 FPS อิสระ 100% หายกระตุกค้างขาดกระจุย!
-        function updateAndDrawSafetyGame() {
+        function updateAndDrawSafetyGame(dt) {
             try {
                 if (!runnerCanvasCtx || wbGameState !== 'BATTLE') return;
+                const frameScale = (dt || 16.7) / 33.3; // ตัวคูณอนิเมชั่นอิงเวลาจริง (ค่าเดิมจูนไว้ที่ฐาน 30 FPS)
                 
                 // ⚡ ปรับ canvas resolution ให้ match CSS display size เพื่อภาพคมชัดพอดีกรอบ (จำกัดไม่เกิน 960px ป้องกันหนัก)
                 const cssW = runnerCanvasEl.clientWidth || 640;
@@ -3139,7 +3188,7 @@
                 runnerCanvasCtx.save();
                 
                 // 1. พื้นหลังรูปภาพสุดพรีเมียมไซไฟ (cache และวาดแบบ Cover เพื่อไม่ให้สัดส่วนยืดแบน)
-                if (wbSafetyBgImg.complete) {
+                if (wbSafetyBgImg.complete && !wbSafetyBgFailed && wbSafetyBgImg.naturalWidth > 0) {
                     if (!_bgCache || _bgCacheW !== 640 || _bgCacheH !== 480) {
                         _bgCache = document.createElement('canvas');
                         _bgCache.width = 640;
@@ -3156,8 +3205,22 @@
                     const y = (height - h) / 2;
                     runnerCanvasCtx.drawImage(_bgCache, x, y, w, h);
                 } else {
-                    runnerCanvasCtx.fillStyle = '#060813';
+                    // พื้นหลังสำรองสไตล์ Sci-Fi ในเครื่อง (กรณีออฟไลน์หรือรูปพื้นหลังออนไลน์โหลดไม่สำเร็จ)
+                    const fallbackGrad = runnerCanvasCtx.createLinearGradient(0, 0, 0, height);
+                    fallbackGrad.addColorStop(0, '#0b1026');
+                    fallbackGrad.addColorStop(0.6, '#060813');
+                    fallbackGrad.addColorStop(1, '#03040a');
+                    runnerCanvasCtx.fillStyle = fallbackGrad;
                     runnerCanvasCtx.fillRect(0, 0, width, height);
+
+                    runnerCanvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.07)';
+                    runnerCanvasCtx.lineWidth = 1;
+                    for (let gx = 0; gx < width; gx += 48) {
+                        runnerCanvasCtx.beginPath(); runnerCanvasCtx.moveTo(gx, 0); runnerCanvasCtx.lineTo(gx, height); runnerCanvasCtx.stroke();
+                    }
+                    for (let gy = 0; gy < height; gy += 48) {
+                        runnerCanvasCtx.beginPath(); runnerCanvasCtx.moveTo(0, gy); runnerCanvasCtx.lineTo(width, gy); runnerCanvasCtx.stroke();
+                    }
                 }
                 
                 runnerCanvasCtx.restore();
@@ -3393,7 +3456,7 @@
                 if (wbGameState === 'BATTLE') {
                     if (!window.cursorHistory) window.cursorHistory = [];
                     window.cursorHistory.push({ x: handCursor.smoothX, y: handCursor.smoothY });
-                    if (window.cursorHistory.length > 4) { // ⚡ ลดจาก 8→4 จุด ลดภาระวาดเส้น trail
+                    if (window.cursorHistory.length > 8) { // เก็บ trail ~130ms ที่ 60 FPS ให้หางลากสวยพอดีตา
                         window.cursorHistory.shift();
                     }
                     
@@ -3471,8 +3534,8 @@
                         runnerCanvasCtx.fillText(eff.text, eff.x, eff.y);
                         runnerCanvasCtx.restore();
                         
-                        eff.y -= 1.8;
-                        eff.alpha -= 0.035;
+                        eff.y -= 1.8 * frameScale;
+                        eff.alpha -= 0.035 * frameScale;
                         if (eff.alpha <= 0) {
                             window.safetyActiveEffects.splice(idx, 1);
                         }
@@ -3517,33 +3580,108 @@
         }
 
         // ฟังก์ชันหักแถวอักษรอัตโนมัติใน Canvas
+        // ⚡ มีแคชผลการหักบรรทัด: การวัดความกว้างอักษรทีละตัวทุกเฟรมที่ 60 FPS แพงมาก จึงคำนวณครั้งเดียวต่อ (ข้อความ+ฟอนต์+ความกว้าง)
+        const _wrapTextCache = new Map();
         function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-            const words = text.split('');
-            let line = '';
-            let lines = [];
-            
-            for (let n = 0; n < words.length; n++) {
-                let testLine = line + words[n];
-                let metrics = ctx.measureText(testLine);
-                let testWidth = metrics.width;
-                if (testWidth > maxWidth && n > 0) {
-                    lines.push(line);
-                    line = words[n];
-                } else {
-                    line = testLine;
+            const cacheKey = text + '|' + ctx.font + '|' + Math.round(maxWidth / 8);
+            let lines = _wrapTextCache.get(cacheKey);
+
+            if (!lines) {
+                const words = text.split('');
+                let line = '';
+                lines = [];
+
+                for (let n = 0; n < words.length; n++) {
+                    let testLine = line + words[n];
+                    let metrics = ctx.measureText(testLine);
+                    let testWidth = metrics.width;
+                    if (testWidth > maxWidth && n > 0) {
+                        lines.push(line);
+                        line = words[n];
+                    } else {
+                        line = testLine;
+                    }
                 }
+                lines.push(line);
+
+                if (_wrapTextCache.size > 300) _wrapTextCache.clear();
+                _wrapTextCache.set(cacheKey, lines);
             }
-            lines.push(line);
-            
+
             const totalH = lines.length * lineHeight;
             let startY = y - totalH / 2 + lineHeight / 2;
-            
+
             for (let i = 0; i < lines.length; i++) {
                 ctx.fillText(lines[i], x, startY + i * lineHeight);
             }
         }
 
-        // (ระบบลากวางผ่านทัชสกรีนถูกยกเลิกแล้วเพื่อประสิทธิภาพสูงสุดและความเสถียร 100% ไร้บั๊กในชั้นเรียน)
+        // 🖱️ ระบบลากวางด้วยเมาส์/นิ้วสัมผัส (Pointer Fallback) — ทำงานคู่ขนานกับกล้อง AI
+        //    สำหรับเครื่องที่ไม่มีกล้อง แสงไม่พอ หรือผู้เล่นที่ถนัดเมาส์มากกว่า ระหว่างลากด้วยเมาส์สัญญาณกล้องจะถูกพักชั่วคราว
+        function runnerPointerPos(event) {
+            const rect = runnerCanvasEl.getBoundingClientRect();
+            const { width, height } = logicalCanvasSize();
+            return {
+                x: (event.clientX - rect.left) / Math.max(1, rect.width) * width,
+                y: (event.clientY - rect.top) / Math.max(1, rect.height) * height,
+            };
+        }
+
+        if (runnerCanvasEl) {
+            runnerCanvasEl.style.touchAction = 'none'; // กันหน้าจอเลื่อนระหว่างลากการ์ดบนแท็บเล็ต
+
+            runnerCanvasEl.addEventListener('pointerdown', (event) => {
+                if (wbGameState !== 'BATTLE' || String(bossId).indexOf('WB002') !== 0 || !aiCurrentItem) return;
+                const pos = runnerPointerPos(event);
+                const insideCard = Math.abs(pos.x - aiCurrentItem.x) <= aiCurrentItem.w / 2 &&
+                                   Math.abs(pos.y - aiCurrentItem.y) <= aiCurrentItem.h / 2;
+                if (!insideCard) return;
+
+                pointerDragActive = true;
+                isPinching = true;
+                draggedItem = aiCurrentItem;
+                // วาร์ปเคอร์เซอร์ไปที่ตำแหน่งเมาส์ทันที (ไม่ต้องรอสมูทไล่ตาม)
+                handCursor.targetX = pos.x;
+                handCursor.targetY = pos.y;
+                handCursor.smoothX = pos.x;
+                handCursor.smoothY = pos.y;
+                draggedItem.offsetX = pos.x - aiCurrentItem.x;
+                draggedItem.offsetY = pos.y - aiCurrentItem.y;
+                try { runnerCanvasEl.setPointerCapture(event.pointerId); } catch (e) {}
+                playBeep('rep');
+                event.preventDefault();
+            });
+
+            runnerCanvasEl.addEventListener('pointermove', (event) => {
+                if (!pointerDragActive) return;
+                const pos = runnerPointerPos(event);
+                handCursor.targetX = pos.x;
+                handCursor.targetY = pos.y;
+                event.preventDefault();
+            });
+
+            const finishPointerDrag = (event) => {
+                if (!pointerDragActive) return;
+                pointerDragActive = false;
+                const pos = runnerPointerPos(event);
+                // ล็อกพิกัดปล่อยให้ตรงตำแหน่งเมาส์จริง เพื่อให้การตัดสินโซนแม่นยำ 100%
+                handCursor.targetX = pos.x;
+                handCursor.targetY = pos.y;
+                handCursor.smoothX = pos.x;
+                handCursor.smoothY = pos.y;
+                if (isPinching) {
+                    isPinching = false;
+                    if (draggedItem) {
+                        draggedItem.x = Math.max(80, Math.min(logicalCanvasSize().width - 80, pos.x - draggedItem.offsetX));
+                        draggedItem.y = Math.max(50, Math.min(480 - 50, pos.y - draggedItem.offsetY));
+                        handleDropRelease();
+                        draggedItem = null;
+                    }
+                }
+            };
+            runnerCanvasEl.addEventListener('pointerup', finishPointerDrag);
+            runnerCanvasEl.addEventListener('pointercancel', finishPointerDrag);
+        }
 
         // 5) สลับเข้าสู่นับเวลา 3 2 1
         function startCountdownPhase() {
@@ -3589,8 +3727,11 @@
                 wbTotalDistance = 0;
                 isPinching = false;
                 draggedItem = null;
-                handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240 };
-                
+                pointerDragActive = false;
+                lastHandLandmarks = null;
+                lastHandSeenAt = 0;
+                handCursor = { x: 320, y: 240, smoothX: 320, smoothY: 240, targetX: 320, targetY: 240 };
+
                 spawnNewSafetyItem();
                 startSafetyGameLoop(); // ⚡ เริ่มเธรดเกมลูปเรนเดอร์อิสระ 60 FPS บูสความลื่นไหล
             }

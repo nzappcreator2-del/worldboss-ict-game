@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { firestoreApi } from './firestoreApi'
+import { firestoreApi as typedFirestoreApi } from './firestoreApi'
+import type { FirebaseServices } from './legacyRunner'
+
+// The coverage checks index by arbitrary legacy method names, so use the
+// loose service-record view of the precisely typed api object.
+const firestoreApi: FirebaseServices = typedFirestoreApi
 
 const legacyMethods = [
   'askNPCAi', 'buyItem', 'checkCertificateEligibility', 'claimLoginBonus', 'completeDailyQuest',

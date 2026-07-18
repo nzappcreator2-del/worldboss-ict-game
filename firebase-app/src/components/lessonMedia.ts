@@ -25,3 +25,36 @@ export function toLessonEmbedUrl(value?: string) {
     return input
   }
 }
+
+export function isDirectLessonVideo(value?: string) {
+  if (!value) return false
+  try {
+    return /\.(mp4|webm|ogg)$/i.test(new URL(value).pathname)
+  } catch {
+    return /\.(mp4|webm|ogg)(?:$|[?#])/i.test(value)
+  }
+}
+
+export function toTrackedLessonEmbedUrl(value?: string, origin = '') {
+  const embed = toLessonEmbedUrl(value)
+  if (!embed || !embed.startsWith('https://www.youtube.com/embed/')) return embed
+  const url = new URL(embed)
+  url.searchParams.set('enablejsapi', '1')
+  if (origin) url.searchParams.set('origin', origin)
+  return url.toString()
+}
+
+export function hasTrackableLessonVideo(value?: string) {
+  return isDirectLessonVideo(value) || toLessonEmbedUrl(value).startsWith('https://www.youtube.com/embed/')
+}
+
+export function lessonVideoMessageEnded(origin: string, data: unknown) {
+  if (!/^https:\/\/(?:www\.)?youtube(?:-nocookie)?\.com$/.test(origin)) return false
+  try {
+    const payload = typeof data === 'string' ? JSON.parse(data) : data
+    return Boolean(payload && typeof payload === 'object' && 'event' in payload && 'info' in payload
+      && payload.event === 'onStateChange' && payload.info === 0)
+  } catch {
+    return false
+  }
+}

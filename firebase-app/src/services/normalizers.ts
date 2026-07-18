@@ -1,4 +1,29 @@
+import { serverTimestamp } from 'firebase/firestore'
+import { levelForXp } from './levelSystem'
+
 export type UserRecord = Record<string, unknown>
+
+// Body type chosen at registration; drives which base spritesheet renders.
+// '' = account created before genders existed -> keeps the legacy hero base.
+export type StudentGender = 'male' | 'female'
+
+export function normalizeGender(value: unknown): StudentGender | '' {
+  return value === 'male' || value === 'female' ? value : ''
+}
+
+// Reduced public profile mirrored into /directory next to every relevant user
+// change. Never include coins/inventory/ownerUid/lastLogin here.
+export function directoryEntry(user: UserRecord): UserRecord {
+  return {
+    name: String(user.name || ''),
+    class: String(user.class || ''),
+    avatar: String(user.avatar || '🧙‍♂️'),
+    xp: Number(user.xp) || 0,
+    level: Number(user.level) || 1,
+    rank: String(user.rank || 'BRONZE'),
+    updatedAt: serverTimestamp(),
+  }
+}
 
 export function normalizeCyberScenario(id: string, value: Record<string, unknown>) {
   const migratedSheetShape = value.scenarioText !== undefined || value.scenarioId !== undefined
@@ -32,8 +57,18 @@ export function rankForXp(rawXp: unknown): string {
 
 export function normalizeUser(id: string, value: UserRecord) {
   const xp = Number(value.xp) || 0
-  const inventory = value.inventory && typeof value.inventory === 'object'
-    ? value.inventory
+  
+  let rawInventory = value.inventory
+  if (typeof rawInventory === 'string') {
+    try {
+      rawInventory = JSON.parse(rawInventory)
+    } catch {
+      rawInventory = null
+    }
+  }
+
+  const inventory = rawInventory && typeof rawInventory === 'object'
+    ? rawInventory
     : { potion: 0, magnifier: 0 }
 
   return {
@@ -42,9 +77,10 @@ export function normalizeUser(id: string, value: UserRecord) {
     name: String(value.name || ''),
     class: String(value.class || ''),
     xp,
-    level: Number(value.level) || Math.floor(xp / 100) + 1,
+    level: Number(value.level) || levelForXp(xp),
     rank: String(value.rank || rankForXp(xp)),
     avatar: String(value.avatar || '🧙‍♂️'),
+    gender: normalizeGender(value.gender),
     coins: Number(value.coins) || 0,
     streak: Number(value.streak) || 0,
     inventory,

@@ -1,9 +1,11 @@
 import {
   collection,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   query,
   runTransaction,
   serverTimestamp,
@@ -15,22 +17,38 @@ import { db, ensureSignedIn } from '../firebase/client'
 import {
   applyDailyProgress,
   applyLoginBonus,
+  buyCosmetic,
   buyInventoryItem,
   completeQuest,
+  DAILY_QUEST_DEFAULTS,
+  mergeDailyQuestConfig,
   pickGachaAvatar,
   resetDailyState,
   consumeInventoryItem,
+  toggleCosmetic,
   worldBossResult,
   type Inventory,
 } from './gameLogic'
 import { sanitizePublicSettings } from './adminLogic'
-import { normalizeCyberScenario, normalizeUser, rankForXp } from './normalizers'
+import { allocateHeroStat } from './heroStats'
+import { directoryEntry, normalizeCyberScenario, normalizeGender, normalizeUser, rankForXp } from './normalizers'
+import { clampSessionReward, levelForXp } from './levelSystem'
 import type { FirebaseServices } from './legacyRunner'
 import { adminApi } from './adminApi'
 import { aiFallbackApi } from './aiFallbackApi'
 import { pvpApi } from './pvpApi'
 
 type Data = Record<string, unknown>
+
+export type ActiveNews = Data & {
+  id?: string
+  title: string
+  content: string
+  icon?: string
+  type?: string
+  date?: string
+  updatedAtMs: number
+}
 
 export function claimLegacyUserData(data: Data, ownerUid: string, rawAvatar: unknown): Data {
   return {
@@ -45,6 +63,19 @@ const values = async (path: string) => {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))
 }
 
+const questionRowsForLesson = async (lessonId: string) => {
+  const snapshot = await getDocs(query(collection(db, 'questions'), where('lessonId', '==', lessonId)))
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))
+}
+
+const questionCountsFor = async (lessonIds: string[]) => {
+  const entries = await Promise.all(lessonIds.map(async (lessonId) => {
+    const aggregate = await getCountFromServer(query(collection(db, 'questions'), where('lessonId', '==', lessonId)))
+    return [lessonId, aggregate.data().count] as const
+  }))
+  return Object.fromEntries(entries)
+}
+
 const ownedUser = async (userId: unknown) => {
   const identity = await ensureSignedIn()
   const ref = doc(db, 'users', String(userId || ''))
@@ -54,18 +85,62 @@ const ownedUser = async (userId: unknown) => {
   return { identity, ref, snapshot }
 }
 
-const active = (value: unknown) => value !== false && String(value).toLowerCase() !== 'false'
+const DIRECTORY_MIRRORED_KEYS = ['name', 'class', 'avatar', 'xp', 'level', 'rank']
+
+export const active = (value: unknown) => {
+  if (value === false) return false
+  const text = String(value ?? '').trim().toLowerCase()
+  return text !== 'false' && text !== '0'
+}
+
+const newsTime = (item: Data) => {
+  const timestamp = item.updatedAt as { toMillis?: () => number; seconds?: number } | undefined
+  if (typeof timestamp?.toMillis === 'function') return timestamp.toMillis()
+  if (typeof timestamp?.seconds === 'number') return timestamp.seconds * 1000
+  if (typeof item.updatedAtMs === 'number') return item.updatedAtMs
+
+  const date = String(item.date || '').trim()
+  const thaiDate = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (thaiDate) {
+    const year = Number(thaiDate[3]) > 2400 ? Number(thaiDate[3]) - 543 : Number(thaiDate[3])
+    return Date.UTC(year, Number(thaiDate[2]) - 1, Number(thaiDate[1]))
+  }
+  const parsed = Date.parse(date)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function sortActiveNews(rows: Data[]): ActiveNews[] {
+  return rows
+    .filter((item) => active(item.isActive))
+    .map((item): ActiveNews => ({
+      ...item,
+      id: String(item.id || item.newsId || ''),
+      title: String(item.title || ''),
+      content: String(item.content || ''),
+      icon: String(item.icon || '📌'),
+      type: String(item.type || 'NEWS'),
+      date: String(item.date || ''),
+      updatedAtMs: newsTime(item),
+    }))
+    .sort((a, b) => Number(b.updatedAtMs) - Number(a.updatedAtMs) || String(b.id || '').localeCompare(String(a.id || '')))
+}
 const todayThailand = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date())
 
-async function mutateOwnedUser(rawUserId: unknown, operation: (user: Data) => { result: unknown; update?: Data }) {
+async function mutateOwnedUser<T>(rawUserId: unknown, operation: (user: Data) => { result: T; update?: Data }): Promise<T> {
   const userId = String(rawUserId || '')
   const { ref } = await ownedUser(userId)
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref)
-    const change = operation(snapshot.data() || {})
-    if (change.update) transaction.update(ref, change.update as Record<string, never>)
+    const user = snapshot.data() || {}
+    const change = operation(user)
+    if (change.update) {
+      transaction.update(ref, change.update as Record<string, never>)
+      if (DIRECTORY_MIRRORED_KEYS.some((key) => key in change.update!)) {
+        transaction.set(doc(db, 'directory', userId), directoryEntry({ ...user, ...change.update }), { merge: true })
+      }
+    }
     return change.result
   })
 }
@@ -78,7 +153,9 @@ const normalizeQuestion = (item: Data) => ({
     : [item.opt1, item.opt2, item.opt3, item.opt4],
   answer: item.pattern === 'choice' || !item.pattern
     ? Math.max(0, Number(item.answer ?? 1) - (item.answerIsZeroBased ? 0 : 1))
-    : item.answer,
+    // Matching questions never read `answer`, so a numeric fallback is safe
+    // and keeps the QuizQuestion contract (answer: number) honest.
+    : Number(item.answer) || 0,
   explanation: String(item.explanation || ''),
   pattern: String(item.pattern || item.questionPattern || 'choice'),
   image: String(item.image || item.questionImage || ''),
@@ -87,7 +164,7 @@ const normalizeQuestion = (item: Data) => ({
 
 async function getRegisteredUsers() {
   await ensureSignedIn()
-  const users = (await values('users')).map((item) => ({
+  const users = (await values('directory')).map((item) => ({
     name: String(item.name || ''), class: String(item.class || ''), avatar: String(item.avatar || '🧙‍♂️'),
   }))
   return { success: true, data: users }
@@ -106,7 +183,28 @@ async function getSettings() {
 
 async function getActiveNews() {
   await ensureSignedIn()
-  return (await values('news')).filter((item) => active(item.isActive)).reverse()
+  return sortActiveNews(await values('news'))
+}
+
+export function subscribeActiveNews(onNews: (news: ActiveNews[]) => void, onError?: (error: Error) => void) {
+  let cancelled = false
+  let unsubscribe: (() => void) | undefined
+
+  void ensureSignedIn().then(() => {
+    if (cancelled) return
+    unsubscribe = onSnapshot(collection(db, 'news'), (snapshot) => {
+      if (!cancelled) onNews(sortActiveNews(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))))
+    }, (error) => {
+      if (!cancelled) onError?.(error)
+    })
+  }).catch((error: unknown) => {
+    if (!cancelled) onError?.(error instanceof Error ? error : new Error(String(error)))
+  })
+
+  return () => {
+    cancelled = true
+    unsubscribe?.()
+  }
 }
 
 export async function getInitialData() {
@@ -114,29 +212,40 @@ export async function getInitialData() {
   return { success: true, users: users.data, settings: settings.data, news }
 }
 
-export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvatar: unknown) {
+export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvatar: unknown, rawGender?: unknown) {
   const identity = await ensureSignedIn()
   const name = String(rawName || '').trim()
   const className = String(rawClass || '').trim()
   if (!name || !className) return { success: false, error: 'กรุณาระบุชื่อและชั้นเรียน' }
 
-  const found = await getDocs(query(collection(db, 'users'), where('name', '==', name), where('class', '==', className), limit(1)))
+  // Existing profiles are located via the reduced public directory; full user
+  // docs are only readable after the claim write succeeds (rules enforce the
+  // ownership check server-side, so no pre-claim read is required).
+  const found = await getDocs(query(collection(db, 'directory'), where('name', '==', name), where('class', '==', className), limit(1)))
   if (!found.empty) {
-    const match = found.docs[0]
-    const data = match.data()
-    if (data.ownerUid && data.ownerUid !== identity.uid) {
+    const userId = found.docs[0].id
+    const userRef = doc(db, 'users', userId)
+    try {
+      await updateDoc(userRef, { ownerUid: identity.uid, lastLogin: serverTimestamp() })
+    } catch {
       return { success: false, error: 'โปรไฟล์นี้ถูกผูกกับอุปกรณ์หรือบัญชีอื่นแล้ว' }
     }
+    const snapshot = await getDoc(userRef)
+    const data = snapshot.data() || {}
     const claimedUser = claimLegacyUserData(data, identity.uid, rawAvatar)
-    await updateDoc(match.ref, { ...claimedUser, lastLogin: serverTimestamp() })
-    return { success: true, user: normalizeUser(match.id, claimedUser) }
+    if (claimedUser.avatar !== data.avatar) await updateDoc(userRef, { avatar: String(claimedUser.avatar) })
+    await setDoc(doc(db, 'directory', userId), directoryEntry(claimedUser), { merge: true })
+    return { success: true, user: normalizeUser(userId, claimedUser) }
   }
 
   const ref = doc(collection(db, 'users'))
+  const gender = normalizeGender(rawGender)
   const record = {
     name,
     class: className,
     avatar: String(rawAvatar || '🧙‍♂️'),
+    // Gender is only written at registration; rules keep it immutable afterwards.
+    ...(gender ? { gender } : {}),
     xp: 0,
     rank: 'BRONZE',
     level: 1,
@@ -148,6 +257,7 @@ export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvata
     lastLogin: serverTimestamp(),
   }
   await setDoc(ref, record)
+  await setDoc(doc(db, 'directory', ref.id), directoryEntry(record))
   return { success: true, user: normalizeUser(ref.id, record), isNew: true }
 }
 
@@ -162,14 +272,12 @@ async function getStudentProgress(rawUserId: unknown) {
 
 async function getLessons(rawUserId?: unknown) {
   await ensureSignedIn()
-  const [lessonRows, questionRows, progress] = await Promise.all([
-    values('lessons'), values('questions'), rawUserId ? getStudentProgress(rawUserId) : Promise.resolve({ data: [] as string[] }),
+  const [lessonRows, progress] = await Promise.all([
+    values('lessons'), rawUserId ? getStudentProgress(rawUserId) : Promise.resolve({ data: [] as string[] }),
   ])
-  const counts = questionRows.reduce<Record<string, number>>((all, item) => {
-    const lessonId = String(item.lessonId || '')
-    all[lessonId] = (all[lessonId] || 0) + 1
-    return all
-  }, {})
+  // Aggregation queries cost 1 read per 1000 index entries instead of
+  // downloading the whole question bank on every map open.
+  const counts = await questionCountsFor(lessonRows.map((item) => String(item.lessonId || item.id)))
   const lessons = lessonRows.map((item) => ({
     ...item,
     id: String(item.lessonId || item.id),
@@ -181,6 +289,7 @@ async function getLessons(rawUserId?: unknown) {
     enablePretest: item.enablePretest === true,
     worksheetUrl: String(item.worksheetUrl || ''),
     content: String(item.content || ''),
+    mapStyle: String(item.mapStyle || ''),
     questionCount: counts[String(item.lessonId || item.id)] || 0,
   }))
   return { success: true, data: lessons, passedLessons: progress.data }
@@ -189,9 +298,18 @@ async function getLessons(rawUserId?: unknown) {
 async function questionsFor(rawLessonId: unknown, pretest: boolean) {
   await ensureSignedIn()
   const lessonId = String(rawLessonId || '')
-  const rows = await values('questions')
+  const rows = lessonId === 'PVP_MODE'
+    ? await pvpQuestionRows()
+    : await questionRowsForLesson(lessonId)
   const selected = selectQuestionsForLesson(rows, lessonId, pretest)
   return { success: true, data: selected.map(normalizeQuestion).slice(0, lessonId === 'PVP_MODE' ? 10 : undefined) }
+}
+
+async function pvpQuestionRows() {
+  const dedicated = await questionRowsForLesson('PVP_MODE')
+  if (selectQuestionsForLesson(dedicated, 'PVP_MODE', false).length >= 10) return dedicated
+  // Not enough dedicated PVP questions: top the set up from the full bank.
+  return values('questions')
 }
 
 export function selectQuestionsForLesson(rows: Data[], lessonId: string, pretest: boolean): Data[] {
@@ -233,26 +351,30 @@ async function saveStudentProgress(rawUserId: unknown, rawLessonId: unknown, raw
     const gainedCoins = passedNow && !alreadyPassed ? Math.max(5, score * 5) : 0
     const xp = Number(user.xp || 0) + gainedXp
     const coins = Number(user.coins || 0) + gainedCoins
-    const level = Math.floor(xp / 100) + 1
+    const level = levelForXp(xp)
     const rank = rankForXp(xp)
 
     transaction.set(progressRef, { userId, lessonId, status: String(rawStatus), score, maxScore, updatedAt: serverTimestamp() }, { merge: true })
     transaction.update(userRef, { xp, coins, level, rank })
+    transaction.set(doc(db, 'directory', userId), directoryEntry({ ...user, xp, level, rank }), { merge: true })
     return { xp, coins, level, rank, gainedXp, alreadyPassed }
   })
   return { success: true, stats }
 }
 
-async function getLeaderboard() {
+async function rankedUsers() {
   await ensureSignedIn()
-  const data = (await values('users')).map((item) => normalizeUser(String(item.id), item))
-    .sort((a, b) => b.xp - a.xp).slice(0, 20)
-  return { success: true, data }
+  return (await values('directory')).map((item) => normalizeUser(String(item.id), item)).sort((a, b) => b.xp - a.xp)
+}
+
+async function getLeaderboard() {
+  return { success: true, data: (await rankedUsers()).slice(0, 20) }
 }
 
 async function getGuildLeaderboard() {
-  const leaderboard = await getLeaderboard()
-  const guilds = Object.values(leaderboard.data.reduce<Record<string, { name: string; totalXp: number; memberCount: number }>>((all, user) => {
+  // Guild totals must aggregate every player, not just the visible top 20.
+  const users = await rankedUsers()
+  const guilds = Object.values(users.reduce<Record<string, { name: string; totalXp: number; memberCount: number }>>((all, user) => {
     const name = user.class || '-'
     all[name] ??= { name, totalXp: 0, memberCount: 0 }
     all[name].totalXp += user.xp
@@ -268,6 +390,85 @@ async function getCyberSafetyScenarios() {
   return { success: true, data: scenarios.map((scenario) => normalizeCyberScenario(String(scenario.id || ''), scenario)) }
 }
 
+// Flush of field-combat rewards from the lesson adventure (monster-kill XP and
+// picked-up coins). Deltas are clamped client-side well under the ±1000-per-write
+// Firestore rules cap; level and rank are always recomputed server-shape-style
+// from the new XP total so the user document never drifts from the curve.
+async function saveAdventureRewards(rawUserId: unknown, rawXpGain: unknown, rawCoinGain: unknown) {
+  const gain = clampSessionReward(Number(rawXpGain), Number(rawCoinGain))
+  if (gain.xp <= 0 && gain.coins <= 0) return { success: true, skipped: true }
+  return mutateOwnedUser(rawUserId, (user) => {
+    const xp = (Number(user.xp) || 0) + gain.xp
+    const coins = (Number(user.coins) || 0) + gain.coins
+    const level = levelForXp(xp)
+    const rank = rankForXp(xp)
+    return {
+      result: { success: true, stats: { xp, coins, level, rank, gainedXp: gain.xp, gainedCoins: gain.coins } },
+      update: { xp, coins, level, rank },
+    }
+  })
+}
+
+// Cosmetic wardrobe: prices live in gameLogic.COSMETIC_CATALOG (all ≤ 950, under
+// the rules' coin delta cap); ownership/equipped state sits in the inventory bag.
+async function buyCosmeticItem(rawUserId: unknown, rawItemId: unknown) {
+  return mutateOwnedUser<{ success: boolean; coins?: number; inventory?: Inventory; error?: string }>(rawUserId, (user) => {
+    const outcome = buyCosmetic(Number(user.coins) || 0, (user.inventory as Inventory) || {}, String(rawItemId || ''), user.gender)
+    if (!outcome.success) return { result: outcome }
+    return {
+      result: { success: true, coins: outcome.coins, inventory: outcome.inventory },
+      update: { coins: outcome.coins, inventory: outcome.inventory },
+    }
+  })
+}
+
+async function equipCosmeticItem(rawUserId: unknown, rawItemId: unknown) {
+  return mutateOwnedUser<{ success: boolean; equipped?: boolean; inventory?: Inventory; error?: string }>(rawUserId, (user) => {
+    const outcome = toggleCosmetic((user.inventory as Inventory) || {}, String(rawItemId || ''), user.gender)
+    if (!outcome.success) return { result: outcome }
+    return {
+      result: { success: true, equipped: outcome.equipped, inventory: outcome.inventory },
+      update: { inventory: outcome.inventory },
+    }
+  })
+}
+
+const WORKSHEET_ANSWER_MAX_LENGTH = 1200
+const WORKSHEET_FIRST_SUBMIT_XP = 40
+const WORKSHEET_FIRST_SUBMIT_COINS = 25
+
+// Worksheet submissions live in the user's own document under inventory.worksheets
+// (the rules already treat `inventory` as a free-form player bag, so no rules
+// change is needed). The first submission per lesson pays a study reward once.
+async function saveWorksheetSubmission(rawUserId: unknown, rawLessonId: unknown, rawAnswer: unknown) {
+  const lessonId = String(rawLessonId || '').trim()
+  const answer = String(rawAnswer || '').trim().slice(0, WORKSHEET_ANSWER_MAX_LENGTH)
+  if (!lessonId || !answer) return { success: false, error: 'ไม่พบบทเรียนหรือคำตอบสำหรับบันทึก' }
+  return mutateOwnedUser(rawUserId, (user) => {
+    const inventory = user.inventory && typeof user.inventory === 'object' ? { ...(user.inventory as Data) } : {}
+    const worksheets = inventory.worksheets && typeof inventory.worksheets === 'object' ? { ...(inventory.worksheets as Data) } : {}
+    const firstSubmission = !(lessonId in worksheets)
+    worksheets[lessonId] = { answer, submittedAt: new Date().toISOString() }
+    inventory.worksheets = worksheets
+    const xp = (Number(user.xp) || 0) + (firstSubmission ? WORKSHEET_FIRST_SUBMIT_XP : 0)
+    const coins = (Number(user.coins) || 0) + (firstSubmission ? WORKSHEET_FIRST_SUBMIT_COINS : 0)
+    const level = levelForXp(xp)
+    const rank = rankForXp(xp)
+    return {
+      result: {
+        success: true,
+        firstSubmission,
+        stats: {
+          xp, coins, level, rank,
+          gainedXp: firstSubmission ? WORKSHEET_FIRST_SUBMIT_XP : 0,
+          gainedCoins: firstSubmission ? WORKSHEET_FIRST_SUBMIT_COINS : 0,
+        },
+      },
+      update: { inventory, xp, coins, level, rank },
+    }
+  })
+}
+
 async function saveCyberSafetyResult(rawUserId: unknown, rawScore: unknown, rawCoins: unknown, rawXp: unknown) {
   const userId = String(rawUserId || '')
   const { ref } = await ownedUser(userId)
@@ -276,12 +477,13 @@ async function saveCyberSafetyResult(rawUserId: unknown, rawScore: unknown, rawC
     const user = snapshot.data() || {}
     const coins = Number(user.coins || 0) + (Number(rawCoins) || 0)
     const xp = Number(user.xp || 0) + (Number(rawXp) || 0)
-    const level = Math.floor(xp / 100) + 1
+    const level = levelForXp(xp)
     const rank = rankForXp(xp)
     transaction.update(ref, { coins, xp, level, rank })
     transaction.set(doc(db, 'progress', `${userId}_CYBER_SAFETY`), {
       userId, lessonId: 'CYBER_SAFETY', status: 'Passed', score: Number(rawScore) || 0, updatedAt: serverTimestamp(),
     }, { merge: true })
+    transaction.set(doc(db, 'directory', userId), directoryEntry({ ...user, xp, level, rank }), { merge: true })
     return { coins, xp, level, rank }
   })
   return { success: true, ...result }
@@ -296,11 +498,22 @@ async function claimLoginBonus(rawUserId: unknown) {
       update: {
         coins: outcome.totalCoins,
         streak: outcome.streak,
-        lastLogin: todayThailand(),
         inventory: outcome.inventory,
       },
     }
   })
+}
+
+// Student-facing daily-quest catalog: admin overrides from the `dailyQuests`
+// collection merged over the code defaults; inactive quests drop out.
+async function getDailyQuestConfig() {
+  await ensureSignedIn()
+  const questRows = await values('dailyQuests')
+  const byId = new Map(questRows.map((row) => [String(row.questId || row.id), row]))
+  const data = DAILY_QUEST_DEFAULTS
+    .map((defaults) => mergeDailyQuestConfig(defaults, byId.get(defaults.id)))
+    .filter((quest) => quest.isActive)
+  return { success: true, data }
 }
 
 async function getDailyQuestStatus(rawUserId: unknown) {
@@ -329,12 +542,12 @@ async function updateDailyProgress(rawUserId: unknown, rawQuestId: unknown, rawI
 }
 
 async function completeDailyQuest(rawUserId: unknown, rawQuestId: unknown, rawCoins: unknown, rawXp: unknown) {
-  return mutateOwnedUser(rawUserId, (user) => {
+  return mutateOwnedUser<{ success: boolean; error?: string; coins?: number; xp?: number; inventory?: Inventory }>(rawUserId, (user) => {
     const outcome = completeQuest(user, todayThailand(), String(rawQuestId || ''), Number(rawCoins) || 0, Number(rawXp) || 0)
     if (!outcome.success) return { result: outcome }
-    const level = Math.floor(outcome.xp / 100) + 1
+    const level = levelForXp(outcome.xp)
     return {
-      result: { success: true, coins: outcome.coins, xp: outcome.xp },
+      result: { success: true, coins: outcome.coins, xp: outcome.xp, inventory: outcome.inventory },
       update: { coins: outcome.coins, xp: outcome.xp, level, rank: rankForXp(outcome.xp), inventory: outcome.inventory },
     }
   })
@@ -354,9 +567,16 @@ async function buyItem(rawUserId: unknown, rawItemId: unknown) {
   })
 }
 
+async function allocateStatPoint(rawUserId: unknown, rawStatKey: unknown) {
+  return mutateOwnedUser(rawUserId, (user) => {
+    const outcome = allocateHeroStat(user, rawStatKey)
+    return { result: outcome, ...(outcome.success ? { update: { inventory: outcome.inventory } } : {}) }
+  })
+}
+
 async function gachaAvatar(rawUserId: unknown) {
   const selected = pickGachaAvatar()
-  return mutateOwnedUser(rawUserId, (user) => {
+  return mutateOwnedUser<{ success: boolean; error?: string; coins?: number; avatar?: string; rarity?: string; message?: string }>(rawUserId, (user) => {
     const coins = Number(user.coins) || 0
     if (coins < 500) return { result: { success: false, error: 'เหรียญไม่พอสุ่มกาชา!' } }
     const newCoins = coins - 500
@@ -369,8 +589,8 @@ async function gachaAvatar(rawUserId: unknown) {
 
 async function getUserStats(rawUserId: unknown) {
   const userId = String(rawUserId || '')
-  const [leaderboard, progressResult, lessonsResult] = await Promise.all([getLeaderboard(), getStudentProgress(userId), getLessons()])
-  const index = leaderboard.data.findIndex((user) => user.id === userId)
+  const [users, progressResult, lessonsResult] = await Promise.all([rankedUsers(), getStudentProgress(userId), getLessons()])
+  const index = users.findIndex((user) => user.id === userId)
   const passed = new Set(progressResult.data)
   const activeLessons = lessonsResult.data.filter((lesson) => lesson.isActive)
   const current = activeLessons.find((lesson) => !passed.has(lesson.id))
@@ -394,6 +614,11 @@ async function checkCertificateEligibility(rawUserId: unknown) {
     const nextBadges = isEligible
       ? badges.includes('badge_cert') ? badges : [...badges, 'badge_cert']
       : badges.filter((badge) => badge !== 'badge_cert')
+    // Skip the write entirely when nothing changed: this runs on every
+    // certificate-tab visit and used to burn a write each time.
+    if (nextBadges.length === badges.length && nextBadges.every((badge, index) => badge === badges[index])) {
+      return { result: undefined }
+    }
     return { result: undefined, update: { inventory: { ...inventory, badges: nextBadges } } }
   })
   return { success: true, isEligible, passedCount, totalActiveCount: activeIds.length }
@@ -463,19 +688,25 @@ async function submitWorldBossScore(rawUserId: unknown, rawBossId: unknown, rawS
     const user = userSnapshot.data() || {}
     const previous = scoreSnapshot.exists() ? Number(scoreSnapshot.data().bestTime ?? scoreSnapshot.data().bestScore) : null
     const score = worldBossResult(bossId, Number(rawScore), previous)
-    const rewardCoins = Number(boss.rewardCoins) || 50
-    const rewardXp = Number(boss.rewardXp) || 50
-    const newCoins = (Number(user.coins) || 0) + rewardCoins + Math.max(0, Number(rawBonusCoins) || 0)
+    // Full boss rewards only on a personal best; replays still keep the small
+    // capped in-game bonus so grinding cannot mint unlimited coins/XP.
+    const rewardCoins = score.isPersonalBest ? Number(boss.rewardCoins) || 50 : 0
+    const rewardXp = score.isPersonalBest ? Number(boss.rewardXp) || 50 : 0
+    const bonusCoins = Math.min(200, Math.max(0, Number(rawBonusCoins) || 0))
+    const newCoins = (Number(user.coins) || 0) + rewardCoins + bonusCoins
     const newXp = (Number(user.xp) || 0) + rewardXp
-    const level = Math.floor(newXp / 100) + 1
+    const level = levelForXp(newXp)
     const rank = rankForXp(newXp)
     if (score.isPersonalBest) {
       transaction.set(scoreRef, {
-        userId, bossId, name: user.name, className: user.class, bestTime: score.bestScore,
-        date: todayThailand(), ownerUid: user.ownerUid, updatedAt: serverTimestamp(),
+        userId, bossId, name: String(user.name || ''), className: String(user.class || ''), bestTime: score.bestScore,
+        date: todayThailand(), ownerUid: String(user.ownerUid || ''), updatedAt: serverTimestamp(),
       }, { merge: true })
     }
-    transaction.update(userRef, { coins: newCoins, xp: newXp, level, rank })
+    if (rewardCoins + rewardXp + bonusCoins > 0) {
+      transaction.update(userRef, { coins: newCoins, xp: newXp, level, rank })
+      transaction.set(doc(db, 'directory', userId), directoryEntry({ ...user, xp: newXp, level, rank }), { merge: true })
+    }
     return {
       success: true, isPersonalBest: score.isPersonalBest, previousBest: previous,
       bestTime: score.bestScore, rewardCoins, rewardXp, newCoins, newXp, level, rank,
@@ -503,7 +734,7 @@ async function getScriptUrl() {
   return window.location.origin + window.location.pathname
 }
 
-export const firestoreApi: FirebaseServices = {
+export const firestoreApi = {
   ...aiFallbackApi,
   ...adminApi,
   ...pvpApi,
@@ -517,17 +748,23 @@ export const firestoreApi: FirebaseServices = {
   getQuestions,
   getPreTestQuestions,
   saveStudentProgress,
+  saveAdventureRewards,
+  saveWorksheetSubmission,
   getStudentProgress,
   getLeaderboard,
   getGuildLeaderboard,
   getCyberSafetyScenarios,
   saveCyberSafetyResult,
   claimLoginBonus,
+  getDailyQuestConfig,
   getDailyQuestStatus,
   updateDailyProgress,
   completeDailyQuest,
   useItem,
   buyItem,
+  buyCosmeticItem,
+  equipCosmeticItem,
+  allocateStatPoint,
   gachaAvatar,
   getUserStats,
   checkCertificateEligibility,
@@ -535,4 +772,4 @@ export const firestoreApi: FirebaseServices = {
   getWorldBossConfig,
   submitWorldBossScore,
   getWorldBossLeaderboard,
-}
+} satisfies FirebaseServices

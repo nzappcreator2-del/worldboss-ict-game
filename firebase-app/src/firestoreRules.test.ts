@@ -21,10 +21,15 @@ describe('Firestore security rules', () => {
   it('limits student-owned user updates to expected profile and reward fields', () => {
     expect(rules).toContain('function userDocumentShapeValid()')
     expect(rules).toContain('function userChangedFieldsAllowed()')
-    expect(rules).toContain("request.resource.data.keys().hasOnly(['userId', 'name', 'class', 'avatar', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'createdAt', 'lastLogin'])")
+    expect(rules).toContain("request.resource.data.keys().hasOnly(['userId', 'name', 'class', 'avatar', 'gender', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'createdAt', 'lastLogin'])")
     expect(rules).toContain("request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatar', 'xp', 'rank', 'level', 'coins', 'streak', 'inventory', 'ownerUid', 'lastLogin'])")
     expect(rules).toContain('&& userDocumentShapeValid()')
     expect(rules).toContain('&& userChangedFieldsAllowed()')
+    // Gender is registration-only: valid values gated on create, and it stays
+    // out of the update whitelist above so it can never change afterwards.
+    expect(rules).toContain('function userGenderValid()')
+    expect(rules).toContain("request.resource.data.gender in ['male', 'female']")
+    expect(rules).toContain('&& userGenderValid()')
   })
 
   it('limits progress reads to admins or the owning student profile', () => {

@@ -36,10 +36,10 @@ export function adminQuestion(id: string, value: Data) {
     lessonId: String(value.lessonId || ''),
     text: String(value.text || value.questionText || ''),
     options: options.slice(0, 4).map((option) => String(option || '')),
-    answer: value.answer ?? 1,
+    answer: typeof value.answer === 'number' || typeof value.answer === 'string' ? value.answer : 1,
     explanation: String(value.explanation || ''),
     type: String(value.type || 'posttest').toLowerCase(),
-    pattern: String(value.pattern || value.questionPattern || 'choice'),
+    pattern: String(value.pattern || value.questionPattern) === 'matching' ? 'matching' as const : 'choice' as const,
     image: String(value.image || value.questionImage || ''),
     matchingPairs: Array.isArray(value.matchingPairs) ? value.matchingPairs : [],
   }

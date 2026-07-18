@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
+import {
+  HERO_STAT_KEYS,
+  heroCombatProfile,
+  remainingStatPoints,
+  sanitizeHeroStats,
+  type HeroStatKey,
+} from '../services/heroStats'
+import { levelProgress } from '../services/levelSystem'
+import { CharacterEquipment } from './CharacterEquipment'
 
-type Inventory = { potion?: number; magnifier?: number; badges?: string[] }
+type Inventory = { potion?: number; magnifier?: number; badges?: string[]; stats?: Record<string, number> }
 type ProfileStats = { totalScore: number; completedLessons: number; totalLessons: number; completionRate: number }
 
 export type ProfileData = {
@@ -8,6 +17,7 @@ export type ProfileData = {
   name: string
   class: string
   avatar?: string
+  gender?: string
   level: number
   xp: number
   rank: string
@@ -18,10 +28,20 @@ export type ProfileData = {
   stats?: ProfileStats
 }
 
+export type StatAllocationResult = { success: boolean; inventory?: Inventory; remaining?: number; error?: string }
 export type ProfileResult = { success: boolean; profile?: ProfileData; error?: string }
 export type ProfileService = {
   getCurrentUser(): { id: string } | null
   loadProfile(userId: string): Promise<ProfileResult>
+  allocateStat?(userId: string, key: HeroStatKey): Promise<StatAllocationResult>
+  equipCosmetic?(userId: string, itemId: string): Promise<{ success: boolean; equipped?: boolean; inventory?: Inventory; error?: string }>
+}
+
+const STAT_LABELS: Record<HeroStatKey, { title: string; effect: string }> = {
+  str: { title: 'STR', effect: '+2 ATK ต่อแต้ม' },
+  vit: { title: 'VIT', effect: '+6 HP สูงสุด ต่อแต้ม' },
+  dex: { title: 'DEX', effect: 'ยกพื้นความแรงขั้นต่ำ' },
+  luk: { title: 'LUK', effect: '+0.5% โอกาสคริ ต่อแต้ม' },
 }
 
 const badgeDefinitions: Record<string, { icon: string; title: string; description: string }> = {
@@ -33,7 +53,7 @@ const badgeDefinitions: Record<string, { icon: string; title: string; descriptio
   badge_cert: { icon: '🎓', title: 'บัณฑิตน้อย', description: 'ผ่านด่านทั้งหมดสำเร็จ' },
 }
 
-export function PlayerProfile({ service }: { service: ProfileService }) {
+export function PlayerProfile({ service, onUserUpdate }: { service: ProfileService; onUserUpdate?(update: { inventory: Inventory }): void }) {
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
 
@@ -56,17 +76,110 @@ export function PlayerProfile({ service }: { service: ProfileService }) {
     return () => window.removeEventListener('nextgen:open-profile', load)
   }, [load])
 
+  const applyStatAllocation = useCallback((inventory: Inventory) => {
+    setProfile((current) => current ? { ...current, inventory } : current)
+    onUserUpdate?.({ inventory })
+  }, [onUserUpdate])
+
   return (
-    <div id="dash-tab-profile" className="flex flex-1 flex-col w-full h-full animate-fade-in relative z-10 md:p-4 overflow-y-auto overflow-x-hidden pb-32">
-      {status === 'idle' && <div className="flex items-center justify-center h-64 text-indigo-600 font-bold">เปิด Profile เพื่อดูข้อมูลผู้กล้า</div>}
-      {status === 'loading' && <div className="flex flex-col items-center justify-center h-64"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /><span className="text-indigo-600 font-bold mt-3">กำลังเปิดข้อมูลผู้กล้า...</span></div>}
-      {status === 'error' && <div className="flex flex-col items-center justify-center h-64 text-center"><div className="text-4xl mb-2">⚠️</div><p className="text-red-600 font-bold">โหลดโปรไฟล์ไม่สำเร็จ</p><button type="button" onClick={load} className="mt-4 px-5 py-2 bg-indigo-600 text-white rounded-xl font-bold">ลองใหม่</button></div>}
-      {status === 'ready' && profile && <ProfileContent profile={profile} />}
+    <div id="dash-tab-profile" className="ro-profile-page">
+      {status === 'idle' && <div className="ro-profile-status-screen">เปิด Profile เพื่อดูข้อมูลผู้กล้า</div>}
+      {status === 'loading' && (
+        <div className="ro-profile-status-screen">
+          <div className="ro-profile-spinner" aria-hidden="true" />
+          <span>กำลังเปิดข้อมูลผู้กล้า...</span>
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="ro-profile-status-screen ro-profile-status-error">
+          <div className="ro-profile-status-icon" aria-hidden="true">⚠️</div>
+          <p>โหลดโปรไฟล์ไม่สำเร็จ</p>
+          <button type="button" onClick={load} className="ro-profile-retry-btn">ลองใหม่</button>
+        </div>
+      )}
+      {status === 'ready' && profile && <ProfileContent profile={profile} service={service} onStatAllocated={applyStatAllocation} />}
     </div>
   )
 }
 
-function ProfileContent({ profile }: { profile: ProfileData }) {
+function StatusWindow({ profile, service, onStatAllocated }: { profile: ProfileData; service: ProfileService; onStatAllocated(inventory: Inventory): void }) {
+  const [pendingKey, setPendingKey] = useState<HeroStatKey | null>(null)
+  const [error, setError] = useState('')
+  const stats = sanitizeHeroStats(profile.inventory?.stats)
+  const remaining = remainingStatPoints(profile)
+  const combat = heroCombatProfile(profile.inventory?.stats)
+
+  const allocate = async (key: HeroStatKey) => {
+    if (!service.allocateStat || pendingKey || remaining <= 0) return
+    setPendingKey(key)
+    setError('')
+    try {
+      const result = await service.allocateStat(profile.id, key)
+      if (!result.success || !result.inventory) {
+        setError(result.error || 'อัปสเตตัสไม่สำเร็จ')
+        return
+      }
+      onStatAllocated(result.inventory)
+    } catch {
+      setError('การเชื่อมต่อล้มเหลว')
+    } finally {
+      setPendingKey(null)
+    }
+  }
+
+  return (
+    <div className="ro-profile-panel ro-profile-status-panel">
+      <div className="ro-profile-panel-header">
+        <h3>📜 หน้าต่างสเตตัส</h3>
+        <span className="ro-profile-points-chip">แต้มคงเหลือ {remaining}</span>
+      </div>
+      {error && <p role="alert" className="ro-profile-error-text">{error}</p>}
+      <div className="ro-profile-status-grid">
+        {HERO_STAT_KEYS.map((key) => (
+          <div key={key} className="ro-profile-status-row">
+            <div className="ro-profile-status-info">
+              <div className="ro-profile-status-title">{STAT_LABELS[key].title} <span className="ro-profile-status-value">{stats[key]}</span></div>
+              <div className="ro-profile-status-effect">{STAT_LABELS[key].effect}</div>
+            </div>
+            <button
+              type="button"
+              aria-label={`เพิ่ม ${STAT_LABELS[key].title}`}
+              disabled={!service.allocateStat || pendingKey !== null || remaining <= 0}
+              onClick={() => void allocate(key)}
+              className="ro-profile-stat-btn"
+            >+</button>
+          </div>
+        ))}
+      </div>
+      <div className="ro-profile-effect-row">
+        <span className="ro-profile-effect-chip">❤️ HP สูงสุด {combat.maxHp}</span>
+        <span className="ro-profile-effect-chip">⚔️ พลังโจมตี +{combat.bonusAttack}</span>
+        <span className="ro-profile-effect-chip">🎯 คริ {(100 - combat.critThreshold * 100).toFixed(1)}%</span>
+        <span className="ro-profile-effect-chip">🌀 ดาเมจขั้นต่ำ +{combat.varianceFloor}</span>
+      </div>
+    </div>
+  )
+}
+
+// "ตู้เสื้อผ้าผู้กล้า" — the same paper-doll equipment screen used by the bag and
+// the in-lesson profile, so the hero can be dressed from any of them.
+function WardrobePanel({ profile }: { profile: ProfileData }) {
+  return (
+    <div className="ro-profile-panel ro-profile-wardrobe-panel" data-testid="profile-wardrobe">
+      <h3>🧍 อุปกรณ์สวมใส่</h3>
+      <CharacterEquipment
+        inventory={profile.inventory}
+        gender={profile.gender}
+        pending={false}
+        onToggle={undefined}
+        showWardrobe={false}
+        previewSize={96}
+      />
+    </div>
+  )
+}
+
+function ProfileContent({ profile, service, onStatAllocated }: { profile: ProfileData; service: ProfileService; onStatAllocated(inventory: Inventory): void }) {
   const stats = profile.stats || { totalScore: 0, completedLessons: 0, totalLessons: 0, completionRate: 0 }
   const inventory = profile.inventory || {}
   const badges = Array.isArray(inventory.badges) ? inventory.badges.map(String) : []
@@ -76,56 +189,92 @@ function ProfileContent({ profile }: { profile: ProfileData }) {
   const completion = Math.min(100, Number(stats.completionRate) || 0)
 
   return <>
-    <section className="flex flex-col md:flex-row gap-6 mb-8 items-center md:items-end animate-slide-up">
-      <div className="relative">
-        <div className={`relative w-32 h-32 md:w-40 md:h-40 rounded-full border-[5px] flex items-center justify-center text-7xl md:text-8xl p-4 ${hasCertificate ? 'border-yellow-300 ring-8 ring-yellow-400/50 bg-yellow-50' : 'border-white shadow-xl bg-white'}`}>{profile.avatar || '👤'}</div>
-        <div className={`absolute -bottom-2 -right-2 w-12 h-12 rounded-full border-4 border-white flex items-center justify-center font-black text-lg shadow-lg ${hasCertificate ? 'bg-yellow-500 text-amber-950' : 'bg-indigo-600 text-white'}`}>{profile.level || 1}</div>
+    <section className="ro-profile-header">
+      <div className="ro-profile-avatar-wrap">
+        <div className={`ro-profile-avatar${hasCertificate ? ' ro-profile-avatar-cert' : ''}`}>{profile.avatar || '👤'}</div>
+        <div className="ro-profile-level-badge">{profile.level || 1}</div>
       </div>
-      <div className="flex-1 text-center md:text-left">
-        <h2 aria-label={profile.name} className="text-3xl md:text-5xl font-black text-gray-800 uppercase flex justify-center md:justify-start items-center gap-2">{profile.name}{hasCertificate && <span title="บัณฑิตน้อย">🎓</span>}</h2>
-        <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2"><span className="bg-indigo-50 px-3 py-1 rounded-full text-sm font-bold">🛡️ ชั้นเรียน {profile.class || '-'}</span><span className="bg-indigo-600 px-3 py-1 rounded-full text-sm font-bold text-white">⚔️ {profile.rank || 'BRONZE'}</span></div>
-        <div className="w-full max-w-md mx-auto md:mx-0 mt-4"><div className="flex justify-between text-xs font-bold text-indigo-600"><span>ความก้าวหน้า XP</span><span>{Number(profile.xp || 0).toLocaleString()} XP</span></div><div className="h-5 bg-white/80 rounded-full border-2 border-indigo-100 p-0.5"><div className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full" style={{ width: `${Number(profile.xp || 0) % 100}%` }} /></div></div>
+      <div className="ro-profile-identity">
+        <h2 aria-label={profile.name} className="ro-profile-name">{profile.name}{hasCertificate && <span title="บัณฑิตน้อย">🎓</span>}</h2>
+        <div className="ro-profile-chip-row">
+          <span className="ro-profile-chip">🛡️ ชั้นเรียน {profile.class || '-'}</span>
+          <span className="ro-profile-chip ro-profile-chip-rank">⚔️ {profile.rank || 'BRONZE'}</span>
+        </div>
+        <div className="ro-profile-xp-wrap">
+          <div className="ro-profile-xp-bar-wrap">
+            <div className="ro-profile-xp-label"><span>ความก้าวหน้า XP</span><span>{Number(profile.xp || 0).toLocaleString()} XP</span></div>
+            <div className="ro-profile-xp-bar"><i style={{ width: `${levelProgress(profile.xp).percent}%` }} /></div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section aria-label="สถิติผู้เล่น" className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+    <section aria-label="สถิติผู้เล่น" className="ro-profile-stat-row">
       <StatCard icon="🔥" value={stats.totalScore} label="คะแนนรวม" color="amber" />
       <StatCard icon="📚" value={`${stats.completedLessons} / ${stats.totalLessons}`} label="ด่านที่ผ่าน" color="emerald" />
       <StatCard icon="📈" value={`${completion}%`} label="ความสำเร็จ" color="indigo" />
       <StatCard icon="💰" value={profile.coins || 0} label="เหรียญทอง" color="yellow" />
     </section>
 
-    <section className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-5">
-      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2.5rem] p-8 text-white shadow-2xl flex flex-col items-center justify-center"><h3 className="text-xs font-bold opacity-80 mb-4 uppercase tracking-widest">ความสำเร็จในภารกิจ</h3><div className="w-36 h-36 rounded-full border-[14px] border-white/20 flex items-center justify-center text-4xl font-black shadow-inner">{completion}%</div></div>
-      <div className="md:col-span-2 bg-white/95 rounded-[2.5rem] p-8 border-2 border-indigo-100 shadow-xl">
-        <h3 className="text-indigo-950 font-black mb-5 text-lg">🎒 ไอเทมปัจจุบัน</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><ItemCard icon="🧪" name="Health Potion" count={Number(inventory.potion) || 0} unit="ขวด" /><ItemCard icon="🔍" name="Magnifier Tool" count={Number(inventory.magnifier) || 0} unit="ชิ้น" /></div>
-        <div className="mt-6 pt-5 border-t border-indigo-100 flex justify-between text-sm"><span className="font-bold text-indigo-600">เข้าใช้งานล่าสุด</span><span className="font-black text-indigo-950">{formatDate(profile.lastLogin)}</span></div>
+    <section className="ro-profile-content-grid">
+      <div className="ro-profile-panel ro-profile-mission-panel">
+        <h3>ความสำเร็จในภารกิจ</h3>
+        <div className="ro-profile-mission-ring">{completion}%</div>
       </div>
-      <div className="md:col-span-3 bg-white/95 rounded-[2.5rem] p-8 border-2 border-amber-100 shadow-xl">
-        <h3 className="text-amber-950 font-black mb-6 text-xl">🏆 คลังเหรียญตราความสำเร็จ</h3>
+      <div className="ro-profile-panel ro-profile-items-panel">
+        <h3>🎒 ไอเทมปัจจุบัน</h3>
+        <div className="ro-profile-item-grid">
+          <ItemCard icon="🧪" name="Health Potion" count={Number(inventory.potion) || 0} unit="ขวด" />
+          <ItemCard icon="🔍" name="Magnifier Tool" count={Number(inventory.magnifier) || 0} unit="ชิ้น" />
+        </div>
+        <div className="ro-profile-last-login"><span>เข้าใช้งานล่าสุด</span><span>{formatDate(profile.lastLogin)}</span></div>
+      </div>
+      <StatusWindow profile={profile} service={service} onStatAllocated={onStatAllocated} />
+      <WardrobePanel profile={profile} />
+      <div className="ro-profile-panel ro-profile-badge-panel">
+        <h3>🏆 คลังเหรียญตราความสำเร็จ</h3>
         {normalBadges.length === 0 && lessonBadgeCount === 0
-          ? <div className="text-center p-8 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl text-gray-400 font-bold">ยังไม่มีเหรียญตรา</div>
-          : <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          ? <div className="ro-profile-empty-state">ยังไม่มีเหรียญตรา</div>
+          : <div className="ro-profile-badge-case">
             {normalBadges.map((badge) => <BadgeCard key={badge} badge={badgeDefinitions[badge] || { icon: '✨', title: 'เหรียญปริศนา', description: 'ความสำเร็จพิเศษ' }} />)}
             {lessonBadgeCount > 0 && <BadgeCard badge={{ icon: '🏅', title: 'ผู้พิชิต', description: `ผ่านการทดสอบ ${lessonBadgeCount} ด่าน` }} count={lessonBadgeCount} />}
           </div>}
       </div>
     </section>
-    <div className="h-12" />
   </>
 }
 
 function StatCard({ icon, value, label, color }: { icon: string; value: string | number; label: string; color: string }) {
-  return <div className={`bg-white/95 p-4 md:p-6 rounded-[2rem] border-2 border-${color}-200 shadow-lg flex flex-col items-center text-center`}><div className="text-3xl md:text-4xl mb-2">{icon}</div><div className={`text-2xl md:text-3xl font-black text-${color}-600`}>{value}</div><div className={`text-[10px] md:text-xs font-bold text-${color}-500 uppercase mt-1`}>{label}</div></div>
+  return (
+    <div className="ro-profile-stat-plate" data-tone={color}>
+      <span className="ro-profile-stat-icon" aria-hidden="true">{icon}</span>
+      <span className="ro-profile-stat-value">{value}</span>
+      <span className="ro-profile-stat-label">{label}</span>
+    </div>
+  )
 }
 
 function ItemCard({ icon, name, count, unit }: { icon: string; name: string; count: number; unit: string }) {
-  return <div className="bg-indigo-50/50 p-5 rounded-3xl border border-indigo-100 flex items-center gap-4"><div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm">{icon}</div><div><div className="text-[10px] text-indigo-400 font-bold uppercase">{name}</div><div className="text-xl font-black text-indigo-950">{count} <span className="text-sm text-gray-500">{unit}</span></div></div></div>
+  return (
+    <div className="ro-profile-item-slot">
+      <span className="ro-profile-item-icon" aria-hidden="true">{icon}</span>
+      <div className="ro-profile-item-info">
+        <div className="ro-profile-item-name">{name}</div>
+        <div className="ro-profile-item-count">{count} <span>{unit}</span></div>
+      </div>
+    </div>
+  )
 }
 
 function BadgeCard({ badge, count }: { badge: { icon: string; title: string; description: string }; count?: number }) {
-  return <article className="relative bg-gradient-to-b from-white to-amber-50 p-4 rounded-3xl border border-amber-200 text-center shadow-md">{count && count > 1 ? <span className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">x{count}</span> : null}<div className="w-16 h-16 mx-auto bg-gradient-to-br from-amber-100 to-amber-300 rounded-full flex items-center justify-center text-3xl mb-3">{badge.icon}</div><h4 className="font-black text-amber-900 text-sm">{badge.title}</h4><p className="text-[10px] text-amber-800 mt-1">{badge.description}</p></article>
+  return (
+    <article className="ro-profile-badge-medal">
+      {count && count > 1 ? <span className="ro-profile-badge-count">x{count}</span> : null}
+      <div className="ro-profile-badge-icon" aria-hidden="true">{badge.icon}</div>
+      <h4>{badge.title}</h4>
+      <p>{badge.description}</p>
+    </article>
+  )
 }
 
 function formatDate(value: unknown) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractLegacyBody, migrateLegacyBackendCalls, removeElementById, replaceElementWithPortal, stripHtmlTag } from './legacyDocument'
+import { extractLegacyBody, migrateLegacyBackendCalls, migrateLegacyPageCss, removeElementById, replaceElementWithPortal, stripHtmlTag } from './legacyDocument'
 
 describe('extractLegacyBody', () => {
   it('preserves the legacy body markup and removes GAS includes', () => {
@@ -33,6 +33,49 @@ describe('migrateLegacyBackendCalls', () => {
     expect(migrated).toContain("typeof firebaseServices !== 'undefined'")
     expect(migrated).toContain("typeof firebaseServices === 'undefined'")
     expect(migrated).not.toContain('google.script')
+  })
+})
+
+describe('migrateLegacyPageCss', () => {
+  it('scopes the global section router rules to the legacy page shells', () => {
+    const css = `
+    /* ========== 3. Layouts & Navigation ========== */
+    section {
+        display: none;
+        animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    section.page-active {
+        display: flex;
+    }`
+    const migrated = migrateLegacyPageCss(css)
+
+    expect(migrated).toContain(':where(section[id^="page-"]) {')
+    expect(migrated).toContain(':where(section[id^="page-"].page-active) {')
+    // React windows portaled to <body> (เช่น ตู้เสื้อผ้าในกระเป๋าไอเทม) render
+    // their own <section> elements — the bare selector must be gone so they stay visible.
+    expect(migrated).not.toMatch(/(^|[}/]|\*\/)\s*section\s*\{/)
+    expect(migrated).not.toMatch(/(^|[}/]|\*\/)\s*section\.page-active/)
+    expect(migrated).toContain('display: none;')
+    expect(migrated).toContain('display: flex;')
+  })
+
+  it('keeps the scoped selector at zero specificity so a page\'s own display class always wins', () => {
+    // #page-dashboard is rendered by React with a plain `.flex`/`.hidden` Tailwind
+    // class controlling its display. A scoped-but-still-specific selector like
+    // `section[id^="page-"]` (0,1,1) out-specifies a single class rule like
+    // `.flex` (0,1,0) and would leave the whole dashboard stuck at display:none —
+    // this is the exact regression :where() exists to prevent.
+    const css = 'section {\n  display: none;\n}\n\nsection.page-active {\n  display: flex;\n}'
+    const migrated = migrateLegacyPageCss(css)
+
+    expect(migrated).not.toMatch(/(?<!:where\()section\[id\^="page-"\]/)
+  })
+
+  it('leaves descendant and unrelated selectors untouched', () => {
+    const css = '.card section { color: red; } #quiz-section { display: none; }'
+
+    expect(migrateLegacyPageCss(css)).toBe(css)
   })
 })
 

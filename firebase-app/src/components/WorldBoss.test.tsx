@@ -48,6 +48,40 @@ describe('WorldBoss', () => {
     expect(onExit).toHaveBeenCalledOnce()
   })
 
+  it('shows arcade guide chips, rewards, and stored personal bests on the renovated hub', async () => {
+    localStorage.setItem('wb_best_time_u1_WB001', '12.50')
+    setup()
+    await screen.findByText('มาริโอ้ฟิตเนสสะสมเหรียญ')
+    expect(screen.getByText('อนุญาตสิทธิ์กล้อง')).toBeTruthy()
+    expect(screen.getByText('แสงสว่างเพียงพอ')).toBeTruthy()
+    expect(screen.getByText('อยู่กึ่งกลางเฟรม')).toBeTruthy()
+    expect(screen.getAllByText('รางวัลสูงสุด')).toHaveLength(3)
+    expect(screen.getAllByText('สถิติของคุณ')).toHaveLength(3)
+    expect(screen.getByText('12.50')).toBeTruthy()
+    expect(screen.getAllByText('ยังไม่มีสถิติ')).toHaveLength(2)
+  })
+
+  it('renders the reference arcade stage and production card shells', async () => {
+    const { container } = render(
+      <WorldBoss
+        service={{
+          getCurrentUser: () => ({ id: 'u1', name: 'ฟ้า', className: 'ป.5/1', avatar: '🧙', coins: 10, xp: 20 }),
+          loadBosses: vi.fn().mockResolvedValue({ success: true, data: bosses }),
+          loadLeaderboard: vi.fn().mockResolvedValue({ success: true, data: [] }),
+          submitScore: vi.fn().mockResolvedValue({ success: true }),
+        }}
+        onExit={vi.fn()}
+        onUserUpdate={vi.fn()}
+      />,
+    )
+    fireEvent(window, new Event('nextgen:open-world-boss'))
+
+    expect(await screen.findByRole('region', { name: 'AI Motion Arcade' })).toBeTruthy()
+    expect(container.querySelector('.world-boss-arcade-stage')).toBeTruthy()
+    expect(container.querySelectorAll('.arcade-game-card')).toHaveLength(3)
+    expect(container.querySelectorAll('.arcade-game-card__energy')).toHaveLength(3)
+  })
+
   it('loads leaderboard variants with the correct score unit', async () => {
     const { service } = setup()
     await screen.findByText('สมรภูมิมือปราบภัย AI')

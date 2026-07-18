@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { GENDER_BASE_LAYERS } from './characterAssets'
+import { TEST_CHARACTER_SPRITE } from './dashboardCharacter'
 
 export type RegisteredUser = { name: string; class: string; avatar?: string }
 export type LandingUser = {
@@ -18,9 +20,10 @@ export type LandingData = {
   error?: string
 }
 export type LoginResult = { success: boolean; user?: LandingUser; error?: string }
+export type StudentGender = 'male' | 'female'
 export type LandingService = {
   getInitialData(): Promise<LandingData>
-  loginStudent(name: string, className: string, avatar: string): Promise<LoginResult>
+  loginStudent(name: string, className: string, avatar: string, gender?: StudentGender): Promise<LoginResult>
 }
 
 type Props = {
@@ -29,11 +32,23 @@ type Props = {
   onAdmin(): void
 }
 
-const avatars = [
-  { emoji: '🧙‍♂️', name: 'จอมเวทย์', theme: 'mage', text: 'text-blue-800' },
-  { emoji: '🧝‍♀️', name: 'เอลฟ์', theme: 'elf', text: 'text-green-800' },
-  { emoji: '⚔️', name: 'นักรบ', theme: 'warrior', text: 'text-red-800' },
+// Registration = picking your hero's body: the two student bases whose LPC
+// spritesheets ship with the game (see characterAssets.GENDER_BASE_LAYERS).
+const heroChoices: { gender: StudentGender; emoji: string; name: string; tagline: string }[] = [
+  { gender: 'male', emoji: '👦', name: 'นักเรียนชาย', tagline: 'สายลุย พร้อมบุกทุกด่านความรู้' },
+  { gender: 'female', emoji: '👧', name: 'นักเรียนหญิง', tagline: 'สายไว ปราดเปรียวทุกสนามประลอง' },
 ]
+
+const heroAvatarEmoji: Record<StudentGender, string> = { male: '👦', female: '👧' }
+
+// Live walk-cycle preview straight from the real in-game spritesheet: the CSS
+// animation steps background-position-x across the 9 walk-down frames.
+const HERO_PREVIEW_FRAME = 92
+const heroPreviewStyle = (gender: StudentGender): CSSProperties => ({
+  backgroundImage: `url(${GENDER_BASE_LAYERS[gender]})`,
+  backgroundSize: `${TEST_CHARACTER_SPRITE.columns * HERO_PREVIEW_FRAME}px ${TEST_CHARACTER_SPRITE.rows * HERO_PREVIEW_FRAME}px`,
+  backgroundPositionY: `${-TEST_CHARACTER_SPRITE.directionRows.down * HERO_PREVIEW_FRAME}px`,
+})
 
 const splitSetting = (value: unknown, fallback: string[] = []) => typeof value === 'string'
   ? value.split(',').map((item) => item.trim()).filter(Boolean)
@@ -56,7 +71,8 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
   const [room, setRoom] = useState('')
   const [selectedName, setSelectedName] = useState('')
   const [newName, setNewName] = useState('')
-  const [avatar, setAvatar] = useState('🧙‍♂️')
+  const [avatar, setAvatar] = useState('')
+  const [gender, setGender] = useState<StudentGender | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -79,7 +95,16 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
   const rooms = splitSetting(initialData.settings.Rooms)
   const className = studentClass && room ? `${studentClass}/${room}` : studentClass
   const registeredUsers = useMemo(
-    () => initialData.users.filter((user) => user.class === className),
+    () => {
+      const seen = new Set<string>()
+      return initialData.users.filter((user) => {
+        if (user.class !== className) return false
+        const identity = `${user.class}\u0000${user.name}`
+        if (seen.has(identity)) return false
+        seen.add(identity)
+        return true
+      })
+    },
     [className, initialData.users],
   )
 
@@ -94,17 +119,28 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
     if (user?.avatar) setAvatar(user.avatar)
   }
 
+  const registering = selectedName === 'NEW_PLAYER'
+  const returningPlayer = Boolean(selectedName) && !registering
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const name = selectedName === 'NEW_PLAYER' ? newName.trim() : selectedName
+    const name = registering ? newName.trim() : selectedName
     if (!studentClass || !name) {
       setError('กรุณาเลือกระดับชั้นและระบุชื่อผู้กล้า')
+      return
+    }
+    if (registering && !gender) {
+      setError('กรุณาเลือกตัวละครของคุณก่อนออกผจญภัย')
       return
     }
     setError('')
     setSubmitting(true)
     try {
-      const result = await service.loginStudent(name, className, avatar)
+      // New heroes register with their chosen body; returning players keep the
+      // character they already have (gender is immutable server-side).
+      const result = registering && gender
+        ? await service.loginStudent(name, className, heroAvatarEmoji[gender], gender)
+        : await service.loginStudent(name, className, avatar || '🧙‍♂️')
       if (!result.success || !result.user) {
         setError(result.error || 'เข้าสู่ระบบไม่สำเร็จ')
         return
@@ -118,34 +154,26 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
   }
 
   return (
-    <section id="page-landing" className="flex-1 flex flex-col items-center justify-start page-active relative overflow-y-auto overflow-x-hidden">
-      <div className="absolute inset-0 pointer-events-none flex justify-between items-start px-10 pt-10 opacity-40">
-        <div className="text-6xl animate-bounce" style={{ animationDuration: '4s' }}>☁️</div>
-        <div className="text-7xl animate-bounce" style={{ animationDuration: '6s', transform: 'scaleX(-1)' }}>☁️</div>
-      </div>
+    <section id="page-landing" className="adventure-landing page-active">
+      <div data-testid="landing-background" className="adventure-background" aria-hidden="true" />
+      <div className="adventure-vignette" aria-hidden="true" />
 
-      <div className="quest-board quest-board-inner p-6 md:p-8 w-full max-w-md text-center transform transition-all duration-500 hover:scale-[1.02] mt-16 z-10 shrink-0">
-        <div className="absolute -top-16 left-1/2 transform -translate-x-1/2">
-          <div className="bg-gradient-to-b from-yellow-300 to-yellow-500 border-4 border-yellow-700 rounded-full p-2 shadow-[0_5px_15px_rgba(0,0,0,0.3)] animate-pulse relative">
-            <img src="https://cdn-icons-png.flaticon.com/512/3206/3206037.png" alt="Logo" className="w-20 h-20 animate-bounce" />
-          </div>
+      <form className="adventure-stage" onSubmit={submit}>
+        <div data-testid="mobile-brand" className="adventure-mobile-brand" aria-hidden="true">
+          <strong>NextGen Play</strong>
+          <span>LMS + Gamification</span>
         </div>
 
-        <h1 className="rpg-title text-4xl mt-6 mb-3">NextGen Play</h1>
-        <p className="text-orange-900 bg-orange-100/90 inline-block px-4 py-1.5 rounded-full mb-6 font-bold border-2 border-orange-300 text-sm shadow-sm tracking-wide">
-          ✨ LMS+Gamification สำหรับการเรียนรู้ยุคใหม่ ✨
-        </p>
-
-        <form className="space-y-4 text-left" onSubmit={submit}>
-          <div>
-            <label htmlFor="react-student-class" className="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">1. 📚 ระดับชั้นเรียน</label>
+        <div className="adventure-fields">
+          <div className="adventure-field-panel">
+            <span className="field-emblem" aria-hidden="true">🎓</span>
+            <label htmlFor="react-student-class">ระดับชั้นเรียน</label>
             <select
               id="react-student-class"
               aria-label="ระดับชั้นเรียน"
               required
               value={studentClass}
               onChange={(event) => { setStudentClass(event.target.value); setRoom(''); resetStudent() }}
-              className="game-input w-full px-4 py-3 cursor-pointer"
             >
               <option value="" disabled>เลือกระดับชั้นเรียนก่อน...</option>
               {classes.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -153,14 +181,14 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
           </div>
 
           {rooms.length > 0 && (
-            <div className="animate-fadeIn">
-              <label htmlFor="react-student-room" className="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">🚪 ห้องเรียน</label>
+            <div className="adventure-field-panel">
+              <span className="field-emblem" aria-hidden="true">🚪</span>
+              <label htmlFor="react-student-room">ห้องเรียน</label>
               <select
                 id="react-student-room"
                 aria-label="ห้องเรียน"
                 value={room}
                 onChange={(event) => { setRoom(event.target.value); resetStudent() }}
-                className="game-input w-full px-4 py-3 cursor-pointer"
               >
                 <option value="">ทุกห้อง</option>
                 {rooms.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -168,8 +196,9 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
             </div>
           )}
 
-          <div>
-            <label htmlFor="react-student-name" className="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">2. 👤 รายชื่อผู้กล้า</label>
+          <div className="adventure-field-panel">
+            <span className="field-emblem" aria-hidden="true">📜</span>
+            <label htmlFor="react-student-name">รายชื่อผู้กล้า</label>
             <select
               id="react-student-name"
               aria-label="รายชื่อผู้กล้า"
@@ -177,7 +206,6 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
               disabled={!studentClass || loading}
               value={selectedName}
               onChange={(event) => selectRegisteredName(event.target.value)}
-              className="game-input w-full px-4 py-3 cursor-pointer disabled:opacity-60 disabled:bg-gray-200"
             >
               <option value="" disabled>{loading ? 'กำลังโหลดรายชื่อ...' : 'เลือกรายชื่อผู้กล้า...'}</option>
               <option value="NEW_PLAYER">➕ ลงทะเบียนผู้เล่นใหม่</option>
@@ -186,8 +214,9 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
           </div>
 
           {selectedName === 'NEW_PLAYER' && (
-            <div className="animate-fadeIn">
-              <label htmlFor="react-new-name" className="block text-sm font-black text-amber-900 mb-2 drop-shadow-sm">✒️ ชื่อผู้กล้าคนใหม่</label>
+            <div className="adventure-field-panel adventure-new-player">
+              <span className="field-emblem" aria-hidden="true">✒️</span>
+              <label htmlFor="react-new-name">ชื่อผู้กล้าคนใหม่</label>
               <input
                 id="react-new-name"
                 aria-label="ชื่อผู้กล้าคนใหม่"
@@ -195,53 +224,68 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
                 placeholder="ใส่ชื่อของคุณที่นี่..."
-                className="game-input w-full px-4 py-3"
               />
             </div>
           )}
-
-          <div>
-            <span className="block text-sm font-black text-amber-900 mb-2 mt-2 drop-shadow-sm">3. ⚔️ เลือกคู่หูผจญภัย</span>
-            <div className="flex justify-between gap-3">
-              {avatars.map((item) => (
-                <button
-                  key={item.emoji}
-                  type="button"
-                  aria-pressed={avatar === item.emoji}
-                  onClick={() => setAvatar(item.emoji)}
-                  className={`avatar-option avatar-btn ${item.theme} flex-1 text-center py-3 ${avatar === item.emoji ? 'selected ring-2 ring-blue-500' : ''}`}
-                >
-                  <span className="block text-4xl mb-1 drop-shadow-md relative z-10">{item.emoji}</span>
-                  <span className={`block text-[11px] font-black tracking-wide z-10 relative ${item.text}`}>{item.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {error && <p role="alert" className="rounded-xl bg-red-100 border border-red-300 px-3 py-2 text-sm font-bold text-red-700">{error}</p>}
-          <button type="submit" disabled={submitting} className="btn-arcade w-full py-4 mt-6 text-xl disabled:opacity-60">
-            {submitting ? '⏳ กำลังเข้าสู่ระบบ...' : '▶ เริ่มการผจญภัย'}
-          </button>
-        </form>
-      </div>
-
-      <div className="mt-4 mb-6 text-center z-10 relative flex flex-col items-center shrink-0">
-        <button
-          type="button"
-          onClick={onAdmin}
-          className="mb-4 text-sm text-indigo-900 bg-indigo-100 hover:bg-indigo-200 font-black px-6 py-2.5 rounded-full border-2 border-indigo-300 shadow-[0_4px_10px_rgba(79,70,229,0.2)] inline-flex items-center gap-2"
-        >
-          <span className="text-lg">🛡️</span> สำหรับครูผู้ดูแลระบบ (Admin Panel)
-        </button>
-        <div className="glass-card px-5 py-3 rounded-2xl border-2 border-white/80 inline-flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
-          <span className="text-xs font-black text-gray-800">🧑‍💻 By Kru_Veeraphat Jitphapan</span>
-          <span className="flex items-center gap-3 text-xs font-bold">
-            <a href="https://www.facebook.com/chayphat.sk" target="_blank" rel="noopener noreferrer">Facebook</a>
-            <a href="tel:0887842314">088-7842314</a>
-            <a href="https://line.me/ti/p/hkwcKeUa-g" target="_blank" rel="noopener noreferrer">Line</a>
-          </span>
         </div>
-      </div>
+
+        <div className="adventure-chooser">
+          <h1><span aria-hidden="true">◆</span> เลือกตัวละครผู้กล้า <span aria-hidden="true">◆</span></h1>
+          <div className={`adventure-heroes ${returningPlayer ? 'locked' : ''}`}>
+            {heroChoices.map((choice) => (
+              <button
+                key={choice.gender}
+                type="button"
+                aria-label={`เลือกตัวละคร ${choice.name}`}
+                aria-pressed={gender === choice.gender}
+                disabled={returningPlayer}
+                onClick={() => { setGender(choice.gender); setError('') }}
+                className={`adventure-hero ${choice.gender} ${gender === choice.gender ? 'selected' : ''}`}
+              >
+                <span className="hero-stage" aria-hidden="true">
+                  <span className="hero-stage-glow" />
+                  <span className="hero-sprite-shadow" />
+                  <span
+                    data-testid={`hero-preview-${choice.gender}`}
+                    className="hero-sprite"
+                    style={heroPreviewStyle(choice.gender)}
+                  />
+                  <span className="hero-selected-badge">✓ เลือกแล้ว</span>
+                </span>
+                <span className="hero-nameplate">
+                  <strong><span aria-hidden="true">{choice.emoji}</span> {choice.name}</strong>
+                  <small>{choice.tagline}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="adventure-chooser-note">
+            {returningPlayer
+              ? '✨ ผู้เล่นเดิมจะได้ตัวละครเดิมที่เลือกไว้ตอนสมัครสมาชิก'
+              : '🎮 ตัวละครของคุณจะเดิน ต่อสู้ และแต่งตัวได้จริงในเกม'}
+          </p>
+        </div>
+
+        {error && <p role="alert" className="adventure-error">{error}</p>}
+
+        <div className="adventure-actions">
+          <button type="submit" disabled={submitting} className="adventure-start">
+            <span aria-hidden="true">✦</span>
+            {submitting ? 'กำลังเข้าสู่ระบบ...' : 'เริ่มการผจญภัย'}
+          </button>
+          <button type="button" onClick={onAdmin} className="adventure-admin">
+            <span aria-hidden="true">🛡️</span>
+            <span>สำหรับครูผู้ดูแลระบบ<br /><small>(Admin Panel)</small></span>
+          </button>
+        </div>
+
+        <footer className="adventure-footer">
+          <span>◉ By Kru_Veerapat Jitphapan</span>
+          <a href="https://www.facebook.com/chayphat.sk" target="_blank" rel="noopener noreferrer">🔵 Facebook</a>
+          <a href="tel:0887842314">🟢 088-7842314</a>
+          <a href="https://line.me/ti/p/hkwcKeUa-g" target="_blank" rel="noopener noreferrer">🟢 Line</a>
+        </footer>
+      </form>
     </section>
   )
 }

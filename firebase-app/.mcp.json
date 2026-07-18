@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "firebase-tools@latest",
+        "mcp",
+        "--dir",
+        "D:\\Nzdev\\GameProject\\game-project\\next-gen-play\\next-gen-play2"
+      ]
+    }
+  }
+}

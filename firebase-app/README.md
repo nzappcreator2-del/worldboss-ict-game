@@ -31,12 +31,21 @@ Current implementation note: React now owns the visible app surfaces for landing
 
 ## Collections
 
-- `users`: โปรไฟล์นักเรียน มี `ownerUid` ผูกกับ Firebase Auth session
+- `users`: โปรไฟล์นักเรียนแบบเต็ม (มี `ownerUid`, เหรียญ, ไอเทม, และ `gender` ที่เลือกครั้งเดียวตอนสมัครสมาชิก — rules ห้ามแก้ภายหลัง) — **อ่านได้เฉพาะเจ้าของ session และ admin เท่านั้น**
+- `directory`: โปรไฟล์สาธารณะแบบย่อ (`name`, `class`, `avatar`, `xp`, `level`, `rank`) ใช้กับหน้าเลือกชื่อตอนล็อกอินและ Leaderboard — ห้าม mirror เหรียญ/ไอเทม/ownerUid ลงที่นี่
 - `lessons`, `questions`: บทเรียนและแบบทดสอบ
 - `progress`: เอกสาร ID รูปแบบ `{userId}_{lessonId}`
 - `settings/public`: ค่าระบบที่ผู้เล่นอ่านได้ เช่น `TimerPerQuestion`, `Classes`, `Rooms`
 - `news`, `cyberSafetyScenarios`: ข่าวและสถานการณ์ความปลอดภัยไซเบอร์
 - `pvpMatches`, `worldBossConfig`, `worldBossScores`, `dailyQuests`: ข้อมูลฟีเจอร์เกมที่ทยอยย้าย
+- `pvpRooms`: ห้อง PVP โฉมใหม่ (ดวล 1v1 และทีม 2v2/3v3/4v4, ห้องสาธารณะ/ส่วนตัว `PRIVATE_<CODE>`) พร้อม subcollection `chat` และ `presence` (ตำแหน่งตัวละครใน lobby) — เฉพาะสมาชิกห้อง (ตรวจจาก `memberUids`) เท่านั้นที่แก้สถานะแมตช์ได้
+- `pvpRankings`: อันดับ PVP หนึ่งเอกสารต่อนักเรียน (เขียนได้เฉพาะเจ้าของ, จำกัด delta ต่อแมตช์: ชนะ/แพ้ +1, rating เพิ่มได้ไม่เกิน 25 ต่อครั้ง)
+- `clientErrors`: รายงาน error จากเบราว์เซอร์นักเรียน (เขียนโดยผู้เล่นแบบจำกัดขนาด อ่านได้เฉพาะ admin)
+
+### สคริปต์ดูแลข้อมูล
+
+- `npm run backup` — สำรองทุก collection เป็นไฟล์ JSON ใน `backups/` (ต้องตั้ง `GOOGLE_APPLICATION_CREDENTIALS`) ควรรันก่อนใช้ปุ่มรีเซ็ตทั้งหมดหรือ migration ทุกครั้ง
+- `npm run backfill:directory` — สร้าง/ซ่อมเอกสาร `directory` จาก `users` (dry run โดยปริยาย, เพิ่ม `--commit` เพื่อเขียนจริง) ต้องรันก่อน deploy rules ที่ล็อกการอ่าน `users` เสมอ
 
 ชื่อ field ใช้ camelCase เช่น `lessonId`, `questionText`, `isActive` และเก็บชนิดข้อมูลให้ตรงจริง (number/boolean/array/object) ไม่เก็บ JSON เป็น string แบบ Sheet
 
@@ -57,6 +66,8 @@ AI Tutor ใช้คำแนะนำพื้นฐานแบบ local fall
 
 ## ข้อจำกัดด้านความปลอดภัย
 
+- เอกสาร `users` ถูกล็อกให้อ่านได้เฉพาะเจ้าของและ admin แล้ว; ข้อมูลที่จำเป็นต่อ UI สาธารณะอยู่ใน `directory` เท่านั้น และ Rules จำกัดเพดานการเพิ่ม XP/Coins ต่อการเขียน (±1000) เพื่อยกระดับความยากของการโกงผ่าน console
+- Firebase Hosting ส่ง Content-Security-Policy, `X-Frame-Options`, `Referrer-Policy` และ `Permissions-Policy` จาก `firebase.json`; ถ้าเพิ่ม CDN/embed ใหม่ต้องอัปเดต CSP ด้วย
 - Firebase web config และ API key เป็นข้อมูล public ตามรูปแบบ Firebase; ห้ามใส่ service-account key หรือ Gemini key ใน frontend
 - Admin UI ตรวจรหัสผ่านด้วยบัญชี Firebase Auth `admin@nextgen-play.local` บน auth session แยกจากนักเรียน และ Rules อนุญาตการเขียนเฉพาะ email นี้
 - `AdminPIN` และ `GeminiAPIKey` จะถูกตัดออกจากไฟล์ migration และไม่ถูกบันทึกใน `settings/public`; Rules ปิดการอ่านเอกสาร settings อื่นจากผู้เล่น หากเคย import รุ่นก่อนให้ลบ `settings/game` จาก Firestore Console

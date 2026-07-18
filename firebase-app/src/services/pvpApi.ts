@@ -93,7 +93,14 @@ async function createOrJoinMatch(rawUserId: unknown, rawName: unknown, rawAvatar
   let target: ReturnType<typeof doc> | undefined
 
   const waiting = await getDocs(query(collection(db, 'pvpMatches'), where('status', '==', 'WAITING'), limit(20)))
-  const candidate = waiting.docs.find((row) => !row.id.startsWith('PRIVATE_') && row.data().p1Id !== userId)
+  // Skip stale rooms whose creator likely closed the tab: quick-match races
+  // can strand WAITING docs forever and only the admin may delete them.
+  const isFresh = (value: Record<string, unknown>) => {
+    const updated = value.updatedAt as { toMillis?: () => number } | undefined
+    const millis = updated?.toMillis?.() ?? 0
+    return millis > 0 && Date.now() - millis < 10 * 60 * 1000
+  }
+  const candidate = waiting.docs.find((row) => !row.id.startsWith('PRIVATE_') && row.data().p1Id !== userId && isFresh(row.data()))
   if (candidate) target = candidate.ref
 
   if (target) {
@@ -109,13 +116,13 @@ async function createOrJoinMatch(rawUserId: unknown, rawName: unknown, rawAvatar
       transaction.update(target, next)
       return next
     })
-    if (joined) return { ...matchResponse(joined), role: 'Player2' }
+    if (joined) return { ...matchResponse(joined), role: 'Player2' as const }
   }
 
   const ref = doc(collection(db, 'pvpMatches'))
   const match = createMatch(ref.id)
   await setDoc(ref, match)
-  return { ...matchResponse(match), role: 'Player1' }
+  return { ...matchResponse(match), role: 'Player1' as const }
 }
 
 async function getMatchStatus(rawMatchId: unknown) {
@@ -163,7 +170,9 @@ async function setPlayerReady(rawMatchId: unknown, rawUserId: unknown, rawReady:
   const ref = doc(db, 'pvpMatches', String(rawMatchId || ''))
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref)
-    if (!snapshot.exists()) return { success: false, error: 'Match not found' }
+    // Throwing keeps the return type a plain match snapshot; callers already
+    // treat any failure via catch.
+    if (!snapshot.exists()) throw new Error('Match not found')
     const next = setReady(asMatch(snapshot.id, snapshot.data()), userId, Boolean(rawReady))
     transaction.update(ref, { p1Ready: next.p1Ready, p2Ready: next.p2Ready, status: next.status, updatedAt: serverTimestamp() })
     return matchResponse(next)
@@ -196,11 +205,11 @@ async function leaveMatch(rawMatchId: unknown) {
   })
 }
 
-export const pvpApi: FirebaseServices = {
+export const pvpApi = {
   createOrJoinMatch,
   getMatchStatus,
   updateMatchScore,
   setPlayerReady,
   finishMatch,
   leaveMatch,
-}
+} satisfies FirebaseServices

@@ -123,6 +123,24 @@ describe('Firebase migration project structure', () => {
     expect(appPackage).toHaveProperty('devDependencies.autoprefixer')
   })
 
+  it('declares a bundled favicon instead of triggering a missing favicon.ico request', () => {
+    const index = readFileSync(`${appRoot}/index.html`, 'utf8')
+
+    expect(index).toContain('<link rel="icon" type="image/png" href="/src/assets/ui/icon-star.png" />')
+    expect(existsSync(`${appRoot}/src/assets/ui/icon-star.png`)).toBe(true)
+  })
+
+  it('keeps dashboard board sections visible over the preserved legacy section reset', () => {
+    const styles = readFileSync(`${appRoot}/src/index.css`, 'utf8')
+
+    expect(styles).not.toMatch(/#page-dashboard\s*\{\s*display:\s*block;/)
+    expect(styles).toContain('#page-dashboard .dashboard-daily-board,')
+    expect(styles).toContain('#page-dashboard .dashboard-news-board,')
+    expect(styles).toContain('#page-dashboard .dashboard-detail-panel')
+    expect(styles).toMatch(/#page-dashboard \.dashboard-detail-panel\s*\{\s*display:\s*block;/)
+    expect(styles).toMatch(/\.dashboard-walkable-character\.hidden\s*\{\s*display:\s*none;/)
+  })
+
   it('does not leave duplicate GAS app files at the repository root', () => {
     const legacyRootFiles = [
       '.clasp.json', '.claspignore', 'Admin.js', 'API.js', 'appsscript.json', 'Code.js', 'Code_PVP.js',

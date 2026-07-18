@@ -1,29 +1,48 @@
-import { useLayoutEffect, useRef } from 'react'
+import { memo, useLayoutEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { LandingLogin, type LandingData, type LandingService, type LandingUser, type LoginResult } from './components/LandingLogin'
 import { Lobby, type LobbyMode } from './components/Lobby'
 import { AdventureMap, type MapResult, type MapUser } from './components/AdventureMap'
 import { DashboardHome, type DailyStatus, type DashboardNews, type DashboardUser, type RewardResult } from './components/DashboardHome'
 import { Leaderboard, type GuildResult, type PlayerResult } from './components/Leaderboard'
-import { PlayerProfile, type ProfileResult } from './components/PlayerProfile'
+import { PlayerProfile, type ProfileResult, type StatAllocationResult } from './components/PlayerProfile'
 import { Certificate, type CertificateSettings, type CertificateUser, type EligibilityResult } from './components/Certificate'
 import { LessonPage, type Lesson } from './components/LessonPage'
 import { PretestPage } from './components/PretestPage'
 import { BossBattle, type BattleUser } from './components/BossBattle'
-import { WorksheetPage, type WorksheetLesson } from './components/WorksheetPage'
+import { WorksheetPage, type WorksheetLesson, type WorksheetSubmissionResult, type WorksheetSubmissionStats } from './components/WorksheetPage'
 import { CyberSafety, type CyberUser } from './components/CyberSafety'
-import { PvpMode, type PvpUser } from './components/PvpMode'
+import { PvpMode, type PvpModeUser } from './components/PvpMode'
 import { AiTutor, type AiTutorUser } from './components/AiTutor'
 import { PlayerEconomy, type EconomyUser } from './components/PlayerEconomy'
 import { WorldBoss, type WorldBossUser } from './components/WorldBoss'
 import { AdminPanel } from './components/AdminPanel'
+import { HeroProfile, type HeroProfileInventory, type HeroProfileUser } from './components/HeroProfile'
 import { LoginBonus } from './components/LoginBonus'
 import { DashboardShell, type DashboardShellUser, type DashboardTab } from './components/DashboardShell'
+import { PageTransitionIndicator } from './components/PageTransitionIndicator'
 import { legacyBody, legacyCss, legacyScript } from './legacy/sources'
 import { endAdminSession } from './firebase/adminClient'
-import { firestoreApi, getInitialData, loginStudent } from './services/firestoreApi'
+import { firestoreApi, getInitialData, loginStudent, subscribeActiveNews } from './services/firestoreApi'
 import { installFirebaseServiceRunner } from './services/legacyRunner'
-import { subscribeToMatch } from './services/pvpApi'
+import {
+  getPvpRankings,
+  joinPrivateRoom,
+  leavePvpRoom,
+  quickJoinRoom,
+  answerPvpRound,
+  sendPvpChat,
+  setPvpReady,
+  setPvpTeamSize,
+  startPvpBattle,
+  subscribeToPvpChat,
+  subscribeToPvpPresence,
+  subscribeToRoom,
+  submitPvpRanking,
+  switchPvpTeam,
+  timeoutPvpRound,
+  updatePvpPresence,
+} from './services/pvpRoomApi'
 
 const legacyBodyClass = 'bg-fantasy font-prompt h-screen w-screen relative overflow-hidden text-gray-800'
 
@@ -37,7 +56,7 @@ type LegacyBridge = {
   getCurrentUser(): MapUser | null
   getNews(): DashboardNews[]
   getSettings(): CertificateSettings & { TimerPerQuestion?: number | string }
-  updateUserReward(reward: { coins?: number; xp?: number; streak?: number }): void
+  updateUserReward(reward: { coins?: number; xp?: number; streak?: number; inventory?: unknown }): void
   setMapData(payload: MapResult): void
   openMapLesson(lessonId: string): void
   openCertificateTab(): void
@@ -56,10 +75,17 @@ type LegacyBridge = {
 
 const landingService: LandingService = {
   getInitialData: async () => await getInitialData() as LandingData,
-  loginStudent: async (name, className, avatar) => await loginStudent(name, className, avatar) as LoginResult,
+  loginStudent: async (name, className, avatar, gender) => await loginStudent(name, className, avatar, gender) as LoginResult,
 }
 
-export default function App() {
+// Memoized: App takes no props and does its one-time DOM/root mount in a
+// useLayoutEffect guarded by `started`. AppLoadingGate (its only caller)
+// re-renders often while resources preload; without memo, each of those
+// re-renders reaches this component's <div dangerouslySetInnerHTML> and
+// React re-applies the innerHTML on commit — wiping out the imperatively
+// mounted sub-roots (landingApp, dashboardApp, ...) without ever running
+// their unmount cleanup, leaving pages blank after the splash fades out.
+function App() {
   const started = useRef(false)
 
   useLayoutEffect(() => {
@@ -134,7 +160,13 @@ export default function App() {
         onAdmin={() => bridge()?.openAdmin()}
       />,
     )
-    lobbyApp.render(<Lobby onSelectMode={(mode) => bridge()?.openLobbyMode(mode)} />)
+    lobbyApp.render(
+      <Lobby
+        onSelectMode={(mode) => bridge()?.openLobbyMode(mode)}
+        onDailyReward={() => bridge()?.openDashboardTab('home')}
+        onRank={() => bridge()?.openDashboardTab('rank')}
+      />,
+    )
     dashboardApp.render(
       <DashboardShell
         getCurrentUser={() => bridge()?.getCurrentUser() as DashboardShellUser | null || null}
@@ -158,7 +190,9 @@ export default function App() {
             service={{
               getCurrentUser: () => bridge()?.getCurrentUser() as DashboardUser | null || null,
               getNews: () => bridge()?.getNews() || [],
+              subscribeNews: (onNews, onError) => subscribeActiveNews(onNews, onError),
               loadDailyStatus: async (userId) => await firestoreApi.getDailyQuestStatus(userId) as DailyStatus,
+              loadDailyQuests: async () => await firestoreApi.getDailyQuestConfig(),
               claimQuest: async (userId, questId, coins, xp) => await firestoreApi.completeDailyQuest(userId, questId, coins, xp) as RewardResult,
             }}
             onUserReward={(reward) => bridge()?.updateUserReward(reward)}
@@ -184,7 +218,10 @@ export default function App() {
                 return user ? { id: user.id } : null
               },
               loadProfile: async (userId) => await firestoreApi.getStudentProfileData(userId) as ProfileResult,
+              allocateStat: async (userId, key) => await firestoreApi.allocateStatPoint(userId, key) as StatAllocationResult,
+              equipCosmetic: async (userId, itemId) => await firestoreApi.equipCosmeticItem(userId, itemId) as { success: boolean; equipped?: boolean; inventory?: Record<string, unknown>; error?: string },
             }}
+            onUserUpdate={(update) => bridge()?.updateBattleUser(update as Partial<BattleUser>)}
           />
         }
         cert={
@@ -202,8 +239,10 @@ export default function App() {
           <PlayerEconomy
             service={{
               getCurrentUser: () => bridge()?.getCurrentUser() as unknown as EconomyUser | null,
-              buyItem: async (userId, itemId) => await firestoreApi.buyItem(userId, itemId) as never,
-              gacha: async (userId) => await firestoreApi.gachaAvatar(userId) as never,
+              buyItem: async (userId, itemId) => await firestoreApi.buyItem(userId, itemId),
+              gacha: async (userId) => await firestoreApi.gachaAvatar(userId),
+              buyCosmetic: async (userId, itemId) => await firestoreApi.buyCosmeticItem(userId, itemId),
+              equipCosmetic: async (userId, itemId) => await firestoreApi.equipCosmeticItem(userId, itemId),
             }}
             onUserUpdate={(user) => bridge()?.updateBattleUser(user as Partial<BattleUser>)}
           />
@@ -212,15 +251,25 @@ export default function App() {
     )
     lessonApp.render(
       <LessonPage
-        service={{ getCurrentLesson: () => bridge()?.getCurrentLesson() || null }}
+        service={{
+          getCurrentLesson: () => bridge()?.getCurrentLesson() || null,
+          getCurrentUser: () => bridge()?.getCurrentUser() as unknown as BattleUser | null,
+          getTimerPerQuestion: () => Number(bridge()?.getSettings().TimerPerQuestion) || 30,
+          loadQuestions: async (lessonId) => await firestoreApi.getQuestions(lessonId),
+          saveProgress: async (userId, lessonId, status, score, maxScore) => await firestoreApi.saveStudentProgress(userId, lessonId, status, score, maxScore),
+          saveAdventureRewards: async (userId, xpGain, coinGain) => await firestoreApi.saveAdventureRewards(userId, xpGain, coinGain),
+          trackDailyProgress: (type, questionId) => bridge()?.trackDailyProgress(type, questionId),
+        }}
         onBack={() => bridge()?.backFromLesson()}
         onStartQuiz={() => bridge()?.startLessonQuiz()}
         onOpenWorksheet={() => bridge()?.openLessonWorksheet()}
+        onUserUpdate={(user) => bridge()?.updateBattleUser(user as Partial<BattleUser>)}
+        onExitGame={() => bridge()?.logout()}
       />,
     )
     pretestApp.render(
       <PretestPage
-        service={{ loadQuestions: async (lessonId) => await firestoreApi.getPreTestQuestions(lessonId) as never }}
+        service={{ loadQuestions: async (lessonId) => await firestoreApi.getPreTestQuestions(lessonId) }}
         onBack={() => bridge()?.backFromLesson()}
         onContinue={() => bridge()?.continueFromPretest()}
       />,
@@ -230,9 +279,9 @@ export default function App() {
         service={{
           getCurrentUser: () => bridge()?.getCurrentUser() as unknown as BattleUser | null,
           getTimerPerQuestion: () => Number(bridge()?.getSettings().TimerPerQuestion) || 30,
-          loadQuestions: async (lessonId) => await firestoreApi.getQuestions(lessonId) as never,
-          saveProgress: async (userId, lessonId, status, score, maxScore) => await firestoreApi.saveStudentProgress(userId, lessonId, status, score, maxScore) as never,
-          consumeItem: async (userId, itemId) => await firestoreApi.useItem(userId, itemId) as never,
+          loadQuestions: async (lessonId) => await firestoreApi.getQuestions(lessonId),
+          saveProgress: async (userId, lessonId, status, score, maxScore) => await firestoreApi.saveStudentProgress(userId, lessonId, status, score, maxScore),
+          consumeItem: async (userId, itemId) => await firestoreApi.useItem(userId, itemId),
           trackDailyProgress: (type, questionId) => bridge()?.trackDailyProgress(type, questionId),
         }}
         onFinish={() => bridge()?.backFromLesson()}
@@ -247,16 +296,22 @@ export default function App() {
             const user = bridge()?.getCurrentUser() as unknown as { name?: string; class?: string; avatar?: string } | null
             return user ? { name: user.name || '', class: user.class || '', avatar: user.avatar } : null
           },
+          saveSubmission: async (lessonId, answer) => {
+            const user = bridge()?.getCurrentUser()
+            if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้เล่น' }
+            return await firestoreApi.saveWorksheetSubmission(user.id, lessonId, answer) as WorksheetSubmissionResult
+          },
         }}
         onBack={() => bridge()?.continueFromPretest()}
+        onUserUpdate={(stats: WorksheetSubmissionStats) => bridge()?.updateBattleUser(stats as Partial<BattleUser>)}
       />,
     )
     cyberApp.render(
       <CyberSafety
         service={{
           getCurrentUser: () => bridge()?.getCurrentUser() as unknown as CyberUser | null,
-          loadScenarios: async () => await firestoreApi.getCyberSafetyScenarios() as never,
-          saveResult: async (userId, shield, coins, xp) => await firestoreApi.saveCyberSafetyResult(userId, shield, coins, xp) as never,
+          loadScenarios: async () => await firestoreApi.getCyberSafetyScenarios(),
+          saveResult: async (userId, shield, coins, xp) => await firestoreApi.saveCyberSafetyResult(userId, shield, coins, xp),
         }}
         onExit={() => bridge()?.exitCyberSafety()}
         onUserUpdate={(user) => bridge()?.updateBattleUser(user as Partial<BattleUser>)}
@@ -265,14 +320,29 @@ export default function App() {
     pvpApp.render(
       <PvpMode
         service={{
-          getCurrentUser: () => bridge()?.getCurrentUser() as unknown as PvpUser | null,
-          createOrJoinMatch: async (userId, name, avatar, roomCode) => await firestoreApi.createOrJoinMatch(userId, name, avatar, roomCode) as never,
-          subscribeToMatch,
-          loadQuestions: async () => await firestoreApi.getQuestions('PVP_MODE') as never,
-          setReady: async (matchId, userId, ready) => await firestoreApi.setPlayerReady(matchId, userId, ready) as never,
-          updateHp: async (matchId, userId, hp) => await firestoreApi.updateMatchScore(matchId, userId, hp) as never,
-          finishMatch: async (matchId, userId) => await firestoreApi.finishMatch(matchId, userId) as never,
-          leaveMatch: async (matchId) => await firestoreApi.leaveMatch(matchId) as never,
+          getCurrentUser: () => bridge()?.getCurrentUser() as unknown as PvpModeUser | null,
+          getRankings: getPvpRankings,
+          quickJoin: quickJoinRoom,
+          joinPrivate: joinPrivateRoom,
+          subscribeRoom: subscribeToRoom,
+          leaveRoom: leavePvpRoom,
+          setReady: setPvpReady,
+          switchTeam: switchPvpTeam,
+          setTeamSize: setPvpTeamSize,
+          startBattle: startPvpBattle,
+          answerRound: answerPvpRound,
+          timeoutRound: timeoutPvpRound,
+          loadQuestions: async () => await firestoreApi.getQuestions('PVP_MODE'),
+          sendChat: sendPvpChat,
+          subscribeChat: subscribeToPvpChat,
+          updatePresence: updatePvpPresence,
+          subscribePresence: subscribeToPvpPresence,
+          submitRanking: submitPvpRanking,
+          grantReward: async (userId, xp, coins) => {
+            const result = await firestoreApi.saveAdventureRewards(userId, xp, coins) as { success: boolean; stats?: Partial<BattleUser> }
+            if (result.success && result.stats) bridge()?.updateBattleUser(result.stats)
+            return result
+          },
         }}
         onExit={() => bridge()?.exitPvp()}
       />,
@@ -282,7 +352,7 @@ export default function App() {
         service={{
           getCurrentUser: () => bridge()?.getCurrentUser() as unknown as AiTutorUser | null,
           getCurrentLessonTitle: () => bridge()?.getCurrentLesson()?.title || 'ไม่มีข้อมูลด่าน',
-          ask: async (question, context) => await firestoreApi.askNPCAi(question, context) as never,
+          ask: async (question, context) => await firestoreApi.askNPCAi(question, context),
         }}
       />,
     )
@@ -293,9 +363,9 @@ export default function App() {
             const user = bridge()?.getCurrentUser() as unknown as (WorldBossUser & { class?: string }) | null
             return user ? { ...user, className: user.className || user.class || '' } : null
           },
-          loadBosses: async () => await firestoreApi.getWorldBossConfig() as never,
-          loadLeaderboard: async (bossId) => await firestoreApi.getWorldBossLeaderboard(bossId) as never,
-          submitScore: async (userId, bossId, score, bonusCoins) => await firestoreApi.submitWorldBossScore(userId, bossId, score, bonusCoins) as never,
+          loadBosses: async () => await firestoreApi.getWorldBossConfig(),
+          loadLeaderboard: async (bossId) => await firestoreApi.getWorldBossLeaderboard(bossId),
+          submitScore: async (userId, bossId, score, bonusCoins) => await firestoreApi.submitWorldBossScore(userId, bossId, score, bonusCoins),
         }}
         onExit={() => bridge()?.exitWorldBoss()}
         onUserUpdate={(user) => bridge()?.updateBattleUser(user as Partial<BattleUser>)}
@@ -304,39 +374,59 @@ export default function App() {
     adminApp.render(
       <AdminPanel
         service={{
-          verify: async (password) => await firestoreApi.verifyAdminPin(password) as never,
+          verify: async (password) => await firestoreApi.verifyAdminPin(password),
           logout: endAdminSession,
-          loadLessons: async () => await firestoreApi.getLessons() as never,
-          saveLesson: async (lesson, password) => await firestoreApi.saveAdminLesson(lesson, password) as never,
-          deleteLesson: async (id, password) => await firestoreApi.deleteAdminLesson(id, password) as never,
-          loadQuestions: async (lessonId, type, password) => await firestoreApi.getAdminQuestionsByLessonAndType(lessonId, type, password) as never,
-          saveQuestions: async (lessonId, type, questions, password) => await firestoreApi.saveBatchQuestions(lessonId, type, questions, password) as never,
-          loadStudents: async (password) => await firestoreApi.getAdminStudents(password) as never,
-          resetStudent: async (id, password) => await firestoreApi.resetStudentData(id, password) as never,
-          deleteStudent: async (id, password) => await firestoreApi.deleteStudentData(id, password) as never,
-          resetAllStudents: async (className, password) => await firestoreApi.resetAllStudentData(className, password) as never,
-          loadSettings: async () => await firestoreApi.getSettings() as never,
-          saveSettings: async (settings, password) => await firestoreApi.saveSettings(settings, password) as never,
-          loadNews: async (password) => await firestoreApi.getAllNewsAdmin(password) as never,
-          saveNews: async (news, password) => await firestoreApi.saveNewsItem(news, password) as never,
-          deleteNews: async (id, password) => await firestoreApi.deleteNewsItem(id, password) as never,
-          loadReports: async (lessonId, password) => await firestoreApi.getExamReports(lessonId, password) as never,
-          generateProgressReport: async (student) => await firestoreApi.generateAIProgressReport(student) as never,
+          loadLessons: async () => await firestoreApi.getLessons(),
+          saveLesson: async (lesson, password) => await firestoreApi.saveAdminLesson(lesson, password),
+          deleteLesson: async (id, password) => await firestoreApi.deleteAdminLesson(id, password),
+          loadQuestions: async (lessonId, type, password) => await firestoreApi.getAdminQuestionsByLessonAndType(lessonId, type, password),
+          saveQuestions: async (lessonId, type, questions, password) => await firestoreApi.saveBatchQuestions(lessonId, type, questions, password),
+          loadStudents: async (password) => await firestoreApi.getAdminStudents(password),
+          resetStudent: async (id, password) => await firestoreApi.resetStudentData(id, password),
+          deleteStudent: async (id, password) => await firestoreApi.deleteStudentData(id, password),
+          unbindStudent: async (id, password) => await firestoreApi.unbindStudentDevice(id, password),
+          resetAllStudents: async (className, password) => await firestoreApi.resetAllStudentData(className, password),
+          loadSettings: async () => await firestoreApi.getSettings(),
+          saveSettings: async (settings, password) => await firestoreApi.saveSettings(settings, password),
+          loadNews: async (password) => await firestoreApi.getAllNewsAdmin(password),
+          saveNews: async (news, password) => await firestoreApi.saveNewsItem(news, password),
+          deleteNews: async (id, password) => await firestoreApi.deleteNewsItem(id, password),
+          loadReports: async (lessonId, password) => await firestoreApi.getExamReports(lessonId, password),
+          generateProgressReport: async (student) => await firestoreApi.generateAIProgressReport(student),
+          loadDailyQuests: async (password) => await firestoreApi.getAdminDailyQuests(password),
+          saveDailyQuest: async (quest, password) => await firestoreApi.saveAdminDailyQuest(quest, password),
+          loadWorldBosses: async (password) => await firestoreApi.getAdminWorldBosses(password),
+          saveWorldBoss: async (boss, password) => await firestoreApi.saveAdminWorldBoss(boss, password),
+          deleteWorldBoss: async (id, password) => await firestoreApi.deleteAdminWorldBoss(id, password),
+          loadCyberScenarios: async (password) => await firestoreApi.getAdminCyberScenarios(password),
+          saveCyberScenario: async (scenario, password) => await firestoreApi.saveAdminCyberScenario(scenario, password),
+          deleteCyberScenario: async (id, password) => await firestoreApi.deleteAdminCyberScenario(id, password),
         }}
         onExit={() => bridge()?.exitAdmin()}
       />,
     )
     overlayApp.render(
-      <LoginBonus
-        service={{
-          getCurrentUser: () => {
-            const user = bridge()?.getCurrentUser()
-            return user ? { id: user.id } : null
-          },
-          claim: async (userId) => await firestoreApi.claimLoginBonus(userId) as never,
-        }}
-        onUserUpdate={(reward) => bridge()?.updateUserReward(reward)}
-      />,
+      <>
+        <PageTransitionIndicator />
+        <LoginBonus
+          service={{
+            getCurrentUser: () => {
+              const user = bridge()?.getCurrentUser()
+              return user ? { id: user.id } : null
+            },
+            claim: async (userId) => await firestoreApi.claimLoginBonus(userId),
+          }}
+          onUserUpdate={(reward) => bridge()?.updateUserReward(reward)}
+        />
+        <HeroProfile
+          service={{
+            getCurrentUser: () => bridge()?.getCurrentUser() as unknown as HeroProfileUser | null,
+            allocateStat: async (userId, key) => await firestoreApi.allocateStatPoint(userId, key) as { success: boolean; inventory?: HeroProfileInventory; remaining?: number; error?: string },
+            equipCosmetic: async (userId, itemId) => await firestoreApi.equipCosmeticItem(userId, itemId) as { success: boolean; equipped?: boolean; inventory?: HeroProfileInventory; error?: string },
+          }}
+          onUserUpdate={(update) => bridge()?.updateBattleUser(update as Partial<BattleUser>)}
+        />
+      </>,
     )
     document.documentElement.dataset.backend = 'firestore'
     document.dispatchEvent(new Event('DOMContentLoaded'))
@@ -363,3 +453,5 @@ export default function App() {
 
   return <div dangerouslySetInnerHTML={{ __html: legacyBody }} />
 }
+
+export default memo(App)

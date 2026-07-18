@@ -34,7 +34,10 @@ export function buildProgressReport(rawStudent: unknown) {
   ].join('\n')
 }
 
-async function askNPCAi(question: unknown) {
+// Keeps the legacy GAS arity (question, lessonContext); the local fallback
+// only uses the question text.
+async function askNPCAi(question: unknown, context?: unknown) {
+  void context
   return { success: true, answer: localTutorAnswer(question), mode: 'local-fallback' }
 }
 
@@ -49,8 +52,8 @@ async function generateLessonAndQuizWithGemini() {
   }
 }
 
-export const aiFallbackApi: FirebaseServices = {
+export const aiFallbackApi = {
   askNPCAi,
   generateAIProgressReport,
   generateLessonAndQuizWithGemini,
-}
+} satisfies FirebaseServices
