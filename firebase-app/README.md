@@ -37,7 +37,7 @@ Current implementation note: React now owns the visible app surfaces for landing
 - `progress`: เอกสาร ID รูปแบบ `{userId}_{lessonId}`
 - `settings/public`: ค่าระบบที่ผู้เล่นอ่านได้ เช่น `TimerPerQuestion`, `Classes`, `Rooms`
 - `news`, `cyberSafetyScenarios`: ข่าวและสถานการณ์ความปลอดภัยไซเบอร์
-- `pvpMatches`, `worldBossConfig`, `worldBossScores`, `dailyQuests`: ข้อมูลฟีเจอร์เกมที่ทยอยย้าย
+- `pvpMatches`, `worldBossScores`, `dailyQuests`: ข้อมูลฟีเจอร์เกมที่ทยอยย้าย (ด่านมินิเกม AI Camera เป็นค่าคงที่ในโค้ดที่ `src/services/worldBossCatalog.ts` — collection `worldBossConfig` ถูกยกเลิกแล้ว)
 - `pvpRooms`: ห้อง PVP โฉมใหม่ (ดวล 1v1 และทีม 2v2/3v3/4v4, ห้องสาธารณะ/ส่วนตัว `PRIVATE_<CODE>`) พร้อม subcollection `chat` และ `presence` (ตำแหน่งตัวละครใน lobby) — เฉพาะสมาชิกห้อง (ตรวจจาก `memberUids`) เท่านั้นที่แก้สถานะแมตช์ได้
 - `pvpRankings`: อันดับ PVP หนึ่งเอกสารต่อนักเรียน (เขียนได้เฉพาะเจ้าของ, จำกัด delta ต่อแมตช์: ชนะ/แพ้ +1, rating เพิ่มได้ไม่เกิน 25 ต่อครั้ง)
 - `clientErrors`: รายงาน error จากเบราว์เซอร์นักเรียน (เขียนโดยผู้เล่นแบบจำกัดขนาด อ่านได้เฉพาะ admin)
@@ -58,11 +58,11 @@ Vite แทน landing, lobby, dashboard home, profile, leaderboard, certificate
 ย้ายแล้ว: bootstrap/login, settings/news, lessons/questions, progress, leaderboard, guild leaderboard, Daily Quest, inventory/shop/gacha, profile/stats/certificate, Cyber Safety, World Boss, PVP และ Admin CRUD/report
 
 - PVP Arena ย้ายเป็น React component และใช้ Firestore realtime listener (`onSnapshot`) แทน polling เพื่อลดจำนวน reads บนแผนฟรี
-- AI Tutor ย้ายเป็น React component แล้ว โดยใช้ local fallback ที่ไม่ส่งคำถามหรือข้อมูลนักเรียนไปยังบริการภายนอก
+- AI Tutor ย้ายเป็น React component แล้ว เชื่อม Gemini API จริงเมื่อผู้ดูแลตั้งค่าคีย์ในแท็บ "ตั้งค่า" และถอยกลับเป็น local fallback อัตโนมัติเมื่อไม่มีคีย์หรือเครือข่ายล่ม
 - Shop, Inventory และ Gacha ย้ายเป็น React components แล้ว และใช้ Firestore service ที่กำหนดราคาไอเทมฝั่ง logic กลางแทนค่าราคาจากหน้าเว็บ
 - World Boss lobby/leaderboard ย้ายเป็น React แล้ว ส่วนเกมกล้องและ Mario engine ถูกเสิร์ฟเป็น static assets จาก Vite/Firebase Hosting origin เดียวกัน และส่งผลกลับ React ผ่าน `postMessage` เพื่อบันทึก Firestore โดยไม่ใช้ `doPost` หรือ Cloud Functions
 
-AI Tutor ใช้คำแนะนำพื้นฐานแบบ local fallback และรายงานนักเรียนสร้างจากข้อมูลในระบบโดยไม่ส่งออกภายนอก ส่วน Gemini lesson generator ถูกปิดอย่างชัดเจนเพราะไม่มี trusted backend สำหรับเก็บ credential
+ระบบ AI ทั้งสาม (แชทบอทติวเตอร์นักเรียน, AI วิเคราะห์นักเรียน, AI สร้างบทเรียน/ข้อสอบทั้งด่าน) เรียก Gemini REST API ตรงจาก browser โดยโหลดคีย์จากเอกสาร `settings/ai` ตอน runtime (`src/services/aiApi.ts` + `src/services/geminiLogic.ts`) — คีย์ไม่ถูก bundle ลง frontend และแก้ไขได้เฉพาะ admin ทุกฟีเจอร์ถอยกลับเป็น local fallback เมื่อยังไม่ตั้งค่าคีย์ ส่วนการวิเคราะห์นักเรียนจะกรอง `id`/`ownerUid`/`deviceId` ออกก่อนส่งให้โมเดลเสมอ
 
 ## ข้อจำกัดด้านความปลอดภัย
 
@@ -71,6 +71,6 @@ AI Tutor ใช้คำแนะนำพื้นฐานแบบ local fall
 - Firebase web config และ API key เป็นข้อมูล public ตามรูปแบบ Firebase; ห้ามใส่ service-account key หรือ Gemini key ใน frontend
 - Admin UI ตรวจรหัสผ่านด้วยบัญชี Firebase Auth `admin@nextgen-play.local` บน auth session แยกจากนักเรียน และ Rules อนุญาตการเขียนเฉพาะ email นี้
 - `AdminPIN` และ `GeminiAPIKey` จะถูกตัดออกจากไฟล์ migration และไม่ถูกบันทึกใน `settings/public`; Rules ปิดการอ่านเอกสาร settings อื่นจากผู้เล่น หากเคย import รุ่นก่อนให้ลบ `settings/game` จาก Firestore Console
-- Gemini tutor/generator ไม่สามารถเก็บ API key อย่างปลอดภัยใน static Hosting ได้ เมื่อห้าม Cloud Functions จึงยังไม่เชื่อม API จริง
+- Gemini API key เก็บใน `settings/ai` (เขียนได้เฉพาะ admin, อ่านได้เฉพาะผู้ใช้ที่ signed-in) เพราะไม่มี trusted backend ให้ซ่อนคีย์ — ผู้ใช้ที่ล็อกอินแอปสามารถเห็นคีย์ได้ทางเทคนิค จึงควรตั้ง Application restrictions (HTTP referrers) ให้คีย์ใช้ได้เฉพาะโดเมนของเว็บนี้ และจำกัด API restrictions เป็น Generative Language API เท่านั้น
 - Logic รางวัล ราคาไอเทม กาชา และคะแนนรันใน browser จึงป้องกันการดัดแปลงแบบ server-authoritative ไม่ได้ 100% แม้ Rules จะจำกัดให้แก้ได้เฉพาะโปรไฟล์และห้องของตนเอง หากต้องการการแข่งขันที่ป้องกันโกงจริงจำเป็นต้องมี trusted backend
 - Anonymous Auth รักษา session ใน browser เดิม แต่ไม่ใช่บัญชีนักเรียนถาวร หากต้องใช้งานข้ามเครื่องควรเปลี่ยนเป็น Email/Password, Google หรือบัญชีที่โรงเรียนจัดการ

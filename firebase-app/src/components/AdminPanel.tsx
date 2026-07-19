@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { reportSummary, reportsToCsv, type ExamReport } from './adminPanelLogic'
 import { MAP_ENTRANCE_TEMPLATES, entranceTemplateForLesson } from './mapEntranceTemplates'
+import { MarkdownLite } from './MarkdownLite'
+import type { GeneratedLessonBundle } from '../services/geminiLogic'
 
-type Result<T = unknown> = { success: boolean; data?: T; error?: string; isValid?: boolean; answer?: string; count?: number; id?: string }
+type Result<T = unknown> = { success: boolean; data?: T; error?: string; isValid?: boolean; answer?: string; count?: number; id?: string; mode?: string; message?: string }
+
+export type AiLessonSpec = {
+  topic: string
+  gradeLevel: string
+  posttestCount: number
+  pretestCount: number
+  notes: string
+  questionsOnly?: '' | 'pretest' | 'posttest'
+  mapStyles: Array<{ id: string; name: string }>
+}
+
+export type AiSettingsInfo = { hasKey: boolean; maskedKey: string }
 
 export type AdminLesson = {
   id: string
@@ -61,17 +75,6 @@ export type AdminDailyQuest = {
   isActive: boolean
 }
 
-export type AdminWorldBoss = {
-  id?: string
-  name: string
-  poseType?: string
-  targetReps?: number
-  maxHp?: number
-  rewardCoins?: number
-  rewardXp?: number
-  isActive?: boolean
-}
-
 export type AdminCyberScenario = {
   id?: string
   timeOfDay?: string
@@ -106,20 +109,39 @@ export interface AdminService {
   generateProgressReport(student: AdminStudent): Promise<Result>
   loadDailyQuests(password: string): Promise<Result<AdminDailyQuest[]>>
   saveDailyQuest(quest: AdminDailyQuest, password: string): Promise<Result>
-  loadWorldBosses(password: string): Promise<Result<AdminWorldBoss[]>>
-  saveWorldBoss(boss: AdminWorldBoss, password: string): Promise<Result>
-  deleteWorldBoss(id: string, password: string): Promise<Result>
   loadCyberScenarios(password: string): Promise<Result<AdminCyberScenario[]>>
   saveCyberScenario(scenario: AdminCyberScenario, password: string): Promise<Result>
   deleteCyberScenario(id: string, password: string): Promise<Result>
+  generateLesson(spec: AiLessonSpec, password: string): Promise<Result<GeneratedLessonBundle>>
+  loadAiSettings(password: string): Promise<Result<AiSettingsInfo>>
+  saveAiKey(key: string, password: string): Promise<Result>
+  clearAiKey(password: string): Promise<Result>
+  testAiKey(key: string): Promise<Result>
 }
 
-type Tab = 'lessons' | 'daily' | 'worldboss' | 'cyber' | 'students' | 'reports' | 'settings' | 'news'
+type AiDraft = {
+  step: 'form' | 'preview'
+  topic: string
+  gradeLevel: string
+  posttestCount: number
+  pretestCount: number
+  includePretest: boolean
+  notes: string
+  bundle: GeneratedLessonBundle | null
+  working: boolean
+  error: string
+}
+
+const emptyAiDraft = (): AiDraft => ({
+  step: 'form', topic: '', gradeLevel: 'ป.5', posttestCount: 10, pretestCount: 5,
+  includePretest: true, notes: '', bundle: null, working: false, error: '',
+})
+
+type Tab = 'lessons' | 'daily' | 'cyber' | 'students' | 'reports' | 'settings' | 'news'
 
 const emptyLesson = (): AdminLesson => ({ id: '', title: '', description: '', videoUrl: '', icon: '🗺️', isActive: true, enablePretest: false, worksheetUrl: '', content: '', mapStyle: '' })
 const emptyQuestion = (): AdminQuestion => ({ text: '', options: ['', '', '', ''], answer: 1, explanation: '', pattern: 'choice', image: '', matchingPairs: [{ left: '', right: '' }] })
 const emptyNews = (): AdminNews => ({ title: '', content: '', icon: '📢', type: 'NEWS', date: new Date().toLocaleDateString('th-TH'), isActive: true })
-const emptyWorldBoss = (): AdminWorldBoss => ({ id: '', name: '', poseType: '', targetReps: 10, maxHp: 100, rewardCoins: 100, rewardXp: 100, isActive: true })
 const emptyCyberScenario = (): AdminCyberScenario => ({ id: '', timeOfDay: '', title: '', text: '', opt1: '', opt2: '', answerIdx: 0, feedbackWrong: '', feedbackRight: '' })
 
 function Modal({ label, children, onClose }: { label: string; children: ReactNode; onClose: () => void }) {
@@ -159,11 +181,15 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   const [questionType, setQuestionType] = useState('posttest')
   const [questions, setQuestions] = useState<AdminQuestion[]>([])
   const [newsDraft, setNewsDraft] = useState<AdminNews | null>(null)
-  const [analysis, setAnalysis] = useState('')
+  const [analysis, setAnalysis] = useState<{ name: string; text: string; mode?: string; loading: boolean } | null>(null)
+  const [aiDraft, setAiDraft] = useState<AiDraft | null>(null)
+  const [aiSettings, setAiSettings] = useState<AiSettingsInfo | null>(null)
+  const [aiKeyInput, setAiKeyInput] = useState('')
+  const [questionAiTopic, setQuestionAiTopic] = useState('')
+  const [questionAiCount, setQuestionAiCount] = useState(5)
+  const [questionAiBusy, setQuestionAiBusy] = useState(false)
   const [dailyQuests, setDailyQuests] = useState<AdminDailyQuest[]>([])
   const [dailyDraft, setDailyDraft] = useState<AdminDailyQuest | null>(null)
-  const [worldBosses, setWorldBosses] = useState<AdminWorldBoss[]>([])
-  const [bossDraft, setBossDraft] = useState<AdminWorldBoss | null>(null)
   const [cyberScenarios, setCyberScenarios] = useState<AdminCyberScenario[]>([])
   const [scenarioDraft, setScenarioDraft] = useState<AdminCyberScenario | null>(null)
 
@@ -205,10 +231,14 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     setTab(next); setStatus('')
     if (next === 'lessons' || next === 'reports') await loadLessons()
     if (next === 'students') { const result = await run(() => service.loadStudents(password)); if (result?.data) setStudents(result.data as AdminStudent[]) }
-    if (next === 'settings') { const result = await run(() => service.loadSettings()); if (result?.data) setSettings(result.data as Record<string, unknown>) }
+    if (next === 'settings') {
+      const result = await run(() => service.loadSettings())
+      if (result?.data) setSettings(result.data as Record<string, unknown>)
+      const ai = await service.loadAiSettings(password).catch(() => null)
+      setAiSettings(ai?.success && ai.data ? ai.data : { hasKey: false, maskedKey: '' })
+    }
     if (next === 'news') { const result = await run(() => service.loadNews(password)); if (result?.data) setNews(result.data as AdminNews[]) }
     if (next === 'daily') { const result = await run(() => service.loadDailyQuests(password)); if (result?.data) setDailyQuests(result.data as AdminDailyQuest[]) }
-    if (next === 'worldboss') { const result = await run(() => service.loadWorldBosses(password)); if (result?.data) setWorldBosses(result.data as AdminWorldBoss[]) }
     if (next === 'cyber') { const result = await run(() => service.loadCyberScenarios(password)); if (result?.data) setCyberScenarios(result.data as AdminCyberScenario[]) }
   }
 
@@ -216,16 +246,6 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     event.preventDefault(); if (!dailyDraft) return
     const result = await run(() => service.saveDailyQuest(dailyDraft, password), 'บันทึกภารกิจรายวันแล้ว')
     if (result) { setDailyDraft(null); const refreshed = await service.loadDailyQuests(password); if (refreshed.data) setDailyQuests(refreshed.data) }
-  }
-  const saveWorldBoss = async (event: FormEvent) => {
-    event.preventDefault(); if (!bossDraft?.name.trim()) return setStatus('กรุณาระบุชื่อบอส')
-    const result = await run(() => service.saveWorldBoss(bossDraft, password), 'บันทึกเวิลด์บอสแล้ว')
-    if (result) { setBossDraft(null); const refreshed = await service.loadWorldBosses(password); if (refreshed.data) setWorldBosses(refreshed.data) }
-  }
-  const deleteWorldBoss = async (boss: AdminWorldBoss) => {
-    if (!boss.id || !confirmAction(`ลบเวิลด์บอส ${boss.name}?`)) return
-    const result = await run(() => service.deleteWorldBoss(boss.id!, password), 'ลบเวิลด์บอสแล้ว')
-    if (result) setWorldBosses((all) => all.filter((item) => item.id !== boss.id))
   }
   const saveCyberScenario = async (event: FormEvent) => {
     event.preventDefault(); if (!scenarioDraft?.text.trim() || !scenarioDraft.opt1.trim() || !scenarioDraft.opt2.trim()) return setStatus('กรุณาระบุสถานการณ์และตัวเลือกให้ครบ')
@@ -251,6 +271,7 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   }
   const openQuestions = async (lesson: AdminLesson) => {
     setQuestionLesson(lesson); setQuestionType('posttest')
+    setQuestionAiTopic(lesson.title); setQuestionAiCount(5)
     const result = await run(() => service.loadQuestions(lesson.id, 'posttest', password))
     const loaded = result?.data as AdminQuestion[] | undefined
     setQuestions(loaded?.length ? loaded : [emptyQuestion()])
@@ -281,8 +302,125 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     if (result && kind !== 'unbind') { const refreshed = await service.loadStudents(password); if (refreshed.data) setStudents(refreshed.data) }
   }
   const analyzeStudent = async (student: AdminStudent) => {
-    const result = await run(() => service.generateProgressReport(student))
-    if (result) setAnalysis(result.answer || 'ไม่มีข้อมูลสำหรับวิเคราะห์')
+    setAnalysis({ name: student.name, text: '', loading: true })
+    try {
+      const result = await service.generateProgressReport(student)
+      if (!result.success) throw new Error(result.error || 'วิเคราะห์ไม่สำเร็จ')
+      setAnalysis({ name: student.name, text: result.answer || 'ไม่มีข้อมูลสำหรับวิเคราะห์', mode: result.mode, loading: false })
+    } catch (error) {
+      setAnalysis(null)
+      setStatus(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดระหว่างวิเคราะห์')
+    }
+  }
+
+  // --- AI lesson/question generation ---------------------------------------
+
+  const mapStyleChoices = () => MAP_ENTRANCE_TEMPLATES.map((template) => ({ id: template.id, name: template.name }))
+
+  const generateAiLesson = async () => {
+    if (!aiDraft) return
+    if (!aiDraft.topic.trim()) return setAiDraft({ ...aiDraft, error: 'กรุณาระบุหัวข้อบทเรียนก่อนให้ AI สร้าง' })
+    setAiDraft({ ...aiDraft, working: true, error: '' })
+    try {
+      const result = await service.generateLesson({
+        topic: aiDraft.topic.trim(),
+        gradeLevel: aiDraft.gradeLevel,
+        posttestCount: aiDraft.posttestCount,
+        pretestCount: aiDraft.includePretest ? aiDraft.pretestCount : 0,
+        notes: aiDraft.notes.trim(),
+        mapStyles: mapStyleChoices(),
+      }, password)
+      if (!result.success || !result.data) throw new Error(result.error || 'AI สร้างบทเรียนไม่สำเร็จ')
+      setAiDraft((current) => current && { ...current, step: 'preview', bundle: result.data!, working: false, error: '' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI สร้างบทเรียนไม่สำเร็จ'
+      setAiDraft((current) => current && { ...current, working: false, error: message })
+    }
+  }
+
+  const saveAiLesson = async () => {
+    if (!aiDraft?.bundle) return
+    const bundle = aiDraft.bundle
+    setAiDraft({ ...aiDraft, working: true, error: '' })
+    try {
+      const saved = await service.saveLesson({
+        id: '',
+        title: bundle.lesson.title,
+        description: bundle.lesson.description,
+        content: bundle.lesson.content,
+        icon: bundle.lesson.icon || '🗺️',
+        mapStyle: bundle.lesson.mapStyle,
+        isActive: true,
+        enablePretest: bundle.pretest.length > 0,
+        videoUrl: '',
+        worksheetUrl: '',
+      }, password)
+      if (!saved.success || !saved.id) throw new Error(saved.error || 'บันทึกบทเรียนไม่สำเร็จ')
+      const posttest = await service.saveQuestions(saved.id, 'posttest', bundle.posttest as AdminQuestion[], password)
+      if (!posttest.success) throw new Error(posttest.error || 'บันทึกข้อสอบหลังเรียนไม่สำเร็จ')
+      if (bundle.pretest.length) {
+        const pretest = await service.saveQuestions(saved.id, 'pretest', bundle.pretest as AdminQuestion[], password)
+        if (!pretest.success) throw new Error(pretest.error || 'บันทึกข้อสอบก่อนเรียนไม่สำเร็จ')
+      }
+      setAiDraft(null)
+      await loadLessons()
+      setStatus(`สร้างด่าน "${bundle.lesson.title}" ด้วย AI เรียบร้อยแล้ว`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'บันทึกบทเรียนไม่สำเร็จ'
+      setAiDraft((current) => current && { ...current, working: false, error: message })
+    }
+  }
+
+  const generateAiQuestions = async () => {
+    if (!questionLesson || questionAiBusy) return
+    setQuestionAiBusy(true); setStatus('')
+    try {
+      const result = await service.generateLesson({
+        topic: questionAiTopic.trim() || questionLesson.title,
+        gradeLevel: 'ป.5',
+        posttestCount: questionAiCount,
+        pretestCount: questionAiCount,
+        notes: questionLesson.description || '',
+        questionsOnly: questionType === 'pretest' ? 'pretest' : 'posttest',
+        mapStyles: [],
+      }, password)
+      if (!result.success || !result.data) throw new Error(result.error || 'AI สร้างข้อสอบไม่สำเร็จ')
+      const generated = (questionType === 'pretest' ? result.data.pretest : result.data.posttest) as unknown as AdminQuestion[]
+      if (!generated.length) throw new Error('AI ไม่ได้สร้างข้อสอบกลับมา กรุณาลองใหม่')
+      setQuestions((current) => [...current.filter((question) => question.text.trim()), ...generated])
+      setStatus(`AI สร้างข้อสอบ ${generated.length} ข้อแล้ว — ตรวจทานและแก้ไขได้ก่อนกดบันทึก`)
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'AI สร้างข้อสอบไม่สำเร็จ')
+    } finally {
+      setQuestionAiBusy(false)
+    }
+  }
+
+  // --- AI (Gemini) key management -------------------------------------------
+
+  const refreshAiSettings = async () => {
+    const ai = await service.loadAiSettings(password).catch(() => null)
+    setAiSettings(ai?.success && ai.data ? ai.data : { hasKey: false, maskedKey: '' })
+  }
+
+  const saveAiKey = async (event: FormEvent) => {
+    event.preventDefault()
+    const key = aiKeyInput.trim()
+    if (!key) return setStatus('กรุณาวาง Gemini API Key ก่อนบันทึก')
+    const result = await run(() => service.saveAiKey(key, password), 'บันทึก Gemini API Key แล้ว ระบบ AI พร้อมใช้งาน')
+    if (result) { setAiKeyInput(''); await refreshAiSettings() }
+  }
+
+  const testAiKey = async () => {
+    const key = aiKeyInput.trim()
+    if (!key) return setStatus('วางคีย์ในช่องก่อนกดทดสอบการเชื่อมต่อ')
+    await run(() => service.testAiKey(key), 'ทดสอบสำเร็จ คีย์นี้เชื่อมต่อ Gemini ได้แล้ว')
+  }
+
+  const clearAiKey = async () => {
+    if (!confirmAction('ลบ Gemini API Key ออกจากระบบ? ฟีเจอร์ AI ทั้งหมดจะกลับสู่โหมดพื้นฐาน')) return
+    const result = await run(() => service.clearAiKey(password), 'ลบคีย์แล้ว ระบบ AI กลับสู่โหมดพื้นฐาน')
+    if (result) await refreshAiSettings()
   }
   const resetAll = async () => {
     const scope = classFilter ? `ในชั้น ${classFilter}` : 'ทั้งหมด'
@@ -333,11 +471,11 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <div><h1 className="text-2xl font-black md:text-3xl">ศูนย์บัญชาการผู้ดูแลระบบ</h1><p className="text-indigo-100">จัดการข้อมูลผ่าน Firestore โดยตรง</p></div>
       <button type="button" className="rounded-xl bg-white/20 px-4 py-2 font-bold hover:bg-white/30" onClick={logout}>ออกจากระบบ</button>
     </header>
-    <nav className="mb-5 flex flex-wrap gap-2">{([['lessons', '📚', 'บทเรียน'], ['daily', '📜', 'ภารกิจรายวัน'], ['worldboss', '🐲', 'เวิลด์บอส'], ['cyber', '🛡️', 'ไซเบอร์'], ['students', '🧑‍🎓', 'นักเรียน'], ['reports', '📊', 'รายงาน'], ['settings', '⚙️', 'ตั้งค่า'], ['news', '📢', 'ประกาศ']] as Array<[Tab, string, string]>).map(([id, icon, label]) => <button type="button" key={id} onClick={() => void changeTab(id)} className={`${tab === id ? primary : secondary}`}><span aria-hidden="true">{icon}</span> {label}</button>)}</nav>
+    <nav className="mb-5 flex flex-wrap gap-2">{([['lessons', '📚', 'บทเรียน'], ['daily', '📜', 'ภารกิจรายวัน'], ['cyber', '🛡️', 'ไซเบอร์'], ['students', '🧑‍🎓', 'นักเรียน'], ['reports', '📊', 'รายงาน'], ['settings', '⚙️', 'ตั้งค่า'], ['news', '📢', 'ประกาศ']] as Array<[Tab, string, string]>).map(([id, icon, label]) => <button type="button" key={id} onClick={() => void changeTab(id)} className={`${tab === id ? primary : secondary}`}><span aria-hidden="true">{icon}</span> {label}</button>)}</nav>
     {status && <p role="status" className={`mb-4 rounded-xl p-3 font-bold ${status.includes('แล้ว') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{status}</p>}
     {busy && <p className="mb-4 text-indigo-700">กำลังดำเนินการ...</p>}
 
-    {tab === 'lessons' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black text-slate-800">บทเรียน</h2><button className={primary} onClick={() => setLessonDraft(emptyLesson())}>เพิ่มบทเรียน</button></div>
+    {tab === 'lessons' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-800">บทเรียน</h2><div className="flex flex-wrap gap-2"><button aria-label="สร้างบทเรียนด้วย AI" className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2 font-bold text-white shadow hover:brightness-110" onClick={() => setAiDraft(emptyAiDraft())}>✨ สร้างด้วย AI</button><button className={primary} onClick={() => setLessonDraft(emptyLesson())}>เพิ่มบทเรียน</button></div></div>
       <div className="grid gap-3">{lessons.map((item, index) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4"><div className="flex items-center gap-3"><span className="block h-12 w-12 shrink-0" aria-hidden="true">{(() => { const Entrance = entranceTemplateForLesson(item.mapStyle, index).Art; return <Entrance /> })()}</span><span className="text-3xl">{item.icon}</span><div><h3 className="font-black">{item.title}</h3><p className="text-sm text-slate-500">{item.id} · {item.questionCount || 0} ข้อ · {item.isActive === false ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</p></div></div><div className="flex flex-wrap gap-2"><button className={secondary} onClick={() => void openQuestions(item)} aria-label={`จัดการข้อสอบ ${item.title}`}>ข้อสอบ</button><button className={secondary} onClick={() => setLessonDraft({ ...item })} aria-label={`แก้ไข ${item.title}`}>แก้ไข</button><button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" onClick={() => void deleteLesson(item)} aria-label={`ลบ ${item.title}`}>ลบ</button></div></article>)}</div>
     </div>}
 
@@ -352,16 +490,6 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
         </div></div>
         <button className={secondary} onClick={() => setDailyDraft({ ...quest })} aria-label={`แก้ไขภารกิจ ${quest.title}`}>แก้ไข</button>
       </article>)}</div>
-    </div>}
-
-    {tab === 'worldboss' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl">
-      <div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black text-slate-800">เวิลด์บอส (มินิเกม)</h2><button className={primary} onClick={() => setBossDraft(emptyWorldBoss())}>เพิ่มบอส</button></div>
-      <div className="grid gap-3">{worldBosses.map((boss) => <article key={boss.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4">
-        <div><h3 className="font-black">🐲 {boss.name} <span className="text-xs font-bold text-slate-400">({boss.id})</span> {boss.isActive === false && <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-500">ปิดใช้งาน</span>}</h3>
-          <p className="text-sm text-slate-500">ท่า: {boss.poseType || '-'} · เป้า {boss.targetReps} ครั้ง · HP {boss.maxHp} · รางวัล {boss.rewardCoins} Coins + {boss.rewardXp} XP</p></div>
-        <div className="flex gap-2"><button className={secondary} onClick={() => setBossDraft({ ...boss })} aria-label={`แก้ไขบอส ${boss.name}`}>แก้ไข</button><button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" onClick={() => void deleteWorldBoss(boss)} aria-label={`ลบบอส ${boss.name}`}>ลบ</button></div>
-      </article>)}
-      {worldBosses.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-slate-500">ยังไม่มีเวิลด์บอสในระบบ กด "เพิ่มบอส" เพื่อสร้างตัวแรก</p>}</div>
     </div>}
 
     {tab === 'cyber' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl">
@@ -379,13 +507,33 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="border-b"><th className="p-2">นักเรียน</th><th>ชั้น</th><th>XP / Rank</th><th>บทเรียนปัจจุบัน</th><th>จัดการ</th></tr></thead><tbody>{filteredStudents.map((item) => <tr key={item.id} className="border-b"><td className="p-2 font-bold">{item.avatar} {item.name}</td><td>{item.class}</td><td>{item.xp || 0} / {item.rank || '-'}</td><td>{item.currentLesson || '-'}</td><td className="flex flex-wrap gap-1 py-2"><button className={secondary} onClick={() => void analyzeStudent(item)} aria-label={`วิเคราะห์ ${item.name}`}>วิเคราะห์</button><button className={secondary} onClick={() => void studentAction('reset', item)} aria-label={`รีเซ็ต ${item.name}`}>รีเซ็ต</button><button className={secondary} onClick={() => void studentAction('unbind', item)} aria-label={`ปลดล็อกอุปกรณ์ ${item.name}`}>ปลดล็อกอุปกรณ์</button><button className="rounded-lg bg-red-100 px-2 text-red-700" onClick={() => void studentAction('delete', item)} aria-label={`ลบ ${item.name}`}>ลบ</button></td></tr>)}</tbody></table></div>
     </div>}
 
-    {tab === 'settings' && <form onSubmit={savePublicSettings} className="mx-auto max-w-3xl rounded-3xl bg-white/90 p-6 shadow-xl"><h2 className="mb-4 text-2xl font-black">การตั้งค่าสาธารณะ</h2><div className="grid gap-4 md:grid-cols-2">
-      <label className="font-bold">เวลาต่อข้อ (วินาที)<input aria-label="เวลาต่อข้อ (วินาที)" type="number" min="5" max="300" className={fieldClass} value={Number(settings.TimerPerQuestion) || 30} onChange={(event) => setSettings({ ...settings, TimerPerQuestion: Number(event.target.value) })} /></label>
-      <label className="font-bold">ชั้นเรียน (คั่นด้วยจุลภาค)<input className={fieldClass} value={String(settings.Classes || '')} onChange={(event) => setSettings({ ...settings, Classes: event.target.value })} /></label>
-      <label className="font-bold">ห้องเรียน (คั่นด้วยจุลภาค)<input className={fieldClass} value={String(settings.Rooms || '')} onChange={(event) => setSettings({ ...settings, Rooms: event.target.value })} /></label>
-      <label className="font-bold">หัวใบประกาศ<input className={fieldClass} value={String(settings.CertHeader || '')} onChange={(event) => setSettings({ ...settings, CertHeader: event.target.value })} /></label>
-      <label className="font-bold md:col-span-2">ท้ายใบประกาศ<input className={fieldClass} value={String(settings.CertFooter || '')} onChange={(event) => setSettings({ ...settings, CertFooter: event.target.value })} /></label>
-    </div><p className="my-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-700">ข้อมูลลับและบริการสร้างเนื้อหา AI ถูกปิดในเว็บ client เพื่อความปลอดภัย</p><button className={primary}>บันทึกการตั้งค่า</button></form>}
+    {tab === 'settings' && <div className="mx-auto grid max-w-3xl gap-5">
+      <form onSubmit={savePublicSettings} className="rounded-3xl bg-white/90 p-6 shadow-xl"><h2 className="mb-4 text-2xl font-black">การตั้งค่าสาธารณะ</h2><div className="grid gap-4 md:grid-cols-2">
+        <label className="font-bold">เวลาต่อข้อ (วินาที)<input aria-label="เวลาต่อข้อ (วินาที)" type="number" min="5" max="300" className={fieldClass} value={Number(settings.TimerPerQuestion) || 30} onChange={(event) => setSettings({ ...settings, TimerPerQuestion: Number(event.target.value) })} /></label>
+        <label className="font-bold">ชั้นเรียน (คั่นด้วยจุลภาค)<input className={fieldClass} value={String(settings.Classes || '')} onChange={(event) => setSettings({ ...settings, Classes: event.target.value })} /></label>
+        <label className="font-bold">ห้องเรียน (คั่นด้วยจุลภาค)<input className={fieldClass} value={String(settings.Rooms || '')} onChange={(event) => setSettings({ ...settings, Rooms: event.target.value })} /></label>
+        <label className="font-bold">หัวใบประกาศ<input className={fieldClass} value={String(settings.CertHeader || '')} onChange={(event) => setSettings({ ...settings, CertHeader: event.target.value })} /></label>
+        <label className="font-bold md:col-span-2">ท้ายใบประกาศ<input className={fieldClass} value={String(settings.CertFooter || '')} onChange={(event) => setSettings({ ...settings, CertFooter: event.target.value })} /></label>
+      </div><p className="my-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-700">รหัสผ่านผู้ดูแล (Admin PIN) ไม่ถูกเก็บหรือแสดงในหน้านี้ และจะไม่ถูกบันทึกลงการตั้งค่าสาธารณะ</p><button className={primary}>บันทึกการตั้งค่า</button></form>
+
+      <form onSubmit={saveAiKey} className="rounded-3xl bg-white/90 p-6 shadow-xl">
+        <div className="mb-1 flex flex-wrap items-center gap-3"><h2 className="text-2xl font-black">🤖 ระบบ AI (Gemini)</h2>
+          {aiSettings === null
+            ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">กำลังตรวจสอบ...</span>
+            : aiSettings.hasKey
+              ? <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">● เชื่อมต่อแล้ว (คีย์ {aiSettings.maskedKey})</span>
+              : <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">○ ยังไม่ได้ตั้งค่า — ทำงานโหมดพื้นฐาน</span>}
+        </div>
+        <p className="mb-4 text-sm text-slate-500">คีย์นี้เปิดใช้ 3 ระบบ: แชทบอทติวเตอร์ของนักเรียน · AI วิเคราะห์นักเรียน · AI สร้างบทเรียนและข้อสอบ</p>
+        <label className="block font-bold">Gemini API Key<input aria-label="Gemini API Key" type="password" autoComplete="off" placeholder="วางคีย์จาก Google AI Studio (aistudio.google.com)" className={`${fieldClass} mt-1`} value={aiKeyInput} onChange={(event) => setAiKeyInput(event.target.value)} /></label>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className={primary} disabled={busy}>บันทึกคีย์</button>
+          <button type="button" className={secondary} disabled={busy} onClick={() => void testAiKey()}>ทดสอบคีย์</button>
+          {aiSettings?.hasKey && <button type="button" className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700 hover:bg-red-200" onClick={() => void clearAiKey()}>ลบคีย์</button>}
+        </div>
+        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">🔐 คีย์ถูกเก็บใน Firestore (เอกสาร settings/ai) อ่านได้เฉพาะผู้ใช้ที่ล็อกอินแอปนี้ และแก้ไขได้เฉพาะผู้ดูแลระบบ — เพื่อความปลอดภัยสูงสุด แนะนำให้จำกัดคีย์ให้ใช้ได้เฉพาะโดเมนของเว็บนี้ (Application restrictions → HTTP referrers) ใน Google Cloud Console</p>
+      </form>
+    </div>}
 
     {tab === 'news' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex justify-between"><h2 className="text-2xl font-black">ประกาศ</h2><button className={primary} onClick={() => setNewsDraft(emptyNews())}>เพิ่มประกาศ</button></div>{news.map((item) => <article key={item.id} className="mb-3 flex items-start justify-between gap-3 rounded-2xl border p-4"><div><h3 className="font-black">{item.icon} {item.title}</h3><p>{item.content}</p><small>{item.type} · {item.date} · {item.isActive === false ? 'ปิด' : 'เผยแพร่'}</small></div><div className="flex gap-2"><button className={secondary} onClick={() => setNewsDraft({ ...item })}>แก้ไข</button><button className="text-red-600" onClick={() => void deleteNews(item)} aria-label={`ลบประกาศ ${item.title}`}>ลบ</button></div></article>)}</div>}
 
@@ -420,7 +568,15 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     </form></Modal>}
 
     {questionLesson && <Modal label={`จัดการข้อสอบ: ${questionLesson.title}`} onClose={() => setQuestionLesson(null)}><div className="mb-4 flex flex-wrap gap-2"><select aria-label="ประเภทข้อสอบ" className={fieldClass} value={questionType} onChange={(event) => void reloadQuestions(event.target.value)}><option value="posttest">Posttest</option><option value="pretest">Pretest</option></select><button className={secondary} onClick={() => setQuestions((all) => [...all, emptyQuestion()])}>เพิ่มข้อ</button></div>
-      <p className="mb-4 rounded-xl bg-blue-50 p-3 text-blue-700">การสร้างข้อสอบด้วย AI ถูกปิด เพราะเว็บ client ไม่สามารถเก็บ API key อย่างปลอดภัยได้</p>
+      <div className="mb-4 rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/70 p-4">
+        <p className="mb-2 text-sm font-black text-indigo-700">✨ ผู้ช่วย AI — สร้างข้อสอบ{questionType === 'pretest' ? 'ก่อนเรียน (Pretest)' : 'หลังเรียน (Posttest)'}อัตโนมัติ</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-[220px] flex-1 text-sm font-bold">หัวข้อ<input aria-label="หัวข้อสำหรับสร้างข้อสอบ AI" className={fieldClass} value={questionAiTopic} onChange={(event) => setQuestionAiTopic(event.target.value)} /></label>
+          <label className="text-sm font-bold">จำนวนข้อ<select aria-label="จำนวนข้อสอบ AI" className={fieldClass} value={questionAiCount} onChange={(event) => setQuestionAiCount(Number(event.target.value))}>{[3, 5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <button type="button" aria-label="สร้างข้อสอบด้วย AI" className={primary} disabled={questionAiBusy} onClick={() => void generateAiQuestions()}>{questionAiBusy ? '🤖 กำลังสร้าง...' : 'สร้างด้วย AI'}</button>
+        </div>
+        <p className="mt-2 text-xs text-indigo-500">ข้อสอบที่ AI สร้างจะเติมลงในแบบร่างด้านล่าง ตรวจทาน/แก้ไขได้ก่อนกดบันทึกจริง</p>
+      </div>
       {questions.map((question, index) => <div key={index} className="mb-4 rounded-2xl border p-4"><div className="mb-2 flex justify-between"><b>ข้อ {index + 1}</b>{questions.length > 1 && <button className="text-red-600" onClick={() => setQuestions((all) => all.filter((_, at) => at !== index))}>ลบข้อ</button>}</div>
         <label>คำถาม<input aria-label={`คำถามข้อ ${index + 1}`} className={fieldClass} value={question.text} onChange={(event) => updateQuestion(index, { text: event.target.value })} /></label><label>รูปแบบ<select aria-label={`รูปแบบข้อ ${index + 1}`} className={fieldClass} value={question.pattern} onChange={(event) => updateQuestion(index, { pattern: event.target.value as AdminQuestion['pattern'] })}><option value="choice">ตัวเลือก</option><option value="matching">จับคู่</option></select></label>
         {question.pattern === 'choice' ? <div className="grid gap-2 md:grid-cols-2">{question.options.map((option, optionIndex) => <label key={optionIndex}>ตัวเลือก {optionIndex + 1}<input aria-label={`ตัวเลือก ${optionIndex + 1} ข้อ ${index + 1}`} className={fieldClass} value={option} onChange={(event) => updateQuestion(index, { options: question.options.map((item, at) => at === optionIndex ? event.target.value : item) })} /></label>)}<label>คำตอบที่ถูก<select className={fieldClass} value={Number(question.answer) || 1} onChange={(event) => updateQuestion(index, { answer: Number(event.target.value) })}>{[1, 2, 3, 4].map((value) => <option key={value}>{value}</option>)}</select></label></div> : <div>{question.matchingPairs.map((pair, pairIndex) => <div className="grid grid-cols-2 gap-2" key={pairIndex}><input aria-label={`ด้านซ้ายคู่ ${pairIndex + 1} ข้อ ${index + 1}`} className={fieldClass} value={pair.left} onChange={(event) => updateQuestion(index, { matchingPairs: question.matchingPairs.map((item, at) => at === pairIndex ? { ...item, left: event.target.value } : item) })} /><input aria-label={`ด้านขวาคู่ ${pairIndex + 1} ข้อ ${index + 1}`} className={fieldClass} value={pair.right} onChange={(event) => updateQuestion(index, { matchingPairs: question.matchingPairs.map((item, at) => at === pairIndex ? { ...item, right: event.target.value } : item) })} /></div>)}<button className={secondary} onClick={() => updateQuestion(index, { matchingPairs: [...question.matchingPairs, { left: '', right: '' }] })}>เพิ่มคู่</button></div>}
@@ -440,18 +596,6 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <div className="md:col-span-2 flex gap-2"><button className={primary}>บันทึกภารกิจ</button><button type="button" className={secondary} onClick={() => setDailyDraft(null)}>ยกเลิก</button></div>
     </form></Modal>}
 
-    {bossDraft && <Modal label="จัดการเวิลด์บอส" onClose={() => setBossDraft(null)}><form onSubmit={saveWorldBoss} className="grid gap-3 md:grid-cols-2">
-      <label className="font-bold md:col-span-2">ชื่อบอส<input aria-label="ชื่อบอส" className={fieldClass} value={bossDraft.name} onChange={(event) => setBossDraft({ ...bossDraft, name: event.target.value })} required /></label>
-      <label>รหัสบอส (เว้นว่าง = สร้างใหม่อัตโนมัติ)<input aria-label="รหัสบอส" className={fieldClass} value={bossDraft.id || ''} onChange={(event) => setBossDraft({ ...bossDraft, id: event.target.value })} placeholder="เช่น WB001" /></label>
-      <label>ประเภทท่า/มินิเกม<input aria-label="ประเภทท่า" className={fieldClass} value={bossDraft.poseType || ''} onChange={(event) => setBossDraft({ ...bossDraft, poseType: event.target.value })} placeholder="เช่น squat / mario / neck" /></label>
-      <label>เป้าจำนวนครั้ง<input aria-label="เป้าจำนวนครั้ง" type="number" min="1" max="500" className={fieldClass} value={bossDraft.targetReps || 10} onChange={(event) => setBossDraft({ ...bossDraft, targetReps: Number(event.target.value) || 10 })} /></label>
-      <label>พลังชีวิตบอส<input aria-label="พลังชีวิตบอส" type="number" min="1" max="100000" className={fieldClass} value={bossDraft.maxHp || 100} onChange={(event) => setBossDraft({ ...bossDraft, maxHp: Number(event.target.value) || 100 })} /></label>
-      <label>รางวัล Coins<input aria-label="รางวัลเหรียญบอส" type="number" min="0" max="900" className={fieldClass} value={bossDraft.rewardCoins || 0} onChange={(event) => setBossDraft({ ...bossDraft, rewardCoins: Number(event.target.value) || 0 })} /></label>
-      <label>รางวัล XP<input aria-label="รางวัล XP บอส" type="number" min="0" max="900" className={fieldClass} value={bossDraft.rewardXp || 0} onChange={(event) => setBossDraft({ ...bossDraft, rewardXp: Number(event.target.value) || 0 })} /></label>
-      <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={bossDraft.isActive !== false} onChange={(event) => setBossDraft({ ...bossDraft, isActive: event.target.checked })} /> เปิดใช้งาน</label>
-      <div className="md:col-span-2 flex gap-2"><button className={primary}>บันทึกเวิลด์บอส</button><button type="button" className={secondary} onClick={() => setBossDraft(null)}>ยกเลิก</button></div>
-    </form></Modal>}
-
     {scenarioDraft && <Modal label="จัดการสถานการณ์ไซเบอร์" onClose={() => setScenarioDraft(null)}><form onSubmit={saveCyberScenario} className="grid gap-3 md:grid-cols-2">
       <label className="font-bold">หัวข้อ<input aria-label="หัวข้อสถานการณ์" className={fieldClass} value={scenarioDraft.title} onChange={(event) => setScenarioDraft({ ...scenarioDraft, title: event.target.value })} /></label>
       <label>ช่วงเวลา (เช้า/กลางวัน/เย็น)<input aria-label="ช่วงเวลาสถานการณ์" className={fieldClass} value={scenarioDraft.timeOfDay || ''} onChange={(event) => setScenarioDraft({ ...scenarioDraft, timeOfDay: event.target.value })} /></label>
@@ -464,7 +608,69 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <div className="md:col-span-2 flex gap-2"><button className={primary}>บันทึกสถานการณ์</button><button type="button" className={secondary} onClick={() => setScenarioDraft(null)}>ยกเลิก</button></div>
     </form></Modal>}
 
-    {analysis && <Modal label="รายงานวิเคราะห์นักเรียน" onClose={() => setAnalysis('')}><pre className="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 font-sans">{analysis}</pre><button className={`${primary} mt-4`} onClick={() => setAnalysis('')}>ปิดรายงาน</button></Modal>}
+    {analysis && <Modal label="รายงานวิเคราะห์นักเรียน" onClose={() => setAnalysis(null)}>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <h3 className="text-lg font-black text-slate-800">🧑‍🎓 {analysis.name}</h3>
+        {analysis.mode === 'gemini' && <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700">✨ วิเคราะห์โดย Gemini AI</span>}
+        {analysis.mode === 'local-fallback' && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">รายงานพื้นฐาน (ยังไม่เชื่อม AI)</span>}
+      </div>
+      {analysis.loading
+        ? <p className="animate-pulse rounded-2xl bg-indigo-50 p-8 text-center font-bold text-indigo-600">🤖 AI กำลังวิเคราะห์ข้อมูลนักเรียน...</p>
+        : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-800"><MarkdownLite text={analysis.text} /></div>}
+      <button className={`${primary} mt-4`} onClick={() => setAnalysis(null)}>ปิดรายงาน</button>
+    </Modal>}
+
+    {aiDraft && <Modal label="สร้างบทเรียนด้วย AI" onClose={() => !aiDraft.working && setAiDraft(null)}>
+      {aiDraft.step === 'form' && <div>
+        <p className="mb-4 rounded-2xl bg-gradient-to-r from-fuchsia-50 to-indigo-50 p-4 text-sm text-indigo-800">🧙‍♂️ บอกหัวข้อที่จะสอน แล้ว AI จะออกแบบ <b>ด่านผจญภัยทั้งด่าน</b> ให้ครบ: เนื้อหาบทเรียน + ข้อสอบก่อนเรียน/หลังเรียน + ไอคอนและธีมทางเข้าด่าน — ครูตรวจทานก่อนบันทึกได้ทุกจุด</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="font-bold md:col-span-2">หัวข้อ/เรื่องที่จะสอน<input aria-label="หัวข้อบทเรียน AI" className={fieldClass} value={aiDraft.topic} placeholder="เช่น ระบบสุริยะ, การใช้อินเทอร์เน็ตอย่างปลอดภัย" onChange={(event) => setAiDraft({ ...aiDraft, topic: event.target.value })} required /></label>
+          <label className="font-bold">ระดับชั้น<select aria-label="ระดับชั้น AI" className={fieldClass} value={aiDraft.gradeLevel} onChange={(event) => setAiDraft({ ...aiDraft, gradeLevel: event.target.value })}>{['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6', 'ม.1', 'ม.2', 'ม.3'].map((grade) => <option key={grade}>{grade}</option>)}</select></label>
+          <label className="font-bold">จำนวนข้อสอบหลังเรียน<select aria-label="จำนวนข้อสอบหลังเรียน" className={fieldClass} value={aiDraft.posttestCount} onChange={(event) => setAiDraft({ ...aiDraft, posttestCount: Number(event.target.value) })}>{[5, 10, 15, 20].map((value) => <option key={value} value={value}>{value} ข้อ</option>)}</select></label>
+          <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={aiDraft.includePretest} onChange={(event) => setAiDraft({ ...aiDraft, includePretest: event.target.checked })} /> สร้างข้อสอบก่อนเรียน (Pretest)</label>
+          <label className="font-bold">จำนวนข้อ Pretest<select aria-label="จำนวนข้อสอบก่อนเรียน" className={fieldClass} disabled={!aiDraft.includePretest} value={aiDraft.pretestCount} onChange={(event) => setAiDraft({ ...aiDraft, pretestCount: Number(event.target.value) })}>{[3, 5, 10].map((value) => <option key={value} value={value}>{value} ข้อ</option>)}</select></label>
+          <label className="md:col-span-2">แนวทางเพิ่มเติมถึง AI (ถ้ามี)<textarea aria-label="แนวทางเพิ่มเติม AI" rows={2} className={fieldClass} placeholder="เช่น เน้นตัวอย่างในชีวิตประจำวัน, มีศัพท์ภาษาอังกฤษกำกับ" value={aiDraft.notes} onChange={(event) => setAiDraft({ ...aiDraft, notes: event.target.value })} /></label>
+        </div>
+        {aiDraft.error && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 font-bold text-red-700">{aiDraft.error}</p>}
+        {aiDraft.working
+          ? <p className="mt-4 animate-pulse rounded-2xl bg-indigo-50 p-6 text-center font-bold text-indigo-600">🤖 AI กำลังออกแบบด่านผจญภัยทั้งด่าน... อาจใช้เวลา 20-60 วินาที</p>
+          : <div className="mt-4 flex gap-2"><button type="button" aria-label="ให้ AI สร้างบทเรียน" className={primary} onClick={() => void generateAiLesson()}>✨ สร้างบทเรียน</button><button type="button" className={secondary} onClick={() => setAiDraft(null)}>ยกเลิก</button></div>}
+      </div>}
+
+      {aiDraft.step === 'preview' && aiDraft.bundle && <div>
+        <div className="mb-4 rounded-2xl border-2 border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="block h-14 w-14 shrink-0" aria-hidden="true">{(() => { const Entrance = entranceTemplateForLesson(aiDraft.bundle.lesson.mapStyle, lessons.length).Art; return <Entrance /> })()}</span>
+            <span className="text-4xl">{aiDraft.bundle.lesson.icon}</span>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xl font-black text-indigo-800">{aiDraft.bundle.lesson.title}</h3>
+              <p className="text-sm text-slate-600">{aiDraft.bundle.lesson.description}</p>
+            </div>
+          </div>
+          <div className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-white/80 p-4 text-sm leading-relaxed text-slate-700">{aiDraft.bundle.lesson.content}</div>
+        </div>
+        {([['pretest', '📝 ข้อสอบก่อนเรียน (Pretest)'], ['posttest', '🏆 ข้อสอบหลังเรียน (Posttest)']] as const).map(([type, label]) => {
+          const items = aiDraft.bundle![type]
+          if (!items.length) return null
+          return <section key={type} className="mb-4">
+            <h4 className="mb-2 font-black text-slate-700">{label} · {items.length} ข้อ</h4>
+            <div className="grid gap-2">{items.map((question, index) => <article key={index} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="font-bold text-slate-800">{index + 1}. {question.text}</p>
+              <div className="mt-1 grid gap-1 md:grid-cols-2">{question.options.map((option, optionIndex) => <p key={optionIndex} className={optionIndex + 1 === question.answer ? 'rounded-lg bg-emerald-50 px-2 py-1 font-bold text-emerald-700' : 'px-2 py-1 text-slate-600'}>{optionIndex + 1 === question.answer ? '✓ ' : ''}{option}</p>)}</div>
+              {question.explanation && <p className="mt-1 text-xs text-slate-500">เฉลย: {question.explanation}</p>}
+            </article>)}</div>
+          </section>
+        })}
+        {aiDraft.error && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 font-bold text-red-700">{aiDraft.error}</p>}
+        {aiDraft.working
+          ? <p className="mt-3 animate-pulse rounded-2xl bg-indigo-50 p-5 text-center font-bold text-indigo-600">💾 กำลังบันทึกด่านลงระบบ...</p>
+          : <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" aria-label="บันทึกบทเรียน AI ลงระบบ" className={primary} onClick={() => void saveAiLesson()}>💾 บันทึกลงระบบ</button>
+            <button type="button" className={secondary} onClick={() => setAiDraft({ ...aiDraft, step: 'form', bundle: null, error: '' })}>🔄 สร้างใหม่</button>
+            <button type="button" className={secondary} onClick={() => setAiDraft(null)}>ยกเลิก</button>
+          </div>}
+      </div>}
+    </Modal>}
   </section>
 }
 

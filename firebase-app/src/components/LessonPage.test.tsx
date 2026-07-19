@@ -67,6 +67,12 @@ function defeatFirstMonster() {
   fireEvent.click(attack)
 }
 
+// Quest card defaults to a compact glance summary (icon + title + hint); the full detail panel
+// (heading, objectives, completion banner) only renders once expanded.
+function openQuestCard() {
+  fireEvent.click(screen.getByRole('button', { name: 'ขยายหน้าต่างเควส' }))
+}
+
 async function letMonsterKillPlayer(world: HTMLElement) {
   // Monster 1 spawns at (21%, 61%); standing on top of it keeps the player inside melee range
   // so the 100ms combat tick's windup -> strike -> cooldown cycle repeats until HP hits zero.
@@ -126,6 +132,7 @@ describe('LessonPage', () => {
     window.dispatchEvent(new Event('nextgen:open-lesson'))
 
     expect(await screen.findByTestId('lesson-adventure-world')).toBeTruthy()
+    openQuestCard()
     expect(screen.getByRole('heading', { name: 'เควส 1: ตามหาโน้ตความรู้' })).toBeTruthy()
     expect(screen.getByTestId('lesson-player')).toBeTruthy()
   })
@@ -133,6 +140,7 @@ describe('LessonPage', () => {
   it('drops a note, requires reading it, and then unlocks the first portal', async () => {
     openLessonWithFakeTimers({ random: () => 0 })
     try {
+      openQuestCard()
       const attack = screen.getByRole('button', { name: 'โจมตีด้วยดาบ' })
       fireEvent.click(attack)
       expect(screen.getByText('55/100')).toBeTruthy()
@@ -160,6 +168,7 @@ describe('LessonPage', () => {
   it('allows manual video confirmation when the provider does not report completion', async () => {
     openLessonWithFakeTimers({ random: () => 0, videoUnlockMs: 100 })
     try {
+      openQuestCard()
       defeatFirstMonster()
       fireEvent.click(screen.getByRole('button', { name: 'เปิดโน้ตบทเรียน' }))
       fireEvent.click(screen.getByRole('button', { name: 'อ่านจบแล้ว' }))
@@ -537,6 +546,7 @@ describe('LessonPage', () => {
   it('announces quest completion and shows a guide arrow toward the portal once a zone is cleared', async () => {
     openLessonWithFakeTimers({ random: () => 0 })
     try {
+      openQuestCard()
       expect(screen.queryByTestId('lesson-quest-complete')).toBeNull()
       expect(screen.queryByTestId('lesson-portal-guide')).toBeNull()
 
@@ -555,6 +565,7 @@ describe('LessonPage', () => {
   it('pauses and hides the adventure while the worksheet is open, then resumes without resetting', async () => {
     openLessonWithFakeTimers({ random: () => 0 })
     try {
+      openQuestCard()
       defeatFirstMonster()
       expect(screen.getByText(/โจมตีมอนสเตอร์ \(1\/20\)/)).toBeTruthy()
 
@@ -566,6 +577,76 @@ describe('LessonPage', () => {
       expect(page.style.display).toBe('block')
       expect(screen.getByText(/โจมตีมอนสเตอร์ \(1\/20\)/)).toBeTruthy()
       expect(screen.getByText('EXP 38/100')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows compact objective counters on the collapsed quest card without expanding', async () => {
+    openLessonWithFakeTimers({ random: () => 0 })
+    try {
+      // Collapsed card: no "tap for details" filler — the actual progress shows.
+      expect(screen.getByText('โจมตีมอนสเตอร์ (0/20), โน้ตความรู้ (0/1)')).toBeTruthy()
+      defeatFirstMonster()
+      expect(screen.getByText('โจมตีมอนสเตอร์ (1/20), โน้ตความรู้ (0/1)')).toBeTruthy()
+      expect(screen.queryByText('แตะเพื่อดูรายละเอียดภารกิจ')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('starts a fresh run when a different lesson opens after a stale worksheet pause', async () => {
+    const secondLesson: Lesson = { ...lesson, id: 'lesson-2', title: 'ถ้ำสายฟ้า' }
+    let currentLesson: Lesson = lesson
+    const service: LessonService = {
+      getCurrentLesson: vi.fn(() => currentLesson),
+      getCurrentUser: vi.fn(() => ({ id: 'u1', avatar: '🧙', xp: 100, coins: 20, level: 2, rank: 'BRONZE', passedLessons: [] })),
+      getTimerPerQuestion: vi.fn(() => 30),
+      loadQuestions: vi.fn().mockResolvedValue({ success: true, data: bossQuestions }),
+      saveProgress: vi.fn().mockResolvedValue({ success: true, stats: { xp: 110, coins: 25, level: 2, rank: 'BRONZE', gainedXp: 10, alreadyPassed: false } }),
+      saveAdventureRewards: vi.fn().mockResolvedValue({ success: true, stats: { xp: 150, coins: 40, level: 2, rank: 'BRONZE', gainedXp: 50, gainedCoins: 20 } }),
+      trackDailyProgress: vi.fn(),
+    }
+    render(<LessonPage service={service} onBack={vi.fn()} onStartQuiz={vi.fn()} onOpenWorksheet={vi.fn()} random={() => 0} />)
+    vi.useFakeTimers()
+    try {
+      act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+      mockFullWorldRect(screen.getByTestId('lesson-adventure-world'))
+      openQuestCard()
+      defeatFirstMonster()
+      expect(screen.getByText(/โจมตีมอนสเตอร์ \(1\/20\)/)).toBeTruthy()
+
+      // The worksheet pause is left dangling (the player never came back to
+      // this lesson) — opening a DIFFERENT lesson must never resume the old run.
+      act(() => { window.dispatchEvent(new Event('nextgen:open-worksheet')) })
+      currentLesson = secondLesson
+      act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+
+      const page = document.getElementById('page-lesson') as HTMLElement
+      expect(page.style.display).toBe('block')
+      expect(screen.getByText(/โจมตีมอนสเตอร์ \(0\/20\)/)).toBeTruthy()
+      expect(screen.queryByTestId('lesson-boss-result-panel')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never resumes a finished run: leaving via the boss result clears the pause marker', async () => {
+    const { onBack } = openLessonWithFakeTimers({ random: () => 0 })
+    try {
+      // Simulate a stray worksheet event racing the exit (legacy nav quirk).
+      act(() => { window.dispatchEvent(new Event('nextgen:open-worksheet')) })
+      act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+      openQuestCard()
+      defeatFirstMonster()
+      expect(screen.getByText(/โจมตีมอนสเตอร์ \(1\/20\)/)).toBeTruthy()
+
+      fireEvent.click(screen.getByRole('button', { name: 'ถอยทัพกลับแผนที่' }))
+      expect(onBack).toHaveBeenCalled()
+
+      // Re-entering the same lesson after leaving starts from scratch.
+      act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+      expect(screen.getByText(/โจมตีมอนสเตอร์ \(0\/20\)/)).toBeTruthy()
     } finally {
       vi.useRealTimers()
     }
@@ -846,6 +927,7 @@ describe('LessonPage', () => {
 
     expect(service.getCurrentLesson).toHaveBeenCalledOnce()
     expect(await screen.findByRole('heading', { name: lesson.title, hidden: true })).toBeTruthy()
+    openQuestCard()
     expect(screen.getByText(lesson.description)).toBeTruthy()
     expect(screen.getByText('ภารกิจบทเรียน 0/3')).toBeTruthy()
   })
@@ -863,8 +945,10 @@ describe('LessonPage', () => {
     const handlers = setup()
     window.dispatchEvent(new Event('nextgen:open-lesson'))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'ถอยทัพกลับแผนที่' }))
-    fireEvent.click(screen.getByRole('button', { name: /เปิดทำใบงาน/, hidden: true }))
+    // Worksheet first: retreating now closes the run (the page empties), so
+    // the header actions are only reachable while the lesson is active.
+    fireEvent.click(await screen.findByRole('button', { name: /เปิดทำใบงาน/, hidden: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'ถอยทัพกลับแผนที่' }))
 
     expect(handlers.onBack).toHaveBeenCalledOnce()
     expect(handlers.onOpenWorksheet).toHaveBeenCalledOnce()
@@ -883,8 +967,9 @@ describe('LessonPage', () => {
     window.dispatchEvent(new Event('nextgen:open-lesson'))
 
     const menu = await screen.findByTestId('lesson-topright-menu')
-    fireEvent.click(within(menu).getByRole('button', { name: 'กลับแผนที่โลกแบบย่อ' }))
+    // Worksheet first: the back shortcut closes the run and empties the page.
     fireEvent.click(within(menu).getByRole('button', { name: 'ปุ่มลัดใบงาน' }))
+    fireEvent.click(within(menu).getByRole('button', { name: 'กลับแผนที่โลกแบบย่อ' }))
 
     expect(handlers.onBack).toHaveBeenCalledOnce()
     expect(handlers.onOpenWorksheet).toHaveBeenCalledOnce()
@@ -899,16 +984,19 @@ describe('LessonPage', () => {
     expect(screen.getByTestId('lesson-topright-menu')).toBeTruthy()
   })
 
-  it('collapses and expands the mobile quest tracker', async () => {
+  it('defaults to a compact quest summary and expands into the full detail panel on tap', async () => {
     setup()
     window.dispatchEvent(new Event('nextgen:open-lesson'))
 
-    expect(await screen.findByTestId('lesson-quest-objectives')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'ย่อหน้าต่างเควส' }))
+    await screen.findByTestId('lesson-adventure-world')
     expect(screen.queryByTestId('lesson-quest-objectives')).toBeNull()
+    expect(screen.getByRole('button', { name: 'ขยายหน้าต่างเควส' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'ขยายหน้าต่างเควส' }))
     expect(screen.getByTestId('lesson-quest-objectives')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ย่อหน้าต่างเควส' }))
+    expect(screen.queryByTestId('lesson-quest-objectives')).toBeNull()
   })
 
   it('shows a boss top bar mirroring the boss HP and question progress during the skirmish', async () => {

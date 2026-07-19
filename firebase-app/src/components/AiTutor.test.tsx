@@ -10,6 +10,7 @@ function setup(answer: Awaited<ReturnType<AiTutorService['ask']>> = { success: t
     getCurrentUser: () => ({ name: 'ฟ้า', avatar: '🧙' }),
     getCurrentLessonTitle: () => 'อินเทอร์เน็ตเบื้องต้น',
     ask: vi.fn().mockResolvedValue(answer),
+    reset: vi.fn(),
   }
   render(<AiTutor service={service} />)
   return service
@@ -64,6 +65,43 @@ describe('AiTutor', () => {
 
     resolve({ success: true, answer: 'ได้เลย' })
     expect(await screen.findByText('ได้เลย')).toBeTruthy()
+  })
+
+  it('sends a suggested quick question with one tap and hides the suggestions afterwards', async () => {
+    const service = setup({ success: true, answer: 'จัดให้เลยผู้กล้า!' })
+    fireEvent.click(screen.getByRole('button', { name: 'เปิด AI Tutor' }))
+
+    const chip = screen.getByRole('button', { name: 'สรุปบทเรียนด่านนี้ให้หน่อย' })
+    fireEvent.click(chip)
+    await waitFor(() => expect(service.ask).toHaveBeenCalledWith(
+      'สรุปบทเรียนด่านนี้ให้หน่อย',
+      'ชื่อผู้เล่น: ฟ้า, ด่านปัจจุบันที่กำลังผจญภัย: อินเทอร์เน็ตเบื้องต้น',
+    ))
+    expect(await screen.findByText('จัดให้เลยผู้กล้า!')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'สรุปบทเรียนด่านนี้ให้หน่อย' })).toBeNull()
+  })
+
+  it('flags basic-mode answers so players know the real AI is not connected yet', async () => {
+    setup({ success: true, answer: 'คำตอบพื้นฐาน', mode: 'local-fallback' })
+    fireEvent.click(screen.getByRole('button', { name: 'เปิด AI Tutor' }))
+    fireEvent.change(screen.getByPlaceholderText('ถามข้ามาได้เลย...'), { target: { value: 'คำถาม' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ส่งคำถาม' }))
+
+    expect(await screen.findByText('คำตอบพื้นฐาน')).toBeTruthy()
+    expect(screen.getByText('โหมดพื้นฐาน')).toBeTruthy()
+  })
+
+  it('starts a fresh conversation from the reset button', async () => {
+    const service = setup({ success: true, answer: 'คำตอบเดิม' })
+    fireEvent.click(screen.getByRole('button', { name: 'เปิด AI Tutor' }))
+    fireEvent.change(screen.getByPlaceholderText('ถามข้ามาได้เลย...'), { target: { value: 'คำถาม' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ส่งคำถาม' }))
+    expect(await screen.findByText('คำตอบเดิม')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มบทสนทนาใหม่' }))
+    expect(screen.queryByText('คำตอบเดิม')).toBeNull()
+    expect(screen.getByText(/สวัสดีผู้กล้า/)).toBeTruthy()
+    expect(service.reset).toHaveBeenCalledOnce()
   })
 
   it('shows service failures and lets the player try again', async () => {

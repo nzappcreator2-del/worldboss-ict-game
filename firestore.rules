@@ -507,6 +507,15 @@ service cloud.firestore {
       allow write: if admin();
     }
 
+    // Runtime AI config (Gemini API key). Signed-in app users read it so the
+    // student tutor can call Gemini directly (no trusted backend exists);
+    // only the admin may write it. Never mirror these fields into
+    // settings/public, and keep the key referrer-restricted in Google Cloud.
+    match /settings/ai {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
     match /settings/{documentId} {
       allow read, write: if admin();
     }
@@ -514,7 +523,7 @@ service cloud.firestore {
     match /{collectionName}/{documentId} {
       allow read: if signedIn() && collectionName in [
         'lessons', 'questions', 'news', 'cyberSafetyScenarios',
-        'worldBossConfig', 'dailyQuests'
+        'dailyQuests'
       ];
       allow write: if admin();
     }

@@ -124,6 +124,29 @@ describe('DashboardShell', () => {
     expect(screen.getByText('GOLD')).toBeTruthy()
   })
 
+  it('turns the menu into a right-side vertical rail and drops hub hotspots on the map tab', () => {
+    setup()
+    // Hub scene: the painted-gate hotspot and quest tracker exist.
+    expect(screen.getByRole('button', { name: 'เริ่มการผจญภัย' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'เควสหลัก: ออกผจญภัยด่านต่อไป' })).toBeTruthy()
+
+    // Simulate the class the legacy showPage() adds from outside React: the
+    // shell must never clobber it when its scene state changes.
+    document.getElementById('page-dashboard')?.classList.add('page-active')
+    fireEvent.click(screen.getByRole('button', { name: 'แผนที่' }))
+    expect(document.getElementById('page-dashboard')?.getAttribute('data-scene')).toBe('map')
+    expect(document.getElementById('page-dashboard')?.classList.contains('page-active')).toBe(true)
+    expect(screen.getByRole('navigation', { name: 'เมนูแดชบอร์ด' }).classList.contains('map-vertical')).toBe(true)
+    // The invisible gate hotspot must never float over the adventure map, and
+    // the hub quest tracker leaves the map scene uncluttered.
+    expect(screen.queryByRole('button', { name: 'เริ่มการผจญภัย' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'เควสหลัก: ออกผจญภัยด่านต่อไป' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'หน้าหลัก' }))
+    expect(screen.getByRole('button', { name: 'เริ่มการผจญภัย' })).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: 'เมนูแดชบอร์ด' }).classList.contains('map-vertical')).toBe(false)
+  })
+
   it('routes exit through the supplied logout action', () => {
     const { onLogout } = setup()
     fireEvent.click(screen.getByRole('button', { name: 'ออกจากเกม' }))

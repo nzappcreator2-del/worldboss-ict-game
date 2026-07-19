@@ -69,7 +69,7 @@ Every top-level feature component takes a `service` object of async functions (e
 See `README.md` "Collections" and "ข้อจำกัดด้านความปลอดภัย" for the full collection list and constraints. Key points to keep in mind when touching data access or `../firestore.rules`:
 - `users` is readable only by its owner (`ownerUid`) and admin; anything needed by public UI (leaderboards, name selection) must be mirrored into the separate `directory` collection instead — never expand `users` read access to work around this.
 - Firestore rules cap per-write XP/coin deltas (±1000) and validate document shape/allowed-field-diffs (see `userDocumentShapeValid`, `userChangedFieldsAllowed` in `../firestore.rules`) — mirror this validation style (explicit allowed-keys, explicit allowed-diff-keys) if adding new writable fields.
-- `AdminPIN` and `GeminiAPIKey` must never be written to `settings/public` or bundled into the frontend — the importer strips them; there is no trusted backend to hold secrets since Cloud Functions are excluded.
+- `AdminPIN` and `GeminiAPIKey` must never be written to `settings/public` or bundled into the frontend — the importer strips them; there is no trusted backend to hold secrets since Cloud Functions are excluded. The runtime Gemini key lives only in the `settings/ai` document (admin-writable, signed-in read — see `firestore.rules`), loaded at runtime by `src/services/aiApi.ts`; never copy it anywhere else and keep the key referrer-restricted in Google Cloud.
 - Rule changes must be validated against the real emulator with `npm run test:rules`, not just read for correctness.
 
 ### World Boss / standalone mini-games

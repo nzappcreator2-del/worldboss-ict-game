@@ -23,6 +23,7 @@ import { DashboardShell, type DashboardShellUser, type DashboardTab } from './co
 import { PageTransitionIndicator } from './components/PageTransitionIndicator'
 import { legacyBody, legacyCss, legacyScript } from './legacy/sources'
 import { endAdminSession } from './firebase/adminClient'
+import { resetTutorHistory, testGeminiKey } from './services/aiApi'
 import { firestoreApi, getInitialData, loginStudent, subscribeActiveNews } from './services/firestoreApi'
 import { installFirebaseServiceRunner } from './services/legacyRunner'
 import {
@@ -353,6 +354,7 @@ function App() {
           getCurrentUser: () => bridge()?.getCurrentUser() as unknown as AiTutorUser | null,
           getCurrentLessonTitle: () => bridge()?.getCurrentLesson()?.title || 'ไม่มีข้อมูลด่าน',
           ask: async (question, context) => await firestoreApi.askNPCAi(question, context),
+          reset: resetTutorHistory,
         }}
       />,
     )
@@ -395,12 +397,14 @@ function App() {
           generateProgressReport: async (student) => await firestoreApi.generateAIProgressReport(student),
           loadDailyQuests: async (password) => await firestoreApi.getAdminDailyQuests(password),
           saveDailyQuest: async (quest, password) => await firestoreApi.saveAdminDailyQuest(quest, password),
-          loadWorldBosses: async (password) => await firestoreApi.getAdminWorldBosses(password),
-          saveWorldBoss: async (boss, password) => await firestoreApi.saveAdminWorldBoss(boss, password),
-          deleteWorldBoss: async (id, password) => await firestoreApi.deleteAdminWorldBoss(id, password),
           loadCyberScenarios: async (password) => await firestoreApi.getAdminCyberScenarios(password),
           saveCyberScenario: async (scenario, password) => await firestoreApi.saveAdminCyberScenario(scenario, password),
           deleteCyberScenario: async (id, password) => await firestoreApi.deleteAdminCyberScenario(id, password),
+          generateLesson: async (spec, password) => await firestoreApi.generateLessonAndQuizWithGemini(spec, undefined, password),
+          loadAiSettings: async (password) => await firestoreApi.getAiSettingsAdmin(password),
+          saveAiKey: async (key, password) => await firestoreApi.saveAiSettings(key, password),
+          clearAiKey: async (password) => await firestoreApi.clearAiSettings(password),
+          testAiKey: async (key) => await testGeminiKey(key),
         }}
         onExit={() => bridge()?.exitAdmin()}
       />,

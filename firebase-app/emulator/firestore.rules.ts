@@ -57,6 +57,20 @@ describe('Firestore security rules in the emulator', () => {
     await assertSucceeds(setDoc(doc(admin, 'lessons/L1'), { title: 'Admin lesson' }))
   })
 
+  it('lets signed-in players read the AI config but reserves writes for the admin', async () => {
+    await seed('settings/ai', { geminiApiKey: 'runtime-key' })
+    const guest = environment.unauthenticatedContext().firestore()
+    const player = environment.authenticatedContext('player-1').firestore()
+    const admin = environment.authenticatedContext('admin-1', { email: 'admin@nextgen-play.local' }).firestore()
+
+    await assertFails(getDoc(doc(guest, 'settings/ai')))
+    await assertSucceeds(getDoc(doc(player, 'settings/ai')))
+    await assertFails(setDoc(doc(player, 'settings/ai'), { geminiApiKey: 'stolen' }))
+    await assertSucceeds(setDoc(doc(admin, 'settings/ai'), { geminiApiKey: 'rotated-key' }))
+    // Other settings documents stay admin-only in both directions.
+    await assertFails(getDoc(doc(player, 'settings/secure')))
+  })
+
   it('allows a player to create only a zeroed profile owned by their auth session', async () => {
     const player = environment.authenticatedContext('player-1').firestore()
 

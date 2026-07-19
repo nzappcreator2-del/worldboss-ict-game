@@ -192,7 +192,9 @@
   width: 1200px;
   min-height: 100%;
   margin-left: max(24px, calc((100vw - 1114px) / 2));
-  padding: clamp(260px, 31vh, 330px) 0 18px;
+  /* Top padding = the painted-logo exclusion zone; slightly tighter than
+     before so the whole composition sits a touch higher on screen. */
+  padding: clamp(250px, 29vh, 310px) 0 22px;
   box-sizing: border-box;
 }
 
@@ -200,13 +202,15 @@
   grid-area: fields;
   display: flex;
   flex-direction: column;
-  /* Bottom-align the selection panels with the CTA row so the painted
-     NextGen Play logo in the background's top-left corner always stays
-     clear, at every viewport height — the empty space lives above the
-     panels instead of colliding with the logo. */
-  justify-content: flex-end;
-  gap: 14px;
-  padding-top: 0;
+  /* Center the selection panels in the zone below the painted NextGen Play
+     logo instead of sinking them to the bottom edge — balanced against the
+     character chooser on the right. The top padding is the logo exclusion
+     zone measured from this column's own top, so the first panel can never
+     ride up into the logo art on short viewports. */
+  justify-content: center;
+  gap: 16px;
+  padding-top: clamp(140px, 24vh, 250px);
+  box-sizing: border-box;
 }
 
 .adventure-mobile-brand { display: none; }
@@ -1135,21 +1139,21 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 64px;
-  height: 64px;
-  padding: 4px 2px;
+  width: 72px;
+  height: 72px;
+  padding: 5px 3px;
   border: 2px solid #80512f;
   border-radius: 14px;
   background: linear-gradient(160deg, rgba(24, 22, 32, .9), rgba(10, 12, 20, .86));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), 0 4px 10px rgba(0, 0, 0, .45);
   color: #eee7dc;
-  font: 900 10px "Prompt", system-ui, sans-serif;
+  font: 900 13px "Prompt", system-ui, sans-serif;
   cursor: pointer;
   transition: filter .16s ease, transform .16s ease;
 }
 
-.dashboard-menu-bar button > span { font-size: 23px; line-height: 1; filter: drop-shadow(0 1px 2px #000a); }
-.dashboard-nav-icon { width: 27px; height: 27px; flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 1px 2px #000a); }
+.dashboard-menu-bar button > span { font-size: 26px; line-height: 1; filter: drop-shadow(0 1px 2px #000a); }
+.dashboard-nav-icon { width: 30px; height: 30px; flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 1px 2px #000a); }
 
 .dashboard-menu-bar button.active {
   border-color: #ffd76d;
@@ -1160,6 +1164,25 @@
 
 .dashboard-menu-bar button:hover { filter: brightness(1.18); transform: translateY(-2px); }
 .dashboard-menu-bar button:active { transform: translateY(1px); }
+
+/* Adventure-map scene: the menu leaves the top edge (it covered the centered
+   map title) and becomes a vertical rail hugging the right side. The mobile
+   bottom-strip layout in the max-width media block below stays untouched. */
+@media (min-width: 901px) {
+  .dashboard-menu-bar.map-vertical {
+    top: 50%;
+    right: 12px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+    max-width: none;
+    max-height: calc(100vh - 28px);
+    overflow-y: auto;
+    scrollbar-width: none;
+    transform: translateY(-50%);
+  }
+}
 
 /* Currency / status chips in a slim row under the player plate. */
 .dashboard-stat-chips {
@@ -1238,18 +1261,18 @@
   left: 14px;
   z-index: 40;
   display: flex;
-  width: 232px;
+  width: 262px;
   flex-direction: column;
   gap: 7px;
 }
 
 .hub-quest-tracker h3 {
   margin: 0;
-  padding: 5px 12px;
+  padding: 6px 13px;
   border-left: 4px solid #ffd76d;
   background: linear-gradient(90deg, rgba(10, 12, 20, .78), transparent);
   color: #ffe9a6;
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 1000;
   text-shadow: 0 2px 2px #000;
 }
@@ -1259,8 +1282,8 @@
 .hub-quest-entry {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 9px 11px;
   border: 2px solid #6b4a26;
   border-radius: 12px;
   background: linear-gradient(105deg, rgba(20, 19, 27, .82), rgba(11, 13, 20, .78));
@@ -1273,9 +1296,9 @@
 }
 
 .hub-quest-entry:hover { filter: brightness(1.16); transform: translateX(3px); }
-.hub-quest-entry img { width: 30px; height: 30px; flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 2px 2px #000a); }
-.hub-quest-entry b { display: block; font-size: 13px; font-weight: 1000; }
-.hub-quest-entry small { display: block; margin-top: 1px; color: #d9cbac; font-size: 10px; font-weight: 700; }
+.hub-quest-entry img { width: 34px; height: 34px; flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 2px 2px #000a); }
+.hub-quest-entry b { display: block; font-size: 16px; font-weight: 1000; }
+.hub-quest-entry small { display: block; margin-top: 1px; color: #d9cbac; font-size: 13px; font-weight: 700; }
 .hub-quest-main b { color: #ffd76d; }
 .hub-quest-daily b { color: #8ce9ff; }
 
@@ -2128,9 +2151,9 @@
   .dashboard-stat-icon { width: 17px; height: 17px; }
   .dashboard-stat-chips strong { font-size: 10px; }
   .dashboard-menu-bar { top: auto; right: 5px; bottom: 28px; left: 5px; flex-wrap: nowrap; justify-content: flex-start; gap: 3px; max-width: none; overflow-x: auto; scrollbar-width: none; }
-  .dashboard-menu-bar button { width: auto; height: 54px; min-width: 62px; flex: 1; font-size: 9px; }
-  .dashboard-menu-bar button > span { font-size: 19px; }
-  .dashboard-menu-bar .dashboard-nav-icon { width: 22px; height: 22px; }
+  .dashboard-menu-bar button { width: auto; height: 58px; min-width: 68px; flex: 1; font-size: 11px; }
+  .dashboard-menu-bar button > span { font-size: 21px; }
+  .dashboard-menu-bar .dashboard-nav-icon { width: 24px; height: 24px; }
   .hub-minimap { top: 6px; right: 6px; width: 112px; height: 117px; }
   .hub-minimap > b { font-size: 8px; }
   .hub-quest-tracker { display: none; }
@@ -2208,6 +2231,10 @@
 }
 
 /* Lesson adventure: isolated from the legacy page layout so existing screens keep their behavior. */
+/* Cyber Safety mode: fixed edge-to-edge like the lesson adventure, so the
+   scenario artwork fills the whole viewport with no page-padding border. */
+.cyber-safety-page { position: fixed; inset: 0; z-index: 46; }
+
 .lesson-adventure-page { position: fixed; inset: 0; z-index: 48; overflow: hidden; color: #fff4c7; background: #09121b; }
 .lesson-adventure-viewport { position: absolute; inset: 0; overflow: hidden; }
 .lesson-adventure-world { position: absolute; left: 0; top: 0; background-position: center; background-size: cover; touch-action: none; cursor: crosshair; will-change: transform; }
@@ -2221,44 +2248,51 @@
 .lesson-adventure-hud button, .lesson-quest-card, .lesson-monster b, .lesson-video-cabinet, .lesson-portal, .lesson-boss-encounter button { border: 2px solid #d6a75b; background: linear-gradient(#543622, #21151b); color: #fff2c9; box-shadow: inset 0 0 0 2px #281810, 0 4px 10px #0008; font-weight: 900; }
 .lesson-adventure-hud button { min-width: 150px; padding: 11px 15px; border-radius: 11px; }
 .lesson-adventure-hud > div { text-align: center; line-height: 1.05; }
-.lesson-adventure-hud small { color: #72d9ff; font-size: 10px; letter-spacing: .12em; }
-.lesson-adventure-hud h2 { margin: 3px 0; color: #ffe77b; font-size: clamp(17px, 2vw, 26px); text-shadow: 0 2px 2px #000; }
-.lesson-adventure-hud p { margin: 0; font-size: 11px; }
+.lesson-adventure-hud small { color: #72d9ff; font-size: 12px; letter-spacing: .12em; }
+.lesson-adventure-hud h2 { margin: 3px 0; color: #ffe77b; font-size: clamp(19px, 2.2vw, 29px); text-shadow: 0 2px 2px #000; }
+.lesson-adventure-hud p { margin: 0; font-size: 13px; }
 /* Quest tracker on the parchment plaque cropped from 2D/UI — dark ink text on light paper. */
-.lesson-quest-card { position: absolute; z-index: 4; top: 96px; left: 8px; width: min(240px, 58vw); padding: 13px 14px 11px 30px; border: none; border-radius: 13px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; box-shadow: 0 10px 26px #000a; color: #4a3117; }
+.lesson-quest-card { position: absolute; z-index: 4; top: 132px; left: 8px; width: min(310px, 68vw); padding: 17px 18px 15px 34px; border: none; border-radius: 13px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; box-shadow: 0 10px 26px #000a; color: #4a3117; }
 .lesson-quest-card.collapsed { width: auto; padding: 0; background: none; border: none; box-shadow: none; }
 .lesson-quest-card.collapsed .lesson-quest-body { display: none; }
-.lesson-quest-card.collapsed .lesson-quest-toggle { position: static; width: auto; padding: 8px 10px; border-radius: 10px; }
-.lesson-quest-card span { color: #96601b; font-size: 10px; font-weight: 900; }
-.lesson-quest-card h3 { margin: 4px 0; color: #6b3a0a; font-size: 19px; text-shadow: 0 1px 0 #fff3d6; }
-.lesson-quest-card p { margin: 0; color: #4a3117; font-size: 12px; line-height: 1.45; }
-.lesson-quest-card small { display: block; margin-top: 6px; color: #8b572a; font-size: 10px; font-weight: 900; }
+/* Compact glance card (icon + title + one-line hint), matching the dashboard's
+   hub-quest-entry style — replaces the old bare edge tab so the quest card
+   defaults to a small readable summary instead of the full parchment detail
+   panel, which used to overlap the status HUD above it. */
+.lesson-quest-card.collapsed .lesson-quest-toggle { position: static; display: flex; align-items: center; gap: 10px; width: auto; min-width: 220px; max-width: min(300px, 74vw); padding: 10px 16px 10px 10px; border-radius: 14px; text-align: left; }
+.lesson-quest-card.collapsed .lesson-quest-toggle img { width: 34px; height: 34px; flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 2px 2px #000a); }
+.lesson-quest-card.collapsed .lesson-quest-toggle b { display: block; font-size: 16px; font-weight: 1000; color: #ffe9a6; }
+.lesson-quest-card.collapsed .lesson-quest-toggle small { display: block; margin-top: 1px; font-size: 13px; font-weight: 700; color: #d9cbac; white-space: normal; }
+.lesson-quest-card span { color: #96601b; font-size: 15px; font-weight: 900; }
+.lesson-quest-card h3 { margin: 4px 0; color: #6b3a0a; font-size: 25px; text-shadow: 0 1px 0 #fff3d6; }
+.lesson-quest-card p { margin: 0; color: #4a3117; font-size: 17px; line-height: 1.4; }
+.lesson-quest-card small { display: block; margin-top: 6px; color: #8b572a; font-size: 15px; font-weight: 900; }
 .lesson-quest-objectives { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
-.lesson-quest-objectives li { display: flex; align-items: center; gap: 6px; color: #5c4423; font-size: 11px; font-weight: 900; }
+.lesson-quest-objectives li { display: flex; align-items: center; gap: 6px; color: #5c4423; font-size: 16px; font-weight: 900; }
 .lesson-quest-objectives li.done { color: #1e7d32; }
-.lesson-quest-objectives li span { font-size: 12px; }
+.lesson-quest-objectives li span { font-size: 17px; }
 /* Quest-complete banner + on-map guide arrow (classic MMO "!" moment). */
-.lesson-quest-complete { margin-top: 8px; padding: 6px 9px; border: 2px solid #2e9e46; border-radius: 9px; background: #e4ffe9; color: #14692c; font-size: 11px; font-weight: 1000; animation: lesson-combo-pop .3s cubic-bezier(.2,1.6,.4,1) both; }
+.lesson-quest-complete { margin-top: 8px; padding: 8px 11px; border: 2px solid #2e9e46; border-radius: 9px; background: #e4ffe9; color: #14692c; font-size: 16px; font-weight: 1000; animation: lesson-combo-pop .3s cubic-bezier(.2,1.6,.4,1) both; }
 .lesson-portal-guide { position: absolute; z-index: 9; color: #ffe14e; font-size: 34px; line-height: 1; text-shadow: 0 2px 3px #000, 0 0 14px #ffb020; filter: drop-shadow(0 0 6px #ffd34e); pointer-events: none; animation: lesson-guide-pulse 1s ease-in-out infinite; }
 @keyframes lesson-guide-pulse { 50% { opacity: .55; margin-left: 6px; } }
 .lesson-quest-lesson-title { color: #8b572a !important; }
 
 /* Top-right icon shortcuts (back / worksheet), replacing the old desktop header at every width. */
 .lesson-topright-menu { position: absolute; z-index: 22; top: 10px; right: 62px; display: flex; gap: 6px; }
-.lesson-topright-menu button { width: 44px; height: 44px; border: 2px solid #d6a75b; border-radius: 10px; background: linear-gradient(#543622ee, #21151bee); color: #ffe9a6; font-size: 18px; font-weight: 900; box-shadow: inset 0 0 0 1px #281810, 0 3px 8px #0008; cursor: pointer; }
+.lesson-topright-menu button { width: 48px; height: 48px; border: 2px solid #d6a75b; border-radius: 10px; background: linear-gradient(#543622ee, #21151bee); color: #ffe9a6; font-size: 21px; font-weight: 900; box-shadow: inset 0 0 0 1px #281810, 0 3px 8px #0008; cursor: pointer; }
 
 /* Boss HP topbar (mirrors .lesson-boss-hud so it's reachable without scrolling to the boss sprite). */
-.lesson-boss-topbar { position: absolute; z-index: 21; top: 290px; left: 50%; transform: translateX(-50%); display: block; width: min(280px, 70vw); padding: 6px 10px; border: 2px solid #c33; border-radius: 10px; background: #1a0d12ee; color: #ffd9d9; text-align: center; }
+.lesson-boss-topbar { position: absolute; z-index: 21; top: 290px; left: 50%; transform: translateX(-50%); display: block; width: min(330px, 76vw); padding: 8px 12px; border: 2px solid #c33; border-radius: 10px; background: #1a0d12ee; color: #ffd9d9; text-align: center; }
 .lesson-boss-topbar span { display: block; height: 10px; margin: 3px 0; border-radius: 6px; background: #3a1016; overflow: hidden; }
 .lesson-boss-topbar span i { display: block; height: 100%; background: linear-gradient(90deg, #ff5b4d, #c22030); }
-.lesson-boss-topbar b { font-size: 11px; }
-.lesson-boss-topbar small { font-size: 9px; color: #ffb9a6; }
+.lesson-boss-topbar b { font-size: 16px; }
+.lesson-boss-topbar small { font-size: 14px; color: #ffb9a6; }
 
 /* Quest tracker collapse toggle, an edge tab flush against the quest card's left border. */
-.lesson-quest-toggle { display: grid; position: absolute; left: -2px; top: -2px; bottom: -2px; place-items: center; width: 22px; border: 2px solid #d6a75b; border-radius: 10px 0 0 10px; background: #21151b; color: #ffe9a6; font-size: 12px; font-weight: 900; cursor: pointer; }
+.lesson-quest-toggle { display: grid; position: absolute; left: -2px; top: -2px; bottom: -2px; place-items: center; width: 24px; border: 2px solid #d6a75b; border-radius: 10px 0 0 10px; background: #21151b; color: #ffe9a6; font-size: 14px; font-weight: 900; cursor: pointer; }
 
 /* Combat notice, shared by both the field hotbar and the boss hotbar; floats above the skill cluster. */
-.lesson-combat-notice { position: absolute; z-index: 30; left: 50%; bottom: 132px; margin: 0; transform: translateX(-50%); max-width: 320px; padding: 6px 12px; border-radius: 10px; background: #09101dd9; color: #ffe27c; font-size: 12px; font-weight: 900; text-align: center; text-shadow: 0 2px #000; pointer-events: none; }
+.lesson-combat-notice { position: absolute; z-index: 30; left: 50%; bottom: 132px; margin: 0; transform: translateX(-50%); max-width: 370px; padding: 8px 16px; border-radius: 10px; background: #09101dd9; color: #ffe27c; font-size: 17px; font-weight: 900; text-align: center; text-shadow: 0 2px #000; pointer-events: none; }
 .lesson-player-sprite { position: absolute; z-index: 7; width: 104px; height: 104px; transform: translate(-50%, -76%); image-rendering: pixelated; filter: drop-shadow(0 9px 6px #0009); transition: none; pointer-events: none; }
 /* The hero is a stacked LPC paper-doll: equipped layers render as multiple
    background-images on the sprite div itself (see characterAssets.ts). */
@@ -2275,8 +2309,8 @@
 .lesson-monster[data-mode='dead'] { pointer-events: none; }
 .lesson-monster[data-mode='dead'] span { animation: lesson-monster-death .55s ease-in forwards; }
 .lesson-monster[data-mode='dead'] b, .lesson-monster[data-mode='dead'] i { opacity: 0; transition: opacity .2s; }
-.lesson-monster b { display: block; margin-top: -4px; padding: 3px; border-radius: 7px; font-size: 10px; }
-.lesson-monster i { position: relative; display: block; height: 13px; margin: 3px 8px 0; overflow: hidden; border: 1px solid #ecd083; border-radius: 99px; background: #1a1015; color: white; font: 900 8px/11px sans-serif; font-style: normal; text-shadow: 0 1px #000; }
+.lesson-monster b { display: block; margin-top: -4px; padding: 5px; border-radius: 7px; font-size: 15px; }
+.lesson-monster i { position: relative; display: block; height: 17px; margin: 3px 8px 0; overflow: hidden; border: 1px solid #ecd083; border-radius: 99px; background: #1a1015; color: white; font: 900 12px/17px sans-serif; font-style: normal; text-shadow: 0 1px #000; }
 .lesson-monster i em { position: absolute; z-index: -1; inset: 0 auto 0 0; background: linear-gradient(90deg, #a61d35, #ed5b44); transition: width .2s; }
 .lesson-monster-1 { left: 22%; top: 47%; }.lesson-monster-2 { left: 61%; top: 35%; }.lesson-monster-3 { left: 76%; top: 63%; }
 .archive-monster-1 { left: 30%; top: 62%; }.archive-monster-2 { left: 70%; top: 42%; }
@@ -2297,7 +2331,7 @@
 @keyframes lesson-svg-float { 50% { transform: translateY(-7px); } }
 @keyframes lesson-svg-flap { to { transform: rotate(22deg) scaleY(.85); } }
 @keyframes lesson-svg-flicker { 50% { transform: scale(1.18); opacity: .82; } }
-.lesson-drop-note, .lesson-video-cabinet, .lesson-portal { position: absolute; z-index: 8; min-width: 170px; padding: 13px 17px; border-radius: 12px; transform: translate(-50%, -50%); font-size: 14px; animation: lesson-float 1.5s ease-in-out infinite; }
+.lesson-drop-note, .lesson-video-cabinet, .lesson-portal { position: absolute; z-index: 8; min-width: 205px; padding: 16px 20px; border-radius: 12px; transform: translate(-50%, -50%); font-size: 19px; animation: lesson-float 1.5s ease-in-out infinite; }
 .lesson-drop-note { display: flex; align-items: center; justify-content: center; gap: 8px; border: 3px solid #ffdb5c; background: linear-gradient(#fff4b6, #c99128); color: #4b260c; box-shadow: 0 0 22px #ffe173; font-weight: 900; animation: lesson-drop-land .45s cubic-bezier(.24,1.4,.42,1) both, lesson-float 1.5s .45s ease-in-out infinite; }
 .lesson-drop-note img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 2px 2px #0007); }
 .lesson-video-cabinet { min-height: 80px; background: linear-gradient(#355e84, #17213d); }
@@ -2317,77 +2351,77 @@
 .lesson-bag-button { position: absolute; z-index: 22; top: 8px; right: 10px; bottom: auto; width: 50px; height: 46px; padding: 0; border: none; background: transparent; box-shadow: none; cursor: pointer; filter: drop-shadow(0 5px 9px #0009); }
 .lesson-bag-button img { width: 100%; height: 100%; object-fit: contain; transition: transform .12s; }
 .lesson-bag-button:hover img { transform: scale(1.08); }
-.lesson-bag-button em { position: absolute; right: -7px; top: -7px; display: grid; place-items: center; min-width: 22px; height: 22px; border: 2px solid #fff3c4; border-radius: 99px; background: #c62f2f; color: #fff; font-size: 11px; font-style: normal; font-weight: 900; }
-.lesson-bag-panel { position: absolute; z-index: 23; top: 62px; right: 10px; bottom: auto; width: 252px; padding: 16px 16px 13px; border: none; border-radius: 14px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; box-shadow: 0 10px 26px #000a; text-align: center; }
-.lesson-bag-panel > b { display: block; margin-bottom: 8px; color: #6b3a0a; font-size: 14px; text-shadow: 0 1px 0 #fff3d6; }
-.lesson-bag-panel > small { display: block; margin-top: 8px; color: #6b4a26; font-size: 9px; font-weight: 800; }
+.lesson-bag-button em { position: absolute; right: -7px; top: -7px; display: grid; place-items: center; min-width: 26px; height: 26px; border: 2px solid #fff3c4; border-radius: 99px; background: #c62f2f; color: #fff; font-size: 15px; font-style: normal; font-weight: 900; }
+.lesson-bag-panel { position: absolute; z-index: 23; top: 62px; right: 10px; bottom: auto; width: 304px; padding: 19px 19px 16px; border: none; border-radius: 14px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; box-shadow: 0 10px 26px #000a; text-align: center; }
+.lesson-bag-panel > b { display: block; margin-bottom: 8px; color: #6b3a0a; font-size: 19px; text-shadow: 0 1px 0 #fff3d6; }
+.lesson-bag-panel > small { display: block; margin-top: 8px; color: #6b4a26; font-size: 14px; font-weight: 800; }
 .lesson-bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .lesson-bag-slot { position: relative; display: grid; place-items: center; aspect-ratio: 1; border: 2px solid #6b4a26; border-radius: 9px; background: #14100be8; box-shadow: inset 0 2px 6px #0009; font-size: 22px; cursor: pointer; }
 .lesson-bag-slot:disabled { cursor: default; }
 .lesson-bag-slot:not(:disabled):hover { border-color: #ffd34e; box-shadow: inset 0 2px 6px #0009, 0 0 10px #ffd34e66; }
 .lesson-bag-slot img { width: 74%; height: 74%; object-fit: contain; filter: drop-shadow(0 2px 3px #0008); }
-.lesson-bag-slot small { position: absolute; right: 2px; bottom: 1px; color: #ffe9a6; font-size: 10px; font-weight: 900; text-shadow: 0 1px 2px #000; }
+.lesson-bag-slot small { position: absolute; right: 2px; bottom: 1px; color: #ffe9a6; font-size: 15px; font-weight: 900; text-shadow: 0 1px 2px #000; }
 .lesson-bag-slot.lesson-bag-uncommon { border-color: #3f7c2e; }
 .lesson-bag-slot.lesson-bag-rare { border-color: #a44dff; box-shadow: inset 0 2px 6px #0009, 0 0 10px #a44dff66; }
 .lesson-boss-encounter { position: absolute; z-index: 5; display: flex; flex-direction: column; align-items: center; transition: none; transform: translateX(-50%); }
 .lesson-boss-encounter .lesson-boss-target { position: relative; width: 178px; height: 166px; padding: 0; border: 0; background: transparent; box-shadow: none; cursor: crosshair; }
 .lesson-boss-target::after { content: ''; position: absolute; left: 50%; bottom: 9px; width: 108px; height: 24px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, rgba(255, 82, 54, .32), rgba(255, 82, 54, 0) 70%); filter: blur(1px); }
 .lesson-boss-sprite { display: block; width: 150px; height: 150px; background-position: 0 -1500px; background-size: 3600px 13500px; background-repeat: no-repeat; image-rendering: pixelated; filter: drop-shadow(0 14px 9px #000b) drop-shadow(0 0 14px #fb4); animation: boss-breathe 1.7s ease-in-out infinite; }
-.lesson-boss-encounter button { margin-top: -3px; padding: 14px 22px; border-radius: 12px; color: #ffe570; font-size: 18px; }
+.lesson-boss-encounter button { margin-top: -3px; padding: 17px 26px; border-radius: 12px; color: #ffe570; font-size: 24px; }
 .lesson-boss-encounter[data-state='skirmish'] .lesson-boss-sprite, .lesson-boss-encounter[data-state='question'] .lesson-boss-sprite { filter: drop-shadow(0 14px 9px #000b) drop-shadow(0 0 20px #ff533e); }
 .lesson-boss-encounter[data-impact='boss'] .lesson-boss-sprite { animation: battle-heavy-hit .52s ease-out; filter: brightness(2.5) drop-shadow(0 0 18px #fff); }
 .lesson-boss-encounter[data-action='ready'] .lesson-boss-sprite { animation: boss-ready-pulse .34s ease-in-out infinite; filter: drop-shadow(0 14px 9px #000b) drop-shadow(0 0 24px #ff2f1f); }
 .lesson-boss-encounter[data-action='swing'] .lesson-boss-sprite { animation: boss-attack-pulse .55s ease-in-out infinite; }
 .lesson-boss-encounter[data-enrage='true'] .lesson-boss-sprite { filter: drop-shadow(0 14px 9px #000b) drop-shadow(0 0 28px #f00) saturate(1.7) brightness(1.12); }
-.lesson-boss-encounter[data-enrage='true']::before { content: '🔥 โกรธจัด!'; position: absolute; z-index: 9; top: -86px; left: 50%; padding: 4px 12px; transform: translateX(-50%) rotate(-3deg); border: 2px solid #ff5a45; border-radius: 99px; background: #3d0b0bee; color: #ffd2bd; font-size: 12px; font-weight: 1000; text-shadow: 0 1px 2px #000; animation: lesson-rare-ring .8s ease-in-out infinite; }
-.lesson-boss-hud { position: absolute; left: 50%; top: -62px; display: grid; min-width: 250px; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; transform: translateX(-50%); border: 3px solid #9b6a36; border-radius: 12px; background: #100c16e8; color: white; box-shadow: inset 0 0 0 2px #2d1b15, 0 8px 22px #0008; font-size: 12px; text-shadow: 0 2px #000; }
-.lesson-boss-hud b { color: #ffe9a6; }.lesson-boss-hud strong { min-width: 46px; text-align: right; }.lesson-boss-hud span { display: block; width: 82px; height: 10px; overflow: hidden; border: 1px solid #5a221c; border-radius: 99px; background: #2a1014; box-shadow: inset 0 2px 5px #0008; }.lesson-boss-hud i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff5a55, #ffb347); box-shadow: 0 0 10px #ff665980; }.lesson-boss-hud small { grid-column: 1 / -1; color: #8ce9ff; font-size: 10px; font-weight: 900; text-align: center; }.lesson-boss-hud.error { display: block; min-width: 220px; color: #ffd1d1; text-align: center; }
-.lesson-boss-question-panel, .lesson-boss-result-panel { position: absolute; z-index: 24; left: 50%; bottom: 86px; width: min(680px, calc(100% - 28px)); max-height: 52vh; overflow: auto; padding: 26px 30px; transform: translateX(-50%); border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; text-align: center; }
-.lesson-boss-question-panel small { color: #8b572a; font-weight: 900; }.lesson-boss-question-panel h3 { margin: 7px 0 15px; font-size: 25px; }.lesson-boss-question-panel img { max-height: 180px; margin: 0 auto 14px; border-radius: 12px; object-fit: contain; }
+.lesson-boss-encounter[data-enrage='true']::before { content: '🔥 โกรธจัด!'; position: absolute; z-index: 9; top: -86px; left: 50%; padding: 6px 14px; transform: translateX(-50%) rotate(-3deg); border: 2px solid #ff5a45; border-radius: 99px; background: #3d0b0bee; color: #ffd2bd; font-size: 17px; font-weight: 1000; text-shadow: 0 1px 2px #000; animation: lesson-rare-ring .8s ease-in-out infinite; }
+.lesson-boss-hud { position: absolute; left: 50%; top: -62px; display: grid; min-width: 300px; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 10px 12px; transform: translateX(-50%); border: 3px solid #9b6a36; border-radius: 12px; background: #100c16e8; color: white; box-shadow: inset 0 0 0 2px #2d1b15, 0 8px 22px #0008; font-size: 17px; text-shadow: 0 2px #000; }
+.lesson-boss-hud b { color: #ffe9a6; }.lesson-boss-hud strong { min-width: 56px; text-align: right; }.lesson-boss-hud span { display: block; width: 82px; height: 10px; overflow: hidden; border: 1px solid #5a221c; border-radius: 99px; background: #2a1014; box-shadow: inset 0 2px 5px #0008; }.lesson-boss-hud i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff5a55, #ffb347); box-shadow: 0 0 10px #ff665980; }.lesson-boss-hud small { grid-column: 1 / -1; color: #8ce9ff; font-size: 15px; font-weight: 900; text-align: center; }.lesson-boss-hud.error { display: block; min-width: 260px; color: #ffd1d1; text-align: center; }
+.lesson-boss-question-panel, .lesson-boss-result-panel { position: absolute; z-index: 24; left: 50%; bottom: 86px; width: min(680px, calc(100% - 28px)); max-height: 52vh; overflow: auto; padding: 28px 32px; transform: translateX(-50%); border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; text-align: center; }
+.lesson-boss-question-panel small { color: #8b572a; font-weight: 900; font-size: 16px; }.lesson-boss-question-panel h3 { margin: 7px 0 15px; font-size: 31px; }.lesson-boss-question-panel img { max-height: 180px; margin: 0 auto 14px; border-radius: 12px; object-fit: contain; }
 .lesson-boss-result-panel span { display: block; font-size: 54px; }
 /* The chest gets its own landing keyframes: lesson-drop-land ends on a
    translate(-50%,-50%) meant for absolutely-positioned ground drops, which
    permanently shoved this in-flow image up-left out of the panel. */
 .lesson-boss-reward-chest { display: block; width: 150px; margin: 0 auto 6px; filter: drop-shadow(0 10px 16px #0008); animation: boss-chest-land .5s cubic-bezier(.24,1.4,.42,1) both; }
-@keyframes boss-chest-land { 0% { opacity: 0; transform: translateY(-42%) scale(.55); } 70% { opacity: 1; transform: translateY(4%) scale(1.06); } 100% { transform: none; } }.lesson-boss-result-panel h3 { margin: 4px 0 10px; font-size: 28px; }.lesson-boss-result-panel p { margin: 7px 0; font-weight: 900; }.lesson-boss-result-panel b { display: block; color: #145c2c; }.lesson-boss-result-panel em { display: block; color: #7a1111; font-style: normal; font-weight: 900; }.lesson-boss-result-panel button { margin-top: 14px; padding: 12px 26px; border: 3px solid #e0aa4d; border-radius: 10px; background: linear-gradient(#63431e, #2d1a12); color: #fff2bb; font-weight: 900; }
+@keyframes boss-chest-land { 0% { opacity: 0; transform: translateY(-42%) scale(.55); } 70% { opacity: 1; transform: translateY(4%) scale(1.06); } 100% { transform: none; } }.lesson-boss-result-panel h3 { margin: 4px 0 10px; font-size: 34px; }.lesson-boss-result-panel p { margin: 7px 0; font-weight: 900; font-size: 17px; }.lesson-boss-result-panel b { display: block; color: #145c2c; }.lesson-boss-result-panel em { display: block; color: #7a1111; font-style: normal; font-weight: 900; }.lesson-boss-result-panel button { margin-top: 14px; padding: 15px 30px; border: 3px solid #e0aa4d; border-radius: 10px; background: linear-gradient(#63431e, #2d1a12); color: #fff2bb; font-weight: 900; font-size: 18px; }
 .lesson-boss-level-up { margin: 10px auto 0; padding: 8px 14px; max-width: 320px; border: 2px solid #a44dff; border-radius: 12px; background: #f3e6ff; color: #5c1f9e !important; animation: ro-fortune-glow 1.6s ease-in-out infinite; }
-.lesson-move-hint { position: absolute; z-index: 4; right: 15px; bottom: 15px; padding: 7px 11px; border: 1px solid #b58b53; border-radius: 9px; background: #080f1ddd; color: #dcceac; font-size: 10px; }
+.lesson-move-hint { position: absolute; z-index: 4; right: 15px; bottom: 15px; padding: 9px 13px; border: 1px solid #b58b53; border-radius: 9px; background: #080f1ddd; color: #dcceac; font-size: 15px; }
 /* Ragnarok-style status window: avatar portrait + HP/SP bars + ATK/zeny readout. */
 .lesson-status-hud { position: absolute; z-index: 12; left: 8px; top: 8px; bottom: auto; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 10px 6px 6px; border: 3px solid #c99a52; border-radius: 999px 14px 14px 999px; background: linear-gradient(#271b21d9, #0c1422de); box-shadow: inset 0 0 0 2px #51361f, 0 8px 20px #0009; }
 .lesson-status-avatar { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: none; border-radius: 10px; background: url('./assets/ui/ui-ornate-frame.png') center / 100% 100% no-repeat; font-size: 22px; box-shadow: none; filter: drop-shadow(0 3px 5px #0008); cursor: pointer; transition: transform .12s; }
 .lesson-status-avatar:hover { transform: scale(1.07); }
 .lesson-avatar-sprite { display: block; overflow: hidden; border-radius: 8px; background-repeat: no-repeat; image-rendering: pixelated; }
 /* In-lesson character profile window (RO Alt+A): stats, allocation, live readouts. */
-.lesson-char-panel { position: relative; width: min(440px, 94vw); max-height: 88vh; overflow: auto; padding: 24px 26px; border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; }
+.lesson-char-panel { position: relative; width: min(480px, 94vw); max-height: 88vh; overflow: auto; padding: 26px 28px; border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; }
 .lesson-char-head { display: flex; align-items: center; gap: 14px; }
 .lesson-char-portrait { display: grid; place-items: center; width: 84px; height: 84px; flex-shrink: 0; border-radius: 12px; background: url('./assets/ui/ui-ornate-frame.png') center / 100% 100% no-repeat; }
 .lesson-char-portrait i { display: block; background-repeat: no-repeat; image-rendering: pixelated; }
 .lesson-char-identity { flex: 1; min-width: 0; }
-.lesson-char-identity h3 { margin: 0 0 2px; color: #6b3a0a; font-size: 21px; }
-.lesson-char-identity p { display: flex; align-items: center; gap: 4px; margin: 0 0 6px; color: #8b572a; font-size: 12px; font-weight: 900; }
+.lesson-char-identity h3 { margin: 0 0 2px; color: #6b3a0a; font-size: 27px; }
+.lesson-char-identity p { display: flex; align-items: center; gap: 4px; margin: 0 0 6px; color: #8b572a; font-size: 17px; font-weight: 900; }
 .lesson-char-identity .lesson-bar-xp { width: 100%; }
 .lesson-char-identity .lesson-bar-xp em { color: #fff; }
-.lesson-char-readout { display: flex; justify-content: space-between; gap: 8px; margin: 12px 0; padding: 8px 12px; border: 2px solid #b98a4b; border-radius: 10px; background: #fff8e4cc; font-size: 12px; font-weight: 900; color: #4a3117; }
+.lesson-char-readout { display: flex; justify-content: space-between; gap: 8px; margin: 12px 0; padding: 10px 14px; border: 2px solid #b98a4b; border-radius: 10px; background: #fff8e4cc; font-size: 17px; font-weight: 900; color: #4a3117; }
 .lesson-char-readout span { display: inline-flex; align-items: center; gap: 4px; }
 .lesson-char-stats { display: grid; gap: 6px; text-align: left; }
-.lesson-char-stats > b { color: #14692c; font-size: 13px; }
-.lesson-char-notice { color: #a4291f; font-size: 11px; font-style: normal; font-weight: 900; }
-.lesson-char-stat-row { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: 'name value button' 'effect value button'; align-items: center; column-gap: 10px; padding: 6px 10px; border: 2px solid #b98a4b; border-radius: 10px; background: #fff8e4cc; }
-.lesson-char-stat-row span { grid-area: name; color: #4a3117; font-size: 13px; font-weight: 1000; }
-.lesson-char-stat-row small { grid-area: effect; color: #8b572a; font-size: 10px; font-weight: 700; }
-.lesson-char-stat-row strong { grid-area: value; min-width: 30px; color: #6b3a0a; font-size: 19px; text-align: right; }
+.lesson-char-stats > b { color: #14692c; font-size: 18px; }
+.lesson-char-notice { color: #a4291f; font-size: 16px; font-style: normal; font-weight: 900; }
+.lesson-char-stat-row { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: 'name value button' 'effect value button'; align-items: center; column-gap: 10px; padding: 7px 11px; border: 2px solid #b98a4b; border-radius: 10px; background: #fff8e4cc; }
+.lesson-char-stat-row span { grid-area: name; color: #4a3117; font-size: 18px; font-weight: 1000; }
+.lesson-char-stat-row small { grid-area: effect; color: #8b572a; font-size: 15px; font-weight: 700; }
+.lesson-char-stat-row strong { grid-area: value; min-width: 38px; color: #6b3a0a; font-size: 25px; text-align: right; }
 .lesson-char-stat-row button { grid-area: button; display: grid; place-items: center; width: 34px; height: 34px; border: 3px solid #ffd34e; border-radius: 99px; background: linear-gradient(#ffd34e, #c8860a); color: #3f2110; font-size: 17px; font-weight: 1000; cursor: pointer; }
 .lesson-char-stat-row button:disabled { opacity: .35; cursor: not-allowed; filter: grayscale(.6); }
 .lesson-char-stat-row button:not(:disabled):hover { filter: brightness(1.1); }
 .lesson-char-equip { margin-top: 12px; text-align: left; }
-.lesson-char-equip > b { display: block; margin-bottom: 6px; color: #6b3a0a; font-size: 13px; }
+.lesson-char-equip > b { display: block; margin-bottom: 6px; color: #6b3a0a; font-size: 18px; }
 .lesson-char-equip-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .lesson-char-equip-slot { display: grid; justify-items: center; gap: 2px; padding: 7px 4px 5px; border: 2px dashed #b98a4b; border-radius: 10px; background: #fff8e480; }
 .lesson-char-equip-slot.filled { border-style: solid; border-color: #57a162; background: #eaffef; }
 .lesson-char-equip-slot img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 2px 2px #0006); }
 .lesson-char-equip-slot i { font-size: 22px; font-style: normal; opacity: .35; filter: grayscale(1); }
-.lesson-char-equip-slot small { color: #8b572a; font-size: 8.5px; font-weight: 900; }
-.lesson-char-hint { display: block; margin-top: 12px; color: #8b572a; font-size: 10px; font-weight: 800; text-align: center; }
+.lesson-char-equip-slot small { color: #8b572a; font-size: 13px; font-weight: 900; }
+.lesson-char-hint { display: block; margin-top: 12px; color: #8b572a; font-size: 15px; font-weight: 800; text-align: center; }
 .lesson-char-panel .lesson-modal-close { color: #6b3a0a; }
 /* Clickable dashboard portrait opens the profile tab. Explicit width/height
    here matters: the sprite inside is position:absolute (it fills this box
@@ -2428,43 +2462,43 @@
 .ro-profile-wardrobe-panel .ro-equip-doll { background: #14100be8; }
 @media (max-width: 700px) { .ro-profile-wardrobe-panel { grid-column: span 1; } }
 .lesson-status-bars { display: flex; flex: 1; flex-direction: column; gap: 3px; }
-.lesson-status-bars > b { color: #ffe9a6; font-size: 11px; text-shadow: 0 1px 2px #000; }
+.lesson-status-bars > b { color: #ffe9a6; font-size: 16px; text-shadow: 0 1px 2px #000; }
 /* Painted roundel badge (heart/lightning/XP) beside each bar — see
    lessonUiAssets.LESSON_BAR_BADGE_IMAGES for why this sits next to the bar
    instead of behind it as a background. */
 .lesson-bar-row { display: flex; align-items: center; gap: 3px; }
 .lesson-bar-badge { width: 15px; height: 15px; flex-shrink: 0; object-fit: contain; filter: drop-shadow(0 1px 1px #000); }
-.lesson-bar { position: relative; display: block; width: 170px; height: 13px; overflow: hidden; border: 1px solid #000a; border-radius: 99px; background: #170e14; box-shadow: inset 0 2px 4px #000b; }
+.lesson-bar { position: relative; display: block; width: 178px; height: 18px; overflow: hidden; border: 1px solid #000a; border-radius: 99px; background: #170e14; box-shadow: inset 0 2px 4px #000b; }
 .lesson-bar i { position: absolute; inset: 0 auto 0 0; display: block; border-radius: inherit; transition: width .25s; }
 .lesson-bar-hp i { background: linear-gradient(#ff8a7a, #c72c3e 55%, #8f1626); box-shadow: 0 0 8px #ff635e66; }
 .lesson-bar-sp i { background: linear-gradient(#7ad2ff, #2f6fd8 55%, #1c3f8f); box-shadow: 0 0 8px #4ea3ff66; }
-.lesson-bar-xp { height: 10px; }
+.lesson-bar-xp { height: 14px; }
 .lesson-bar-xp i { background: linear-gradient(#ffe98a, #e8a418 55%, #a86e07); box-shadow: 0 0 8px #ffd34e66; }
-.lesson-bar-xp em { font-size: 8px; }
-.lesson-bar em { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 9px; font-style: normal; font-weight: 900; letter-spacing: .05em; text-shadow: 0 1px 2px #000; }
-.lesson-status-bars small { display: flex; align-items: center; gap: 3px; color: #d9cbac; font-size: 10px; font-weight: 900; }
+.lesson-bar-xp em { font-size: 11px; }
+.lesson-bar em { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 13px; font-style: normal; font-weight: 900; letter-spacing: .05em; text-shadow: 0 1px 2px #000; }
+.lesson-status-bars small { display: flex; align-items: center; gap: 3px; color: #d9cbac; font-size: 15px; font-weight: 900; }
 .lesson-stat-icon { width: 13px; height: 13px; object-fit: contain; filter: drop-shadow(0 1px 1px #000); }
 /* Hotbar: attack / skill / quick-use item slots with hotkey chips, RO style. */
 .lesson-hotbar { position: absolute; z-index: 14; left: 50%; bottom: 16px; display: flex; align-items: stretch; gap: 7px; padding: 8px; transform: translateX(-50%); border: 3px solid #b98542; border-radius: 16px; background: linear-gradient(#271b21ee, #0c1422f0); box-shadow: inset 0 0 0 2px #51361f, 0 10px 24px #000a; }
-.lesson-hotbar button { position: relative; display: grid; align-content: center; justify-items: center; gap: 1px; min-width: 76px; padding: 7px 9px; border: 2px solid #6b4a26; border-radius: 11px; background: linear-gradient(#3a2a18, #171009); color: #fff2c9; box-shadow: inset 0 0 0 1px #281810, 0 4px 0 #100a06, 0 6px 12px #0008; cursor: pointer; }
+.lesson-hotbar button { position: relative; display: grid; align-content: center; justify-items: center; gap: 1px; min-width: 92px; padding: 9px 11px; border: 2px solid #6b4a26; border-radius: 11px; background: linear-gradient(#3a2a18, #171009); color: #fff2c9; box-shadow: inset 0 0 0 1px #281810, 0 4px 0 #100a06, 0 6px 12px #0008; cursor: pointer; }
 .lesson-hotbar button:not(:disabled):hover { border-color: #ffd34e; }
 .lesson-hotbar button:not(:disabled):active { transform: translateY(3px); box-shadow: inset 0 0 0 1px #281810, 0 1px 0 #100a06; }
 .lesson-hotbar button:disabled { opacity: .45; cursor: default; }
 .lesson-hotbar button > span { font-size: 21px; filter: drop-shadow(0 2px 2px #000); }
 .lesson-hotbar button > img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 2px 3px #000); }
-.lesson-hotbar button b { font-size: 10px; font-weight: 1000; }
-.lesson-hotbar button small { padding: 1px 5px; border-radius: 4px; background: #09101dcc; color: #8ce9ff; font-size: 8px; font-weight: 900; white-space: nowrap; }
-.lesson-hotbar button em { position: absolute; right: -6px; top: -6px; display: grid; place-items: center; min-width: 20px; height: 20px; border: 2px solid #fff3c4; border-radius: 99px; background: #c62f2f; color: #fff; font-size: 10px; font-style: normal; font-weight: 900; }
+.lesson-hotbar button b { font-size: 15px; font-weight: 1000; }
+.lesson-hotbar button small { padding: 1px 5px; border-radius: 4px; background: #09101dcc; color: #8ce9ff; font-size: 12px; font-weight: 900; white-space: nowrap; }
+.lesson-hotbar button em { position: absolute; right: -6px; top: -6px; display: grid; place-items: center; min-width: 25px; height: 25px; border: 2px solid #fff3c4; border-radius: 99px; background: #c62f2f; color: #fff; font-size: 15px; font-style: normal; font-weight: 900; }
 .lesson-hotbar .lesson-hotbar-attack { border-color: #efbe63; background: linear-gradient(#c84c31, #6e1d22); text-shadow: 0 2px #5b1717; }
 .lesson-hotbar .lesson-hotbar-skill:not(:disabled) { border-color: #9a6acb; background: linear-gradient(#4b2a63, #221030); }
 
 /* MMORPG auto-battle toggle + on-screen indicator. */
 .lesson-hotbar .lesson-hotbar-auto.active { border-color: #6cffb1; background: linear-gradient(#1d5c3c, #0b2b1c); box-shadow: inset 0 0 0 1px #103524, 0 0 14px rgba(108, 255, 177, .55), 0 4px 0 #06180f; color: #b8ffd9; }
-.lesson-auto-chip { position: absolute; z-index: 21; top: 62px; left: 50%; display: flex; align-items: center; gap: 6px; padding: 4px 15px; transform: translateX(-50%); border: 2px solid #6cffb1; border-radius: 999px; background: rgba(6, 26, 17, .92); color: #8affc4; font-size: 12px; font-weight: 1000; letter-spacing: .14em; box-shadow: 0 0 14px rgba(108, 255, 177, .4); animation: lesson-auto-pulse 1.4s ease-in-out infinite; pointer-events: none; }
+.lesson-auto-chip { position: absolute; z-index: 21; top: 62px; left: 50%; display: flex; align-items: center; gap: 6px; padding: 6px 17px; transform: translateX(-50%); border: 2px solid #6cffb1; border-radius: 999px; background: rgba(6, 26, 17, .92); color: #8affc4; font-size: 17px; font-weight: 1000; letter-spacing: .14em; box-shadow: 0 0 14px rgba(108, 255, 177, .4); animation: lesson-auto-pulse 1.4s ease-in-out infinite; pointer-events: none; }
 .lesson-auto-chip i { font-style: normal; letter-spacing: 0; }
 @keyframes lesson-auto-pulse { 50% { opacity: .62; } }
 @media (prefers-reduced-motion: reduce) { .lesson-auto-chip { animation: none; } }
-.lesson-hotbar p { position: absolute; bottom: calc(100% + 10px); left: 50%; width: 280px; margin: 0; transform: translateX(-50%); color: #ffe27c; font-size: 11px; font-weight: 900; text-align: center; text-shadow: 0 2px #000; }
+.lesson-hotbar p { position: absolute; bottom: calc(100% + 10px); left: 50%; width: 320px; margin: 0; transform: translateX(-50%); color: #ffe27c; font-size: 16px; font-weight: 900; text-align: center; text-shadow: 0 2px #000; }
 /* Minimap: the round compass frame cropped from 2D/UI, blips plotted on its glass. */
 .lesson-minimap { position: absolute; z-index: 12; top: 62px; right: 10px; width: 164px; height: 172px; padding: 0; border: none; background: url('./assets/ui/ui-minimap-frame.png') center / 100% 100% no-repeat; box-shadow: none; filter: drop-shadow(0 6px 14px #0009); }
 .lesson-minimap > b { display: none; }
@@ -2481,18 +2515,18 @@
 @keyframes mm-pulse { 50% { transform: translate(-50%, -50%) scale(1.35); } }
 /* Loot feed: RO chat-log style pickup toasts, colored by rarity. */
 .lesson-loot-feed { position: absolute; z-index: 13; left: 8px; bottom: 190px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
-.lesson-loot-entry { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #7c5a2e; border-radius: 8px; background: #0a1020d9; color: #ffe9a6; font-size: 11px; font-weight: 900; text-shadow: 0 1px 2px #000; animation: lesson-loot-in .3s ease-out both; }
+.lesson-loot-entry { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid #7c5a2e; border-radius: 8px; background: #0a1020d9; color: #ffe9a6; font-size: 16px; font-weight: 900; text-shadow: 0 1px 2px #000; animation: lesson-loot-in .3s ease-out both; }
 .lesson-loot-entry img { width: 16px; height: 16px; object-fit: contain; filter: drop-shadow(0 1px 1px #000); }
 .lesson-loot-entry.lesson-loot-uncommon { border-color: #3f7c2e; color: #8dff7a; }
 .lesson-loot-entry.lesson-loot-rare { border-color: #7c2ea8; color: #d9a6ff; box-shadow: 0 0 12px #a44dff66; }
 @keyframes lesson-loot-in { from { opacity: 0; transform: translateX(-16px); } }
-.lesson-combo-badge { position: absolute; z-index: 14; top: auto; bottom: 300px; left: 50%; right: auto; padding: 8px 14px; border: 2px solid #ffd34e; border-radius: 12px; transform: translateX(-50%) rotate(-4deg); background: linear-gradient(#4b2a10ee, #1d1208ee); color: #ffe14e; font-size: 18px; font-weight: 1000; text-shadow: 0 2px #000, 0 0 12px #ffb020; box-shadow: 0 0 18px #ffb02055; animation: lesson-combo-pop .25s cubic-bezier(.2,1.6,.4,1) both; pointer-events: none; }
+.lesson-combo-badge { position: absolute; z-index: 14; top: auto; bottom: 300px; left: 50%; right: auto; padding: 10px 16px; border: 2px solid #ffd34e; border-radius: 12px; transform: translateX(-50%) rotate(-4deg); background: linear-gradient(#4b2a10ee, #1d1208ee); color: #ffe14e; font-size: 24px; font-weight: 1000; text-shadow: 0 2px #000, 0 0 12px #ffb020; box-shadow: 0 0 18px #ffb02055; animation: lesson-combo-pop .25s cubic-bezier(.2,1.6,.4,1) both; pointer-events: none; }
 /* MMORPG level-up celebration: golden burst pinned mid-screen while the heal lands. */
 .lesson-level-up-burst { position: absolute; z-index: 34; left: 50%; top: 34%; display: grid; justify-items: center; gap: 2px; padding: 16px 30px; transform: translate(-50%, -50%); border: 3px solid #ffd34e; border-radius: 18px; background: radial-gradient(circle at 50% 20%, #6b4a10f0, #241305f0 75%); box-shadow: 0 0 34px #ffb020aa, inset 0 0 22px #ffd34e33; text-align: center; pointer-events: none; animation: lesson-level-up-pop .5s cubic-bezier(.2,1.6,.4,1) both; }
 .lesson-level-up-burst::before { content: ''; position: absolute; inset: -26px; z-index: -1; border-radius: 50%; background: radial-gradient(circle, #ffd34e40, transparent 70%); animation: lesson-rare-ring .9s ease-in-out infinite; }
-.lesson-level-up-burst b { color: #ffe14e; font-size: 30px; letter-spacing: .06em; text-shadow: 0 2px #000, 0 0 18px #ffb020; }
-.lesson-level-up-burst span { color: #fff6d8; font-size: 19px; font-weight: 1000; text-shadow: 0 2px #000; }
-.lesson-level-up-burst small { color: #8dff7a; font-size: 11px; font-weight: 900; text-shadow: 0 1px 2px #000; }
+.lesson-level-up-burst b { color: #ffe14e; font-size: 38px; letter-spacing: .06em; text-shadow: 0 2px #000, 0 0 18px #ffb020; }
+.lesson-level-up-burst span { color: #fff6d8; font-size: 25px; font-weight: 1000; text-shadow: 0 2px #000; }
+.lesson-level-up-burst small { color: #8dff7a; font-size: 16px; font-weight: 900; text-shadow: 0 1px 2px #000; }
 @keyframes lesson-level-up-pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); } 60% { transform: translate(-50%, -50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 @keyframes lesson-combo-pop { from { opacity: 0; transform: translateX(-50%) rotate(-4deg) scale(.5); } }
 .lesson-hit-spark { position: absolute; z-index: 33; width: 46px; height: 46px; transform: translate(-50%, -50%); background: radial-gradient(circle, #fffbe0 0%, #ffd34e 30%, transparent 62%); clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); animation: lesson-hit-spark .45s ease-out forwards; pointer-events: none; }
@@ -2512,11 +2546,11 @@
 @keyframes lesson-monster-hurt { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 @keyframes lesson-monster-windup { 50% { transform: scale(1.14); } }
 @keyframes lesson-monster-death { 35% { transform: rotate(28deg); filter: brightness(2.6); } 100% { transform: rotate(84deg) translate(16px, 6px); opacity: 0; } }
-.combat-float { position: absolute; z-index: 32; transform: translate(-50%, -100%); font-size: 21px; font-weight: 1000; text-shadow: 0 2px 3px #000, 0 0 8px #0008; pointer-events: none; animation: combat-float .8s ease-out forwards; }
+.combat-float { position: absolute; z-index: 32; transform: translate(-50%, -100%); font-size: 28px; font-weight: 1000; text-shadow: 0 2px 3px #000, 0 0 8px #0008; pointer-events: none; animation: combat-float .8s ease-out forwards; }
 .combat-float-deal { color: #ffd34e; }
 .combat-float-take { color: #ff6a5e; }
 .combat-float-gain { color: #8dff7a; }
-.combat-float-crit { color: #ffb020; font-size: 31px; text-shadow: 0 2px 3px #000, 0 0 14px #ff9d2e; }
+.combat-float-crit { color: #ffb020; font-size: 40px; text-shadow: 0 2px 3px #000, 0 0 14px #ff9d2e; }
 @keyframes combat-float { 0% { opacity: 0; transform: translate(-50%, -100%) scale(.55); } 18% { opacity: 1; transform: translate(-50%, -135%) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -250%) scale(1); } }
 @keyframes lesson-player-hurt { 25% { transform: translate(-55%, -76%); } 75% { transform: translate(-45%, -76%); } }
 @keyframes lesson-player-death { 0% { transform: translate(-50%, -76%) rotate(0deg); filter: brightness(2.2) drop-shadow(0 0 14px #f33); opacity: 1; } 40% { filter: grayscale(1) brightness(.7); } 100% { transform: translate(-50%, -46%) rotate(88deg); filter: grayscale(1) brightness(.55); opacity: .5; } }
@@ -2524,33 +2558,33 @@
 @keyframes lesson-world-dim { from { filter: saturate(1) brightness(1); } to { filter: saturate(.35) brightness(.6); } }
 @keyframes lesson-player-slash { 0% { opacity: 0; transform: scaleX(var(--slash-scale-x)) rotate(-54deg) scale(.45); } 18% { opacity: 1; } 74% { opacity: .95; transform: scaleX(var(--slash-scale-x)) rotate(22deg) scale(1.08); } 100% { opacity: 0; transform: scaleX(var(--slash-scale-x)) rotate(38deg) scale(1.18); } }
 .lesson-modal-backdrop { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 18px; background: #030713dc; backdrop-filter: blur(7px); }
-.lesson-note-modal, .lesson-video-modal { position: relative; width: min(720px, 96vw); max-height: 88vh; overflow: auto; padding: 26px; border: 5px solid #9b622d; border-radius: 20px; background: linear-gradient(135deg, #fff2c9, #d8b16d); color: #3f2516; box-shadow: inset 0 0 0 3px #4d2c17, 0 20px 70px #000; text-align: center; }
-.lesson-note-modal { border: none; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; box-shadow: 0 20px 70px #000; padding: 30px 34px; }
+.lesson-note-modal, .lesson-video-modal { position: relative; width: min(720px, 96vw); max-height: 88vh; overflow: auto; padding: 28px; border: 5px solid #9b622d; border-radius: 20px; background: linear-gradient(135deg, #fff2c9, #d8b16d); color: #3f2516; box-shadow: inset 0 0 0 3px #4d2c17, 0 20px 70px #000; text-align: center; }
+.lesson-note-modal { border: none; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; box-shadow: 0 20px 70px #000; padding: 32px 36px; }
 .lesson-note-scroll { width: 72px; filter: drop-shadow(0 5px 7px #0006); }
-.lesson-note-modal small { display: block; color: #8b572a; font-weight: 900; }.lesson-note-modal h3, .lesson-video-modal h3 { margin: 7px 0 15px; font-size: 25px; }
-.lesson-note-modal > div { max-height: 45vh; overflow: auto; padding: 18px; border: 2px solid #b98a4b; border-radius: 10px; background: #fff8e4cc; text-align: left; white-space: pre-wrap; line-height: 1.7; }
-.lesson-note-modal button, .lesson-video-modal > button:not(.lesson-modal-close) { margin-top: 18px; padding: 12px 28px; border: 3px solid #e0aa4d; border-radius: 10px; background: linear-gradient(#63431e, #2d1a12); color: #fff2bb; font-weight: 900; }
+.lesson-note-modal small { display: block; color: #8b572a; font-weight: 900; font-size: 16px; }.lesson-note-modal h3, .lesson-video-modal h3 { margin: 7px 0 15px; font-size: 32px; }
+.lesson-note-modal > div { max-height: 45vh; overflow: auto; padding: 18px; border: 2px solid #b98a4b; border-radius: 10px; background: #fff8e4cc; text-align: left; white-space: pre-wrap; font-size: 18px; line-height: 1.6; }
+.lesson-note-modal button, .lesson-video-modal > button:not(.lesson-modal-close) { margin-top: 18px; padding: 14px 30px; border: 3px solid #e0aa4d; border-radius: 10px; background: linear-gradient(#63431e, #2d1a12); color: #fff2bb; font-weight: 900; font-size: 17px; }
 .lesson-video-modal { background: linear-gradient(135deg, #17182c, #321b3f); color: white; }
 .lesson-video-modal::before, .lesson-video-modal::after { content: ''; position: absolute; width: 44px; height: 44px; background: url('./assets/ui/ui-corner-gold.png') center / contain no-repeat; pointer-events: none; }
 .lesson-video-modal::before { left: 7px; top: 7px; }
 .lesson-video-modal::after { right: 7px; bottom: 7px; transform: rotate(180deg); }
 .lesson-video-modal iframe, .lesson-video-modal video, .lesson-video-missing { width: 100%; aspect-ratio: 16/9; border: 3px solid #9a6acb; border-radius: 11px; background: #070812; }
-.lesson-video-missing { display: grid; place-items: center; }.lesson-video-modal p { margin: 10px 0 0; font-size: 12px; }.lesson-video-modal button:disabled { opacity: .42; cursor: not-allowed; }
-.lesson-modal-close { position: absolute; top: 7px; right: 10px; border: 0; background: none; color: white; font-size: 30px; }
+.lesson-video-missing { display: grid; place-items: center; }.lesson-video-modal p { margin: 10px 0 0; font-size: 16px; }.lesson-video-modal button:disabled { opacity: .42; cursor: not-allowed; }
+.lesson-modal-close { position: absolute; top: 7px; right: 10px; border: 0; background: none; color: white; font-size: 34px; }
 
 /* Ragnarok-style death choice: revive at checkpoint, leave the map, or exit the game entirely. */
 .ro-death-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; padding: 18px; background: #0a0405e6; backdrop-filter: blur(8px); animation: ro-death-fade-in .4s ease-out both; }
 @keyframes ro-death-fade-in { from { opacity: 0; } }
-.ro-death-panel { position: relative; display: flex; flex-direction: column; align-items: center; width: min(380px, 94vw); padding: 32px 26px; border: 4px solid #7a2020; border-radius: 20px; background: linear-gradient(160deg, #2a0d0f, #100405); box-shadow: inset 0 0 0 2px #430f10, 0 0 40px #ff2f1f4d, 0 20px 60px #000; text-align: center; animation: ro-death-panel-in .35s cubic-bezier(.2,1.4,.4,1) both; }
+.ro-death-panel { position: relative; display: flex; flex-direction: column; align-items: center; width: min(420px, 94vw); padding: 34px 28px; border: 4px solid #7a2020; border-radius: 20px; background: linear-gradient(160deg, #2a0d0f, #100405); box-shadow: inset 0 0 0 2px #430f10, 0 0 40px #ff2f1f4d, 0 20px 60px #000; text-align: center; animation: ro-death-panel-in .35s cubic-bezier(.2,1.4,.4,1) both; }
 .ro-death-panel::before, .ro-death-panel::after { content: ''; position: absolute; width: 40px; height: 40px; background: url('./assets/ui/ui-corner-gold.png') center / contain no-repeat; opacity: .8; pointer-events: none; }
 .ro-death-panel::before { left: 8px; top: 8px; }
 .ro-death-panel::after { right: 8px; bottom: 8px; transform: rotate(180deg); }
 @keyframes ro-death-panel-in { from { opacity: 0; transform: translateY(18px) scale(.94); } }
 .ro-death-skull { font-size: 54px; filter: drop-shadow(0 0 14px #ff2f1f77); animation: ro-death-skull-pulse 1.8s ease-in-out infinite; }
 @keyframes ro-death-skull-pulse { 50% { transform: scale(1.08); filter: drop-shadow(0 0 20px #ff2f1faa); } }
-.ro-death-panel h3 { margin: 12px 0 2px; color: #ffb2a6; font-size: 24px; text-shadow: 0 2px 3px #000; }
-.ro-death-panel p { margin: 0 0 20px; color: #d9a6a0; font-size: 12px; font-weight: 700; }
-.ro-death-panel button { width: 100%; margin-top: 10px; padding: 13px; border: 3px solid #6b4a26; border-radius: 12px; color: #fff2c9; font-size: 15px; font-weight: 1000; text-shadow: 0 2px 2px #000; cursor: pointer; transition: transform .1s; }
+.ro-death-panel h3 { margin: 12px 0 2px; color: #ffb2a6; font-size: 30px; text-shadow: 0 2px 3px #000; }
+.ro-death-panel p { margin: 0 0 20px; color: #d9a6a0; font-size: 17px; font-weight: 700; }
+.ro-death-panel button { width: 100%; margin-top: 10px; padding: 16px; border: 3px solid #6b4a26; border-radius: 12px; color: #fff2c9; font-size: 20px; font-weight: 1000; text-shadow: 0 2px 2px #000; cursor: pointer; transition: transform .1s; }
 .ro-death-panel button:hover { transform: translateY(-1px); }
 .ro-death-panel button:active { transform: translateY(1px); }
 .ro-death-respawn { border-color: #57d162; background: linear-gradient(#1f5c2c, #0f2a12); }
@@ -2607,7 +2641,7 @@
   .lesson-hotbar { left: auto; right: 10px; bottom: 12px; width: 190px; height: 170px; padding: 0; transform: none; border: none; background: none; box-shadow: none; display: block; }
   .lesson-hotbar button { position: absolute; border-radius: 50%; display: grid; place-items: center; min-width: 0; padding: 0; }
   .lesson-hotbar button small { display: none; }
-  .lesson-hotbar button b { font-size: 8px; }
+  .lesson-hotbar button b { font-size: 12px; }
   .lesson-slot-attack { right: 0; bottom: 0; width: 84px; height: 84px; }
   .lesson-slot-attack > span { font-size: 30px; }
   .lesson-slot-attack > img { width: 44px; height: 44px; }
@@ -2624,24 +2658,24 @@
      visuals that aren't part of that HUD renovation stay here. */
   .lesson-adventure-world { background-size: auto 100%; }.lesson-player-sprite { transform: translate(-50%, -72%) scale(.82); }
   .lesson-monster { transform: scale(.78); }.lesson-monster-1 { left: 10%; top: 48%; }.lesson-monster-2 { left: 55%; top: 36%; }.lesson-monster-3 { left: 70%; top: 65%; }
-  .lesson-drop-note, .lesson-video-cabinet, .lesson-portal { min-width: 135px; padding: 10px; font-size: 11px; }.lesson-move-hint { display: none; }
+  .lesson-drop-note, .lesson-video-cabinet, .lesson-portal { min-width: 160px; padding: 12px; font-size: 15px; }.lesson-move-hint { display: none; }
   .lesson-boss-encounter { transform: translateX(-50%) scale(.85); }.lesson-note-modal, .lesson-video-modal { padding: 19px 13px; }
-  .lesson-status-avatar { width: 36px; height: 36px; font-size: 16px; }
-  .lesson-bar { width: 110px; height: 11px; }.lesson-bar em { font-size: 7.5px; }.lesson-status-bars small { font-size: 8px; }
+  .lesson-status-avatar { width: 40px; height: 40px; font-size: 18px; }
+  .lesson-bar { width: 118px; height: 15px; }.lesson-bar em { font-size: 11px; }.lesson-status-bars small { font-size: 12px; }
   .lesson-minimap { top: 58px; width: 122px; height: 128px; }
-  .lesson-loot-entry { padding: 4px 8px; font-size: 9px; }
+  .lesson-loot-entry { padding: 6px 10px; font-size: 13px; }
   .boss-arena { min-height: 240px !important; }.battle-sprite { transform: scale(.82); }.boss-skill-charge { top: 58px; }.boss-skill-charge b { font-size: 10px; }
 }
 
 /* Lesson HUD renovation, extra-small follow-up. Must stay after the 900px lesson block above so its
    equal-specificity overrides win at narrower widths (max-width queries cascade by document order). */
 @media (max-width: 520px) {
-  .lesson-quest-card { width: min(200px, 52vw); }
+  .lesson-quest-card { width: min(250px, 60vw); }
   .lesson-slot-attack { width: 72px; height: 72px; }
   .lesson-slot-skill { right: 80px; width: 50px; height: 50px; }
   .lesson-slot-potion { right: 92px; bottom: 66px; width: 42px; height: 42px; }
   .lesson-slot-card { right: 36px; bottom: 84px; width: 42px; height: 42px; }
-  .lesson-bar { width: 92px; }
+  .lesson-bar { width: 96px; }
 }
 
 /* Ragnarok-style shop & inventory: isolated ro- prefix so it never touches lesson or map rules. */

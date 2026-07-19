@@ -208,7 +208,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   const [drops, setDrops] = useState<GroundDrop[]>([])
   const [bag, setBag] = useState<BagItem[]>([])
   const [bagOpen, setBagOpen] = useState(false)
-  const [questOpen, setQuestOpen] = useState(true)
+  const [questOpen, setQuestOpen] = useState(false)
   const [sp, setSp] = useState(LESSON_SP_MAX)
   const [atkBonus, setAtkBonus] = useState(0)
   const [combo, setCombo] = useState<LessonCombo>({ count: 0, lastHitAt: 0 })
@@ -252,9 +252,11 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   const sessionCoinsRef = useRef(0)
   const comboRef = useRef<LessonCombo>({ count: 0, lastHitAt: 0 })
   const levelUpTimer = useRef<number | null>(null)
-  // True while the worksheet page covers the adventure; the next nextgen:open-lesson
-  // resumes the run instead of resetting it.
-  const worksheetPausedRef = useRef(false)
+  // Holds the lesson id whose run is paused under the worksheet page; the next
+  // nextgen:open-lesson resumes that run ONLY for the same lesson — opening any
+  // other lesson (or re-entering after leaving) always starts fresh, so a
+  // dangling pause can never leak a finished boss screen into the next stage.
+  const worksheetPausedRef = useRef<string | null>(null)
   const pausedRef = useRef(false)
   // Ephemeral combat-float/spark/loot-toast cleanup timers: tracked so unmount can cancel them all.
   const ephemeralTimers = useRef<Set<number>>(new Set())
@@ -531,10 +533,12 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   }, [])
 
   const open = useCallback(() => {
+    const nextLesson = service.getCurrentLesson()
     // Returning from the worksheet page resumes the paused run in place —
     // a full reset here would wipe the kid's kills, loot, and zone progress.
-    if (worksheetPausedRef.current) {
-      worksheetPausedRef.current = false
+    // Resume is valid only for the very same lesson the pause belongs to.
+    if (worksheetPausedRef.current && worksheetPausedRef.current === nextLesson?.id) {
+      worksheetPausedRef.current = null
       pausedRef.current = false
       setPaused(false)
       return
@@ -544,13 +548,13 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     pointerMoveTimer.current = null
     pointerFrameTimer.current = null
     chaseEnemyIdRef.current = null
-    worksheetPausedRef.current = false
+    worksheetPausedRef.current = null
     pausedRef.current = false
     setPaused(false)
     setCharOpen(false)
     setAutoBattle(false)
     autoAttackLastRef.current = 0
-    setLesson(service.getCurrentLesson())
+    setLesson(nextLesson)
     const hero = service.getCurrentUser?.() || null
     setHeroUser(hero)
     heroUserRef.current = hero
@@ -715,7 +719,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   useEffect(() => {
     const pauseForWorksheet = () => {
       if (!lesson) return
-      worksheetPausedRef.current = true
+      worksheetPausedRef.current = lesson.id
       pausedRef.current = true
       setPaused(true)
       chaseEnemyIdRef.current = null
@@ -1364,7 +1368,15 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     setCombatNotice('หลบสกิลได้แล้ว! ฟันต่อให้ครบจังหวะเพื่อเปิดคำถามถัดไป')
   }
 
+  // Any real exit ends the run for good: clear the lesson and the worksheet
+  // pause marker so the next entry (any lesson, including this one) is fresh.
+  const closeLessonRun = () => {
+    worksheetPausedRef.current = null
+    setLesson(null)
+  }
+
   const retreatToMap = () => {
+    closeLessonRun()
     void flushSessionRewards()
     onBack()
   }
@@ -1480,6 +1492,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   const leaveMapAfterDeath = () => {
     if (deathChoiceTimer.current !== null) window.clearTimeout(deathChoiceTimer.current)
     deathChoiceTimer.current = null
+    closeLessonRun()
     void flushSessionRewards()
     onBack()
   }
@@ -1487,6 +1500,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   const exitGameAfterDeath = () => {
     if (deathChoiceTimer.current !== null) window.clearTimeout(deathChoiceTimer.current)
     deathChoiceTimer.current = null
+    closeLessonRun()
     void flushSessionRewards()
     onExitGame?.()
   }
@@ -1593,7 +1607,20 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
             aria-label={questOpen ? 'ย่อหน้าต่างเควส' : 'ขยายหน้าต่างเควส'}
             onClick={() => setQuestOpen((open) => !open)}
           >
-            {questOpen ? '‹' : 'เควส ›'}
+            {questOpen ? '‹' : (
+              <>
+                <img src={LESSON_SCROLL_IMAGE} alt="" draggable={false} />
+                <span>
+                  <b>{questTitles[progress.zone]}</b>
+                  {/* Compact at-a-glance progress; the full detail panel opens on tap. */}
+                  <small>{portalUnlocked && progress.zone !== 3
+                    ? '✓ เควสสำเร็จ! เดินเข้าวาร์ปไปต่อ'
+                    : progress.zone === 3
+                      ? 'ปราบบอสให้สำเร็จ!'
+                      : questObjectives.map((objective) => `${objective.label} (${objective.current}/${objective.target})`).join(', ')}</small>
+                </span>
+              </>
+            )}
           </button>
           {questOpen && (
             <div className="lesson-quest-body">

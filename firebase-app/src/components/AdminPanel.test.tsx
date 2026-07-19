@@ -7,6 +7,12 @@ afterEach(cleanup)
 
 const lesson = { id: 'L1', title: 'อินเทอร์เน็ต', description: 'พื้นฐาน', icon: '🌐', isActive: true, enablePretest: false, questionCount: 2 }
 const student = { id: 'u1', name: 'ฟ้า', class: 'ป.5/1', avatar: '🧙', xp: 120, rank: 'SILVER', level: 2, currentLesson: 'อินเทอร์เน็ต' }
+const aiQuestion = (text: string, answer: number) => ({ text, options: ['ก', 'ข', 'ค', 'ง'], answer, explanation: 'อธิบายเฉลย', pattern: 'choice' as const, image: '' as const, matchingPairs: [] as never[] })
+const aiBundle = {
+  lesson: { title: 'ผจญภัยระบบสุริยะ', description: 'ตะลุยดาวเคราะห์ทั้งแปด', content: 'ระบบสุริยะประกอบด้วยดวงอาทิตย์...', icon: '🪐', mapStyle: 'volcano-forge', enablePretest: true },
+  pretest: [aiQuestion('ก่อนเรียนข้อ 1', 1)],
+  posttest: [aiQuestion('หลังเรียนข้อ 1', 2), aiQuestion('หลังเรียนข้อ 2', 3)],
+}
 
 function setup(overrides: Partial<AdminService> = {}) {
   const service: AdminService = {
@@ -35,12 +41,14 @@ function setup(overrides: Partial<AdminService> = {}) {
       { id: 'correct5', title: 'ผู้เจนจัดความรู้', description: 'สะสมการตอบคำถามถูก 5 ข้อ', target: 5, coins: 30, xp: 0, isActive: true },
     ] }),
     saveDailyQuest: vi.fn().mockResolvedValue({ success: true }),
-    loadWorldBosses: vi.fn().mockResolvedValue({ success: true, data: [{ id: 'WB001', name: 'บอสสควอช', poseType: 'squat', targetReps: 20, maxHp: 100, rewardCoins: 100, rewardXp: 100, isActive: true }] }),
-    saveWorldBoss: vi.fn().mockResolvedValue({ success: true, id: 'WB002' }),
-    deleteWorldBoss: vi.fn().mockResolvedValue({ success: true }),
     loadCyberScenarios: vi.fn().mockResolvedValue({ success: true, data: [{ id: 'CS001', timeOfDay: 'เช้า', title: 'ลิงก์ปริศนา', text: 'มีคนส่งลิงก์แปลกมาให้', opt1: 'กดเลย', opt2: 'ไม่กดและแจ้งครู', answerIdx: 1, feedbackWrong: '', feedbackRight: '' }] }),
     saveCyberScenario: vi.fn().mockResolvedValue({ success: true, id: 'CS002' }),
     deleteCyberScenario: vi.fn().mockResolvedValue({ success: true }),
+    generateLesson: vi.fn().mockResolvedValue({ success: true, data: aiBundle, mode: 'gemini' }),
+    loadAiSettings: vi.fn().mockResolvedValue({ success: true, data: { hasKey: true, maskedKey: '••••1234' } }),
+    saveAiKey: vi.fn().mockResolvedValue({ success: true, message: 'บันทึกแล้ว' }),
+    clearAiKey: vi.fn().mockResolvedValue({ success: true }),
+    testAiKey: vi.fn().mockResolvedValue({ success: true }),
     ...overrides,
   }
   const onExit = vi.fn()
@@ -93,23 +101,10 @@ describe('AdminPanel', () => {
     ))
   })
 
-  it('creates a world boss and deletes an existing one', async () => {
-    const { service } = setup()
+  it('no longer offers the retired World Boss admin tab (mini-games are a fixed playset)', async () => {
+    setup()
     await login()
-    fireEvent.click(screen.getByRole('button', { name: 'เวิลด์บอส' }))
-    await screen.findByText(/บอสสควอช/)
-
-    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มบอส' }))
-    fireEvent.change(screen.getByLabelText('ชื่อบอส'), { target: { value: 'บอสกระโดดตบ' } })
-    fireEvent.change(screen.getByLabelText('ประเภทท่า'), { target: { value: 'jumping-jack' } })
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเวิลด์บอส' }))
-    await waitFor(() => expect(service.saveWorldBoss).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'บอสกระโดดตบ', poseType: 'jumping-jack' }),
-      'secret123',
-    ))
-
-    fireEvent.click(screen.getByRole('button', { name: 'ลบบอส บอสสควอช' }))
-    await waitFor(() => expect(service.deleteWorldBoss).toHaveBeenCalledWith('WB001', 'secret123'))
+    expect(screen.queryByRole('button', { name: 'เวิลด์บอส' })).toBeNull()
   })
 
   it('manages cyber safety scenarios end to end', async () => {
@@ -168,16 +163,77 @@ describe('AdminPanel', () => {
     await waitFor(() => expect(service.resetAllStudents).toHaveBeenCalledWith('', 'secret123'))
   })
 
-  it('edits only public settings and never renders secret fields', async () => {
+  it('edits public settings without ever rendering the Admin PIN or a stored secret value', async () => {
     const { service } = setup()
     await login()
     fireEvent.click(screen.getByRole('button', { name: 'ตั้งค่า' }))
     expect((await screen.findByLabelText('เวลาต่อข้อ (วินาที)') as HTMLInputElement).value).toBe('30')
-    expect(screen.queryByText(/Gemini API/i)).toBeNull()
-    expect(screen.queryByText(/Admin PIN/i)).toBeNull()
+    // The PIN itself and any full key value must never appear — only masked status.
+    expect(document.body.textContent).not.toContain('secret123')
+    expect(screen.queryByDisplayValue('secret123')).toBeNull()
     fireEvent.change(screen.getByLabelText('เวลาต่อข้อ (วินาที)'), { target: { value: '45' } })
     fireEvent.click(screen.getByRole('button', { name: 'บันทึกการตั้งค่า' }))
     await waitFor(() => expect(service.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ TimerPerQuestion: 45 }), 'secret123'))
+  })
+
+  it('manages the Gemini key showing only its masked form and tests the connection', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'ตั้งค่า' }))
+    expect(await screen.findByText(/••••1234/)).toBeTruthy()
+    await waitFor(() => expect(service.loadAiSettings).toHaveBeenCalledWith('secret123'))
+
+    const keyInput = screen.getByLabelText('Gemini API Key') as HTMLInputElement
+    expect(keyInput.type).toBe('password')
+    fireEvent.change(keyInput, { target: { value: 'AQ.new-key-9999' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ทดสอบคีย์' }))
+    await waitFor(() => expect(service.testAiKey).toHaveBeenCalledWith('AQ.new-key-9999'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกคีย์' }))
+    await waitFor(() => expect(service.saveAiKey).toHaveBeenCalledWith('AQ.new-key-9999', 'secret123'))
+    // The raw key never appears as page text (only inside the password input).
+    expect(screen.queryByText(/AQ\.new-key-9999/)).toBeNull()
+  })
+
+  it('generates a full lesson with AI, previews it, and saves the lesson with both question sets', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'สร้างบทเรียนด้วย AI' }))
+    fireEvent.change(screen.getByLabelText('หัวข้อบทเรียน AI'), { target: { value: 'ระบบสุริยะ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ให้ AI สร้างบทเรียน' }))
+
+    await waitFor(() => expect(service.generateLesson).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: 'ระบบสุริยะ', gradeLevel: 'ป.5', posttestCount: 10, pretestCount: 5, mapStyles: expect.arrayContaining([expect.objectContaining({ id: 'volcano-forge' })]) }),
+      'secret123',
+    ))
+    expect(await screen.findByText('ผจญภัยระบบสุริยะ')).toBeTruthy()
+    expect(screen.getByText(/หลังเรียนข้อ 1/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกบทเรียน AI ลงระบบ' }))
+    await waitFor(() => expect(service.saveLesson).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'ผจญภัยระบบสุริยะ', mapStyle: 'volcano-forge', enablePretest: true, isActive: true }),
+      'secret123',
+    ))
+    await waitFor(() => expect(service.saveQuestions).toHaveBeenCalledWith('L2', 'posttest', [expect.objectContaining({ text: 'หลังเรียนข้อ 1' }), expect.objectContaining({ text: 'หลังเรียนข้อ 2' })], 'secret123'))
+    await waitFor(() => expect(service.saveQuestions).toHaveBeenCalledWith('L2', 'pretest', [expect.objectContaining({ text: 'ก่อนเรียนข้อ 1' })], 'secret123'))
+    expect(await screen.findByText(/สร้างด่าน "ผจญภัยระบบสุริยะ" ด้วย AI เรียบร้อยแล้ว/)).toBeTruthy()
+  })
+
+  it('drafts AI questions into the question editor for teacher review', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'จัดการข้อสอบ อินเทอร์เน็ต' }))
+    await screen.findByRole('heading', { name: 'จัดการข้อสอบ: อินเทอร์เน็ต' })
+    expect((screen.getByLabelText('หัวข้อสำหรับสร้างข้อสอบ AI') as HTMLInputElement).value).toBe('อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'สร้างข้อสอบด้วย AI' }))
+    await waitFor(() => expect(service.generateLesson).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: 'อินเทอร์เน็ต', questionsOnly: 'posttest', posttestCount: 5 }),
+      'secret123',
+    ))
+    // Generated drafts replace the single empty starter row and are editable, not saved.
+    await waitFor(() => expect((screen.getByLabelText('คำถามข้อ 1') as HTMLInputElement).value).toBe('หลังเรียนข้อ 1'))
+    expect(service.saveQuestions).not.toHaveBeenCalled()
   })
 
   it('manages announcements and loads report totals', async () => {

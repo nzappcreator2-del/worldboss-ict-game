@@ -35,8 +35,9 @@ import { directoryEntry, normalizeCyberScenario, normalizeGender, normalizeUser,
 import { clampSessionReward, levelForXp } from './levelSystem'
 import type { FirebaseServices } from './legacyRunner'
 import { adminApi } from './adminApi'
-import { aiFallbackApi } from './aiFallbackApi'
+import { aiApi } from './aiApi'
 import { pvpApi } from './pvpApi'
+import { WORLD_BOSS_CATALOG, findWorldBoss } from './worldBossCatalog'
 
 type Data = Record<string, unknown>
 
@@ -656,42 +657,31 @@ async function getStudentProfileData(rawUserId: unknown) {
 }
 
 async function getWorldBossConfig() {
+  // The mini-game stages are a fixed in-code playset (see worldBossCatalog):
+  // the admin-configurable worldBossConfig collection was retired. Auth is
+  // still warmed here so the follow-up leaderboard/score calls are ready.
   await ensureSignedIn()
-  const data = (await values('worldBossConfig')).filter((boss) => active(boss.isActive)).map((boss) => ({
-    id: String(boss.bossId || boss.id),
-    name: String(boss.bossName || boss.name || ''),
-    poseType: String(boss.poseType || ''),
-    targetReps: Number(boss.targetReps) || 10,
-    maxHp: Number(boss.bossMaxHp || boss.maxHp) || 100,
-    rewardCoins: Number(boss.rewardCoins) || 100,
-    rewardXp: Number(boss.rewardXp) || 100,
-  }))
-  return { success: true, data }
+  return { success: true, data: WORLD_BOSS_CATALOG.map((boss) => ({ ...boss })) }
 }
 
 async function submitWorldBossScore(rawUserId: unknown, rawBossId: unknown, rawScore: unknown, rawBonusCoins: unknown) {
   const userId = String(rawUserId || '')
   const bossId = String(rawBossId || '')
   const { ref: userRef } = await ownedUser(userId)
-  const bossRef = doc(db, 'worldBossConfig', bossId)
+  const boss = findWorldBoss(bossId)
+  if (!boss) return { success: false, error: 'ไม่พบบอสที่เปิดใช้งาน' }
   const scoreRef = doc(db, 'worldBossScores', `${userId}_${bossId}`)
   return runTransaction(db, async (transaction) => {
-    const [userSnapshot, bossSnapshot, scoreSnapshot] = await Promise.all([
-      transaction.get(userRef), transaction.get(bossRef), transaction.get(scoreRef),
+    const [userSnapshot, scoreSnapshot] = await Promise.all([
+      transaction.get(userRef), transaction.get(scoreRef),
     ])
-    const boss = bossSnapshot.exists()
-      ? bossSnapshot.data()
-      : bossId === 'WB003'
-        ? { bossName: 'วิทยาการคำนวณ ม.2', rewardCoins: 150, rewardXp: 150, isActive: true }
-        : null
-    if (!boss || !active(boss.isActive)) return { success: false, error: 'ไม่พบบอสที่เปิดใช้งาน' }
     const user = userSnapshot.data() || {}
     const previous = scoreSnapshot.exists() ? Number(scoreSnapshot.data().bestTime ?? scoreSnapshot.data().bestScore) : null
     const score = worldBossResult(bossId, Number(rawScore), previous)
     // Full boss rewards only on a personal best; replays still keep the small
     // capped in-game bonus so grinding cannot mint unlimited coins/XP.
-    const rewardCoins = score.isPersonalBest ? Number(boss.rewardCoins) || 50 : 0
-    const rewardXp = score.isPersonalBest ? Number(boss.rewardXp) || 50 : 0
+    const rewardCoins = score.isPersonalBest ? boss.rewardCoins : 0
+    const rewardXp = score.isPersonalBest ? boss.rewardXp : 0
     const bonusCoins = Math.min(200, Math.max(0, Number(rawBonusCoins) || 0))
     const newCoins = (Number(user.coins) || 0) + rewardCoins + bonusCoins
     const newXp = (Number(user.xp) || 0) + rewardXp
@@ -710,7 +700,7 @@ async function submitWorldBossScore(rawUserId: unknown, rawBossId: unknown, rawS
     return {
       success: true, isPersonalBest: score.isPersonalBest, previousBest: previous,
       bestTime: score.bestScore, rewardCoins, rewardXp, newCoins, newXp, level, rank,
-      bossName: String(boss.bossName || boss.name || 'World Boss'),
+      bossName: boss.name,
     }
   })
 }
@@ -735,7 +725,7 @@ async function getScriptUrl() {
 }
 
 export const firestoreApi = {
-  ...aiFallbackApi,
+  ...aiApi,
   ...adminApi,
   ...pvpApi,
   getScriptUrl,

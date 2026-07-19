@@ -115,7 +115,11 @@ export function DashboardShell({
   const layerImages = characterLayerImages(user?.inventory, user?.gender)
 
   return (
-    <section id="page-dashboard" className="dashboard-hub">
+    // data-scene declutters the adventure-map scene (vertical menu rail,
+    // hub-only hotspots unmounted). It MUST stay a data attribute: the legacy
+    // showPage() toggles hidden/page-active classes on this section, and a
+    // React-managed className would wipe them on re-render and blank the page.
+    <section id="page-dashboard" className="dashboard-hub" data-scene={active}>
       <div data-testid="dashboard-background" className="dashboard-hub-background" aria-hidden="true" />
       <div className="dashboard-hub-shade" aria-hidden="true" />
 
@@ -147,7 +151,7 @@ export function DashboardShell({
 
       {/* Icon menu bar, top-right beside the minimap: feature tabs plus shop,
           bag and settings merged into one strip so the hall stays visible. */}
-      <nav className="dashboard-menu-bar" aria-label="เมนูแดชบอร์ด">
+      <nav className={`dashboard-menu-bar${active === 'map' ? ' map-vertical' : ''}`} aria-label="เมนูแดชบอร์ด">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -172,8 +176,9 @@ export function DashboardShell({
       </nav>
 
       {/* MMO quest tracker, screen-space on the left: main quest points at the
-          adventure map, the daily entry opens the quest board panel. */}
-      <aside className="hub-quest-tracker" aria-label="ตัวติดตามเควส">
+          adventure map, the daily entry opens the quest board panel. Unmounted
+          on the map scene so nothing overlaps or ghost-clicks over the map. */}
+      {active !== 'map' && <aside className="hub-quest-tracker" aria-label="ตัวติดตามเควส">
         <h3><span aria-hidden="true">◆</span> เควส</h3>
         <button type="button" className="hub-quest-entry hub-quest-main" aria-label="เควสหลัก: ออกผจญภัยด่านต่อไป" onClick={() => navigate('map')}>
           <img src={itemMap} alt="" draggable={false} />
@@ -183,7 +188,7 @@ export function DashboardShell({
           <img src={itemScroll} alt="" draggable={false} />
           <span><b>ภารกิจประจำวัน</b><small>แตะเพื่อดูและรับรางวัล</small></span>
         </button>
-      </aside>
+      </aside>}
 
       <div id="react-economy-root" className="contents">{economy}</div>
 
@@ -197,9 +202,14 @@ export function DashboardShell({
 
       <WalkableCharacter active={active === 'home'} config={characterSprite} layerImages={layerImages} onOpenMap={() => navigate('map')} />
 
-      <button type="button" className="dashboard-portal-button" aria-label="เริ่มการผจญภัย" onClick={() => navigate('map')}>
-        <span>เข้าสู่แผนที่ผจญภัย</span>
-      </button>
+      {/* Invisible hotspot over the painted hall gate. The gate art only
+          exists on the home scene — mounting it anywhere else leaves a large
+          transparent button ghost-clicking over the map/feature panels. */}
+      {active === 'home' && (
+        <button type="button" className="dashboard-portal-button" aria-label="เริ่มการผจญภัย" onClick={() => navigate('map')}>
+          <span>เข้าสู่แผนที่ผจญภัย</span>
+        </button>
+      )}
 
       {/* Classic MMO experience strip pinned to the bottom edge. */}
       <div className="dashboard-exp-bar" data-testid="dashboard-exp-bar" aria-label={`เลเวล ${level} ความคืบหน้า ${Math.round(xpProgress.percent)} เปอร์เซ็นต์`}>

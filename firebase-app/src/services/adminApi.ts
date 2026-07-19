@@ -15,6 +15,8 @@ import {
 } from 'firebase/firestore'
 import { adminDb, ensureAdminSession } from '../firebase/adminClient'
 import { adminQuestion, resetUserData, sanitizePublicSettings, studentReport } from './adminLogic'
+import { invalidateAiConfigCache } from './aiApi'
+import { maskApiKey } from './geminiLogic'
 import { DAILY_QUEST_DEFAULTS, mergeDailyQuestConfig } from './gameLogic'
 import { directoryEntry, normalizeUser } from './normalizers'
 import type { FirebaseServices } from './legacyRunner'
@@ -221,6 +223,39 @@ async function saveSettings(rawSettings: unknown, pin: unknown) {
   return { success: true, message: 'Settings saved' }
 }
 
+// --- AI (Gemini) configuration ---------------------------------------------
+// The key lives in settings/ai (admin-writable, readable only by signed-in
+// app users) so it is never bundled into the frontend or settings/public.
+
+async function getAiSettingsAdmin(pin: unknown) {
+  await ensureAdminSession(pin)
+  const snapshot = await getDoc(doc(adminDb, 'settings', 'ai'))
+  const key = String(snapshot.exists() ? snapshot.data().geminiApiKey || '' : '').trim()
+  return { success: true, data: { hasKey: key.length > 0, maskedKey: maskApiKey(key) } }
+}
+
+async function saveAiSettings(rawKey: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const key = String(rawKey || '').trim()
+  if (!key) return { success: false, error: 'กรุณาวาง Gemini API Key ก่อนบันทึก' }
+  await setDoc(doc(adminDb, 'settings', 'ai'), {
+    geminiApiKey: key,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+  invalidateAiConfigCache()
+  return { success: true, message: 'บันทึก Gemini API Key แล้ว ระบบ AI พร้อมใช้งาน' }
+}
+
+async function clearAiSettings(pin: unknown) {
+  await ensureAdminSession(pin)
+  await setDoc(doc(adminDb, 'settings', 'ai'), {
+    geminiApiKey: deleteField(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+  invalidateAiConfigCache()
+  return { success: true, message: 'ลบ Gemini API Key แล้ว ระบบ AI จะกลับสู่โหมดพื้นฐาน' }
+}
+
 async function getAllNewsAdmin(pin: unknown) {
   await ensureAdminSession(pin)
   const data = (await rows('news')).reverse().map((item) => ({
@@ -289,59 +324,8 @@ async function saveAdminDailyQuest(rawData: unknown, pin: unknown) {
   return { success: true, message: 'บันทึกภารกิจรายวันแล้ว' }
 }
 
-// --- World Boss configuration --------------------------------------------
-
-async function getAdminWorldBosses(pin: unknown) {
-  await ensureAdminSession(pin)
-  const bosses = (await rows('worldBossConfig')).map((boss) => ({
-    id: String(boss.bossId || boss.id),
-    name: String(boss.bossName || boss.name || ''),
-    poseType: String(boss.poseType || ''),
-    targetReps: Number(boss.targetReps) || 10,
-    maxHp: Number(boss.bossMaxHp || boss.maxHp) || 100,
-    rewardCoins: Number(boss.rewardCoins) || 100,
-    rewardXp: Number(boss.rewardXp) || 100,
-    isActive: boss.isActive !== false,
-  })).sort((a, b) => a.id.localeCompare(b.id))
-  return { success: true, data: bosses }
-}
-
-async function saveAdminWorldBoss(rawData: unknown, pin: unknown) {
-  await ensureAdminSession(pin)
-  const data = (rawData || {}) as Data
-  let id = String(data.id || '').trim().toUpperCase()
-  if (!id) {
-    const bosses = await rows('worldBossConfig')
-    const max = bosses.reduce((current, boss) => {
-      const match = String(boss.bossId || boss.id).match(/^WB(\d+)$/)
-      return match ? Math.max(current, Number(match[1])) : current
-    }, 0)
-    id = `WB${String(max + 1).padStart(3, '0')}`
-  }
-  // Rewards stay under the Firestore ±1000 delta rule for user documents.
-  const clamp = (value: unknown, fallback: number, cap: number) => {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) && parsed >= 0 ? Math.min(cap, Math.round(parsed)) : fallback
-  }
-  await setDoc(doc(adminDb, 'worldBossConfig', id), {
-    bossId: id,
-    bossName: String(data.name || ''),
-    poseType: String(data.poseType || ''),
-    targetReps: clamp(data.targetReps, 10, 500),
-    bossMaxHp: clamp(data.maxHp, 100, 100000),
-    rewardCoins: clamp(data.rewardCoins, 100, 900),
-    rewardXp: clamp(data.rewardXp, 100, 900),
-    isActive: data.isActive !== false,
-    updatedAt: serverTimestamp(),
-  }, { merge: true })
-  return { success: true, id, message: 'บันทึกเวิลด์บอสแล้ว' }
-}
-
-async function deleteAdminWorldBoss(rawId: unknown, pin: unknown) {
-  await ensureAdminSession(pin)
-  await deleteDoc(doc(adminDb, 'worldBossConfig', String(rawId || '')))
-  return { success: true, message: 'ลบเวิลด์บอสแล้ว' }
-}
+// The old admin-configurable World Boss feature was retired: the mini-game
+// stages are a fixed in-code playset now (src/services/worldBossCatalog.ts).
 
 // --- Cyber Safety scenarios ------------------------------------------------
 
@@ -418,15 +402,15 @@ export const adminApi = {
   unbindStudentDevice,
   resetAllStudentData,
   saveSettings,
+  getAiSettingsAdmin,
+  saveAiSettings,
+  clearAiSettings,
   getAllNewsAdmin,
   saveNewsItem,
   deleteNewsItem,
   getExamReports,
   getAdminDailyQuests,
   saveAdminDailyQuest,
-  getAdminWorldBosses,
-  saveAdminWorldBoss,
-  deleteAdminWorldBoss,
   getAdminCyberScenarios,
   saveAdminCyberScenario,
   deleteAdminCyberScenario,

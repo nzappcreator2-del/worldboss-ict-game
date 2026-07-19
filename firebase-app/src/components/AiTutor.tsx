@@ -1,40 +1,36 @@
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { MarkdownLite } from './MarkdownLite'
 
 export type AiTutorUser = { name?: string; avatar?: string }
-export type AiTutorResponse = { success: boolean; answer?: string; error?: string }
+export type AiTutorResponse = { success: boolean; answer?: string; error?: string; mode?: string }
 export type AiTutorService = {
   getCurrentUser(): AiTutorUser | null
   getCurrentLessonTitle(): string
   ask(question: string, context: string): Promise<AiTutorResponse>
+  reset?(): void
 }
 
 type Message = { id: number; role: 'assistant' | 'user'; text: string }
 
 const greeting = 'สวัสดีผู้กล้า! ผมคือ AI พิทักษ์ความรู้ 🤖 มีอะไรให้ผมรับใช้รึเปล่า?'
 
-function formattedText(text: string): ReactNode {
-  return text.split('\n').map((line, lineIndex) => (
-    <Fragment key={`${lineIndex}-${line}`}>
-      {line.split(/(\*\*.*?\*\*|\*.*?\*)/g).filter(Boolean).map((part, partIndex) => {
-        if (part.startsWith('**') && part.endsWith('**')) return <strong key={partIndex}>{part.slice(2, -2)}</strong>
-        if (part.startsWith('*') && part.endsWith('*')) return <em key={partIndex}>{part.slice(1, -1)}</em>
-        return <Fragment key={partIndex}>{part}</Fragment>
-      })}
-      {lineIndex < text.split('\n').length - 1 && <br />}
-    </Fragment>
-  ))
-}
+const quickQuestions = [
+  'สรุปบทเรียนด่านนี้ให้หน่อย',
+  'ขอเทคนิคช่วยจำแบบง่าย ๆ',
+  'ขอข้อซ้อมมือ 1 ข้อ',
+]
 
 export function AiTutor({ service }: { service: AiTutorService }) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fallbackMode, setFallbackMode] = useState(false)
   const [messages, setMessages] = useState<Message[]>([{ id: 1, role: 'assistant', text: greeting }])
-  const [position, setPosition] = useState({ x: 0, y: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const nextId = useRef(2)
   const dragRef = useRef({ pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0, moved: false })
+  const [position, setPosition] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
     if (open) inputRef.current?.focus()
@@ -44,8 +40,8 @@ export function AiTutor({ service }: { service: AiTutorService }) {
     if (open && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
   }, [messages, loading, open])
 
-  const submit = async () => {
-    const question = input.trim()
+  const submit = async (raw?: string) => {
+    const question = (raw ?? input).trim()
     if (!question || loading) return
     const user = service.getCurrentUser()
     const context = `ชื่อผู้เล่น: ${user?.name || 'ไม่ระบุนาม'}, ด่านปัจจุบันที่กำลังผจญภัย: ${service.getCurrentLessonTitle() || 'ไม่มีข้อมูลด่าน'}`
@@ -57,6 +53,7 @@ export function AiTutor({ service }: { service: AiTutorService }) {
       const text = result.success
         ? result.answer || 'ยังไม่มีคำตอบสำหรับคำถามนี้'
         : `⚠️ โอ๊ะโอ! ระบบขัดข้อง: ${result.error || 'ไม่ทราบสาเหตุ'}`
+      if (result.success) setFallbackMode(result.mode === 'local-fallback')
       setMessages((current) => [...current, { id: nextId.current++, role: 'assistant', text }])
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -64,6 +61,13 @@ export function AiTutor({ service }: { service: AiTutorService }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const resetConversation = () => {
+    if (loading) return
+    service.reset?.()
+    setMessages([{ id: nextId.current++, role: 'assistant', text: greeting }])
+    inputRef.current?.focus()
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -99,6 +103,7 @@ export function AiTutor({ service }: { service: AiTutorService }) {
   }
 
   const user = service.getCurrentUser()
+  const showSuggestions = messages.length === 1 && !loading
 
   return (
     <>
@@ -128,18 +133,24 @@ export function AiTutor({ service }: { service: AiTutorService }) {
         <div
           role="dialog"
           aria-label="ผู้พิทักษ์ความรู้"
-          className="fixed bottom-24 right-6 w-[350px] max-w-[calc(100vw-3rem)] h-[450px] max-h-[60vh] bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl z-[60] flex flex-col overflow-hidden"
+          className="fixed bottom-24 right-6 w-[370px] max-w-[calc(100vw-3rem)] h-[500px] max-h-[65vh] bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl z-[60] flex flex-col overflow-hidden"
         >
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex justify-between items-center shadow-md relative overflow-hidden">
             <div className="absolute -right-4 -top-4 opacity-20 text-6xl">✨</div>
-            <div className="flex items-center gap-3 relative z-10">
-              <div className="text-3xl bg-white/20 rounded-full w-10 h-10 flex items-center justify-center border border-white/30">🤖</div>
-              <div>
-                <h3 className="font-bold text-lg leading-tight">ผู้พิทักษ์ความรู้</h3>
-                <p className="text-xs text-indigo-100 font-medium tracking-wide">AI Tutor พร้อมให้คำปรึกษา</p>
+            <div className="flex items-center gap-3 relative z-10 min-w-0">
+              <div className="text-3xl bg-white/20 rounded-full w-10 h-10 flex items-center justify-center border border-white/30 shrink-0">🤖</div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-lg leading-tight truncate">ผู้พิทักษ์ความรู้</h3>
+                <p className="text-xs text-indigo-100 font-medium tracking-wide flex items-center gap-1.5">
+                  AI Tutor พร้อมให้คำปรึกษา
+                  {fallbackMode && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-bold text-amber-950">โหมดพื้นฐาน</span>}
+                </p>
               </div>
             </div>
-            <button type="button" aria-label="ปิด AI Tutor" onClick={() => setOpen(false)} className="text-white/80 hover:text-white text-2xl relative z-10 w-8 h-8 bg-black/10 rounded-full">×</button>
+            <div className="flex items-center gap-1 relative z-10 shrink-0">
+              <button type="button" aria-label="เริ่มบทสนทนาใหม่" title="เริ่มบทสนทนาใหม่" onClick={resetConversation} className="text-white/80 hover:text-white text-lg w-8 h-8 bg-black/10 rounded-full">↺</button>
+              <button type="button" aria-label="ปิด AI Tutor" onClick={() => setOpen(false)} className="text-white/80 hover:text-white text-2xl w-8 h-8 bg-black/10 rounded-full">×</button>
+            </div>
           </div>
 
           <div ref={chatRef} className="flex-1 p-4 overflow-y-auto flex flex-col gap-2 bg-gradient-to-b from-indigo-50/50 to-purple-50/30 shadow-inner border-y border-white/50">
@@ -149,10 +160,24 @@ export function AiTutor({ service }: { service: AiTutorService }) {
                 <div className={message.role === 'user'
                   ? 'bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2 rounded-2xl rounded-tr-none shadow-sm font-medium text-sm'
                   : 'bg-white/90 text-indigo-900 border-2 border-indigo-200 px-4 py-2 rounded-2xl rounded-tl-none shadow-sm font-medium text-sm leading-relaxed'}>
-                  {message.role === 'assistant' ? formattedText(message.text) : message.text}
+                  {message.role === 'assistant' ? <MarkdownLite text={message.text} /> : message.text}
                 </div>
               </div>
             ))}
+            {showSuggestions && (
+              <div className="mt-1 flex flex-wrap gap-2 pl-11">
+                {quickQuestions.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => void submit(question)}
+                    className="rounded-full border border-indigo-300 bg-white/80 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-sm hover:bg-indigo-50 hover:border-indigo-400 transition-colors"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            )}
             {loading && (
               <div className="flex gap-3 mb-2 max-w-[85%] self-start mr-auto">
                 <div className="text-3xl">🤖</div>
@@ -161,11 +186,14 @@ export function AiTutor({ service }: { service: AiTutorService }) {
             )}
           </div>
 
-          <div className="p-4 bg-white/80 backdrop-blur-md border-t border-indigo-100 flex gap-2">
-            <input ref={inputRef} value={input} disabled={loading} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown} placeholder="ถามข้ามาได้เลย..." className="flex-1 min-w-0 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium text-gray-700" />
-            <button type="button" aria-label="ส่งคำถาม" disabled={loading} onClick={() => void submit()} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md">
-              <span className="-rotate-45 ml-1 mb-1 text-lg">🚀</span>
-            </button>
+          <div className="p-3 bg-white/80 backdrop-blur-md border-t border-indigo-100">
+            <div className="flex gap-2">
+              <input ref={inputRef} value={input} disabled={loading} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown} placeholder="ถามข้ามาได้เลย..." className="flex-1 min-w-0 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium text-gray-700" />
+              <button type="button" aria-label="ส่งคำถาม" disabled={loading} onClick={() => void submit()} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-md">
+                <span className="-rotate-45 ml-1 mb-1 text-lg">🚀</span>
+              </button>
+            </div>
+            <p className="mt-1.5 text-center text-[10px] text-slate-400">AI อาจตอบคลาดเคลื่อนได้ ถ้าไม่แน่ใจให้ถามคุณครูอีกครั้งนะ</p>
           </div>
         </div>
       )}

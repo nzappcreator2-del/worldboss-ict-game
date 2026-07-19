@@ -470,9 +470,15 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined
-          if (id.includes('/react/') || id.includes('/react-dom/')) return 'react-vendor'
-          if (id.includes('/firebase/') || id.includes('/@firebase/')) return 'firebase-vendor'
+          const path = id.replace(/\\/g, '/')
+          if (!path.includes('node_modules')) {
+            // Teacher-only surface: keep the admin console out of the main
+            // student bundle so the index chunk stays under the 500 KiB cap.
+            if (path.includes('/src/components/AdminPanel') || path.includes('/src/components/adminPanelLogic') || path.includes('/src/services/adminApi')) return 'admin'
+            return undefined
+          }
+          if (path.includes('/react/') || path.includes('/react-dom/')) return 'react-vendor'
+          if (path.includes('/firebase/') || path.includes('/@firebase/')) return 'firebase-vendor'
           return 'vendor'
         },
       },
