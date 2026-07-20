@@ -11,7 +11,7 @@ const players = [
   { id: 'u3', name: 'ดาว', class: 'ป.6/2', xp: 400, level: 5, rank: 'SILVER', avatar: '🥷' },
 ]
 
-function setup(overrides: Partial<LeaderboardService> = {}) {
+function setup(overrides: Partial<LeaderboardService> = {}, onClose = vi.fn()) {
   const service: LeaderboardService = {
     getCurrentUser: () => ({ id: 'u1', class: 'ป.6/1' }),
     loadPlayers: vi.fn().mockResolvedValue({ success: true, data: players }),
@@ -21,11 +21,20 @@ function setup(overrides: Partial<LeaderboardService> = {}) {
     ] }),
     ...overrides,
   }
-  render(<Leaderboard service={service} />)
+  render(<Leaderboard service={service} onClose={onClose} />)
   return service
 }
 
 describe('Leaderboard', () => {
+  it('offers a close control that returns to the dashboard', () => {
+    const onClose = vi.fn()
+    setup({}, onClose)
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปิดหน้าจัดอันดับ' }))
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('loads individual rankings when the legacy sidebar opens the tab', async () => {
     const service = setup()
     expect(service.loadPlayers).not.toHaveBeenCalled()

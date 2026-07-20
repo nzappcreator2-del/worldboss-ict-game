@@ -64,6 +64,8 @@ type DashboardShellProps = {
   rank?: ReactNode
   cert?: ReactNode
   economy?: ReactNode
+  /** ครูวีรภัทร์ quest NPC — a hall inhabitant, mounted only on the home scene. */
+  teacherNpc?: ReactNode
   characterSprite?: CharacterSpriteConfig
 }
 
@@ -77,6 +79,7 @@ export function DashboardShell({
   rank,
   cert,
   economy,
+  teacherNpc,
   characterSprite = TEST_CHARACTER_SPRITE,
 }: DashboardShellProps) {
   const [user, setUser] = useState<DashboardShellUser | null>(() => getCurrentUser())
@@ -200,6 +203,11 @@ export function DashboardShell({
         <div id="react-cert-root" className={active === 'cert' ? 'dashboard-feature-panel' : 'hidden'}>{cert}</div>
       </main>
 
+      {/* ครูวีรภัทร์ stands at the crystal altar; only the home scene shows
+          the hall painting, so the NPC unmounts along with the other
+          hub-only hotspots when a feature panel takes over. */}
+      {active === 'home' && teacherNpc}
+
       <WalkableCharacter active={active === 'home'} config={characterSprite} layerImages={layerImages} onOpenMap={() => navigate('map')} />
 
       {/* Invisible hotspot over the painted hall gate. The gate art only
@@ -266,7 +274,19 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
   const activeDirections = useRef(new Set<WalkDirection>())
   const positionRef = useRef(DEFAULT_CHARACTER_POSITION)
   const walkTarget = useRef<typeof DEFAULT_CHARACTER_POSITION | null>(null)
+  const lastBroadcast = useRef(0)
   const renderSize = CHARACTER_RENDER_SIZE
+
+  // Throttled position feed for hall inhabitants (ครูวีรภัทร์ walk-up talk):
+  // a coarse 4-per-second CustomEvent instead of lifted state, so the shell
+  // never re-renders with the 60fps walk loop.
+  const broadcastPosition = useCallback((now: number) => {
+    if (now - lastBroadcast.current < 250) return
+    lastBroadcast.current = now
+    window.dispatchEvent(new CustomEvent('nextgen:hub-player-position', {
+      detail: { x: positionRef.current.x, y: positionRef.current.y },
+    }))
+  }, [])
 
   const pressDirection = useCallback((nextDirection: WalkDirection) => {
     walkTarget.current = null
@@ -352,6 +372,7 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
           const nextPosition = moveCharacter(positionRef.current, movingDirection, step)
           positionRef.current = nextPosition
           setPosition(nextPosition)
+          broadcastPosition(time)
         }
       } else if (walkTarget.current && step > 0) {
         movingDirection = directionTowardTarget(positionRef.current, walkTarget.current)
@@ -360,6 +381,7 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
         setPosition(movement.position)
         setDirection(movingDirection)
         if (movement.reached) walkTarget.current = null
+        broadcastPosition(time)
       }
 
       if (movingDirection) {
@@ -379,7 +401,7 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
 
     animationId = window.requestAnimationFrame(animate)
     return () => window.cancelAnimationFrame(animationId)
-  }, [active, config.walkFrames.length])
+  }, [active, config.walkFrames.length, broadcastPosition])
 
   const style: CSSProperties = {
     left: `${position.x}%`,

@@ -2,6 +2,20 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { reportSummary, reportsToCsv, type ExamReport } from './adminPanelLogic'
 import { MAP_ENTRANCE_TEMPLATES, entranceTemplateForLesson } from './mapEntranceTemplates'
 import { MarkdownLite } from './MarkdownLite'
+import {
+  NPC_MESSAGE_TEMPLATES,
+  QUEST_STATUS_LABELS,
+  STUDENT_STATUS_LABELS,
+  TEACHER_NPC_NAME,
+  availableObjectivesForLesson,
+  defaultQuestTitle,
+  questTargetsClass,
+  validateTeacherQuestDraft,
+  type LessonCapabilities,
+  type StudentQuestStatus,
+  type TeacherQuest,
+  type TeacherQuestStats,
+} from '../services/teacherQuestLogic'
 import type { GeneratedLessonBundle } from '../services/geminiLogic'
 
 type Result<T = unknown> = { success: boolean; data?: T; error?: string; isValid?: boolean; answer?: string; count?: number; id?: string; mode?: string; message?: string }
@@ -75,6 +89,23 @@ export type AdminDailyQuest = {
   isActive: boolean
 }
 
+export type AdminTeacherQuest = TeacherQuest & { stats?: TeacherQuestStats }
+
+export type AdminQuestSubmission = {
+  id: string
+  name: string
+  class: string
+  avatar?: string
+  status: StudentQuestStatus
+  worksheetAnswer: string
+  submittedAt: string
+  score: number | null
+  maxScore: number | null
+  rewarded: boolean
+  acceptedAt: string
+  turnedInAt: string
+}
+
 export type AdminCyberScenario = {
   id?: string
   timeOfDay?: string
@@ -109,6 +140,9 @@ export interface AdminService {
   generateProgressReport(student: AdminStudent): Promise<Result>
   loadDailyQuests(password: string): Promise<Result<AdminDailyQuest[]>>
   saveDailyQuest(quest: AdminDailyQuest, password: string): Promise<Result>
+  loadTeacherQuests(password: string): Promise<Result<AdminTeacherQuest[]>>
+  saveTeacherQuest(quest: TeacherQuest, password: string): Promise<Result>
+  loadTeacherQuestSubmissions(questId: string, password: string): Promise<Result<AdminQuestSubmission[]>>
   loadCyberScenarios(password: string): Promise<Result<AdminCyberScenario[]>>
   saveCyberScenario(scenario: AdminCyberScenario, password: string): Promise<Result>
   deleteCyberScenario(id: string, password: string): Promise<Result>
@@ -137,7 +171,12 @@ const emptyAiDraft = (): AiDraft => ({
   includePretest: true, notes: '', bundle: null, working: false, error: '',
 })
 
-type Tab = 'lessons' | 'daily' | 'cyber' | 'students' | 'reports' | 'settings' | 'news'
+type Tab = 'lessons' | 'quests' | 'daily' | 'cyber' | 'students' | 'reports' | 'settings' | 'news'
+
+const emptyTeacherQuest = (): AdminTeacherQuest => ({
+  questId: '', lessonId: '', lessonTitle: '', title: '', npcMessage: '',
+  objectives: ['study'], classes: [], startAt: '', dueAt: '', status: 'draft',
+})
 
 const emptyLesson = (): AdminLesson => ({ id: '', title: '', description: '', videoUrl: '', icon: '🗺️', isActive: true, enablePretest: false, worksheetUrl: '', content: '', mapStyle: '' })
 const emptyQuestion = (): AdminQuestion => ({ text: '', options: ['', '', '', ''], answer: 1, explanation: '', pattern: 'choice', image: '', matchingPairs: [{ left: '', right: '' }] })
@@ -192,6 +231,11 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   const [dailyDraft, setDailyDraft] = useState<AdminDailyQuest | null>(null)
   const [cyberScenarios, setCyberScenarios] = useState<AdminCyberScenario[]>([])
   const [scenarioDraft, setScenarioDraft] = useState<AdminCyberScenario | null>(null)
+  const [teacherQuests, setTeacherQuests] = useState<AdminTeacherQuest[]>([])
+  const [questDraft, setQuestDraft] = useState<AdminTeacherQuest | null>(null)
+  const [questBaseline, setQuestBaseline] = useState<AdminTeacherQuest | null>(null)
+  const [questSubmissions, setQuestSubmissions] = useState<{ quest: AdminTeacherQuest; rows: AdminQuestSubmission[] } | null>(null)
+  const [submissionFilter, setSubmissionFilter] = useState({ class: '', status: '', search: '' })
 
   const run = useCallback(async (task: () => Promise<Result>, success = '') => {
     setBusy(true); setStatus('')
@@ -227,9 +271,24 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     finally { setBusy(false) }
   }
 
+  const reloadTeacherQuests = useCallback(async () => {
+    const result = await run(() => service.loadTeacherQuests(password))
+    if (result?.data) setTeacherQuests(result.data as AdminTeacherQuest[])
+  }, [run, service, password])
+
   const changeTab = async (next: Tab) => {
     setTab(next); setStatus('')
     if (next === 'lessons' || next === 'reports') await loadLessons()
+    if (next === 'quests') {
+      // The quest form composes existing data: lessons for linking, students
+      // for the publish head-count, settings for the class choices.
+      await loadLessons()
+      await reloadTeacherQuests()
+      const studentRows = await service.loadStudents(password).catch(() => null)
+      if (studentRows?.data) setStudents(studentRows.data as AdminStudent[])
+      const settingRows = await service.loadSettings().catch(() => null)
+      if (settingRows?.data) setSettings(settingRows.data as Record<string, unknown>)
+    }
     if (next === 'students') { const result = await run(() => service.loadStudents(password)); if (result?.data) setStudents(result.data as AdminStudent[]) }
     if (next === 'settings') {
       const result = await run(() => service.loadSettings())
@@ -247,6 +306,96 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     const result = await run(() => service.saveDailyQuest(dailyDraft, password), 'บันทึกภารกิจรายวันแล้ว')
     if (result) { setDailyDraft(null); const refreshed = await service.loadDailyQuests(password); if (refreshed.data) setDailyQuests(refreshed.data) }
   }
+  // --- Teacher quests (ครูวีรภัทร์) ----------------------------------------
+
+  const questLessonCapabilities = (lessonId: string): LessonCapabilities | null => {
+    const lesson = lessons.find((item) => item.id === lessonId)
+    if (!lesson) return null
+    return {
+      questionCount: lesson.questionCount || 0,
+      content: lesson.content || '',
+      worksheetUrl: lesson.worksheetUrl || '',
+    }
+  }
+
+  const questClassOptions = useMemo(() => {
+    const fromSettings = String(settings.Classes || '').split(',').map((item) => item.trim()).filter(Boolean)
+    const fromStudents = students.map((student) => student.class).filter(Boolean)
+    return [...new Set([...fromSettings, ...fromStudents])]
+  }, [settings, students])
+
+  const pickQuestLesson = (lessonId: string) => {
+    if (!questDraft) return
+    const lesson = lessons.find((item) => item.id === lessonId)
+    const capabilities = lessonId ? questLessonCapabilities(lessonId) : null
+    const enabled = capabilities ? availableObjectivesForLesson(capabilities).filter((option) => option.enabled).map((option) => option.key) : []
+    const previousDefault = defaultQuestTitle(questDraft.lessonTitle)
+    setQuestDraft({
+      ...questDraft,
+      lessonId,
+      lessonTitle: lesson?.title || '',
+      // Auto-name from the lesson unless the teacher already typed a custom title.
+      title: !questDraft.title.trim() || questDraft.title === previousDefault
+        ? (lesson ? defaultQuestTitle(lesson.title) : '')
+        : questDraft.title,
+      objectives: questDraft.objectives.filter((key) => enabled.includes(key)),
+    })
+  }
+
+  const toggleQuestObjective = (key: TeacherQuest['objectives'][number]) => {
+    if (!questDraft) return
+    const objectives = questDraft.objectives.includes(key)
+      ? questDraft.objectives.filter((item) => item !== key)
+      : [...questDraft.objectives, key]
+    setQuestDraft({ ...questDraft, objectives })
+  }
+
+  const toggleQuestClass = (className: string) => {
+    if (!questDraft) return
+    const classes = questDraft.classes.includes(className)
+      ? questDraft.classes.filter((item) => item !== className)
+      : [...questDraft.classes, className]
+    setQuestDraft({ ...questDraft, classes })
+  }
+
+  const questTargetCount = (quest: TeacherQuest) => students.filter((student) => questTargetsClass(quest, student.class)).length
+
+  const submitTeacherQuest = async (publish: boolean) => {
+    if (!questDraft) return
+    const nextStatus = publish ? 'active' : (questDraft.questId ? questDraft.status : 'draft')
+    const candidate: AdminTeacherQuest = { ...questDraft, status: nextStatus }
+    const validation = validateTeacherQuestDraft(candidate, questLessonCapabilities(candidate.lessonId))
+    if (!validation.valid) return setStatus(validation.error || 'ข้อมูลเควสต์ไม่ครบถ้วน')
+    // Structural edits to a live quest can affect students mid-run: warn, but
+    // never reset their progress (stamps live in each student's own document).
+    if (questBaseline && questBaseline.status !== 'draft' && (
+      questBaseline.lessonId !== candidate.lessonId
+      || questBaseline.objectives.join(',') !== candidate.objectives.join(',')
+      || [...questBaseline.classes].sort().join(',') !== [...candidate.classes].sort().join(',')
+    )) {
+      if (!confirmAction('เควสต์นี้เผยแพร่แล้ว การแก้บทเรียน เป้าหมาย หรือกลุ่มนักเรียน อาจกระทบนักเรียนที่เริ่มทำไปแล้ว (ความคืบหน้าของนักเรียนจะไม่ถูกรีเซ็ต) ยืนยันบันทึกหรือไม่?')) return
+    }
+    if (publish && !confirmAction(`เผยแพร่เควสต์ "${candidate.title}" ให้นักเรียน ${questTargetCount(candidate)} คน?`)) return
+    const payload = { ...candidate }
+    delete payload.stats
+    const result = await run(() => service.saveTeacherQuest(payload, password), publish ? 'เผยแพร่เควสต์แล้ว นักเรียนจะเห็นเครื่องหมาย ! ที่ครูวีรภัทร์' : 'บันทึกเควสต์แล้ว')
+    if (result) { setQuestDraft(null); setQuestBaseline(null); await reloadTeacherQuests() }
+  }
+
+  const setQuestStatus = async (quest: AdminTeacherQuest, nextStatus: TeacherQuest['status'], message: string, confirmMessage?: string) => {
+    if (confirmMessage && !confirmAction(confirmMessage)) return
+    const payload = { ...quest, status: nextStatus }
+    delete payload.stats
+    const result = await run(() => service.saveTeacherQuest(payload, password), message)
+    if (result) await reloadTeacherQuests()
+  }
+
+  const openQuestSubmissions = async (quest: AdminTeacherQuest) => {
+    setSubmissionFilter({ class: '', status: '', search: '' })
+    const result = await run(() => service.loadTeacherQuestSubmissions(quest.questId, password))
+    if (result?.data) setQuestSubmissions({ quest, rows: result.data as AdminQuestSubmission[] })
+  }
+
   const saveCyberScenario = async (event: FormEvent) => {
     event.preventDefault(); if (!scenarioDraft?.text.trim() || !scenarioDraft.opt1.trim() || !scenarioDraft.opt2.trim()) return setStatus('กรุณาระบุสถานการณ์และตัวเลือกให้ครบ')
     const result = await run(() => service.saveCyberScenario(scenarioDraft, password), 'บันทึกสถานการณ์แล้ว')
@@ -471,12 +620,47 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <div><h1 className="text-2xl font-black md:text-3xl">ศูนย์บัญชาการผู้ดูแลระบบ</h1><p className="text-indigo-100">จัดการข้อมูลผ่าน Firestore โดยตรง</p></div>
       <button type="button" className="rounded-xl bg-white/20 px-4 py-2 font-bold hover:bg-white/30" onClick={logout}>ออกจากระบบ</button>
     </header>
-    <nav className="mb-5 flex flex-wrap gap-2">{([['lessons', '📚', 'บทเรียน'], ['daily', '📜', 'ภารกิจรายวัน'], ['cyber', '🛡️', 'ไซเบอร์'], ['students', '🧑‍🎓', 'นักเรียน'], ['reports', '📊', 'รายงาน'], ['settings', '⚙️', 'ตั้งค่า'], ['news', '📢', 'ประกาศ']] as Array<[Tab, string, string]>).map(([id, icon, label]) => <button type="button" key={id} onClick={() => void changeTab(id)} className={`${tab === id ? primary : secondary}`}><span aria-hidden="true">{icon}</span> {label}</button>)}</nav>
+    <nav className="mb-5 flex flex-wrap gap-2">{([['lessons', '📚', 'บทเรียน'], ['quests', '🧑‍🏫', 'เควสต์มอบหมาย'], ['daily', '📜', 'ภารกิจรายวัน'], ['cyber', '🛡️', 'ไซเบอร์'], ['students', '🧑‍🎓', 'นักเรียน'], ['reports', '📊', 'รายงาน'], ['settings', '⚙️', 'ตั้งค่า'], ['news', '📢', 'ประกาศ']] as Array<[Tab, string, string]>).map(([id, icon, label]) => <button type="button" key={id} onClick={() => void changeTab(id)} className={`${tab === id ? primary : secondary}`}><span aria-hidden="true">{icon}</span> {label}</button>)}</nav>
     {status && <p role="status" className={`mb-4 rounded-xl p-3 font-bold ${status.includes('แล้ว') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{status}</p>}
     {busy && <p className="mb-4 text-indigo-700">กำลังดำเนินการ...</p>}
 
     {tab === 'lessons' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-800">บทเรียน</h2><div className="flex flex-wrap gap-2"><button aria-label="สร้างบทเรียนด้วย AI" className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2 font-bold text-white shadow hover:brightness-110" onClick={() => setAiDraft(emptyAiDraft())}>✨ สร้างด้วย AI</button><button className={primary} onClick={() => setLessonDraft(emptyLesson())}>เพิ่มบทเรียน</button></div></div>
       <div className="grid gap-3">{lessons.map((item, index) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4"><div className="flex items-center gap-3"><span className="block h-12 w-12 shrink-0" aria-hidden="true">{(() => { const Entrance = entranceTemplateForLesson(item.mapStyle, index).Art; return <Entrance /> })()}</span><span className="text-3xl">{item.icon}</span><div><h3 className="font-black">{item.title}</h3><p className="text-sm text-slate-500">{item.id} · {item.questionCount || 0} ข้อ · {item.isActive === false ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</p></div></div><div className="flex flex-wrap gap-2"><button className={secondary} onClick={() => void openQuestions(item)} aria-label={`จัดการข้อสอบ ${item.title}`}>ข้อสอบ</button><button className={secondary} onClick={() => setLessonDraft({ ...item })} aria-label={`แก้ไข ${item.title}`}>แก้ไข</button><button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" onClick={() => void deleteLesson(item)} aria-label={`ลบ ${item.title}`}>ลบ</button></div></article>)}</div>
+    </div>}
+
+    {tab === 'quests' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-black text-slate-800">เควสต์และงานที่มอบหมาย</h2>
+        <button className={primary} onClick={() => { setQuestDraft(emptyTeacherQuest()); setQuestBaseline(null) }}>สร้างเควสต์ใหม่</button>
+      </div>
+      <p className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-700">เควสต์คือคำสั่งมอบหมายที่ {TEACHER_NPC_NAME} (NPC ในแผนที่ผจญภัย) นำไปแจ้งนักเรียน — เลือกบทเรียนที่มีอยู่ ระบบเชื่อมใบงานและข้อสอบเดิมให้อัตโนมัติ ไม่ต้องสร้างซ้ำ</p>
+      <div className="grid gap-3">
+        {teacherQuests.map((quest) => <article key={quest.questId} className="rounded-2xl border p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-black">🧑‍🏫 <span>{quest.title}</span> <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-bold ${quest.status === 'active' ? 'bg-emerald-100 text-emerald-700' : quest.status === 'draft' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'}`}>{QUEST_STATUS_LABELS[quest.status]}</span></h3>
+              <p className="text-sm text-slate-500">บทเรียน: {quest.lessonTitle || quest.lessonId} · มอบหมายให้: {quest.classes.length ? quest.classes.join(', ') : 'นักเรียนทุกคน'}</p>
+              <p className="text-xs text-slate-500">เริ่ม: {quest.startAt || 'ทันที'} · กำหนดส่ง: {quest.dueAt || 'ไม่กำหนด'}</p>
+              {quest.stats && <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold">
+                <span className="text-slate-600">ได้รับเควสต์ {quest.stats.assigned}</span>
+                <span className="text-slate-400">ยังไม่เริ่ม {quest.stats.notStarted}</span>
+                <span className="text-blue-600">กำลังทำ {quest.stats.inProgress}</span>
+                <span className="text-amber-600">พร้อมส่ง {quest.stats.ready}</span>
+                <span className="text-emerald-600">ส่งสำเร็จ {quest.stats.completed}</span>
+                <span className="text-red-600">เลยกำหนด {quest.stats.overdue}</span>
+              </p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className={secondary} aria-label={`ดูงานที่นักเรียนส่ง ${quest.title}`} onClick={() => void openQuestSubmissions(quest)}>ดูงานส่ง</button>
+              <button className={secondary} aria-label={`แก้ไขเควสต์ ${quest.title}`} onClick={() => { setQuestDraft({ ...quest }); setQuestBaseline({ ...quest }) }}>แก้ไข</button>
+              {quest.status !== 'archived' && <button className={secondary} aria-label={`เปิดปิดเควสต์ ${quest.title}`} onClick={() => void setQuestStatus(quest, quest.status === 'active' ? 'closed' : 'active', quest.status === 'active' ? 'ปิดรับงานเควสต์แล้ว (ข้อมูลการส่งยังอยู่ครบ)' : 'เปิดรับงานเควสต์แล้ว')}>{quest.status === 'active' ? 'ปิดรับงาน' : 'เปิดรับงาน'}</button>}
+              <button className={secondary} aria-label={`คัดลอกเควสต์ ${quest.title}`} onClick={() => { setQuestDraft({ ...quest, questId: '', title: `${quest.title} (สำเนา)`, status: 'draft', stats: undefined }); setQuestBaseline(null) }}>คัดลอก</button>
+              {quest.status !== 'archived' && <button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" aria-label={`เก็บถาวรเควสต์ ${quest.title}`} onClick={() => void setQuestStatus(quest, 'archived', 'เก็บถาวรเควสต์แล้ว', `เก็บถาวรเควสต์ "${quest.title}"? นักเรียนจะไม่เห็นเควสต์นี้อีก แต่ข้อมูลการส่งงานทั้งหมดยังอยู่ครบ`)}>เก็บถาวร</button>}
+            </div>
+          </div>
+        </article>)}
+        {teacherQuests.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-slate-500">ยังไม่มีเควสต์ — กด "สร้างเควสต์ใหม่" เพื่อมอบหมายภารกิจแรกผ่าน{TEACHER_NPC_NAME}</p>}
+      </div>
     </div>}
 
     {tab === 'daily' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl">
@@ -607,6 +791,131 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <label className="md:col-span-2">ข้อความเมื่อตอบผิด<input aria-label="ข้อความเมื่อตอบผิด" className={fieldClass} value={scenarioDraft.feedbackWrong || ''} onChange={(event) => setScenarioDraft({ ...scenarioDraft, feedbackWrong: event.target.value })} /></label>
       <div className="md:col-span-2 flex gap-2"><button className={primary}>บันทึกสถานการณ์</button><button type="button" className={secondary} onClick={() => setScenarioDraft(null)}>ยกเลิก</button></div>
     </form></Modal>}
+
+    {questDraft && <Modal label={questDraft.questId ? `แก้ไขเควสต์: ${questDraft.title || questDraft.questId}` : 'สร้างเควสต์ใหม่'} onClose={() => { setQuestDraft(null); setQuestBaseline(null) }}>
+      <div className="grid gap-4">
+        <label className="font-bold">1) เลือกบทเรียน (ใช้เนื้อหา ใบงาน และข้อสอบเดิมอัตโนมัติ)
+          <select aria-label="เลือกบทเรียนของเควสต์" className={`${fieldClass} mt-1`} value={questDraft.lessonId} onChange={(event) => pickQuestLesson(event.target.value)}>
+            <option value="">— เลือกบทเรียน —</option>
+            {lessons.map((item) => <option key={item.id} value={item.id}>{item.icon} {item.title}</option>)}
+          </select>
+        </label>
+        {questDraft.lessonId && (() => {
+          const lesson = lessons.find((item) => item.id === questDraft.lessonId)
+          if (!lesson) return null
+          return <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3 text-sm text-slate-700">
+            <p className="font-bold text-indigo-800">{lesson.icon} {lesson.title}</p>
+            {lesson.description && <p>{lesson.description}</p>}
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              ข้อสอบท้ายบท: {lesson.questionCount || 0} ข้อ · Pretest: {lesson.enablePretest ? 'มี' : 'ไม่มี'} · ใบงาน: {(lesson.worksheetUrl || '').trim() || (lesson.content || '').trim() ? 'มี (เชื่อมให้อัตโนมัติ)' : 'ไม่มี'}
+            </p>
+          </div>
+        })()}
+
+        <label className="font-bold">2) ชื่อเควสต์
+          <input aria-label="ชื่อเควสต์" className={`${fieldClass} mt-1`} value={questDraft.title} onChange={(event) => setQuestDraft({ ...questDraft, title: event.target.value })} />
+        </label>
+
+        <div>
+          <label className="font-bold">3) คำสั่งจาก{TEACHER_NPC_NAME} (ข้อความที่ NPC จะพูดกับนักเรียน)
+            <textarea aria-label="คำสั่งจากครูวีรภัทร์" rows={2} className={`${fieldClass} mt-1`} value={questDraft.npcMessage} onChange={(event) => setQuestDraft({ ...questDraft, npcMessage: event.target.value })} />
+          </label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {NPC_MESSAGE_TEMPLATES.map((template, index) => (
+              <button key={index} type="button" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200" onClick={() => setQuestDraft({ ...questDraft, npcMessage: template })}>ตัวอย่าง {index + 1}</button>
+            ))}
+          </div>
+        </div>
+
+        <fieldset>
+          <legend className="mb-1 font-bold">4) สิ่งที่นักเรียนต้องทำ</legend>
+          <div className="grid gap-2 md:grid-cols-3">
+            {availableObjectivesForLesson(questLessonCapabilities(questDraft.lessonId) || { questionCount: 0, content: '', worksheetUrl: '' }).map((option) => (
+              <label key={option.key} className={`flex items-start gap-2 rounded-xl border-2 p-2 ${!questDraft.lessonId || !option.enabled ? 'border-slate-100 bg-slate-50 text-slate-400' : questDraft.objectives.includes(option.key) ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
+                <input
+                  type="checkbox"
+                  aria-label={`เป้าหมาย ${option.label}`}
+                  disabled={!questDraft.lessonId || !option.enabled}
+                  checked={questDraft.objectives.includes(option.key)}
+                  onChange={() => toggleQuestObjective(option.key)}
+                />
+                <span className="text-sm font-bold">{option.label}{!option.enabled && option.reason && <small className="block font-normal text-red-500">{option.reason}</small>}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="mb-1 font-bold">5) มอบหมายให้ใคร</legend>
+          <div className="flex flex-wrap gap-2">
+            <label className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-bold ${questDraft.classes.length === 0 ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
+              <input type="checkbox" aria-label="มอบหมายนักเรียนทุกคน" checked={questDraft.classes.length === 0} onChange={() => setQuestDraft({ ...questDraft, classes: [] })} /> นักเรียนทุกคน
+            </label>
+            {questClassOptions.map((className) => (
+              <label key={className} className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-bold ${questDraft.classes.includes(className) ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
+                <input type="checkbox" aria-label={`มอบหมายชั้น ${className}`} checked={questDraft.classes.includes(className)} onChange={() => toggleQuestClass(className)} /> {className}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs font-bold text-slate-500">นักเรียนที่จะได้รับเควสต์ตอนนี้: {questTargetCount(questDraft)} คน</p>
+        </fieldset>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="font-bold">6) วันเริ่มแสดง (เว้นว่าง = เปิดรับทันที)
+            <input aria-label="วันเริ่มแสดง" type="date" className={`${fieldClass} mt-1`} value={questDraft.startAt} onChange={(event) => setQuestDraft({ ...questDraft, startAt: event.target.value })} />
+          </label>
+          <label className="font-bold">วันกำหนดส่ง (เว้นว่าง = ไม่กำหนด)
+            <input aria-label="วันกำหนดส่ง" type="date" className={`${fieldClass} mt-1`} value={questDraft.dueAt} onChange={(event) => setQuestDraft({ ...questDraft, dueAt: event.target.value })} />
+          </label>
+        </div>
+
+        {questDraft.objectives.includes('worksheet') && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">🎁 รางวัลใช้ของระบบเดิม: ส่งใบงานครั้งแรกได้ +40 XP +25 เหรียญ (จ่ายครั้งเดียว ระบบกันรับซ้ำอยู่แล้ว) — เควสต์นี้ไม่สร้างการจ่ายรางวัลใหม่</p>}
+
+        <div className="flex flex-wrap gap-2">
+          {(!questDraft.questId || questDraft.status === 'draft') && <button type="button" className={secondary} disabled={busy} onClick={() => void submitTeacherQuest(false)}>บันทึกแบบร่าง</button>}
+          {questDraft.questId && questDraft.status !== 'draft' && <button type="button" className={primary} disabled={busy} onClick={() => void submitTeacherQuest(false)}>บันทึกเควสต์</button>}
+          {(!questDraft.questId || questDraft.status === 'draft') && <button type="button" className={primary} disabled={busy} onClick={() => void submitTeacherQuest(true)}>เผยแพร่เควสต์</button>}
+          <button type="button" className={secondary} onClick={() => { setQuestDraft(null); setQuestBaseline(null) }}>ยกเลิก</button>
+        </div>
+      </div>
+    </Modal>}
+
+    {questSubmissions && <Modal label={`งานที่นักเรียนส่ง: ${questSubmissions.quest.title}`} onClose={() => setQuestSubmissions(null)}>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <select aria-label="กรองชั้นเรียนของงานส่ง" className={fieldClass} value={submissionFilter.class} onChange={(event) => setSubmissionFilter({ ...submissionFilter, class: event.target.value })}>
+          <option value="">ทุกชั้น</option>
+          {[...new Set(questSubmissions.rows.map((row) => row.class))].sort().map((item) => <option key={item}>{item}</option>)}
+        </select>
+        <select aria-label="กรองสถานะของงานส่ง" className={fieldClass} value={submissionFilter.status} onChange={(event) => setSubmissionFilter({ ...submissionFilter, status: event.target.value })}>
+          <option value="">ทุกสถานะ</option>
+          {(Object.keys(STUDENT_STATUS_LABELS) as StudentQuestStatus[]).map((key) => <option key={key} value={key}>{STUDENT_STATUS_LABELS[key]}</option>)}
+        </select>
+        <input aria-label="ค้นหาชื่อนักเรียน" placeholder="ค้นหาชื่อนักเรียน..." className={fieldClass} value={submissionFilter.search} onChange={(event) => setSubmissionFilter({ ...submissionFilter, search: event.target.value })} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead><tr className="border-b"><th className="p-2">นักเรียน</th><th>ชั้น</th><th>สถานะ</th><th>ส่งเมื่อ</th><th>คะแนน</th><th>รางวัล</th><th>คำตอบใบงาน</th></tr></thead>
+          <tbody>
+            {questSubmissions.rows
+              .filter((row) => (!submissionFilter.class || row.class === submissionFilter.class)
+                && (!submissionFilter.status || row.status === submissionFilter.status)
+                && (!submissionFilter.search.trim() || row.name.includes(submissionFilter.search.trim())))
+              .map((row) => <tr key={row.id} className="border-b align-top">
+                <td className="p-2 font-bold">{row.avatar} {row.name}</td>
+                <td>{row.class}</td>
+                <td><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${row.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : row.status === 'READY_TO_TURN_IN' ? 'bg-amber-100 text-amber-800' : row.status === 'OVERDUE' ? 'bg-red-100 text-red-700' : row.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{STUDENT_STATUS_LABELS[row.status]}</span></td>
+                <td className="whitespace-nowrap">{row.submittedAt ? row.submittedAt.slice(0, 10) : '-'}</td>
+                <td className="whitespace-nowrap">{row.score !== null ? `${row.score}${row.maxScore ? `/${row.maxScore}` : ''}` : '-'}</td>
+                <td>{row.rewarded ? '✓ ได้รับแล้ว' : '-'}</td>
+                <td className="max-w-[280px]">{row.worksheetAnswer
+                  ? <details><summary className="cursor-pointer font-bold text-indigo-600">ดูคำตอบ</summary><p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-2">{row.worksheetAnswer}</p></details>
+                  : <span className="text-slate-400">ยังไม่ส่ง</span>}</td>
+              </tr>)}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-700">สถานะคำนวณจากข้อมูลจริงของระบบเดิม (ใบงาน + ผลการเล่นด่าน) โดยอัตโนมัติ — การปิดหรือเก็บเควสต์จะไม่ลบคำตอบของนักเรียน</p>
+    </Modal>}
 
     {analysis && <Modal label="รายงานวิเคราะห์นักเรียน" onClose={() => setAnalysis(null)}>
       <div className="mb-4 flex flex-wrap items-center gap-2">

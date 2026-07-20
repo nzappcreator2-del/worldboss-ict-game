@@ -20,7 +20,7 @@ const lesson = {
 }
 
 const bossQuestions: QuizQuestion[] = [
-  { qId: 'boss-q1', text: 'Boss question one', options: ['Wrong boss 1', 'Correct boss 1'], answer: 1, pattern: 'choice' },
+  { qId: 'boss-q1', text: 'Boss question one', options: ['Wrong boss 1', 'Correct boss 1', 'Wrong boss 3', 'Wrong boss 4'], answer: 1, pattern: 'choice' },
   { qId: 'boss-q2', text: 'Boss question two', options: ['Correct boss 2', 'Wrong boss 2'], answer: 0, pattern: 'choice' },
 ]
 
@@ -292,6 +292,11 @@ describe('LessonPage', () => {
 
     fireEvent.click(screen.getByTestId('lesson-boss-challenge'))
     await waitFor(() => expect(screen.getByTestId('lesson-boss-attack-button')).toBeTruthy())
+    // This test exercises manual timing; boss rooms now default to auto mode,
+    // so opt out explicitly before counting the three manual sword hits.
+    const bossAutoButton = screen.getByRole('button', { name: 'สลับโหมดโจมตีอัตโนมัติ' })
+    expect(bossAutoButton.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(bossAutoButton)
     expect(handlers.onStartQuiz).not.toHaveBeenCalled()
 
     vi.useFakeTimers()
@@ -315,6 +320,7 @@ describe('LessonPage', () => {
 
       expect(screen.getByTestId('lesson-boss-question-panel')).toBeTruthy()
       expect(screen.getByText('Boss question one')).toBeTruthy()
+      expect(within(screen.getByTestId('lesson-boss-question-panel')).getByTestId('boss-quiz-choices').children).toHaveLength(4)
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Correct boss 1/ }))
       })
@@ -331,6 +337,25 @@ describe('LessonPage', () => {
 
       expect(screen.getByTestId('lesson-boss-question-panel')).toBeTruthy()
       expect(screen.getByText('Boss question two')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps auto battle off in monster maps and enables it by default on entering the boss map', async () => {
+    setup(lesson, { random: () => 0, videoUnlockMs: 0 })
+    vi.useFakeTimers()
+    try {
+      act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+      const fieldAutoButton = screen.getByRole('button', { name: 'สลับโหมดโจมตีอัตโนมัติ' })
+      expect(fieldAutoButton.getAttribute('aria-pressed')).toBe('false')
+
+      await enterBossRoom()
+      fireEvent.click(screen.getByRole('button', { name: 'ท้าทายบอสบทเรียน' }))
+      await act(() => vi.advanceTimersByTimeAsync(0))
+
+      expect(screen.getByRole('button', { name: 'สลับโหมดโจมตีอัตโนมัติ' }).getAttribute('aria-pressed')).toBe('true')
+      expect(screen.getByText('AUTO')).toBeTruthy()
     } finally {
       vi.useRealTimers()
     }

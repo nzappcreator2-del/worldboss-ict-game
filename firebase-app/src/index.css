@@ -209,7 +209,9 @@
      ride up into the logo art on short viewports. */
   justify-content: center;
   gap: 16px;
-  padding-top: clamp(140px, 24vh, 250px);
+  padding-top: clamp(100px, 18vh, 185px);
+  /* Keep the painted LMS subtitle readable on compact desktop viewports. */
+  transform: translateY(-30px);
   box-sizing: border-box;
 }
 
@@ -316,8 +318,8 @@
 
 .adventure-chooser h1 span { color: #8ed3ff; }
 
-/* Hero select: two live LPC sprite previews (walk-down cycle straight from the
-   in-game sheets) framed like a character-creation screen. */
+/* Hero select: polished 3D academy portraits. The gameplay paper-doll sprites
+   remain untouched and still power movement/combat after registration. */
 .adventure-heroes {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -353,19 +355,23 @@
   overflow: hidden;
   border: 4px solid #d9af72;
   border-radius: 30px 30px 14px 14px;
-  background:
-    radial-gradient(circle at 50% 118%, rgba(255, 244, 190, .5), transparent 58%),
-    linear-gradient(#8ec3ec 0%, #b9def5 44%, #6faf58 45%, #48813a 78%, #37662d 100%);
-  box-shadow: inset 0 0 0 3px #615142, inset 0 -14px 22px rgba(16, 40, 12, .34);
+  background: #1c3153;
+  box-shadow: inset 0 0 0 3px #615142, inset 0 -14px 22px rgba(16, 40, 12, .34), 0 0 22px rgba(92, 191, 255, .2);
 }
 
-/* Per-hero scene tint so the two cards read as distinct picks at a glance. */
-.adventure-hero.male .hero-stage { background:
-  radial-gradient(circle at 50% 118%, rgba(214, 240, 255, .55), transparent 58%),
-  linear-gradient(#8ec3ec 0%, #b9def5 44%, #6faf58 45%, #48813a 78%, #37662d 100%); }
-.adventure-hero.female .hero-stage { background:
-  radial-gradient(circle at 50% 118%, rgba(255, 226, 240, .55), transparent 58%),
-  linear-gradient(#efb6d5 0%, #f7d8e9 44%, #6faf58 45%, #48813a 78%, #37662d 100%); }
+.hero-portrait-backdrop,
+.hero-portrait {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hero-portrait-backdrop { object-fit: cover; transform: scale(1.12); filter: blur(10px) saturate(1.15) brightness(.75); }
+.hero-portrait { z-index: 2; object-fit: cover; object-position: center 27%; filter: drop-shadow(0 10px 10px rgba(4, 14, 30, .55)); transition: transform .24s ease, filter .24s ease; }
+.adventure-hero.male .hero-portrait { object-position: center 13%; }
 
 .hero-stage-glow {
   position: absolute;
@@ -378,37 +384,8 @@
 .adventure-hero.selected .hero-stage-glow,
 .adventure-hero:hover:not(:disabled) .hero-stage-glow { opacity: 1; }
 
-.hero-sprite {
-  position: relative;
-  z-index: 2;
-  width: 92px;
-  height: 92px;
-  margin-top: 12px;
-  background-repeat: no-repeat;
-  background-position-x: 0;
-  image-rendering: pixelated;
-}
-
-/* 9 walk-down frames, columns 0-8 of the LPC grid: 9 steps across -828px. */
-.adventure-hero.selected .hero-sprite,
-.adventure-hero:hover:not(:disabled) .hero-sprite {
-  animation: hero-walk-cycle .95s steps(9) infinite;
-}
-
-@keyframes hero-walk-cycle {
-  from { background-position-x: 0; }
-  to { background-position-x: -828px; }
-}
-
-.hero-sprite-shadow {
-  position: absolute;
-  z-index: 1;
-  bottom: 14%;
-  width: 52px;
-  height: 13px;
-  border-radius: 50%;
-  background: radial-gradient(rgba(9, 26, 8, .5), transparent 70%);
-}
+.adventure-hero.selected .hero-portrait,
+.adventure-hero:hover:not(:disabled) .hero-portrait { transform: scale(1.035) translateY(-2px); filter: drop-shadow(0 12px 12px rgba(4, 14, 30, .58)) brightness(1.04); }
 
 .hero-selected-badge {
   position: absolute;
@@ -597,7 +574,7 @@
     width: min(680px, calc(100% - 28px));
     padding-top: 280px;
   }
-  .adventure-fields { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .adventure-fields { display: grid; grid-template-columns: repeat(2, 1fr); transform: none; }
   .adventure-field-panel { min-height: 94px; }
   .adventure-new-player { grid-column: 1 / -1; }
 }
@@ -709,8 +686,7 @@
     border-radius: 20px 20px 10px 10px;
   }
 
-  .hero-sprite { transform: scale(.78); margin-top: 4px; }
-  .hero-sprite-shadow { bottom: 17%; transform: scale(.78); }
+  .hero-portrait { object-position: center; }
   .hero-selected-badge { font-size: 10px; padding: 3px 7px 4px; }
 
   .hero-nameplate {
@@ -760,7 +736,7 @@
 @media (prefers-reduced-motion: reduce) {
   .adventure-hero, .adventure-start, .adventure-admin { transition: none; }
   .adventure-new-player { animation: none; }
-  .adventure-hero .hero-sprite { animation: none; }
+  .adventure-hero .hero-portrait { transition: none; }
 }
 
 /* Mode selection remake. Kept fully scoped so legacy pages are unaffected. */
@@ -2376,8 +2352,14 @@
 .lesson-boss-encounter[data-enrage='true']::before { content: '🔥 โกรธจัด!'; position: absolute; z-index: 9; top: -86px; left: 50%; padding: 6px 14px; transform: translateX(-50%) rotate(-3deg); border: 2px solid #ff5a45; border-radius: 99px; background: #3d0b0bee; color: #ffd2bd; font-size: 17px; font-weight: 1000; text-shadow: 0 1px 2px #000; animation: lesson-rare-ring .8s ease-in-out infinite; }
 .lesson-boss-hud { position: absolute; left: 50%; top: -62px; display: grid; min-width: 300px; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 10px 12px; transform: translateX(-50%); border: 3px solid #9b6a36; border-radius: 12px; background: #100c16e8; color: white; box-shadow: inset 0 0 0 2px #2d1b15, 0 8px 22px #0008; font-size: 17px; text-shadow: 0 2px #000; }
 .lesson-boss-hud b { color: #ffe9a6; }.lesson-boss-hud strong { min-width: 56px; text-align: right; }.lesson-boss-hud span { display: block; width: 82px; height: 10px; overflow: hidden; border: 1px solid #5a221c; border-radius: 99px; background: #2a1014; box-shadow: inset 0 2px 5px #0008; }.lesson-boss-hud i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff5a55, #ffb347); box-shadow: 0 0 10px #ff665980; }.lesson-boss-hud small { grid-column: 1 / -1; color: #8ce9ff; font-size: 15px; font-weight: 900; text-align: center; }.lesson-boss-hud.error { display: block; min-width: 260px; color: #ffd1d1; text-align: center; }
-.lesson-boss-question-panel, .lesson-boss-result-panel { position: absolute; z-index: 24; left: 50%; bottom: 86px; width: min(680px, calc(100% - 28px)); max-height: 52vh; overflow: auto; padding: 28px 32px; transform: translateX(-50%); border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; text-align: center; }
-.lesson-boss-question-panel small { color: #8b572a; font-weight: 900; font-size: 16px; }.lesson-boss-question-panel h3 { margin: 7px 0 15px; font-size: 31px; }.lesson-boss-question-panel img { max-height: 180px; margin: 0 auto 14px; border-radius: 12px; object-fit: contain; }
+.lesson-boss-question-panel, .lesson-boss-result-panel { position: absolute; z-index: 24; left: 50%; bottom: clamp(74px, 9vh, 96px); width: min(820px, calc(100% - 28px)); max-height: min(72vh, 650px); overflow: auto; padding: clamp(30px, 4vw, 46px); transform: translateX(-50%); border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; text-align: center; box-sizing: border-box; }
+.lesson-boss-question-panel { top: 50%; bottom: auto; max-height: calc(100vh - 28px); transform: translate(-50%, -50%); }
+.lesson-boss-question-panel small { display: block; color: #8b572a; font-weight: 900; font-size: clamp(12px, 1.7vw, 16px); }.lesson-boss-question-panel h3 { max-width: 720px; margin: 8px auto 18px; color: #3f2516; font-size: clamp(21px, 3.2vw, 34px); line-height: 1.35; overflow-wrap: anywhere; }.lesson-boss-question-panel img { max-width: 100%; max-height: 150px; margin: 0 auto 14px; border-radius: 12px; object-fit: contain; }
+.lesson-boss-question-panel .boss-quiz-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(10px, 1.8vw, 16px); width: 100%; margin-top: 0; }
+.lesson-boss-question-panel .quiz-choice-option { min-width: 0; min-height: clamp(72px, 10vh, 98px); padding: clamp(10px, 1.8vw, 17px); gap: 10px; border: 2px solid rgba(255,255,255,.28); border-radius: 17px; font-size: clamp(14px, 2vw, 19px); line-height: 1.35; transform: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 7px 12px rgba(70,39,17,.24); overflow: hidden; }
+.lesson-boss-question-panel .quiz-choice-option:hover { transform: translateY(-2px); }
+.lesson-boss-question-panel .quiz-choice-option > span:first-child { width: clamp(34px, 5vw, 46px); height: clamp(34px, 5vw, 46px); flex: 0 0 auto; }
+.lesson-boss-question-panel .quiz-choice-copy { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .lesson-boss-result-panel span { display: block; font-size: 54px; }
 /* The chest gets its own landing keyframes: lesson-drop-land ends on a
    translate(-50%,-50%) meant for absolutely-positioned ground drops, which
@@ -2824,7 +2806,16 @@
 
 /* PlayerProfile: "Hero's Ledger" character sheet — dark wood/gold panels laid on the cream
    parchment of .dashboard-feature-panel, matching the Shop/Inventory/Lesson HUD RO chrome. */
-.ro-profile-page { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 18px; padding-bottom: 110px; overflow-y: auto; overflow-x: hidden; }
+.ro-profile-page { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 18px; padding-bottom: 110px; overflow-y: auto; overflow-x: hidden; background: radial-gradient(circle at 12% 0, rgba(49, 133, 219, .14), transparent 34%), linear-gradient(#100c17, #17101a); color: #f6eac8; }
+.ro-profile-command-header { position: relative; min-height: 184px; margin-bottom: 18px; overflow: hidden; flex-shrink: 0; border: 4px solid #a87532; border-radius: 24px; background: #101625; box-shadow: inset 0 0 0 3px #392414, 0 15px 32px #0008; }
+.ro-profile-command-header > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; filter: brightness(.72) saturate(1.08); }
+.ro-profile-command-header::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 12, 24, .12), rgba(8, 12, 24, .9) 62%, rgba(8, 12, 24, .82)); pointer-events: none; }
+.ro-profile-command-copy { position: relative; z-index: 2; display: flex; max-width: 52%; min-height: 184px; margin-left: auto; padding: 32px 100px 28px 24px; flex-direction: column; justify-content: center; }
+.ro-profile-command-copy > span, .certificate-hero-copy > span, .leaderboard-hero-copy > span { color: #7edcff; font-size: 11px; font-weight: 1000; letter-spacing: .18em; }
+.ro-profile-command-copy h1, .certificate-hero-copy h1, .leaderboard-hero-copy h1 { margin: 4px 0; color: #fff0ad; font-size: clamp(25px, 3vw, 40px); font-weight: 1000; line-height: 1.08; text-shadow: 0 3px 4px #000; }
+.ro-profile-command-copy p, .certificate-hero-copy p, .leaderboard-hero-copy p { margin: 5px 0 0; color: #d4e8ff; font-size: 13px; font-weight: 700; line-height: 1.45; }
+.feature-close-button { position: absolute; z-index: 8; top: 14px; right: 14px; display: flex; min-width: 68px; height: 42px; padding: 0 12px; align-items: center; justify-content: center; gap: 5px; border: 3px solid #edc86f; border-radius: 12px; background: linear-gradient(#5f3428, #2b1820); color: #fff2c9; box-shadow: inset 0 0 0 2px #2b1412, 0 5px 10px #0008; font: 900 12px "Prompt", sans-serif; cursor: pointer; }
+.feature-close-button > span { font-size: 23px; line-height: 1; }.feature-close-button:hover { filter: brightness(1.18); transform: translateY(-1px); }.feature-close-button:active { transform: translateY(2px); }
 .ro-profile-status-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 256px; color: #6b4a26; font-weight: 900; text-align: center; }
 .ro-profile-spinner { width: 34px; height: 34px; border: 4px solid #d8b16d; border-top-color: #9b622d; border-radius: 99px; animation: ro-profile-spin .8s linear infinite; }
 @keyframes ro-profile-spin { to { transform: rotate(360deg); } }
@@ -2901,6 +2892,11 @@
 
 @media (max-width: 700px) {
   .ro-profile-page { padding: 12px; padding-bottom: 90px; }
+  .ro-profile-command-header { min-height: 150px; }
+  .ro-profile-command-header > img { object-position: 35% center; }
+  .ro-profile-command-copy { max-width: 70%; min-height: 150px; padding: 48px 12px 16px 18px; }
+  .ro-profile-command-copy p { display: none; }
+  .feature-close-button { top: 9px; right: 9px; min-width: 44px; width: 44px; height: 38px; padding: 0; }.feature-close-button b { display: none; }
   .ro-profile-header { padding: 14px; gap: 14px; }
   .ro-profile-avatar { width: 76px; height: 76px; font-size: 40px; }
   .ro-profile-level-badge { min-width: 26px; height: 26px; font-size: 12px; }
@@ -2913,6 +2909,46 @@
   .ro-profile-status-grid { grid-template-columns: 1fr; }
   .ro-profile-effect-row { grid-template-columns: repeat(2, 1fr); }
   .ro-profile-badge-case { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+}
+
+/* Production fantasy feature windows: certificate gallery + rankings. */
+.certificate-page, .leaderboard-page { width: 100%; height: 100%; overflow: hidden; background: #0d101c; color: #f6eac8; }
+.certificate-window, .leaderboard-window { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; background: linear-gradient(160deg, #14131d, #0d101a); }
+.certificate-hero, .leaderboard-hero { position: relative; min-height: 210px; overflow: hidden; flex-shrink: 0; border-bottom: 4px solid #b17b32; background: #101625; box-shadow: 0 10px 28px #0008; }
+.certificate-hero > img, .leaderboard-hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.certificate-hero::after, .leaderboard-hero::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.certificate-hero::after { background: linear-gradient(90deg, rgba(6,14,18,.03), rgba(6,14,18,.76) 58%, rgba(6,14,18,.86)); }
+.leaderboard-hero::after { background: linear-gradient(90deg, rgba(5,9,26,.04), rgba(5,9,26,.65) 53%, rgba(5,9,26,.9)); }
+.certificate-hero-copy, .leaderboard-hero-copy { position: relative; z-index: 2; display: flex; width: min(48%, 520px); min-height: 210px; margin-left: auto; padding: 34px 100px 42px 26px; flex-direction: column; justify-content: center; }
+.certificate-hero-copy > span { color: #9df5b4; }
+.certificate-content { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(250px, .72fr) minmax(420px, 1.6fr); gap: 20px; overflow-y: auto; padding: 22px 24px 112px; background: radial-gradient(circle at 6% 0, rgba(54,148,98,.16), transparent 34%); }
+.certificate-status-card { align-self: start; padding: 24px; border: 3px solid #986930; border-radius: 22px; background: linear-gradient(145deg, #282019, #120f11); box-shadow: inset 0 0 0 2px #4d341c, 0 12px 28px #0007; text-align: center; }
+.certificate-seal { display: grid; place-items: center; width: 82px; height: 82px; margin: 0 auto 10px; border: 5px double #f0c868; border-radius: 50%; background: radial-gradient(circle, #227a54, #10291f); color: #ffe596; font-size: 37px; box-shadow: 0 0 22px rgba(72,220,147,.34); }
+.certificate-status-card h2 { margin: 0; color: #ffe8a4; font-size: 23px; }.certificate-status-card > p { margin: 8px 0 18px; color: #c9bca6; font-size: 12px; line-height: 1.6; }
+.certificate-status { padding: 12px; border: 2px solid #604725; border-radius: 12px; background: #0f1210; color: #d8c9ab; font-size: 13px; font-weight: 900; }
+.certificate-status-ready { border-color: #3ca86c; color: #91f1ae; }.certificate-status-locked { border-color: #b07a30; color: #ffd37b; }.certificate-status-error { border-color: #9e443c; color: #ffaaa1; }
+.certificate-retry, .leaderboard-status button { margin-top: 14px; padding: 10px 20px; border: 2px solid #efc260; border-radius: 10px; background: linear-gradient(#6b4522, #2e1b14); color: #fff0b1; font-weight: 900; cursor: pointer; }
+.certificate-actions { display: grid; gap: 10px; margin-top: 15px; }.certificate-actions button, .certificate-actions a { display: flex; min-height: 46px; padding: 9px 12px; align-items: center; justify-content: center; border: 3px solid #d9ad4e; border-radius: 12px; background: linear-gradient(#b97924, #6f3918); color: #fff7d5; font-size: 13px; font-weight: 1000; text-decoration: none; box-shadow: inset 0 0 0 2px #543018, 0 5px 0 #2a1810; }.certificate-actions a { border-color: #65c58a; background: linear-gradient(#277e54, #174b36); }
+.certificate-canvas-frame { position: relative; align-self: start; padding: 12px; border: 5px solid #b68035; border-radius: 22px; background: linear-gradient(135deg, #e7c979, #72481f); box-shadow: inset 0 0 0 3px #412715, 0 18px 36px #0008; }
+.certificate-canvas-frame::before, .certificate-canvas-frame::after { content: '◆'; position: absolute; z-index: 2; color: #fff1a6; font-size: 20px; text-shadow: 0 2px #56310e; }.certificate-canvas-frame::before { top: 4px; left: 7px; }.certificate-canvas-frame::after { right: 7px; bottom: 4px; }
+.certificate-canvas-frame canvas { display: block; width: 100%; max-width: 800px; height: auto; border: 2px solid #4c2d16; border-radius: 12px; background: #fffdf3; }
+
+.leaderboard-hero-copy { padding-bottom: 56px; }.leaderboard-tabs { position: absolute; z-index: 5; right: 24px; bottom: 14px; display: flex; gap: 8px; padding: 5px; border: 2px solid #8e642d; border-radius: 14px; background: rgba(8,13,30,.82); box-shadow: inset 0 0 0 1px #2c1c13; }.leaderboard-tabs button { padding: 9px 16px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #c8d7f3; font-size: 12px; font-weight: 900; cursor: pointer; }.leaderboard-tabs button.active { border-color: #f1ca68; background: linear-gradient(#c7892b, #72431d); color: #fff5cf; box-shadow: 0 3px 8px #0007; }
+.leaderboard-content { min-height: 0; flex: 1; overflow-y: auto; padding: 22px 26px 112px; background: radial-gradient(circle at 0 0, rgba(47,98,202,.18), transparent 34%), linear-gradient(#111420, #0b0f19); }
+.leaderboard-podium { display: grid; max-width: 820px; margin: 0 auto 22px; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; align-items: end; }
+.leaderboard-podium article { position: relative; display: flex; min-width: 0; min-height: 168px; padding: 21px 12px 14px; flex-direction: column; align-items: center; justify-content: flex-end; overflow: hidden; border: 3px solid #6f5435; border-radius: 22px 22px 11px 11px; background: linear-gradient(165deg, #242a42, #111525); box-shadow: inset 0 0 0 2px #343b59, 0 12px 20px #0007; text-align: center; }
+.leaderboard-podium article[data-place='1'] { min-height: 204px; order: 2; border-color: #efc757; background: radial-gradient(circle at 50% 12%, rgba(255,214,76,.28), transparent 38%), linear-gradient(#4b3926, #151724); }.leaderboard-podium article[data-place='2'] { order: 1; border-color: #a9c4df; }.leaderboard-podium article[data-place='3'] { order: 3; border-color: #c27b49; }.leaderboard-podium article.mine { box-shadow: inset 0 0 0 2px #77d6ff, 0 0 22px rgba(83,193,255,.6), 0 12px 20px #0007; }
+.leaderboard-medal { position: absolute; top: 8px; left: 10px; color: #ffd668; font-size: 25px; }.leaderboard-avatar { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 7px; border: 3px solid #d4ad5b; border-radius: 50%; background: radial-gradient(circle, #314473, #10172c); font-size: 31px; box-shadow: 0 0 14px #6abfff55; }.leaderboard-podium h2 { max-width: 100%; margin: 0; overflow: hidden; color: #fff0bd; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.leaderboard-podium p { margin: 2px 0; color: #80ddff; font-size: 12px; font-weight: 900; }.leaderboard-podium article > b { color: #d1c5a9; font-size: 10px; }
+.leaderboard-list { display: grid; max-width: 920px; margin: 0 auto; gap: 9px; }.leaderboard-row { display: grid; min-height: 70px; padding: 9px 14px; grid-template-columns: 46px 52px minmax(0,1fr) auto; align-items: center; gap: 10px; border: 2px solid #3b4764; border-radius: 15px; background: linear-gradient(90deg, rgba(31,38,59,.96), rgba(18,23,38,.96)); box-shadow: inset 0 1px rgba(255,255,255,.04), 0 6px 12px #0005; }.leaderboard-row.mine { border-color: #57c6f2; background: linear-gradient(90deg, rgba(24,72,99,.96), rgba(18,23,38,.96)); box-shadow: 0 0 16px rgba(52,184,237,.2); }.leaderboard-place { color: #d9b962; font-size: 22px; font-weight: 1000; text-align: center; }.leaderboard-row-avatar { display: grid; place-items: center; width: 44px; height: 44px; border: 2px solid #77613d; border-radius: 12px; background: #101625; font-size: 23px; }.leaderboard-row-copy { min-width: 0; }.leaderboard-row-copy h3 { margin: 0; overflow: hidden; color: #f8edcc; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.leaderboard-row-copy h3 span { margin-left: 5px; padding: 2px 7px; border: 1px solid #5cc9f2; border-radius: 99px; background: #173d5c; color: #8de4ff; font-size: 9px; }.leaderboard-row-copy p { margin: 3px 0 0; color: #9faec5; font-size: 10px; }.leaderboard-score { display: flex; flex-direction: column; align-items: flex-end; }.leaderboard-score b { color: #79d8ff; font-size: 15px; }.leaderboard-score span { color: #919bb0; font-size: 9px; }
+.leaderboard-status { display: flex; min-height: 300px; flex-direction: column; align-items: center; justify-content: center; text-align: center; }.leaderboard-status > span { font-size: 58px; filter: drop-shadow(0 8px 10px #000); }.leaderboard-status > span.spinning { animation: ro-profile-spin 1.2s linear infinite; }.leaderboard-status h2 { margin: 10px 0 2px; color: #ffe8a4; font-size: 24px; }.leaderboard-status p { margin: 0; color: #a9b5ca; font-size: 12px; }
+
+@media (max-width: 760px) {
+  .certificate-hero, .leaderboard-hero { min-height: 170px; }.certificate-hero > img { object-position: 36% center; }.leaderboard-hero > img { object-position: 31% center; }
+  .certificate-hero-copy, .leaderboard-hero-copy { width: 70%; min-height: 170px; padding: 46px 10px 48px 18px; }.certificate-hero-copy p, .leaderboard-hero-copy p { display: none; }
+  .certificate-content { grid-template-columns: 1fr; padding: 14px 14px 90px; }.certificate-status-card { padding: 17px; }.certificate-seal { width: 62px; height: 62px; font-size: 29px; }
+  .leaderboard-tabs { right: 10px; bottom: 9px; }.leaderboard-tabs button { padding: 7px 10px; font-size: 10px; }.leaderboard-content { padding: 14px 12px 90px; }
+  .leaderboard-podium { gap: 6px; }.leaderboard-podium article { min-height: 142px; padding-inline: 5px; }.leaderboard-podium article[data-place='1'] { min-height: 168px; }.leaderboard-avatar { width: 48px; height: 48px; font-size: 23px; }.leaderboard-podium h2 { font-size: 11px; }.leaderboard-podium p { font-size: 9px; }
+  .leaderboard-row { grid-template-columns: 34px 42px minmax(0,1fr) auto; padding: 7px 8px; gap: 7px; }.leaderboard-place { font-size: 17px; }.leaderboard-row-avatar { width: 38px; height: 38px; font-size: 20px; }.leaderboard-row-copy h3 { font-size: 12px; }.leaderboard-score b { font-size: 11px; }
 }
 
 /* AI Motion Arcade — reference-backed minigame hub */
@@ -3184,4 +3220,442 @@
   .arcade-game-card__art b,
   .arcade-game-card__orbit,
   .arcade-game-card__art > i { animation: none !important; }
+}
+
+/* --- ครูวีรภัทร์ — teacher NPC quest giver on the adventure map ------------ */
+
+/* Below the hub walkable character (z 30) so the player passes in front of
+   the teacher when strolling across the carpet. */
+.teacher-npc-anchor {
+  position: absolute;
+  z-index: 29;
+  transform: translate(-50%, -92%);
+}
+
+.teacher-npc {
+  position: relative;
+  display: block;
+  width: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* Real sprite-sheet animation (size + frame crop are inline styles computed
+   by teacherNpcSprite.ts from the generated atlas geometry). The art is
+   painterly, not pixel art — keep default smoothing, no image-rendering. */
+.teacher-npc-art {
+  position: relative;
+  z-index: 2;
+  display: block;
+  filter: drop-shadow(0 8px 5px rgba(0, 0, 0, .5));
+}
+
+.teacher-npc:hover .teacher-npc-art, .teacher-npc:focus-visible .teacher-npc-art { filter: drop-shadow(0 8px 5px rgba(0, 0, 0, .5)) brightness(1.12); }
+.teacher-npc:focus-visible { outline: 3px solid #59d9ff; outline-offset: 4px; border-radius: 14px; }
+
+.teacher-npc-shadow {
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  z-index: 1;
+  width: 66px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, .18) 55%, transparent 72%);
+  box-shadow: 0 0 18px 4px rgba(120, 200, 255, .22);
+  transform: translateX(-50%);
+}
+
+.teacher-npc-name {
+  position: absolute;
+  top: -34px;
+  left: 50%;
+  z-index: 3;
+  display: block;
+  padding: 2px 11px;
+  border: 1px solid rgba(201, 154, 82, .55);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(10, 12, 20, .84), rgba(11, 13, 20, .72));
+  color: #ffe9a6;
+  font-family: "Prompt", system-ui, sans-serif;
+  text-align: center;
+  text-shadow: 0 2px 2px #000;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.teacher-npc-name b { display: block; font-size: 14px; font-weight: 1000; }
+.teacher-npc-name small { display: block; margin-top: -2px; color: #9fd8ff; font-size: 10px; font-weight: 800; }
+
+.teacher-npc-marker {
+  position: absolute;
+  top: -66px;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 21px;
+  font-weight: 1000;
+  transform: translateX(-50%);
+  animation: teacher-marker-float 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.teacher-npc-marker[data-marker="new"] {
+  background: radial-gradient(circle at 34% 30%, #ffe9a6, #e8a825 68%);
+  box-shadow: 0 0 14px 3px rgba(255, 205, 82, .75), 0 3px 4px rgba(0, 0, 0, .5);
+  color: #5a3410;
+}
+
+.teacher-npc-marker[data-marker="ready"] {
+  background: radial-gradient(circle at 34% 30%, #d6ffd9, #2fa858 68%);
+  box-shadow: 0 0 17px 5px rgba(94, 233, 138, .8), 0 3px 4px rgba(0, 0, 0, .5);
+  color: #0d3a1c;
+  animation: teacher-marker-float 1.4s ease-in-out infinite, teacher-marker-pulse 1.4s ease-in-out infinite;
+}
+
+.teacher-npc-marker[data-marker="working"] {
+  background: radial-gradient(circle at 34% 30%, #dfe9ff, #5b7bd8 68%);
+  box-shadow: 0 0 10px 2px rgba(120, 160, 255, .5), 0 3px 4px rgba(0, 0, 0, .5);
+  color: #16224a;
+  font-size: 17px;
+}
+
+.teacher-npc-speech {
+  position: absolute;
+  bottom: 108%;
+  left: 74%;
+  z-index: 5;
+  width: max-content;
+  max-width: 190px;
+  padding: 7px 12px;
+  border: 2px solid #b47a3d;
+  border-radius: 12px 12px 12px 3px;
+  background: linear-gradient(#fff8e3, #ffedbe);
+  box-shadow: 0 4px 9px rgba(0, 0, 0, .45);
+  color: #5a3410;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  animation: teacher-speech-in .25s ease-out;
+  pointer-events: none;
+}
+
+.teacher-npc-speech.hint { border-color: #59d9ff; background: linear-gradient(#e9f8ff, #c8ecff); color: #114a66; }
+
+/* Compact teacher-quest tracker: slots directly under the hub quest panel
+   (.hub-quest-tracker at top 33% + header ~32px + two 62px entries + gaps)
+   so the left rail reads as one quest column. */
+.teacher-quest-tracker {
+  position: absolute;
+  top: calc(33% + 178px);
+  left: 14px;
+  z-index: 40;
+  display: flex;
+  width: 262px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 13px;
+  border: 2px solid #6b4a26;
+  border-left: 4px solid #ffd76d;
+  border-radius: 12px;
+  background: linear-gradient(105deg, rgba(20, 19, 27, .84), rgba(11, 13, 20, .8));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 4px 10px rgba(0, 0, 0, .4);
+  color: #fff2c9;
+  font-family: "Prompt", system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: filter .15s ease, transform .15s ease;
+}
+
+.teacher-quest-tracker:hover { filter: brightness(1.15); transform: translateX(3px); }
+.teacher-quest-tracker b { color: #ffd76d; font-size: 14px; font-weight: 1000; text-shadow: 0 2px 2px #000; }
+.teacher-quest-tracker b span { color: #52caff; }
+.teacher-quest-tracker small { color: #d9cbac; font-size: 12px; font-weight: 700; }
+.teacher-quest-tracker small[data-done="true"] { color: #8ce9a9; text-decoration: line-through; }
+.teacher-quest-tracker small i { display: inline-block; width: 15px; font-style: normal; font-weight: 1000; }
+.teacher-quest-tracker em { margin-top: 4px; color: #8ce9ff; font-size: 12px; font-style: normal; font-weight: 900; }
+
+/* New-quest toast, top-center, closable, never blocks the stage. */
+.teacher-quest-toast {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  border: 2px solid #b47a3d;
+  border-radius: 999px;
+  background: linear-gradient(#2a2418, #17130b);
+  box-shadow: 0 0 16px 2px rgba(255, 205, 82, .4), 0 6px 14px rgba(0, 0, 0, .55);
+  color: #ffe9a6;
+  font-family: "Prompt", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 1000;
+  text-shadow: 0 1px 2px #000;
+  transform: translateX(-50%);
+  cursor: pointer;
+  animation: teacher-toast-in .3s ease-out;
+}
+
+.teacher-quest-toast i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .14);
+  font-size: 15px;
+  font-style: normal;
+}
+
+/* RPG dialogue window shared with the quest detail card. */
+.npc-dialogue-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: radial-gradient(circle, rgba(9, 28, 49, .55), rgba(2, 7, 14, .9));
+  backdrop-filter: blur(4px);
+}
+
+.npc-dialogue-panel {
+  position: relative;
+  width: min(470px, calc(100vw - 26px));
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 26px 30px 24px;
+  border-radius: 18px;
+  background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .8);
+  color: #4b2b17;
+  font-family: "Prompt", system-ui, sans-serif;
+}
+
+.npc-dialogue-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 3px solid #712b1d;
+  border-radius: 50%;
+  background: #b7442e;
+  color: #fff7dc;
+  font-size: 22px;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.npc-dialogue-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+
+.npc-dialogue-portrait {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 72px;
+  flex-shrink: 0;
+  border: 2px solid #b47a3d;
+  border-radius: 12px;
+  background: linear-gradient(#fdf3d0, #f0d9a2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55);
+  overflow: hidden;
+}
+
+.npc-dialogue-portrait i { display: block; }
+.npc-dialogue-header b { display: block; font-size: 21px; font-weight: 1000; }
+.npc-dialogue-header small { color: #8b4a24; font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+
+.npc-quest-switcher { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+
+.npc-quest-switcher button {
+  padding: 4px 11px;
+  border: 2px solid #b47a3d;
+  border-radius: 999px;
+  background: rgba(255, 243, 207, .5);
+  color: #7a4a1e;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.npc-quest-switcher button.active { background: linear-gradient(#ffe9ad, #eec25f); color: #5a3410; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
+
+.npc-quest-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.npc-quest-heading h3 { margin: 0; font-size: 19px; font-weight: 1000; }
+
+.npc-quest-status {
+  padding: 2px 11px;
+  border-radius: 999px;
+  background: #6b4a26;
+  color: #ffe9a6;
+  font-size: 11px;
+  font-weight: 1000;
+}
+
+.npc-quest-status[data-status="AVAILABLE"] { background: #b7442e; }
+.npc-quest-status[data-status="READY_TO_TURN_IN"] { background: #1d7c40; }
+.npc-quest-status[data-status="COMPLETED"] { background: #3a6b9c; }
+.npc-quest-status[data-status="OVERDUE"] { background: #8a2f2f; }
+
+.npc-quest-due { margin: 4px 0 0; color: #8b4a24; font-size: 12px; font-weight: 900; }
+
+.npc-dialogue-message {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(94, 53, 23, .3);
+  border-radius: 10px;
+  background: rgba(255, 243, 207, .48);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.npc-dialogue-error {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 2px solid #b7442e;
+  border-radius: 10px;
+  background: rgba(255, 214, 199, .65);
+  color: #7c2416;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.npc-dialogue-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+
+.npc-btn {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 3px solid #b47a3d;
+  border-radius: 11px;
+  background: linear-gradient(#fff3cf, #ecd9a4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 3px 0 #8a5c2b;
+  color: #5a3410;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 1000;
+  cursor: pointer;
+  transition: filter .12s ease, transform .12s ease;
+}
+
+.npc-btn:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1px); }
+.npc-btn:disabled { opacity: .6; cursor: wait; }
+
+.npc-btn.primary {
+  border-color: #dc9850;
+  background: linear-gradient(#c95733, #852719);
+  box-shadow: inset 0 0 0 2px #6d2418, 0 3px 0 #421b11;
+  color: #fff5d3;
+  text-shadow: 0 1px #4a160e;
+}
+
+.npc-quest-detail dl { display: grid; gap: 4px; margin: 10px 0; }
+.npc-quest-detail dl > div { display: flex; gap: 8px; align-items: baseline; }
+.npc-quest-detail dt { flex-shrink: 0; color: #8b4a24; font-size: 12px; font-weight: 1000; }
+.npc-quest-detail dd { margin: 0; font-size: 14px; font-weight: 700; }
+.npc-quest-detail h4 { margin: 10px 0 4px; font-size: 14px; font-weight: 1000; letter-spacing: .05em; }
+
+.npc-quest-objectives { display: grid; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; }
+.npc-quest-objectives li { display: flex; gap: 7px; align-items: center; font-size: 14px; font-weight: 800; }
+.npc-quest-objectives li i { display: grid; place-items: center; width: 21px; height: 21px; border: 2px solid #b47a3d; border-radius: 50%; background: rgba(255, 243, 207, .6); font-size: 12px; font-style: normal; font-weight: 1000; }
+.npc-quest-objectives li[data-done="true"] { color: #1d7c40; }
+.npc-quest-objectives li[data-done="true"] i { border-color: #1d7c40; background: #d6ffd9; color: #1d7c40; }
+
+.npc-quest-rewards { margin: 0 0 8px; padding: 9px 12px; border: 2px solid #b47a3d; border-radius: 10px; background: linear-gradient(#ffe9ad, #eec25f); font-size: 13px; font-weight: 800; }
+
+/* Quest complete overlay — MMORPG victory card. */
+.npc-celebration-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 230;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: radial-gradient(circle, rgba(48, 34, 5, .6), rgba(5, 4, 1, .92));
+  backdrop-filter: blur(3px);
+}
+
+.npc-celebration-panel {
+  position: relative;
+  width: min(400px, calc(100vw - 30px));
+  padding: 34px 30px 26px;
+  border-radius: 18px;
+  background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat;
+  box-shadow: 0 0 40px 6px rgba(255, 205, 82, .35), 0 24px 70px rgba(0, 0, 0, .8);
+  color: #4b2b17;
+  font-family: "Prompt", system-ui, sans-serif;
+  text-align: center;
+  animation: teacher-celebrate-in .35s cubic-bezier(.2, 1.4, .4, 1);
+}
+
+.npc-celebration-sprite { display: block; margin: 0 auto 2px; }
+.npc-celebration-sprite i { display: block; margin: 0 auto; filter: drop-shadow(0 6px 5px rgba(90, 52, 16, .35)); }
+
+.npc-celebration-panel h3 { margin: 0; color: #8a5c10; font-size: 31px; font-weight: 1000; text-shadow: 0 1px 0 #fff3cf; }
+.npc-celebration-title { margin: 8px 0 2px; font-size: 16px; font-weight: 1000; }
+
+.npc-celebration-sparkles { position: absolute; inset: 8px 14px auto; display: flex; justify-content: space-between; pointer-events: none; }
+.npc-celebration-sparkles i { color: #d8a92c; font-style: normal; animation: teacher-sparkle 1.3s ease-in-out infinite; }
+.npc-celebration-sparkles i:nth-child(2n) { animation-delay: .45s; }
+.npc-celebration-sparkles i:nth-child(3n) { animation-delay: .8s; }
+
+.npc-celebration-rewards { display: flex; justify-content: center; gap: 9px; margin: 13px 0 6px; }
+
+.npc-celebration-rewards span {
+  padding: 7px 15px;
+  border: 2px solid #b47a3d;
+  border-radius: 999px;
+  background: linear-gradient(#ffe9ad, #eec25f);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55);
+  font-size: 14px;
+  font-weight: 1000;
+  animation: teacher-reward-pop .45s cubic-bezier(.2, 1.6, .4, 1) backwards;
+}
+
+.npc-celebration-rewards span:nth-child(2) { animation-delay: .14s; }
+.npc-celebration-note { margin: 4px 0 14px; color: #8b4a24; font-size: 12px; font-weight: 800; }
+
+@keyframes teacher-marker-float { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -7px); } }
+@keyframes teacher-marker-pulse { 0%, 100% { box-shadow: 0 0 10px 2px rgba(94, 233, 138, .55), 0 3px 4px rgba(0, 0, 0, .5); } 50% { box-shadow: 0 0 21px 8px rgba(94, 233, 138, .9), 0 3px 4px rgba(0, 0, 0, .5); } }
+@keyframes teacher-speech-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes teacher-toast-in { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes teacher-celebrate-in { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes teacher-sparkle { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.2); } }
+@keyframes teacher-reward-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+
+@media (max-width: 900px) {
+  /* The hub quest panel hides on small screens; park the teacher tracker
+     bottom-right above the EXP strip instead of the left rail. */
+  .teacher-quest-tracker { top: auto; left: auto; right: 8px; bottom: 106px; width: 205px; padding: 8px 10px; }
+  .teacher-quest-tracker b { font-size: 12px; }
+  .teacher-quest-tracker small, .teacher-quest-tracker em { font-size: 11px; }
+}
+
+@media (max-width: 700px) {
+  .teacher-npc-anchor { transform: translate(-50%, -92%) scale(.78); }
+  .teacher-quest-toast { top: 8px; max-width: calc(100vw - 18px); font-size: 13px; }
+  .npc-dialogue-panel { padding: 22px 20px 18px; }
+}
+
+/* Sprite frame stepping honours reduced-motion in the component itself
+   (frozen on frame 0); this only stills the remaining CSS effects. */
+@media (prefers-reduced-motion: reduce) {
+  .teacher-npc-marker,
+  .npc-celebration-sparkles i,
+  .npc-celebration-rewards span,
+  .npc-celebration-panel { animation: none !important; }
 }

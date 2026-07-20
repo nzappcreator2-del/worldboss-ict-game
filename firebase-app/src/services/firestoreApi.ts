@@ -38,6 +38,16 @@ import { adminApi } from './adminApi'
 import { aiApi } from './aiApi'
 import { pvpApi } from './pvpApi'
 import { WORLD_BOSS_CATALOG, findWorldBoss } from './worldBossCatalog'
+import {
+  WORKSHEET_FIRST_SUBMIT_COINS,
+  WORKSHEET_FIRST_SUBMIT_XP,
+  buildStudentQuestView,
+  normalizeTeacherQuest,
+  questVisibleToStudent,
+  studentQuestStatus,
+  type StudentQuestContext,
+  type TeacherQuestState,
+} from './teacherQuestLogic'
 
 type Data = Record<string, unknown>
 
@@ -435,8 +445,8 @@ async function equipCosmeticItem(rawUserId: unknown, rawItemId: unknown) {
 }
 
 const WORKSHEET_ANSWER_MAX_LENGTH = 1200
-const WORKSHEET_FIRST_SUBMIT_XP = 40
-const WORKSHEET_FIRST_SUBMIT_COINS = 25
+// The one-time study reward amounts are shared with the teacher-quest preview
+// UI, so they live in teacherQuestLogic as the single source of truth.
 
 // Worksheet submissions live in the user's own document under inventory.worksheets
 // (the rules already treat `inventory` as a free-form player bag, so no rules
@@ -467,6 +477,108 @@ async function saveWorksheetSubmission(rawUserId: unknown, rawLessonId: unknown,
       },
       update: { inventory, xp, coins, level, rank },
     }
+  })
+}
+
+// --- Teacher quests (ครูวีรภัทร์ NPC) ---------------------------------------
+// Quest definitions are admin-owned documents in `teacherQuests`; every
+// per-student stamp lives in the user's own inventory.teacherQuests bag so no
+// new writable collection (and no rules relaxation) is needed. The NPC pays no
+// rewards — worksheet/lesson flows keep their existing one-time payouts.
+
+const questStatesOf = (user: Data): Record<string, TeacherQuestState> => {
+  const inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory as Data : {}
+  const states = inventory.teacherQuests
+  return states && typeof states === 'object' ? states as Record<string, TeacherQuestState> : {}
+}
+
+const questContextFor = (
+  lessonId: string,
+  state: TeacherQuestState | undefined,
+  passedLessons: Set<string>,
+  user: Data,
+): StudentQuestContext => {
+  const inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory as Data : {}
+  const worksheets = inventory.worksheets && typeof inventory.worksheets === 'object' ? inventory.worksheets as Data : {}
+  return {
+    state,
+    lessonPassed: passedLessons.has(lessonId),
+    worksheetSubmitted: lessonId in worksheets,
+  }
+}
+
+// Students may only list non-draft quests (rules enforce this), so the query
+// filter is part of the security contract, not just an optimization.
+const studentQuestRows = async () => {
+  const snapshot = await getDocs(query(collection(db, 'teacherQuests'), where('status', 'in', ['active', 'closed'])))
+  return snapshot.docs.map((item) => normalizeTeacherQuest(item.id, item.data()))
+}
+
+async function getTeacherQuestBoard(rawUserId: unknown) {
+  const userId = String(rawUserId || '')
+  const { snapshot } = await ownedUser(userId)
+  const user = snapshot.data() || {}
+  const [quests, progress] = await Promise.all([studentQuestRows(), getStudentProgress(userId)])
+  const today = todayThailand()
+  const states = questStatesOf(user)
+  const passed = new Set(progress.data)
+  const data = quests
+    .filter((quest) => questVisibleToStudent(quest, String(user.class || ''), today, Boolean(states[quest.questId])))
+    .map((quest) => buildStudentQuestView(quest, questContextFor(quest.lessonId, states[quest.questId], passed, user), today))
+  return { success: true, data }
+}
+
+// Idempotent acceptance stamp: re-accepting (double tap, refresh) never
+// rewrites the original timestamp.
+async function acceptTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
+  const questId = String(rawQuestId || '')
+  if (!questId) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ' }
+  return mutateOwnedUser(rawUserId, (user) => {
+    const states = { ...questStatesOf(user) }
+    if (states[questId]?.acceptedAt) return { result: { success: true, alreadyAccepted: true } }
+    states[questId] = { ...states[questId], acceptedAt: new Date().toISOString() }
+    const inventory = { ...(user.inventory as Data || {}), teacherQuests: states }
+    return { result: { success: true, alreadyAccepted: false }, update: { inventory } }
+  })
+}
+
+async function markTeacherQuestStudied(rawUserId: unknown, rawQuestId: unknown) {
+  const questId = String(rawQuestId || '')
+  if (!questId) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ' }
+  return mutateOwnedUser(rawUserId, (user) => {
+    const states = { ...questStatesOf(user) }
+    const state = states[questId]
+    if (!state?.acceptedAt || state.studiedAt) return { result: { success: true } }
+    states[questId] = { ...state, studiedAt: new Date().toISOString() }
+    const inventory = { ...(user.inventory as Data || {}), teacherQuests: states }
+    return { result: { success: true }, update: { inventory } }
+  })
+}
+
+async function turnInTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
+  const userId = String(rawUserId || '')
+  const questId = String(rawQuestId || '')
+  if (!questId) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ' }
+  await ensureSignedIn()
+  const questSnapshot = await getDoc(doc(db, 'teacherQuests', questId))
+  if (!questSnapshot.exists()) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ กรุณาลองใหม่' }
+  const quest = normalizeTeacherQuest(questId, questSnapshot.data())
+  if (quest.status !== 'active') return { success: false, error: 'ภารกิจนี้ปิดรับงานแล้ว' }
+  const progressSnapshot = await getDoc(doc(db, 'progress', `${userId}_${quest.lessonId}`))
+  const lessonPassed = ['Passed', 'Completed'].includes(String(progressSnapshot.data()?.status || ''))
+  return mutateOwnedUser<{ success: boolean; alreadyTurnedIn?: boolean; error?: string }>(userId, (user) => {
+    const states = { ...questStatesOf(user) }
+    const state = states[questId]
+    if (state?.turnedInAt) return { result: { success: true, alreadyTurnedIn: true } }
+    if (!state?.acceptedAt) return { result: { success: false, error: 'ต้องรับภารกิจกับครูวีรภัทร์ก่อนจึงจะส่งงานได้' } }
+    const context = questContextFor(quest.lessonId, state, new Set(lessonPassed ? [quest.lessonId] : []), user)
+    if (studentQuestStatus(quest, context, todayThailand()) !== 'READY_TO_TURN_IN') {
+      return { result: { success: false, error: 'ยังทำภารกิจไม่ครบทุกเป้าหมาย ลองตรวจสอบรายละเอียดภารกิจอีกครั้งนะ' } }
+    }
+    states[questId] = { ...state, turnedInAt: new Date().toISOString() }
+    const inventory = { ...(user.inventory as Data || {}), teacherQuests: states }
+    // Presentation-only: rewards were already paid by the original flows.
+    return { result: { success: true, alreadyTurnedIn: false }, update: { inventory } }
   })
 }
 
@@ -740,6 +852,10 @@ export const firestoreApi = {
   saveStudentProgress,
   saveAdventureRewards,
   saveWorksheetSubmission,
+  getTeacherQuestBoard,
+  acceptTeacherQuest,
+  markTeacherQuestStudied,
+  turnInTeacherQuest,
   getStudentProgress,
   getLeaderboard,
   getGuildLeaderboard,

@@ -129,6 +129,12 @@ export function PlayerEconomy({ service, onUserUpdate }: Props) {
   }, [mode])
 
   useEffect(() => {
+    if (mode || notice?.kind !== 'success') return
+    const dismissTimer = window.setTimeout(() => setNotice(null), 3_000)
+    return () => window.clearTimeout(dismissTimer)
+  }, [mode, notice])
+
+  useEffect(() => {
     const openShop = () => open('shop')
     const openInventory = () => open('inventory')
     const closeShop = () => setMode((current) => current === 'shop' ? null : current)

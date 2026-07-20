@@ -8,6 +8,7 @@ import {
 } from '../services/heroStats'
 import { levelProgress } from '../services/levelSystem'
 import { CharacterEquipment } from './CharacterEquipment'
+import profileCommandRoom from '../assets/generated/profile-command-room.jpg'
 
 type Inventory = { potion?: number; magnifier?: number; badges?: string[]; stats?: Record<string, number> }
 type ProfileStats = { totalScore: number; completedLessons: number; totalLessons: number; completionRate: number }
@@ -53,7 +54,7 @@ const badgeDefinitions: Record<string, { icon: string; title: string; descriptio
   badge_cert: { icon: '🎓', title: 'บัณฑิตน้อย', description: 'ผ่านด่านทั้งหมดสำเร็จ' },
 }
 
-export function PlayerProfile({ service, onUserUpdate }: { service: ProfileService; onUserUpdate?(update: { inventory: Inventory }): void }) {
+export function PlayerProfile({ service, onUserUpdate, onClose }: { service: ProfileService; onUserUpdate?(update: { inventory: Inventory }): void; onClose?(): void }) {
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
 
@@ -83,6 +84,15 @@ export function PlayerProfile({ service, onUserUpdate }: { service: ProfileServi
 
   return (
     <div id="dash-tab-profile" className="ro-profile-page">
+      <header className="ro-profile-command-header">
+        <img src={profileCommandRoom} alt="" draggable={false} />
+        <div className="ro-profile-command-copy">
+          <span>HERO COMMAND</span>
+          <h1>สมุดบันทึกผู้กล้า</h1>
+          <p>พัฒนาสเตตัส ตรวจสอบอุปกรณ์ และติดตามเส้นทางแห่งความรู้</p>
+        </div>
+        <button type="button" className="feature-close-button" aria-label="ปิดหน้าโปรไฟล์" onClick={() => onClose?.()}><span aria-hidden="true">×</span><b>ปิด</b></button>
+      </header>
       {status === 'idle' && <div className="ro-profile-status-screen">เปิด Profile เพื่อดูข้อมูลผู้กล้า</div>}
       {status === 'loading' && (
         <div className="ro-profile-status-screen">

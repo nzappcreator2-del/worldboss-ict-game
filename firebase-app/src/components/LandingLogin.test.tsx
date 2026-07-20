@@ -31,12 +31,12 @@ describe('LandingLogin', () => {
     expect(screen.getByRole('button', { name: /Admin Panel/ })).toBeTruthy()
     expect(screen.getByTestId('landing-background').getAttribute('aria-hidden')).toBe('true')
     expect(screen.getByTestId('mobile-brand').textContent).toContain('NextGen Play')
-    // Exactly two playable bodies: male and female students, live sprite previews.
+    // Exactly two production-quality 3D student hero portraits are offered.
     expect(screen.getAllByRole('button', { name: /เลือกตัวละคร/ })).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'เลือกตัวละคร นักเรียนชาย' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'เลือกตัวละคร นักเรียนหญิง' })).toBeTruthy()
-    expect(screen.getByTestId('hero-preview-male')).toBeTruthy()
-    expect(screen.getByTestId('hero-preview-female')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'ภาพตัวละครนักเรียนชายแบบสามมิติ' }).getAttribute('src')).toContain('student-hero-male')
+    expect(screen.getByRole('img', { name: 'ภาพตัวละครนักเรียนหญิงแบบสามมิติ' }).getAttribute('src')).toContain('student-hero-female')
   })
 
   it('filters registered students by class and room and locks the chooser for returning players', async () => {

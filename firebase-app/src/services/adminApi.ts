@@ -19,6 +19,14 @@ import { invalidateAiConfigCache } from './aiApi'
 import { maskApiKey } from './geminiLogic'
 import { DAILY_QUEST_DEFAULTS, mergeDailyQuestConfig } from './gameLogic'
 import { directoryEntry, normalizeUser } from './normalizers'
+import {
+  aggregateTeacherQuestStats,
+  normalizeTeacherQuest,
+  questTargetsClass,
+  studentQuestStatus,
+  type StudentQuestSnapshot,
+  type TeacherQuestState,
+} from './teacherQuestLogic'
 import type { FirebaseServices } from './legacyRunner'
 
 type Data = Record<string, unknown>
@@ -327,6 +335,132 @@ async function saveAdminDailyQuest(rawData: unknown, pin: unknown) {
 // The old admin-configurable World Boss feature was retired: the mini-game
 // stages are a fixed in-code playset now (src/services/worldBossCatalog.ts).
 
+// --- Teacher quests (ครูวีรภัทร์ NPC assignments) ----------------------------
+// Quest definitions live in `teacherQuests`; per-student progress is derived
+// from the same real data the student client uses (progress docs + the
+// inventory.worksheets / inventory.teacherQuests bags), so the admin view can
+// never drift from what the NPC shows.
+
+const todayBangkok = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date())
+
+const questStateOf = (user: Data, questId: string): TeacherQuestState | undefined => {
+  const inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory as Data : {}
+  const states = inventory.teacherQuests && typeof inventory.teacherQuests === 'object' ? inventory.teacherQuests as Data : {}
+  const state = states[questId]
+  return state && typeof state === 'object' ? state as TeacherQuestState : undefined
+}
+
+const worksheetOf = (user: Data, lessonId: string): { answer: string; submittedAt: string } | null => {
+  const inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory as Data : {}
+  const worksheets = inventory.worksheets && typeof inventory.worksheets === 'object' ? inventory.worksheets as Data : {}
+  const entry = worksheets[lessonId]
+  if (!entry || typeof entry !== 'object') return null
+  const record = entry as Data
+  return { answer: String(record.answer || ''), submittedAt: String(record.submittedAt || '') }
+}
+
+const passedLessonsByUser = (progress: Data[]) => progress.reduce<Record<string, Set<string>>>((all, item) => {
+  if (!['Passed', 'Completed'].includes(String(item.status))) return all
+  const userId = String(item.userId || '')
+  all[userId] ??= new Set()
+  all[userId].add(String(item.lessonId || ''))
+  return all
+}, {})
+
+async function getAdminTeacherQuests(pin: unknown) {
+  await ensureAdminSession(pin)
+  const [questRows, users, progress] = await Promise.all([rows('teacherQuests'), rows('users'), rows('progress')])
+  const today = todayBangkok()
+  const passedBy = passedLessonsByUser(progress)
+  const data = questRows
+    .map((row) => normalizeTeacherQuest(String(row.id), row))
+    .sort((a, b) => a.questId.localeCompare(b.questId))
+    .map((quest) => {
+      const snapshots: StudentQuestSnapshot[] = users.map((user) => ({
+        class: String(user.class || ''),
+        state: questStateOf(user, quest.questId),
+        lessonPassed: passedBy[String(user.id)]?.has(quest.lessonId) || false,
+        worksheetSubmitted: worksheetOf(user, quest.lessonId) !== null,
+      }))
+      return { ...quest, stats: aggregateTeacherQuestStats(quest, snapshots, today) }
+    })
+  return { success: true, data }
+}
+
+async function saveAdminTeacherQuest(rawData: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const data = (rawData || {}) as Data
+  const lessonId = String(data.lessonId || '')
+  const lesson = await getDoc(doc(adminDb, 'lessons', lessonId))
+  if (!lesson.exists()) return { success: false, error: 'ไม่พบบทเรียนที่เลือก กรุณาเลือกบทเรียนอีกครั้ง' }
+  let id = String(data.questId || data.id || '').trim()
+  if (!id) {
+    const quests = await rows('teacherQuests')
+    const max = quests.reduce((current, quest) => {
+      const match = String(quest.questId || quest.id).match(/^TQ(\d+)$/)
+      return match ? Math.max(current, Number(match[1])) : current
+    }, 0)
+    id = `TQ${String(max + 1).padStart(3, '0')}`
+  }
+  // normalizeTeacherQuest re-applies the shared shape rules (known objective
+  // keys only, valid status, canonical ordering) before anything is stored.
+  const quest = normalizeTeacherQuest(id, {
+    ...data,
+    questId: id,
+    lessonTitle: String(lesson.data().title || ''),
+  })
+  if (!quest.title.trim()) return { success: false, error: 'กรุณาระบุชื่อเควสต์' }
+  if (quest.objectives.length === 0) return { success: false, error: 'เลือกสิ่งที่นักเรียนต้องทำอย่างน้อย 1 ข้อ' }
+  await setDoc(doc(adminDb, 'teacherQuests', id), { ...quest, updatedAt: serverTimestamp() }, { merge: true })
+  return { success: true, id, message: data.questId ? 'บันทึกเควสต์แล้ว' : 'สร้างเควสต์ใหม่แล้ว' }
+}
+
+async function getAdminTeacherQuestSubmissions(rawQuestId: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const questId = String(rawQuestId || '')
+  const questSnapshot = await getDoc(doc(adminDb, 'teacherQuests', questId))
+  if (!questSnapshot.exists()) return { success: false, error: 'ไม่พบเควสต์นี้ในระบบ' }
+  const quest = normalizeTeacherQuest(questId, questSnapshot.data())
+  const [users, progress] = await Promise.all([rows('users'), rows('progress')])
+  const today = todayBangkok()
+  const passedBy = passedLessonsByUser(progress)
+  const scoreByUser = Object.fromEntries(progress
+    .filter((item) => String(item.lessonId) === quest.lessonId)
+    .map((item) => [String(item.userId), item]))
+  const data = users
+    .filter((user) => questTargetsClass(quest, String(user.class || '')))
+    .map((user) => {
+      const userId = String(user.id)
+      const state = questStateOf(user, questId)
+      const worksheet = worksheetOf(user, quest.lessonId)
+      const scoreRow = scoreByUser[userId]
+      return {
+        id: userId,
+        name: String(user.name || ''),
+        class: String(user.class || ''),
+        avatar: String(user.avatar || '🧙‍♂️'),
+        status: studentQuestStatus(quest, {
+          state,
+          lessonPassed: passedBy[userId]?.has(quest.lessonId) || false,
+          worksheetSubmitted: worksheet !== null,
+        }, today),
+        worksheetAnswer: worksheet?.answer || '',
+        submittedAt: worksheet?.submittedAt || '',
+        score: scoreRow ? Number(scoreRow.score) || 0 : null,
+        maxScore: scoreRow && scoreRow.maxScore !== undefined ? Number(scoreRow.maxScore) || 0 : null,
+        // The one-time study reward is paid on the first worksheet submission,
+        // so an existing submission means the reward was already granted.
+        rewarded: worksheet !== null,
+        acceptedAt: state?.acceptedAt || '',
+        turnedInAt: state?.turnedInAt || '',
+      }
+    })
+    .sort((a, b) => a.class.localeCompare(b.class) || a.name.localeCompare(b.name))
+  return { success: true, data, quest }
+}
+
 // --- Cyber Safety scenarios ------------------------------------------------
 
 async function getAdminCyberScenarios(pin: unknown) {
@@ -411,6 +545,9 @@ export const adminApi = {
   getExamReports,
   getAdminDailyQuests,
   saveAdminDailyQuest,
+  getAdminTeacherQuests,
+  saveAdminTeacherQuest,
+  getAdminTeacherQuestSubmissions,
   getAdminCyberScenarios,
   saveAdminCyberScenario,
   deleteAdminCyberScenario,

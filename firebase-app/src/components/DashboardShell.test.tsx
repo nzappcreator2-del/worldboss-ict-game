@@ -192,4 +192,44 @@ describe('DashboardShell', () => {
     expect(shopOpened).toHaveBeenCalledOnce()
     expect(screen.getByRole('button', { name: 'เปิดกระเป๋า' })).toBeTruthy()
   })
+
+  it('mounts the teacher NPC slot only while the guild hall scene is visible', () => {
+    const user: DashboardShellUser = { id: 'u1', name: 'ฟ้า', class: 'ป.5/1' }
+    render(<DashboardShell
+      getCurrentUser={() => user}
+      onNavigate={vi.fn()}
+      onLogout={vi.fn()}
+      teacherNpc={<div data-testid="teacher-npc-slot" />}
+    />)
+
+    expect(screen.getByTestId('teacher-npc-slot')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'แผนที่' }))
+    expect(screen.queryByTestId('teacher-npc-slot')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'หน้าหลัก' }))
+    expect(screen.getByTestId('teacher-npc-slot')).toBeTruthy()
+  })
+
+  it('broadcasts a throttled walk position for hall inhabitants', () => {
+    let animationFrame: FrameRequestCallback | undefined
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      animationFrame = callback
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    setup()
+    const positions: Array<{ x: number; y: number }> = []
+    const listener = (event: Event) => positions.push((event as CustomEvent<{ x: number; y: number }>).detail)
+    window.addEventListener('nextgen:hub-player-position', listener)
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    act(() => animationFrame?.(1000))
+    act(() => animationFrame?.(1016))
+    act(() => animationFrame?.(1032))
+    window.removeEventListener('nextgen:hub-player-position', listener)
+
+    // Two movement frames 16ms apart → exactly one throttled broadcast.
+    expect(positions).toHaveLength(1)
+    expect(positions[0].x).toBeGreaterThan(0)
+    expect(positions[0].y).toBeGreaterThan(0)
+  })
 })

@@ -4,7 +4,7 @@
 // pvpRoomLogic.ts; Firestore traffic goes through services/pvpRoomApi.ts.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import pvpArenaBackground from '../assets/pvp-arena-background.png'
-import lobbyMapBackground from '../assets/lobby-adventure-background.png'
+import lobbyMapBackground from '../assets/generated/pvp-lobby-courtyard.jpg'
 import pvpSelectBackground from '../assets/pvp-select-background.jpg'
 import pvpScrollPanel from '../assets/ui/pvp/panel-scroll-ranking.png'
 import pvpAvatarFrame from '../assets/ui/pvp/avatar-frame.png'

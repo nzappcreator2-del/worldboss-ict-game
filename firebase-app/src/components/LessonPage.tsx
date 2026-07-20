@@ -1405,6 +1405,9 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
       setEnemies(next)
     }
     if (zone === 3) {
+      // Boss rooms are the one deliberate exception to the exploration default:
+      // auto combat starts enabled so the player can focus on answering the boss skills.
+      setAutoBattle(true)
       // The boss fight is a fixed 100-point quiz scale regardless of VIT-inflated exploration HP.
       const bossEntryHp = Math.min(100, playerHpRef.current)
       playerHpRef.current = bossEntryHp
@@ -1734,7 +1737,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
             <small>สกิลคำถามบอส · ข้อที่ {bossQuestions.length - bossRemainingQuestionIndexes.length + 1}/{bossQuestions.length}</small>
             <h3>{currentBossQuestion.text}</h3>
             {currentBossQuestion.image && <img src={currentBossQuestion.image} alt="ภาพประกอบคำถามบอส" />}
-            <QuizQuestionView question={currentBossQuestion} onAnswer={answerBossQuestion} />
+            <QuizQuestionView question={currentBossQuestion} variant="boss" onAnswer={answerBossQuestion} />
           </div>
         )}
         {progress.zone === 3 && bossPhase === 'result' && bossResult && (

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { GENDER_BASE_LAYERS } from './characterAssets'
-import { TEST_CHARACTER_SPRITE } from './dashboardCharacter'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import studentHeroMale from '../assets/generated/student-hero-male.jpg'
+import studentHeroFemale from '../assets/generated/student-hero-female.jpg'
 
 export type RegisteredUser = { name: string; class: string; avatar?: string }
 export type LandingUser = {
@@ -32,23 +32,12 @@ type Props = {
   onAdmin(): void
 }
 
-// Registration = picking your hero's body: the two student bases whose LPC
-// spritesheets ship with the game (see characterAssets.GENDER_BASE_LAYERS).
-const heroChoices: { gender: StudentGender; emoji: string; name: string; tagline: string }[] = [
-  { gender: 'male', emoji: '👦', name: 'นักเรียนชาย', tagline: 'สายลุย พร้อมบุกทุกด่านความรู้' },
-  { gender: 'female', emoji: '👧', name: 'นักเรียนหญิง', tagline: 'สายไว ปราดเปรียวทุกสนามประลอง' },
+const heroChoices: { gender: StudentGender; emoji: string; name: string; tagline: string; art: string }[] = [
+  { gender: 'male', emoji: '👦', name: 'นักเรียนชาย', tagline: 'สายลุย พร้อมบุกทุกด่านความรู้', art: studentHeroMale },
+  { gender: 'female', emoji: '👧', name: 'นักเรียนหญิง', tagline: 'สายไว ปราดเปรียวทุกสนามประลอง', art: studentHeroFemale },
 ]
 
 const heroAvatarEmoji: Record<StudentGender, string> = { male: '👦', female: '👧' }
-
-// Live walk-cycle preview straight from the real in-game spritesheet: the CSS
-// animation steps background-position-x across the 9 walk-down frames.
-const HERO_PREVIEW_FRAME = 92
-const heroPreviewStyle = (gender: StudentGender): CSSProperties => ({
-  backgroundImage: `url(${GENDER_BASE_LAYERS[gender]})`,
-  backgroundSize: `${TEST_CHARACTER_SPRITE.columns * HERO_PREVIEW_FRAME}px ${TEST_CHARACTER_SPRITE.rows * HERO_PREVIEW_FRAME}px`,
-  backgroundPositionY: `${-TEST_CHARACTER_SPRITE.directionRows.down * HERO_PREVIEW_FRAME}px`,
-})
 
 const splitSetting = (value: unknown, fallback: string[] = []) => typeof value === 'string'
   ? value.split(',').map((item) => item.trim()).filter(Boolean)
@@ -242,14 +231,10 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
                 onClick={() => { setGender(choice.gender); setError('') }}
                 className={`adventure-hero ${choice.gender} ${gender === choice.gender ? 'selected' : ''}`}
               >
-                <span className="hero-stage" aria-hidden="true">
-                  <span className="hero-stage-glow" />
-                  <span className="hero-sprite-shadow" />
-                  <span
-                    data-testid={`hero-preview-${choice.gender}`}
-                    className="hero-sprite"
-                    style={heroPreviewStyle(choice.gender)}
-                  />
+                <span className="hero-stage">
+                  <img className="hero-portrait-backdrop" src={choice.art} alt="" draggable={false} />
+                  <span className="hero-stage-glow" aria-hidden="true" />
+                  <img className="hero-portrait" src={choice.art} alt={`ภาพตัวละคร${choice.name}แบบสามมิติ`} draggable={false} />
                   <span className="hero-selected-badge">✓ เลือกแล้ว</span>
                 </span>
                 <span className="hero-nameplate">

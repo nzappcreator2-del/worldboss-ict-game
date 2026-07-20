@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { LandingLogin, type LandingData, type LandingService, type LandingUser, type LoginResult } from './components/LandingLogin'
 import { Lobby, type LobbyMode } from './components/Lobby'
 import { AdventureMap, type MapResult, type MapUser } from './components/AdventureMap'
+import { TeacherNpc } from './components/TeacherNpc'
 import { DashboardHome, type DailyStatus, type DashboardNews, type DashboardUser, type RewardResult } from './components/DashboardHome'
 import { Leaderboard, type GuildResult, type PlayerResult } from './components/Leaderboard'
 import { PlayerProfile, type ProfileResult, type StatAllocationResult } from './components/PlayerProfile'
@@ -186,6 +187,37 @@ function App() {
             onSelectLesson={(lessonId) => bridge()?.openMapLesson(lessonId)}
           />
         }
+        teacherNpc={
+          <TeacherNpc
+            service={{
+              getCurrentUser: () => {
+                const user = bridge()?.getCurrentUser()
+                return user ? { id: user.id } : null
+              },
+              loadQuestBoard: async (userId) => await firestoreApi.getTeacherQuestBoard(userId),
+              acceptQuest: async (userId, questId) => await firestoreApi.acceptTeacherQuest(userId, questId),
+              markStudied: async (userId, questId) => await firestoreApi.markTeacherQuestStudied(userId, questId),
+              turnInQuest: async (userId, questId) => await firestoreApi.turnInTeacherQuest(userId, questId),
+            }}
+            onOpenLesson={(lessonId) => {
+              // From the guild hall the legacy lesson opener may not have map
+              // data yet (it is normally fed by the map tab), so hydrate it
+              // first — otherwise openLesson() silently bounces to the map.
+              void (async () => {
+                const user = bridge()?.getCurrentUser()
+                if (user) {
+                  try {
+                    const result = await firestoreApi.getLessons(user.id) as MapResult
+                    bridge()?.setMapData(result)
+                  } catch {
+                    // Fall through: openMapLesson still degrades to the map view.
+                  }
+                }
+                bridge()?.openMapLesson(lessonId)
+              })()
+            }}
+          />
+        }
         home={
           <DashboardHome
             service={{
@@ -209,6 +241,7 @@ function App() {
               loadPlayers: async () => await firestoreApi.getLeaderboard() as PlayerResult,
               loadGuilds: async () => await firestoreApi.getGuildLeaderboard() as GuildResult,
             }}
+            onClose={() => bridge()?.openDashboardTab('home')}
           />
         }
         profile={
@@ -223,6 +256,7 @@ function App() {
               equipCosmetic: async (userId, itemId) => await firestoreApi.equipCosmeticItem(userId, itemId) as { success: boolean; equipped?: boolean; inventory?: Record<string, unknown>; error?: string },
             }}
             onUserUpdate={(update) => bridge()?.updateBattleUser(update as Partial<BattleUser>)}
+            onClose={() => bridge()?.openDashboardTab('home')}
           />
         }
         cert={
@@ -234,6 +268,7 @@ function App() {
             }}
             onEligible={() => bridge()?.openCertificateTab()}
             onDenied={(message) => bridge()?.showCertificateLocked(message)}
+            onClose={() => bridge()?.openDashboardTab('home')}
           />
         }
         economy={
@@ -397,6 +432,9 @@ function App() {
           generateProgressReport: async (student) => await firestoreApi.generateAIProgressReport(student),
           loadDailyQuests: async (password) => await firestoreApi.getAdminDailyQuests(password),
           saveDailyQuest: async (quest, password) => await firestoreApi.saveAdminDailyQuest(quest, password),
+          loadTeacherQuests: async (password) => await firestoreApi.getAdminTeacherQuests(password),
+          saveTeacherQuest: async (quest, password) => await firestoreApi.saveAdminTeacherQuest(quest, password),
+          loadTeacherQuestSubmissions: async (questId, password) => await firestoreApi.getAdminTeacherQuestSubmissions(questId, password),
           loadCyberScenarios: async (password) => await firestoreApi.getAdminCyberScenarios(password),
           saveCyberScenario: async (scenario, password) => await firestoreApi.saveAdminCyberScenario(scenario, password),
           deleteCyberScenario: async (id, password) => await firestoreApi.deleteAdminCyberScenario(id, password),

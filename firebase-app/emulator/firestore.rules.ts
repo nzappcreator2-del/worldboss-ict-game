@@ -7,7 +7,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
-import { deleteDoc, doc, getDoc, runTransaction, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 
 const projectId = 'nextgen-play-rules-test'
 let environment: RulesTestEnvironment
@@ -341,5 +341,43 @@ describe('Firestore security rules in the emulator', () => {
     await assertFails(setDoc(doc(player, 'clientErrors/E2'), { ...report, message: 'x'.repeat(1001) }))
     await assertFails(getDoc(doc(player, 'clientErrors/E1')))
     await assertSucceeds(getDoc(doc(admin, 'clientErrors/E1')))
+  })
+
+  it('hides draft teacher quests from students and reserves quest writes for the admin', async () => {
+    const questBase = {
+      lessonId: 'L1', lessonTitle: 'บทเรียน', title: 'ภารกิจ: บทเรียน', npcMessage: 'ทำใบงานให้เสร็จนะ',
+      objectives: ['study', 'worksheet'], classes: [], startAt: '', dueAt: '', updatedAt: serverTimestamp(),
+    }
+    await seed('teacherQuests/TQ001', { ...questBase, questId: 'TQ001', status: 'active' })
+    await seed('teacherQuests/TQ002', { ...questBase, questId: 'TQ002', status: 'draft' })
+    await seed('teacherQuests/TQ003', { ...questBase, questId: 'TQ003', status: 'closed' })
+    const guest = environment.unauthenticatedContext().firestore()
+    const player = environment.authenticatedContext('player-1').firestore()
+    const admin = environment.authenticatedContext('admin-1', { email: 'admin@nextgen-play.local' }).firestore()
+
+    await assertFails(getDoc(doc(guest, 'teacherQuests/TQ001')))
+    await assertSucceeds(getDoc(doc(player, 'teacherQuests/TQ001')))
+    await assertSucceeds(getDoc(doc(player, 'teacherQuests/TQ003')))
+    await assertFails(getDoc(doc(player, 'teacherQuests/TQ002')))
+    await assertSucceeds(getDoc(doc(admin, 'teacherQuests/TQ002')))
+    // The student board query must filter to the readable statuses; an
+    // unfiltered listing would include drafts and be rejected wholesale.
+    await assertSucceeds(getDocs(query(collection(player, 'teacherQuests'), where('status', 'in', ['active', 'closed']))))
+    await assertFails(getDocs(collection(player, 'teacherQuests')))
+    await assertFails(setDoc(doc(player, 'teacherQuests/TQ004'), { ...questBase, questId: 'TQ004', status: 'active' }))
+    await assertSucceeds(setDoc(doc(admin, 'teacherQuests/TQ004'), { ...questBase, questId: 'TQ004', status: 'active' }))
+  })
+
+  it('lets a player stamp teacher-quest acceptance inside their own inventory only', async () => {
+    await seed('users/U1', student('player-1', 'U1'))
+    await seed('users/U2', student('player-2', 'U2'))
+    const player = environment.authenticatedContext('player-1').firestore()
+    const inventory = {
+      potion: 0, magnifier: 0,
+      teacherQuests: { TQ001: { acceptedAt: '2026-07-19T09:00:00.000Z' } },
+    }
+
+    await assertSucceeds(updateDoc(doc(player, 'users/U1'), { inventory }))
+    await assertFails(updateDoc(doc(player, 'users/U2'), { inventory }))
   })
 })

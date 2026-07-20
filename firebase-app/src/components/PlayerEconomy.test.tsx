@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PlayerEconomy, type EconomyService, type EconomyUser } from './PlayerEconomy'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 function setup(user: EconomyUser = { id: 'u1', coins: 600, avatar: '🧙', inventory: { potion: 1, magnifier: 2 } }) {
   let currentUser = user
@@ -218,6 +221,27 @@ describe('PlayerEconomy', () => {
     // The service mock reports the hat unequipped: it becomes a regular equip button in the wardrobe.
     expect(await screen.findByRole('button', { name: 'สวมใส่หมวกขนนกนักล่า' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'ถอดหมวกขนนกนักล่า' })).toBeNull()
+  })
+
+  it('dismisses a visible equipment success notice after three seconds', async () => {
+    setup({
+      id: 'u1', coins: 600, avatar: '🧙',
+      inventory: { cosmetics: { owned: ['hat-feather'], equipped: { hat: 'hat-feather' } } },
+    })
+    fireEvent(window, new Event('nextgen:open-inventory'))
+    fireEvent.click(screen.getByRole('button', { name: 'ถอดหมวกขนนกนักล่า' }))
+    expect(await screen.findByRole('button', { name: 'สวมใส่หมวกขนนกนักล่า' })).toBeTruthy()
+
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'ปิดกระเป๋าไอเทม' }))
+    expect(screen.getByRole('alert')).toBeTruthy()
+
+    act(() => vi.advanceTimersByTime(2_999))
+    expect(screen.getByRole('alert')).toBeTruthy()
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(screen.queryByRole('alert')).toBeNull()
+    vi.useRealTimers()
   })
 
   it('blocks cosmetic purchases the player cannot afford without calling the service', () => {

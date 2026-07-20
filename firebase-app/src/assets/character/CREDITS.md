@@ -63,3 +63,11 @@ accessory layer changes to regenerate its tier variants. The tier
 id/name/price table is hand-mirrored in `src/services/gameLogic.ts`
 (`COSMETIC_CATALOG`) since that file ships to the browser and can't import a
 Node-only script.
+
+## teacher-weeraphat-sheet.png
+
+Not an LPC asset: composed by `scripts/build-teacher-npc-sheet.mjs` from the
+project-owned ครูวีรภัทร์ animation sheets in `2D/ตัวละคร/ครู/ครูชาย/`
+(npc_teacher_weeraphat_*_8f.png). 8 columns x 6 rows (idle, wave, offer,
+talk, celebrate, read), frames re-registered on the feet centroid with a
+shared baseline. Rerun the script whenever the source art changes.

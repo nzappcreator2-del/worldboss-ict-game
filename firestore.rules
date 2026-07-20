@@ -520,6 +520,16 @@ service cloud.firestore {
       allow read, write: if admin();
     }
 
+    // Teacher-assigned quests presented by the ครูวีรภัทร์ NPC. Only the admin
+    // writes quest definitions; students may read active/closed quests but
+    // never drafts or archived ones (list queries must filter on status).
+    // Per-student quest state lives in the student's own users document
+    // (inventory.teacherQuests), so no extra write surface is opened here.
+    match /teacherQuests/{questId} {
+      allow read: if admin() || (signedIn() && resource.data.status in ['active', 'closed']);
+      allow write: if admin();
+    }
+
     match /{collectionName}/{documentId} {
       allow read: if signedIn() && collectionName in [
         'lessons', 'questions', 'news', 'cyberSafetyScenarios',

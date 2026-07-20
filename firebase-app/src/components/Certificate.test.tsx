@@ -11,7 +11,7 @@ afterEach(() => {
 
 const user = { id: 'u1', name: 'ฟ้า', class: 'ป.6/1', avatar: '🧙', xp: 720, rank: 'GOLD', level: 8 }
 
-function setup(result: unknown) {
+function setup(result: unknown, onClose = vi.fn()) {
   const service: CertificateService = {
     getCurrentUser: () => user,
     getSettings: () => ({ CertHeader: 'โรงเรียนตัวอย่าง', CertFooter: 'ครูผู้สอน' }),
@@ -20,11 +20,19 @@ function setup(result: unknown) {
   const onEligible = vi.fn()
   const onDenied = vi.fn()
   const draw = vi.fn().mockResolvedValue(undefined)
-  render(<Certificate service={service} onEligible={onEligible} onDenied={onDenied} draw={draw} />)
-  return { service, onEligible, onDenied, draw }
+  render(<Certificate service={service} onEligible={onEligible} onDenied={onDenied} onClose={onClose} draw={draw} />)
+  return { service, onEligible, onDenied, onClose, draw }
 }
 
 describe('Certificate', () => {
+  it('offers a close control that returns to the dashboard', () => {
+    const { onClose } = setup({ success: true, isEligible: true })
+
+    screen.getByRole('button', { name: 'ปิดหน้าเกียรติบัตร' }).click()
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('checks eligibility and renders a downloadable certificate', async () => {
     const { service, onEligible, draw } = setup({ success: true, isEligible: true, passedCount: 4, totalActiveCount: 4 })
 

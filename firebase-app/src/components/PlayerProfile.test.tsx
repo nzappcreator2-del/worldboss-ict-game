@@ -33,6 +33,19 @@ function setupWithStats(statsProfile: unknown, allocateResult?: unknown) {
 }
 
 describe('PlayerProfile', () => {
+  it('offers a close control that returns to the dashboard', () => {
+    const onClose = vi.fn()
+    const service: ProfileService = {
+      getCurrentUser: () => ({ id: 'u1' }),
+      loadProfile: vi.fn().mockResolvedValue({ success: true, profile }),
+    }
+    render(<PlayerProfile service={service} onClose={onClose} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปิดหน้าโปรไฟล์' }))
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('loads and renders player stats when the Profile tab opens', async () => {
     const service = setup()
     expect(service.loadProfile).not.toHaveBeenCalled()

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import leaderboardHall from '../assets/generated/leaderboard-hall.jpg'
 
 export type RankedPlayer = {
   id: string
@@ -24,7 +25,7 @@ export type LeaderboardService = {
 type Mode = 'individual' | 'guild'
 type Entry = RankedPlayer | RankedGuild
 
-export function Leaderboard({ service }: { service: LeaderboardService }) {
+export function Leaderboard({ service, onClose }: { service: LeaderboardService; onClose?(): void }) {
   const [mode, setMode] = useState<Mode>('individual')
   const [entries, setEntries] = useState<Entry[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -58,62 +59,74 @@ export function Leaderboard({ service }: { service: LeaderboardService }) {
   }
 
   const user = service.getCurrentUser()
-  const medals = ['🥇', '🥈', '🥉']
-  const podiumHeights = ['h-28', 'h-20', 'h-16']
 
   return (
-    <div id="dash-tab-rank" className="flex flex-1 flex-col items-center justify-start p-4 overflow-hidden">
-      <div className="rpg-box rpg-box-yellow w-full max-w-2xl h-full mb-32 overflow-hidden flex flex-col relative bg-white/90 shadow-2xl">
-        <header className="bg-gradient-to-r from-yellow-500 to-orange-500 p-5 text-white flex justify-between items-center border-b-4 border-yellow-700 shrink-0 flex-wrap gap-2">
-          <h3 className="font-black text-3xl flex items-center gap-2 drop-shadow-md">🏆 หอเกียรติยศ</h3>
-          <div className="flex bg-white/30 p-1 rounded-xl shadow-inner border border-white/20">
-            <button type="button" aria-label="ผู้กล้าเดี่ยว" aria-pressed={mode === 'individual'} onClick={() => switchMode('individual')} className={`px-3 py-1.5 font-bold rounded-lg text-sm ${mode === 'individual' ? 'bg-yellow-100 text-yellow-900 shadow-sm' : 'text-white opacity-80'}`}>👦 ผู้กล้าเดี่ยว</button>
-            <button type="button" aria-label="อันดับกิลด์" aria-pressed={mode === 'guild'} onClick={() => switchMode('guild')} className={`px-3 py-1.5 font-bold rounded-lg text-sm ${mode === 'guild' ? 'bg-yellow-100 text-yellow-900 shadow-sm' : 'text-white opacity-80'}`}>🏯 อันดับกิลด์</button>
+    <div id="dash-tab-rank" className="leaderboard-page">
+      <section className="leaderboard-window">
+        <header className="leaderboard-hero">
+          <img src={leaderboardHall} alt="" draggable={false} />
+          <div className="leaderboard-hero-copy">
+            <span>HALL OF CHAMPIONS</span>
+            <h1>ทำเนียบผู้กล้า</h1>
+            <p>เกียรติยศของนักเรียนและกิลด์ที่พิชิตด่านความรู้</p>
           </div>
+          <button type="button" className="feature-close-button" aria-label="ปิดหน้าจัดอันดับ" onClick={() => onClose?.()}><span aria-hidden="true">×</span><b>ปิด</b></button>
+          <nav className="leaderboard-tabs" aria-label="ประเภทตารางอันดับ">
+            <button type="button" aria-label="ผู้กล้าเดี่ยว" aria-pressed={mode === 'individual'} onClick={() => switchMode('individual')} className={mode === 'individual' ? 'active' : ''}>⚔️ ผู้กล้าเดี่ยว</button>
+            <button type="button" aria-label="อันดับกิลด์" aria-pressed={mode === 'guild'} onClick={() => switchMode('guild')} className={mode === 'guild' ? 'active' : ''}>🏰 อันดับกิลด์</button>
+          </nav>
         </header>
-        <div className="p-6 flex-1 overflow-y-auto pb-10">
-          {status === 'loading' && <div className="text-center text-gray-500 font-bold p-8">กำลังโหลดข้อมูล... ⏳</div>}
-          {status === 'error' && <div className="text-center p-8"><p className="text-red-600 font-bold mb-3">โหลดอันดับไม่สำเร็จ</p><button type="button" onClick={() => load(mode)} className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-bold">ลองใหม่</button></div>}
-          {status === 'ready' && entries.length === 0 && <div className="text-center text-gray-500 p-8">{mode === 'individual' ? 'ยังไม่มีข้อมูลผู้เล่น' : 'ยังไม่มีข้อมูลกิลด์'}</div>}
+
+        <main className="leaderboard-content">
+          {status === 'idle' && <StatusCard icon="🏆" title="พร้อมเปิดทำเนียบ" copy="เลือกเมนูอันดับเพื่อเรียกข้อมูลล่าสุด" />}
+          {status === 'loading' && <StatusCard icon="✦" title="กำลังรวบรวมเกียรติยศ" copy="โปรดรอสักครู่..." spinning />}
+          {status === 'error' && <StatusCard icon="⚠️" title="โหลดอันดับไม่สำเร็จ" copy="การเชื่อมต่อขัดข้อง กรุณาลองอีกครั้ง"><button type="button" onClick={() => load(mode)}>ลองใหม่</button></StatusCard>}
+          {status === 'ready' && entries.length === 0 && <StatusCard icon="📜" title="ยังไม่มีรายชื่อในทำเนียบ" copy={mode === 'individual' ? 'ยังไม่มีข้อมูลผู้เล่น' : 'ยังไม่มีข้อมูลกิลด์'} />}
           {status === 'ready' && entries.length > 0 && <>
-            <div className="flex items-end justify-center gap-4 mb-8 py-4" aria-label="สามอันดับแรก">
+            <div className="leaderboard-podium" aria-label="สามอันดับแรก">
               {entries.slice(0, 3).map((entry, index) => {
                 const player = mode === 'individual' ? entry as RankedPlayer : null
                 const guild = mode === 'guild' ? entry as RankedGuild : null
                 const mine = player ? player.id === user?.id : guild?.name === user?.class
-                return <div key={player?.id || guild?.name} className={`flex flex-col items-center w-1/3 ${index === 0 ? 'order-2' : index === 1 ? 'order-1' : 'order-3'}`}>
-                  <div className={`mb-1 ${index === 0 ? 'text-4xl' : 'text-3xl'}`}>{player?.avatar || '🏰'}</div>
-                  <span className={`text-xs font-bold truncate max-w-full ${mine ? 'text-indigo-700' : 'text-gray-800'}`}>{player?.name || guild?.name}</span>
-                  <span className="text-[10px] text-amber-700 font-bold">{player?.xp ?? guild?.totalXp} XP</span>
-                  <div className={`w-full bg-gradient-to-t from-yellow-300 to-yellow-500 ${podiumHeights[index]} rounded-t-xl mt-2 flex items-start justify-center pt-2 shadow-md ${mine ? 'ring-2 ring-indigo-500' : ''}`}><span className="text-2xl">{medals[index]}</span></div>
-                </div>
+                return <article key={player?.id || guild?.name} data-place={index + 1} className={mine ? 'mine' : ''}>
+                  <span className="leaderboard-medal" aria-hidden="true">{['♛', '◆', '●'][index]}</span>
+                  <div className="leaderboard-avatar" aria-hidden="true">{player?.avatar || '🏰'}</div>
+                  <h2>{player?.name || guild?.name}</h2>
+                  <p>{Number(player?.xp ?? guild?.totalXp).toLocaleString()} XP</p>
+                  <b>อันดับ {index + 1}</b>
+                </article>
               })}
             </div>
-            <div className="space-y-3">
+            <div className="leaderboard-list" aria-label="รายชื่ออันดับทั้งหมด">
               {entries.map((entry, index) => mode === 'individual'
                 ? <PlayerRow key={(entry as RankedPlayer).id} player={entry as RankedPlayer} index={index} mine={(entry as RankedPlayer).id === user?.id} />
                 : <GuildRow key={(entry as RankedGuild).name} guild={entry as RankedGuild} index={index} mine={(entry as RankedGuild).name === user?.class} />)}
             </div>
           </>}
-        </div>
-      </div>
+        </main>
+      </section>
     </div>
   )
 }
 
+function StatusCard({ icon, title, copy, spinning = false, children }: { icon: string; title: string; copy: string; spinning?: boolean; children?: ReactNode }) {
+  return <div className="leaderboard-status"><span className={spinning ? 'spinning' : ''} aria-hidden="true">{icon}</span><h2>{title}</h2><p>{copy}</p>{children}</div>
+}
+
 function PlayerRow({ player, index, mine }: { player: RankedPlayer; index: number; mine: boolean }) {
-  return <article className={`flex items-center gap-4 p-3 rounded-xl bg-gradient-to-r from-gray-100 to-gray-50 border shadow-sm ${mine ? 'ring-2 ring-indigo-500' : ''}`}>
-    <div className="w-8 text-center font-black text-lg text-gray-500">{index + 1}</div>
-    <div className="text-2xl w-10 text-center">{player.avatar || '🧙‍♂️'}</div>
-    <div className="flex-1 min-w-0"><div className="font-bold text-gray-800 truncate">{player.name} {mine && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">คุณ</span>}</div><div className="text-xs text-gray-500">{player.class} • {player.rank}</div></div>
-    <div className="text-right"><div className="font-black text-indigo-600">{player.xp} <span className="text-xs text-gray-400">XP</span></div><div className="text-xs text-gray-500">Lv.{player.level}</div></div>
+  return <article className={`leaderboard-row ${mine ? 'mine' : ''}`}>
+    <div className="leaderboard-place">{index + 1}</div>
+    <div className="leaderboard-row-avatar" aria-hidden="true">{player.avatar || '🧙‍♂️'}</div>
+    <div className="leaderboard-row-copy"><h3>{player.name} {mine && <span>คุณ</span>}</h3><p>{player.class} • {player.rank}</p></div>
+    <div className="leaderboard-score"><b>{Number(player.xp).toLocaleString()} XP</b><span>Lv.{player.level}</span></div>
   </article>
 }
 
 function GuildRow({ guild, index, mine }: { guild: RankedGuild; index: number; mine: boolean }) {
-  return <article className={`flex items-center gap-4 p-3 rounded-xl bg-gradient-to-r from-gray-100 to-gray-50 border shadow-sm ${mine ? 'ring-2 ring-indigo-500' : ''}`}>
-    <div className="w-8 text-center font-black text-lg text-gray-500">{index + 1}</div><div className="text-2xl">🏯</div>
-    <div className="flex-1"><div className="font-bold text-gray-800">{guild.name} {mine && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">กิลด์ของคุณ</span>}</div><div className="text-xs text-gray-500">สมาชิก {guild.memberCount} คน</div></div>
-    <div className="font-black text-indigo-600">{guild.totalXp} <span className="text-xs text-gray-400">XP</span></div>
+  return <article className={`leaderboard-row ${mine ? 'mine' : ''}`}>
+    <div className="leaderboard-place">{index + 1}</div>
+    <div className="leaderboard-row-avatar" aria-hidden="true">🏰</div>
+    <div className="leaderboard-row-copy"><h3>{guild.name} {mine && <span>กิลด์ของคุณ</span>}</h3><p>สมาชิก {guild.memberCount} คน</p></div>
+    <div className="leaderboard-score"><b>{Number(guild.totalXp).toLocaleString()} XP</b><span>Guild Power</span></div>
   </article>
 }

@@ -5,16 +5,29 @@ import { AdminPanel, type AdminService } from './AdminPanel'
 
 afterEach(cleanup)
 
-const lesson = { id: 'L1', title: 'อินเทอร์เน็ต', description: 'พื้นฐาน', icon: '🌐', isActive: true, enablePretest: false, questionCount: 2 }
+const lesson = { id: 'L1', title: 'อินเทอร์เน็ต', description: 'พื้นฐาน', icon: '🌐', isActive: true, enablePretest: false, questionCount: 2, content: 'สรุปเนื้อหาอินเทอร์เน็ต', worksheetUrl: '' }
 const student = { id: 'u1', name: 'ฟ้า', class: 'ป.5/1', avatar: '🧙', xp: 120, rank: 'SILVER', level: 2, currentLesson: 'อินเทอร์เน็ต' }
 const aiQuestion = (text: string, answer: number) => ({ text, options: ['ก', 'ข', 'ค', 'ง'], answer, explanation: 'อธิบายเฉลย', pattern: 'choice' as const, image: '' as const, matchingPairs: [] as never[] })
+const teacherQuest = {
+  questId: 'TQ001',
+  lessonId: 'L1',
+  lessonTitle: 'อินเทอร์เน็ต',
+  title: 'ภารกิจ: อินเทอร์เน็ต',
+  npcMessage: 'ทำใบงานให้เรียบร้อยนะ',
+  objectives: ['study', 'worksheet'] as Array<'study' | 'posttest' | 'worksheet'>,
+  classes: ['ป.5/1'],
+  startAt: '',
+  dueAt: '2026-07-30',
+  status: 'active' as const,
+  stats: { assigned: 12, notStarted: 4, inProgress: 3, ready: 2, completed: 3, overdue: 0 },
+}
 const aiBundle = {
   lesson: { title: 'ผจญภัยระบบสุริยะ', description: 'ตะลุยดาวเคราะห์ทั้งแปด', content: 'ระบบสุริยะประกอบด้วยดวงอาทิตย์...', icon: '🪐', mapStyle: 'volcano-forge', enablePretest: true },
   pretest: [aiQuestion('ก่อนเรียนข้อ 1', 1)],
   posttest: [aiQuestion('หลังเรียนข้อ 1', 2), aiQuestion('หลังเรียนข้อ 2', 3)],
 }
 
-function setup(overrides: Partial<AdminService> = {}) {
+function setup(overrides: Partial<AdminService> = {}, confirmAction: (message: string) => boolean = () => true) {
   const service: AdminService = {
     verify: vi.fn().mockResolvedValue({ success: true, isValid: true }),
     logout: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +57,12 @@ function setup(overrides: Partial<AdminService> = {}) {
     loadCyberScenarios: vi.fn().mockResolvedValue({ success: true, data: [{ id: 'CS001', timeOfDay: 'เช้า', title: 'ลิงก์ปริศนา', text: 'มีคนส่งลิงก์แปลกมาให้', opt1: 'กดเลย', opt2: 'ไม่กดและแจ้งครู', answerIdx: 1, feedbackWrong: '', feedbackRight: '' }] }),
     saveCyberScenario: vi.fn().mockResolvedValue({ success: true, id: 'CS002' }),
     deleteCyberScenario: vi.fn().mockResolvedValue({ success: true }),
+    loadTeacherQuests: vi.fn().mockResolvedValue({ success: true, data: [teacherQuest] }),
+    saveTeacherQuest: vi.fn().mockResolvedValue({ success: true, id: 'TQ001' }),
+    loadTeacherQuestSubmissions: vi.fn().mockResolvedValue({ success: true, data: [
+      { id: 'u1', name: 'ฟ้า', class: 'ป.5/1', avatar: '🧙', status: 'COMPLETED', worksheetAnswer: 'สรุปว่าอินเทอร์เน็ตมีประโยชน์', submittedAt: '2026-07-18T09:00:00.000Z', score: 8, maxScore: 10, rewarded: true, acceptedAt: '2026-07-17', turnedInAt: '2026-07-18' },
+      { id: 'u2', name: 'น้ำ', class: 'ป.5/1', avatar: '🧝', status: 'IN_PROGRESS', worksheetAnswer: '', submittedAt: '', score: null, maxScore: null, rewarded: false, acceptedAt: '2026-07-17', turnedInAt: '' },
+    ] }),
     generateLesson: vi.fn().mockResolvedValue({ success: true, data: aiBundle, mode: 'gemini' }),
     loadAiSettings: vi.fn().mockResolvedValue({ success: true, data: { hasKey: true, maskedKey: '••••1234' } }),
     saveAiKey: vi.fn().mockResolvedValue({ success: true, message: 'บันทึกแล้ว' }),
@@ -52,7 +71,7 @@ function setup(overrides: Partial<AdminService> = {}) {
     ...overrides,
   }
   const onExit = vi.fn()
-  render(<AdminPanel service={service} onExit={onExit} confirmAction={() => true} downloadCsv={vi.fn()} />)
+  render(<AdminPanel service={service} onExit={onExit} confirmAction={confirmAction} downloadCsv={vi.fn()} />)
   fireEvent(window, new Event('nextgen:open-admin'))
   return { service, onExit }
 }
@@ -253,5 +272,94 @@ describe('AdminPanel', () => {
     fireEvent.change(screen.getByLabelText('เลือกบทเรียนสำหรับรายงาน'), { target: { value: 'L1' } })
     await waitFor(() => expect(service.loadReports).toHaveBeenCalledWith('L1', 'secret123'))
     expect(await screen.findByText('คะแนนเฉลี่ย 8')).toBeTruthy()
+  })
+
+  it('lists teacher quests with live student status counts', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+
+    expect(await screen.findByText('ภารกิจ: อินเทอร์เน็ต')).toBeTruthy()
+    await waitFor(() => expect(service.loadTeacherQuests).toHaveBeenCalledWith('secret123'))
+    const card = screen.getByText('ภารกิจ: อินเทอร์เน็ต').closest('article')!
+    expect(card.textContent).toContain('ได้รับเควสต์ 12')
+    expect(card.textContent).toContain('ส่งสำเร็จ 3')
+    expect(card.textContent).toContain('พร้อมส่ง 2')
+  })
+
+  it('creates a quest from an existing lesson and publishes it with a student count confirm', async () => {
+    const confirmAction = vi.fn().mockReturnValue(true)
+    const { service } = setup({}, confirmAction)
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByText('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'สร้างเควสต์ใหม่' }))
+    fireEvent.change(screen.getByLabelText('เลือกบทเรียนของเควสต์'), { target: { value: 'L1' } })
+    // Lesson data auto-fills the default quest title from the lesson name.
+    expect((screen.getByLabelText('ชื่อเควสต์') as HTMLInputElement).value).toBe('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByLabelText('เป้าหมาย ทำใบงานส่งครู'))
+    fireEvent.change(screen.getByLabelText('คำสั่งจากครูวีรภัทร์'), { target: { value: 'อ่านบทเรียนแล้วทำใบงานส่งครูนะ' } })
+    fireEvent.click(screen.getByLabelText('มอบหมายชั้น ป.5/1'))
+    fireEvent.click(screen.getByRole('button', { name: 'เผยแพร่เควสต์' }))
+
+    await waitFor(() => expect(service.saveTeacherQuest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lessonId: 'L1',
+        title: 'ภารกิจ: อินเทอร์เน็ต',
+        npcMessage: 'อ่านบทเรียนแล้วทำใบงานส่งครูนะ',
+        objectives: expect.arrayContaining(['study', 'worksheet']),
+        classes: ['ป.5/1'],
+        status: 'active',
+      }),
+      'secret123',
+    ))
+    expect(confirmAction).toHaveBeenCalledWith(expect.stringContaining('1 คน'))
+  })
+
+  it('blocks quest objectives the lesson cannot support', async () => {
+    const bareLesson = { id: 'L9', title: 'ด่านว่าง', description: '', icon: '❔', isActive: true, enablePretest: false, questionCount: 0, content: '', worksheetUrl: '' }
+    setup({ loadLessons: vi.fn().mockResolvedValue({ success: true, data: [bareLesson] }) })
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByRole('button', { name: 'สร้างเควสต์ใหม่' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'สร้างเควสต์ใหม่' }))
+    fireEvent.change(screen.getByLabelText('เลือกบทเรียนของเควสต์'), { target: { value: 'L9' } })
+
+    expect((screen.getByLabelText('เป้าหมาย เอาชนะบอสท้ายบทเรียน') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('เป้าหมาย ทำใบงานส่งครู') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('เป้าหมาย ศึกษาบทเรียน') as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('opens student submissions for a quest with statuses and worksheet answers', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByText('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ดูงานที่นักเรียนส่ง ภารกิจ: อินเทอร์เน็ต' }))
+    await waitFor(() => expect(service.loadTeacherQuestSubmissions).toHaveBeenCalledWith('TQ001', 'secret123'))
+
+    const dialog = await screen.findByRole('dialog', { name: /งานที่นักเรียนส่ง/ })
+    expect(dialog.textContent).toContain('ฟ้า')
+    expect(dialog.textContent).toContain('สำเร็จแล้ว')
+    expect(dialog.textContent).toContain('น้ำ')
+    expect(dialog.textContent).toContain('กำลังดำเนินการ')
+    expect(dialog.textContent).toContain('สรุปว่าอินเทอร์เน็ตมีประโยชน์')
+  })
+
+  it('archives a quest without deleting student submissions', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByText('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'เก็บถาวรเควสต์ ภารกิจ: อินเทอร์เน็ต' }))
+    await waitFor(() => expect(service.saveTeacherQuest).toHaveBeenCalledWith(
+      expect.objectContaining({ questId: 'TQ001', status: 'archived' }),
+      'secret123',
+    ))
   })
 })
