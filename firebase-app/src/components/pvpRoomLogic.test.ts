@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   PVP_MAX_QUESTIONS,
+  PVP_LOBBY_WALK_BOUNDS,
   PVP_ROUND_SECONDS,
   advanceRoundOnTimeout,
   applyRankingDelta,
   buildPvpPlayer,
   canJoinRoom,
   canStartBattle,
+  clampPvpLobbyPosition,
   computeMvp,
   currentQuestionId,
   joinRoom,
@@ -58,6 +60,15 @@ const teamRoom = (): PvpRoom => {
 
 const everyoneReady = (room: PvpRoom): PvpRoom =>
   Object.keys(room.players).reduce((next, id) => toggleRoomReady(next, id, true), room)
+
+describe('PVP lobby walk area', () => {
+  it('keeps player feet on the courtyard and out of the sky or chat edge', () => {
+    expect(PVP_LOBBY_WALK_BOUNDS).toEqual({ minX: 6, maxX: 94, minY: 52, maxY: 86 })
+    expect(clampPvpLobbyPosition({ x: 50, y: 18 })).toEqual({ x: 50, y: 52 })
+    expect(clampPvpLobbyPosition({ x: -20, y: 99 })).toEqual({ x: 6, y: 86 })
+    expect(clampPvpLobbyPosition({ x: 72, y: 70 })).toEqual({ x: 72, y: 70 })
+  })
+})
 
 describe('room codes', () => {
   it('sanitizes to uppercase alphanumerics capped at 8 chars', () => {

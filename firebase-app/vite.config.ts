@@ -227,6 +227,9 @@ window.nextGenLegacyBridge = {
   openLessonWorksheet() {
     return openWorksheetModal();
   },
+  closeLessonWorksheet() {
+    return closeWorksheetModal();
+  },
   continueFromPretest() {
     return goToLessonFromPretest();
   },

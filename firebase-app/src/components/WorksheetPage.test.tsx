@@ -25,13 +25,23 @@ describe('WorksheetPage', () => {
     expect(document.querySelector('iframe')).toBeNull()
   })
 
-  it('opens Google Docs externally instead of creating a blocked iframe', async () => {
+  it('embeds a public Google Doc in preview mode while keeping the original link', async () => {
     const docsLesson = { ...lesson, worksheetUrl: 'https://docs.google.com/document/d/doc-id/edit' }
     setup(undefined, docsLesson)
 
-    expect(await screen.findByText(/Google Docs ไม่อนุญาต/)).toBeTruthy()
+    expect((await screen.findByTitle('ตัวอย่างใบงาน')).getAttribute('src')).toBe('https://docs.google.com/document/d/doc-id/preview')
     expect(screen.getByRole('link', { name: /ลิงก์ต้นฉบับ/ }).getAttribute('href')).toBe(docsLesson.worksheetUrl)
-    expect(document.querySelector('iframe')).toBeNull()
+  })
+
+  it('embeds Google Slides as a scrollable presentation and direct PDFs in the worksheet viewer', async () => {
+    const { unmount } = render(<WorksheetPage service={{ getCurrentLesson: () => ({ ...lesson, worksheetUrl: 'https://docs.google.com/presentation/d/slides-id/edit#slide=id.p' }), getCurrentUser: () => user }} onBack={vi.fn()} />)
+    window.dispatchEvent(new Event('nextgen:open-worksheet'))
+    expect((await screen.findByTitle('ตัวอย่างใบงาน')).getAttribute('src')).toBe('https://docs.google.com/presentation/d/slides-id/embed?start=false&loop=false&delayms=3000')
+    unmount()
+
+    render(<WorksheetPage service={{ getCurrentLesson: () => ({ ...lesson, worksheetUrl: 'https://example.com/worksheet.pdf' }), getCurrentUser: () => user }} onBack={vi.fn()} />)
+    window.dispatchEvent(new Event('nextgen:open-worksheet'))
+    expect((await screen.findByTitle('ตัวอย่างใบงาน')).getAttribute('src')).toBe('https://example.com/worksheet.pdf')
   })
 
   it('previews direct images and converts Drive links to preview embeds', async () => {
@@ -46,7 +56,7 @@ describe('WorksheetPage', () => {
   })
 
   it('validates input then renders a generated worksheet preview', async () => {
-    const { draw } = setup()
+    const { draw, onBack } = setup()
     fireEvent.click(await screen.findByRole('button', { name: /บันทึกและรับรูปใบงาน/ }))
     expect(screen.getByText('กรุณาพิมพ์คำตอบหรือสรุปความรู้ก่อน')).toBeTruthy()
 
@@ -55,12 +65,22 @@ describe('WorksheetPage', () => {
 
     expect(draw).toHaveBeenCalledWith(expect.any(HTMLCanvasElement), lesson, user, 'คำตอบของฉัน')
     expect(await screen.findByRole('heading', { name: /บันทึกใบงานสำเร็จ/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'ปิดหน้าต่างและเล่นต่อ' }))
+    expect(onBack).toHaveBeenCalledOnce()
+    expect(document.getElementById('page-worksheet')?.classList.contains('hidden')).toBe(true)
   })
 
   it('returns to the lesson', async () => {
     const { onBack } = setup()
     fireEvent.click(await screen.findByRole('button', { name: /กลับสู่บทเรียน/ }))
     expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('offers a dedicated close control for the full-screen worksheet', async () => {
+    const { onBack } = setup()
+    fireEvent.click(await screen.findByRole('button', { name: 'ปิดหน้าใบงาน' }))
+    expect(onBack).toHaveBeenCalledOnce()
+    expect(document.getElementById('page-worksheet')?.classList.contains('hidden')).toBe(true)
   })
 
   it('saves the submission online, pays the first-time study reward, and syncs the player', async () => {

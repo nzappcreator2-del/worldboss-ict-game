@@ -49,8 +49,8 @@ describe('CyberSafety', () => {
     expect(screen.getByText(/แก้ตัวสำเร็จ.*\+5/)).toBeTruthy()
   })
 
-  it('saves final rewards once and synchronizes the user from Firestore', async () => {
-    const { service, onUserUpdate } = setup([scenarios[0]])
+  it('saves final rewards once, synchronizes the user, and closes before returning home', async () => {
+    const { service, onExit, onUserUpdate } = setup([scenarios[0]])
     fireEvent.click(await screen.findByRole('button', { name: /เริ่มภารกิจ/ }))
     await screen.findByText(scenarios[0].text)
     fireEvent.click(screen.getByRole('button', { name: 'ร่วมตัดสินใจ' }))
@@ -62,6 +62,11 @@ describe('CyberSafety', () => {
     await waitFor(() => expect(service.saveResult).toHaveBeenCalledWith('u1', 100, 20, 20))
     await waitFor(() => expect(onUserUpdate).toHaveBeenCalledWith(expect.objectContaining({ coins: 35, xp: 75 })))
     expect(screen.getByRole('button', { name: /บันทึกแล้ว/ }).hasAttribute('disabled')).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'กลับสู่หน้าหลัก' }))
+
+    expect(onExit).toHaveBeenCalledOnce()
+    expect(document.getElementById('page-cyber-safety')?.className).toContain('hidden')
   })
 
   it('shows retry when scenario loading fails', async () => {

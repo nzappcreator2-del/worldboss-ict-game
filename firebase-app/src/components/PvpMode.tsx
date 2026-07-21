@@ -31,10 +31,12 @@ import {
 } from './dashboardCharacter'
 import {
   PVP_COUNTDOWN_SECONDS,
+  PVP_LOBBY_WALK_BOUNDS,
   PVP_ROUND_SECONDS,
   PVP_TEAM_SIZES,
   battleScore,
   canStartBattle,
+  clampPvpLobbyPosition,
   computeMvp,
   currentQuestionId,
   outcomeForPlayer,
@@ -89,7 +91,7 @@ export type PvpArenaService = {
 type Props = { service: PvpArenaService; onExit(): void }
 type View = 'idle' | 'select' | 'joining' | 'lobby' | 'battle' | 'result' | 'error'
 
-const LOBBY_WALK_BOUNDS: WalkBounds = { minX: 6, maxX: 94, minY: 34, maxY: 86 }
+const LOBBY_WALK_BOUNDS: WalkBounds = PVP_LOBBY_WALK_BOUNDS
 const LOBBY_SPAWN: CharacterPosition = { x: 50, y: 68 }
 const LOBBY_SPRITE_SIZE = 84
 const BATTLE_SPRITE_SIZE = 96
@@ -632,8 +634,8 @@ export function PvpMode({ service, onExit }: Props) {
               const remote = presence.find((row) => row.userId === player.userId)
               const slotIndex = players.filter((item) => item.team === player.team && item.userId < player.userId).length
               const fallback = (player.team === myTeam ? ALLY_SLOTS : ENEMY_SLOTS)[slotIndex % 4]
-              const x = remote ? remote.x : fallback.x
-              const y = remote ? remote.y : Math.max(LOBBY_WALK_BOUNDS.minY, fallback.y)
+              const position = clampPvpLobbyPosition(remote ? { x: remote.x, y: remote.y } : fallback)
+              const { x, y } = position
               const direction = (remote?.direction || 'down') as WalkDirection
               const frame = remote?.action === 'walk' ? walkFrame % TEST_CHARACTER_SPRITE.walkFrames.length : 0
               const bubble = bubbles[player.userId]

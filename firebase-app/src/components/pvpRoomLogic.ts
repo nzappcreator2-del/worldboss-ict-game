@@ -81,6 +81,20 @@ export const PVP_COUNTDOWN_SECONDS = 4
 export const PVP_RATING_WIN = 25
 export const PVP_RATING_LOSS = -10
 
+// Feet-position bounds matched to the stone courtyard in pvp-lobby-courtyard.jpg.
+// Keeping this in the pure rules module also lets incoming realtime presence
+// from older clients be projected back onto the playable floor before render.
+export const PVP_LOBBY_WALK_BOUNDS = { minX: 6, maxX: 94, minY: 52, maxY: 86 } as const
+
+export function clampPvpLobbyPosition(position: { x: number; y: number }) {
+  const x = Number.isFinite(position.x) ? position.x : 50
+  const y = Number.isFinite(position.y) ? position.y : 68
+  return {
+    x: Math.min(PVP_LOBBY_WALK_BOUNDS.maxX, Math.max(PVP_LOBBY_WALK_BOUNDS.minX, x)),
+    y: Math.min(PVP_LOBBY_WALK_BOUNDS.maxY, Math.max(PVP_LOBBY_WALK_BOUNDS.minY, y)),
+  }
+}
+
 const PVP_BASE_DAMAGE = 16
 const PVP_VARIANCE_MAX = 10
 const PVP_CRIT_MULTIPLIER = 2

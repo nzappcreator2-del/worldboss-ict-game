@@ -67,6 +67,7 @@ type LegacyBridge = {
   backFromLesson(): void
   startLessonQuiz(): void
   openLessonWorksheet(): void
+  closeLessonWorksheet(): void
   continueFromPretest(): void
   trackDailyProgress(type: 'play1' | 'correct5', questionId?: string): void
   updateBattleUser(user: Partial<BattleUser>): void
@@ -338,7 +339,7 @@ function App() {
             return await firestoreApi.saveWorksheetSubmission(user.id, lessonId, answer) as WorksheetSubmissionResult
           },
         }}
-        onBack={() => bridge()?.continueFromPretest()}
+        onBack={() => bridge()?.closeLessonWorksheet()}
         onUserUpdate={(stats: WorksheetSubmissionStats) => bridge()?.updateBattleUser(stats as Partial<BattleUser>)}
       />,
     )

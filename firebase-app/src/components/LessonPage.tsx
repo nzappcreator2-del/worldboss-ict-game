@@ -1442,6 +1442,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
 
   const directVideo = isDirectLessonVideo(lesson.videoUrl)
   const embedUrl = toTrackedLessonEmbedUrl(lesson.videoUrl, window.location.origin)
+  const hasWorksheet = Boolean(lesson.content?.trim() || lesson.worksheetUrl?.trim())
   const questCount = completedLessonQuests(progress)
   const xpProgress = levelProgress(heroXp)
   // Paper-doll portrait for HUD/profile: down-facing idle frame with all layers.
@@ -1763,8 +1764,12 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
         <div className="lesson-modal-backdrop" role="dialog" aria-modal="true" aria-label="โน้ตเนื้อหาบทเรียน">
           <article className="lesson-note-modal">
             <img className="lesson-note-scroll" src={LESSON_SCROLL_IMAGE} alt="" /><small>ไอเทมเนื้อหาบทเรียน</small><h3>{lesson.title}</h3>
-            <div>{lesson.content || lesson.description || 'อ่านเนื้อหาบทเรียนนี้ให้จบก่อนเดินทางต่อ'}</div>
-            <button type="button" onClick={() => { setProgress(readLessonNote); setNoteOpen(false) }}>อ่านจบแล้ว</button>
+            {hasWorksheet && <p data-testid="lesson-note-worksheet-badge" className="lesson-note-worksheet-badge"><i aria-hidden="true">✦</i> บทนี้มีใบงาน <span>รับรางวัลการเรียนรู้เมื่อส่งสำเร็จ</span></p>}
+            <div className="lesson-note-content">{lesson.content || lesson.description || 'อ่านเนื้อหาบทเรียนนี้ให้จบก่อนเดินทางต่อ'}</div>
+            <div className="lesson-note-actions">
+              <button type="button" onClick={() => { setProgress(readLessonNote); setNoteOpen(false) }}>อ่านจบแล้ว</button>
+              {hasWorksheet && <button type="button" className="lesson-note-worksheet-button" aria-label="ทำใบงานบทนี้" onClick={onOpenWorksheet}><span aria-hidden="true">📝</span> ทำใบงานบทนี้ <em>พร้อมแล้ว</em></button>}
+            </div>
           </article>
         </div>
       )}

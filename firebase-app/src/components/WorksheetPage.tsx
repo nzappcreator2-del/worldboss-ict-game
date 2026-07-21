@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import worksheetBackground from '../assets/generated/worksheet-grand-archive.jpg'
 import { createWorksheetDownload, drawWorksheetCanvas, type WorksheetUser } from './worksheetCanvas'
 
 export type WorksheetLesson = { id: string; title: string; content?: string; worksheetUrl?: string }
@@ -32,6 +33,23 @@ function drivePreview(url: string) {
   return match ? `https://drive.google.com/file/d/${match[1]}/preview` : url
 }
 
+function workspacePreview(url: string) {
+  const presentation = url.match(/^https:\/\/docs\.google\.com\/presentation\/d\/([^/?#]+)/i)
+  if (presentation) return `https://docs.google.com/presentation/d/${presentation[1]}/embed?start=false&loop=false&delayms=3000`
+  const document = url.match(/^https:\/\/docs\.google\.com\/document\/d\/([^/?#]+)/i)
+  if (document) return `https://docs.google.com/document/d/${document[1]}/preview`
+  const spreadsheet = url.match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([^/?#]+)/i)
+  if (spreadsheet) return `https://docs.google.com/spreadsheets/d/${spreadsheet[1]}/preview`
+  if (/^https:\/\/docs\.google\.com\/forms\//i.test(url)) return `${url}${url.includes('?') ? '&' : '?'}embedded=true`
+  return ''
+}
+
+function worksheetEmbedUrl(url: string) {
+  if (!url || url.includes('classroom.google.com')) return ''
+  if (url.includes('drive.google.com')) return drivePreview(url)
+  return workspacePreview(url) || url
+}
+
 export function WorksheetPage({ service, onBack, onUserUpdate, draw = defaultDraw }: Props) {
   const [lesson, setLesson] = useState<WorksheetLesson | null>(null)
   const [answer, setAnswer] = useState('')
@@ -50,6 +68,15 @@ export function WorksheetPage({ service, onBack, onUserUpdate, draw = defaultDra
     setRewardStats(null)
   }, [service])
 
+  const close = useCallback(() => {
+    // Remove the fixed worksheet layer immediately. Navigation is still called
+    // afterwards, but a delayed/failed legacy transition can no longer leave an
+    // invisible overlay intercepting clicks over the resumed lesson.
+    setPreview('')
+    setLesson(null)
+    onBack()
+  }, [onBack])
+
   useEffect(() => {
     window.addEventListener('nextgen:open-worksheet', open)
     return () => window.removeEventListener('nextgen:open-worksheet', open)
@@ -58,9 +85,8 @@ export function WorksheetPage({ service, onBack, onUserUpdate, draw = defaultDra
   if (!lesson) return <section id="page-worksheet" className="hidden" />
   const url = safeUrl(lesson.worksheetUrl)
   const classroom = url.includes('classroom.google.com')
-  const googleWorkspace = url.includes('docs.google.com')
   const image = /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(url)
-  const drive = url.includes('drive.google.com')
+  const embeddedUrl = image ? '' : worksheetEmbedUrl(url)
 
   const submit = async () => {
     const clean = answer.trim()
@@ -102,19 +128,100 @@ export function WorksheetPage({ service, onBack, onUserUpdate, draw = defaultDra
   }
 
   return (
-    <section id="page-worksheet" className="flex-1 flex flex-col relative z-20 p-4 md:p-8 h-full overflow-y-auto">
-      <div className="flex items-center justify-between mb-4 gap-2"><button type="button" onClick={onBack} className="btn-action text-blue-800 font-black bg-blue-100 px-5 py-2.5 rounded-xl">← กลับสู่บทเรียน</button><h2 className="rpg-title text-2xl text-white">📝 ทำใบงาน</h2></div>
-      <div className="flex flex-col lg:flex-row gap-6 w-full h-full flex-1 min-h-0">
-        <div className="flex-1 rpg-box bg-white/90 p-4 md:p-6 rounded-3xl overflow-y-auto min-h-[30vh]"><h3 className="text-xl font-bold text-gray-800 mb-2 border-b-2 pb-2">📖 สรุปเนื้อหาใบงาน</h3><div className="text-gray-700 whitespace-pre-wrap">{lesson.content || 'ไม่มีเนื้อหาใบงาน'}</div>{url && <div className="mt-4"><a href={url} target="_blank" rel="noreferrer" className="w-full text-center text-blue-800 font-extrabold bg-blue-50 border-2 border-blue-300 p-4 rounded-xl flex flex-col items-center">🔗 <span className="underline">คลิกเปิดลิงก์ต้นฉบับ / Classroom</span></a></div>}{classroom && <div className="mt-3 text-center p-4 bg-gray-100 rounded-xl text-gray-500 font-bold border-2 border-dashed">Classroom ไม่อนุญาตให้แสดงแบบฝัง กรุณาเปิดจากลิงก์ด้านบน</div>}{googleWorkspace && <div className="mt-3 text-center p-4 bg-gray-100 rounded-xl text-gray-500 font-bold border-2 border-dashed">Google Docs ไม่อนุญาตให้แสดงหน้าแก้ไขแบบฝังอย่างปลอดภัย กรุณาเปิดจากลิงก์ด้านบน</div>}{image && <img src={url} alt="ใบงานประกอบบทเรียน" className="w-full h-auto object-contain rounded-lg mt-3 border-2" />}{drive && <iframe src={drivePreview(url)} title="ตัวอย่างใบงาน" className="w-full h-[500px] mt-3 rounded-xl border-2" allow="autoplay; encrypted-media" />}{url && !classroom && !googleWorkspace && !image && !drive && <iframe src={url} title="ตัวอย่างใบงาน" sandbox="allow-forms allow-scripts allow-same-origin allow-presentation" className="w-full h-[500px] mt-3 rounded-xl border-2" />}</div>
-        <div className="flex-1 rpg-box bg-blue-50/90 border-[3px] border-blue-200 p-4 md:p-6 rounded-3xl flex flex-col"><h3 className="text-xl font-bold text-blue-800 mb-2 border-b-2 border-blue-200 pb-2">✏️ พื้นที่ตอบคำถาม / ส่งงาน</h3><p className="text-sm text-gray-600 mb-4 font-bold">พิมพ์สรุปความรู้หรือตอบคำถามจากเนื้อหาด้านซ้าย</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} className="w-full flex-1 rounded-xl p-4 text-gray-800 text-lg border-2 border-blue-300 resize-none" placeholder="พิมพ์ส่งงาน หรือ สรุปความรู้ได้ที่นี่..." />{validation && <p className="text-red-600 font-bold mt-2">{validation}</p>}<button type="button" onClick={() => void submit()} className="w-full btn-arcade py-4 text-xl mt-4">✅ บันทึกและรับรูปใบงาน</button></div>
-      </div>
+    <section id="page-worksheet" className="worksheet-page" style={{ backgroundImage: `url(${worksheetBackground})` }}>
+      <div className="worksheet-page-shade" aria-hidden="true" />
+      <header className="worksheet-command-bar">
+        <button type="button" onClick={close} className="worksheet-back-button">← กลับสู่บทเรียน</button>
+        <div className="worksheet-title-lockup">
+          <span aria-hidden="true">📜</span>
+          <div><small>ADVENTURER STUDY QUEST</small><h2>ภารกิจใบงาน</h2><p>{lesson.title}</p></div>
+        </div>
+        <button type="button" onClick={close} aria-label="ปิดหน้าใบงาน" className="worksheet-close-button">×</button>
+      </header>
+
+      <main className="worksheet-workspace">
+        <section className="worksheet-panel worksheet-source-panel" aria-label="เอกสารและเนื้อหาใบงาน">
+          <header className="worksheet-panel-heading">
+            <div><span aria-hidden="true">📚</span><div><small>KNOWLEDGE ARCHIVE</small><h3>เอกสารประกอบภารกิจ</h3></div></div>
+            <b className={url ? 'is-ready' : ''}>{url ? '✦ เอกสารพร้อมอ่าน' : '◆ เนื้อหาบทเรียน'}</b>
+          </header>
+
+          {url && (
+            <div className="worksheet-source-toolbar">
+              <span>{classroom ? 'Google Classroom' : image ? 'ภาพใบงาน' : 'ตัวแสดงเอกสารแบบฝัง'}</span>
+              <a href={url} target="_blank" rel="noreferrer" aria-label="เปิดลิงก์ต้นฉบับ / Classroom">↗ เปิดลิงก์ต้นฉบับ</a>
+            </div>
+          )}
+
+          <div className="worksheet-document-viewer">
+            {classroom && (
+              <div className="worksheet-embed-fallback">
+                <span aria-hidden="true">🏫</span><h4>เปิดภารกิจใน Google Classroom</h4>
+                <p>Classroom ไม่อนุญาตให้แสดงแบบฝัง กรุณาเปิดลิงก์ต้นฉบับเพื่อดูคำสั่งและไฟล์จากครู</p>
+                <a href={url} target="_blank" rel="noreferrer">เข้า Classroom</a>
+              </div>
+            )}
+            {image && <img src={url} alt="ใบงานประกอบบทเรียน" />}
+            {embeddedUrl && (
+              <iframe
+                src={embeddedUrl}
+                title="ตัวอย่างใบงาน"
+                sandbox="allow-forms allow-scripts allow-same-origin allow-presentation allow-popups"
+                allow="autoplay; encrypted-media"
+                allowFullScreen
+              />
+            )}
+            {!url && <div className="worksheet-summary-only">{lesson.content || 'ไม่มีเนื้อหาใบงาน'}</div>}
+          </div>
+
+          {url && (
+            <details className="worksheet-lesson-summary" open={classroom}>
+              <summary>📖 สรุปเนื้อหาใบงาน</summary>
+              <div>{lesson.content || 'ไม่มีเนื้อหาใบงาน'}</div>
+            </details>
+          )}
+        </section>
+
+        <section className="worksheet-panel worksheet-answer-panel" aria-label="พื้นที่ตอบคำถามและส่งงาน">
+          <header className="worksheet-panel-heading">
+            <div><span aria-hidden="true">✍️</span><div><small>QUEST RESPONSE</small><h3>บันทึกคำตอบส่งครู</h3></div></div>
+            <b className="is-ready">+40 XP · +25 🪙</b>
+          </header>
+          <div className="worksheet-quest-instructions">
+            <span>1</span><p><b>อ่านเอกสาร</b><small>เลื่อนดูสไลด์ เอกสาร หรือ PDF ทางด้านซ้าย</small></p>
+            <span>2</span><p><b>สรุปความรู้</b><small>เขียนคำตอบด้วยภาษาของนักเรียนเอง</small></p>
+            <span>3</span><p><b>บันทึกและส่ง</b><small>ระบบสร้างรูปใบงานพร้อมบันทึกให้ครู</small></p>
+          </div>
+          <label className="worksheet-answer-label" htmlFor="worksheet-answer">คำตอบของผู้กล้า</label>
+          <textarea id="worksheet-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="พิมพ์ส่งงาน หรือ สรุปความรู้ได้ที่นี่..." />
+          {validation && <p role="alert" className="worksheet-validation">{validation}</p>}
+          <div className="worksheet-submit-zone">
+            <p>🎁 ส่งครั้งแรกได้รับรางวัลการเรียนรู้ และยังเซฟรูปไปส่ง Classroom ได้เหมือนเดิม</p>
+            <button type="button" onClick={() => void submit()} disabled={submitState === 'saving'}>✅ บันทึกและรับรูปใบงาน</button>
+          </div>
+        </section>
+      </main>
+
       <canvas ref={canvasRef} width="1200" height="800" className="hidden" />
-      {preview && <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-gray-100 rounded-3xl p-6 md:p-8 max-w-2xl w-full flex flex-col items-center"><h3 className="text-3xl font-black text-green-600 mb-2">🎉 บันทึกใบงานสำเร็จ!</h3><p className="text-gray-600 font-bold mb-2 text-center">บันทึกรูปไว้เป็นผลงาน แล้วแนบส่งใน Classroom ได้เลย</p>
-        {submitState === 'saving' && <p className="text-blue-600 font-bold mb-4 text-center">⏳ กำลังบันทึกส่งครูออนไลน์...</p>}
-        {submitState === 'saved-first' && rewardStats && <p data-testid="worksheet-reward" className="text-amber-600 font-black mb-4 text-center bg-amber-100 border-2 border-amber-300 rounded-xl px-4 py-2">🎁 ส่งงานถึงครูแล้ว! ได้รับ +{rewardStats.gainedXp} XP +{rewardStats.gainedCoins} เหรียญ</p>}
-        {submitState === 'saved-again' && <p className="text-blue-700 font-bold mb-4 text-center">📮 ส่งฉบับใหม่ถึงครูแล้ว (รางวัลรับได้เฉพาะครั้งแรก)</p>}
-        {submitState === 'save-failed' && <p className="text-orange-600 font-bold mb-4 text-center">⚠️ บันทึกส่งครูออนไลน์ไม่สำเร็จ — ยังดาวน์โหลดรูปไปส่งใน Classroom ได้ตามปกติ</p>}
-        <img src={preview} alt="ตัวอย่างใบงานที่สร้าง" className="max-h-[40vh] object-contain rounded-lg border-4 mb-6" /><button type="button" onClick={download} className="w-full btn-action bg-blue-500 text-white font-bold py-4 text-xl rounded-xl">⬇️ เซฟรูปใบงานเก็บไว้ส่ง</button><a href="https://classroom.google.com/" target="_blank" rel="noreferrer" className="w-full mt-3 bg-white border-4 border-green-600 text-green-700 font-bold py-4 text-xl rounded-xl text-center">เข้า Classroom เพื่อส่งงาน</a><button type="button" onClick={() => setPreview('')} className="mt-4 text-gray-500 font-bold underline">ปิดหน้าต่างเพื่อพิมพ์ใหม่</button></div></div>}
+      {preview && (
+        <div className="worksheet-result-backdrop">
+          <div className="worksheet-result-card">
+            <span className="worksheet-result-emblem" aria-hidden="true">🏆</span>
+            <h3>บันทึกใบงานสำเร็จ!</h3>
+            <p>บันทึกรูปไว้เป็นผลงาน แล้วแนบส่งใน Classroom ได้เลย</p>
+            {submitState === 'saving' && <p className="worksheet-save-status">⏳ กำลังบันทึกส่งครูออนไลน์...</p>}
+            {submitState === 'saved-first' && rewardStats && <p data-testid="worksheet-reward" className="worksheet-reward-status">🎁 ส่งงานถึงครูแล้ว! ได้รับ +{rewardStats.gainedXp} XP +{rewardStats.gainedCoins} เหรียญ</p>}
+            {submitState === 'saved-again' && <p className="worksheet-save-status">📮 ส่งฉบับใหม่ถึงครูแล้ว (รางวัลรับได้เฉพาะครั้งแรก)</p>}
+            {submitState === 'save-failed' && <p className="worksheet-save-error">⚠️ บันทึกส่งครูออนไลน์ไม่สำเร็จ — ยังดาวน์โหลดรูปไปส่งใน Classroom ได้ตามปกติ</p>}
+            <img src={preview} alt="ตัวอย่างใบงานที่สร้าง" />
+            <div className="worksheet-result-actions">
+              <button type="button" onClick={download}>⬇️ เซฟรูปใบงานเก็บไว้ส่ง</button>
+              <a href="https://classroom.google.com/" target="_blank" rel="noreferrer">🏫 เข้า Classroom เพื่อส่งงาน</a>
+            </div>
+            <button type="button" onClick={close} className="worksheet-result-dismiss">ปิดหน้าต่างและเล่นต่อ</button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

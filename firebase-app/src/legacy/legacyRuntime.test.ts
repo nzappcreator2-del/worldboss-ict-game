@@ -101,6 +101,8 @@ describe('generated legacy compatibility runtime', () => {
     expect(legacyScript).not.toContain('function submitAnswer(')
     expect(legacyScript).not.toContain('window.submitMatchingAnswer')
     expect(legacyScript).toContain("new Event('nextgen:open-worksheet')")
+    expect(legacyScript).toContain('closeLessonWorksheet()')
+    expect(legacyScript).toContain('return closeWorksheetModal();')
     expect(legacyScript).not.toContain('function submitWorksheet(')
     expect(legacyScript).toContain("new Event('nextgen:open-cyber-safety')")
     expect(legacyScript).not.toContain('function selectCyberOption(')

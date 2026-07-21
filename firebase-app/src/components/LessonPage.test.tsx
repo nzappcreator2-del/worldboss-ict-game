@@ -165,6 +165,21 @@ describe('LessonPage', () => {
     }
   })
 
+  it('highlights an available worksheet inside the lesson note and opens it directly', async () => {
+    const handlers = setup(
+      { ...lesson, worksheetUrl: 'https://docs.google.com/presentation/d/worksheet/edit' },
+      { random: () => 0 },
+    )
+    window.dispatchEvent(new Event('nextgen:open-lesson'))
+    expect(await screen.findByTestId('lesson-adventure-world')).toBeTruthy()
+    defeatFirstMonster()
+    fireEvent.click(await screen.findByRole('button', { name: /เปิดโน้ตบทเรียน/ }))
+
+    expect(screen.getByTestId('lesson-note-worksheet-badge').textContent).toContain('บทนี้มีใบงาน')
+    fireEvent.click(screen.getByRole('button', { name: 'ทำใบงานบทนี้' }))
+    expect(handlers.onOpenWorksheet).toHaveBeenCalledOnce()
+  })
+
   it('allows manual video confirmation when the provider does not report completion', async () => {
     openLessonWithFakeTimers({ random: () => 0, videoUnlockMs: 100 })
     try {
@@ -593,6 +608,9 @@ describe('LessonPage', () => {
       openQuestCard()
       defeatFirstMonster()
       expect(screen.getByText(/โจมตีมอนสเตอร์ \(1\/20\)/)).toBeTruthy()
+      const autoBattle = screen.getByRole('button', { name: 'สลับโหมดโจมตีอัตโนมัติ' })
+      fireEvent.click(autoBattle)
+      expect(autoBattle.getAttribute('aria-pressed')).toBe('true')
 
       act(() => { window.dispatchEvent(new Event('nextgen:open-worksheet')) })
       const page = document.getElementById('page-lesson') as HTMLElement
@@ -600,6 +618,7 @@ describe('LessonPage', () => {
 
       act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
       expect(page.style.display).toBe('block')
+      expect(autoBattle.getAttribute('aria-pressed')).toBe('true')
       expect(screen.getByText(/โจมตีมอนสเตอร์ \(1\/20\)/)).toBeTruthy()
       expect(screen.getByText('EXP 38/100')).toBeTruthy()
     } finally {
