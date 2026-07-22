@@ -23,6 +23,7 @@ import { HeroProfile, type HeroProfileInventory, type HeroProfileUser } from './
 import { LoginBonus } from './components/LoginBonus'
 import { DashboardShell, type DashboardShellUser, type DashboardTab } from './components/DashboardShell'
 import { PageTransitionIndicator } from './components/PageTransitionIndicator'
+import { GameAudioControl } from './components/GameAudioControl'
 import { legacyBody, legacyCss, legacyScript } from './legacy/sources'
 import { endAdminSession } from './firebase/adminClient'
 import { resetTutorHistory, testGeminiKey } from './services/aiApi'
@@ -463,6 +464,7 @@ function App() {
     overlayApp.render(
       <>
         <PageTransitionIndicator />
+        <GameAudioControl />
         <LoginBonus
           service={{
             getCurrentUser: () => {

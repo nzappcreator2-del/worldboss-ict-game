@@ -10,6 +10,7 @@ import {
   type WalkDirection,
 } from './dashboardCharacter'
 import { updateBossCombatStep } from './bossCombatLogic'
+import { playSwordHit } from '../services/gameAudio'
 
 export type PlayerActorAction = 'idle' | 'walk' | 'attack' | 'hurt'
 export type BossActorAction = 'idle' | 'walk' | 'attack'
@@ -131,6 +132,7 @@ export function useBattleActors({ active, playerStart, bossStart, attackRange }:
   }, [active, stopHeldMove, stopPointerMove])
 
   const playAttackAnimation = useCallback((facing: WalkDirection) => {
+    playSwordHit()
     stopHeldMove()
     stopPointerMove(false)
     setDirection(facing)

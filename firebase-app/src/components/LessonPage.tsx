@@ -76,6 +76,7 @@ import { applyBattleAnswer, applySkirmishExchange, battleOutcome, selectBossSkil
 import { HERO_BASE_MAX_HP, heroCombatProfile, type HeroCombatProfile } from '../services/heroStats'
 import { characterLayerImages } from './characterAssets'
 import { levelForXp, levelProgress } from '../services/levelSystem'
+import { playSwordHit, setLessonMusic } from '../services/gameAudio'
 import { LessonAssetMonsterSprite, LessonMonsterSprite } from './LessonMonsterSprites'
 import { LESSON_BAR_BADGE_IMAGES, LESSON_CHEST_IMAGES, LESSON_DEATH_PANEL_IMAGES, LESSON_HOTBAR_IMAGES, LESSON_LOOT_IMAGES, LESSON_SCROLL_IMAGE, LESSON_STAT_IMAGES } from './lessonUiAssets'
 import { VirtualJoystick } from './VirtualJoystick'
@@ -701,6 +702,11 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     return () => window.removeEventListener('nextgen:open-lesson', open)
   }, [open])
 
+  useEffect(() => {
+    if (!lesson || paused) return
+    setLessonMusic(progress.zone)
+  }, [lesson, paused, progress.zone])
+
   // One bag / one profile everywhere: the lesson pauses while the shared
   // overlay covers the world and resumes when it reports itself closed.
   useEffect(() => {
@@ -1084,6 +1090,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   }
 
   const playAttackAnimation = (facing: WalkDirection) => {
+    playSwordHit()
     stopHeldMove()
     stopPointerMove(false)
     setDirection(facing)

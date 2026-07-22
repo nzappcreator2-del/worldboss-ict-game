@@ -14,6 +14,7 @@ vi.mock('firebase/app', () => ({
 vi.mock('firebase/auth', () => ({
   browserSessionPersistence: 'browser-session',
   getAuth: vi.fn(() => auth),
+  initializeAuth: vi.fn(() => auth),
   setPersistence: setPersistenceMock,
   signInWithEmailAndPassword: signIn,
   signOut: signOutMock,

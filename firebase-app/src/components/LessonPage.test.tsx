@@ -5,9 +5,11 @@ import { LessonPage, type Lesson, type LessonService } from './LessonPage'
 import type { QuizQuestion } from './QuizQuestionView'
 import { toLessonEmbedUrl } from './lessonMedia'
 import { LESSON_MONSTER_KILL_TARGET } from './lessonAdventureLogic'
+import * as gameAudio from '../services/gameAudio'
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   cleanup()
 })
 
@@ -127,6 +129,19 @@ async function enterBossRoom() {
 }
 
 describe('LessonPage', () => {
+  it('selects monster music for the opening zones and plays the sword effect on every attack input', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setLessonMusic')
+    const playSword = vi.spyOn(gameAudio, 'playSwordHit')
+    setup()
+    window.dispatchEvent(new Event('nextgen:open-lesson'))
+
+    await screen.findByTestId('lesson-adventure-world')
+    fireEvent.click(screen.getByRole('button', { name: 'โจมตีด้วยดาบ' }))
+
+    expect(setMusic).toHaveBeenCalledWith(1)
+    expect(playSword).toHaveBeenCalledOnce()
+  })
+
   it('opens as a three-zone explorable RPG lesson world', async () => {
     setup()
     window.dispatchEvent(new Event('nextgen:open-lesson'))

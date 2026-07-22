@@ -3988,3 +3988,71 @@
 @media (prefers-reduced-motion: reduce) {
   .lesson-note-worksheet-badge { animation: none; }
 }
+/* Persistent production-style audio control: compact, readable over every
+   scene, and offset by safe-area insets on phones. */
+.game-audio-control {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  color: #fff2bd;
+  background: linear-gradient(145deg, rgba(41, 30, 22, .96), rgba(13, 18, 28, .96));
+  border: 1px solid rgba(244, 195, 92, .78);
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .42), inset 0 1px rgba(255, 244, 190, .22);
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-audio-control:hover {
+  color: #fff9df;
+  border-color: #ffd777;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .5), 0 0 18px rgba(244, 195, 92, .22), inset 0 1px rgba(255, 255, 255, .24);
+  transform: translateY(-2px);
+}
+
+.game-audio-control:active { transform: translateY(0) scale(.96); }
+.game-audio-control:focus-visible { outline: 3px solid rgba(255, 220, 126, .85); outline-offset: 3px; }
+.game-audio-control.is-muted { color: #cbd5e1; border-color: rgba(148, 163, 184, .7); }
+.game-audio-control-icon { display: block; width: 25px; height: 25px; }
+.game-audio-control svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.game-audio-control-wave { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+.game-audio-control-tooltip {
+  position: absolute;
+  right: calc(100% + 10px);
+  padding: 6px 9px;
+  color: #fff8dc;
+  background: rgba(9, 13, 22, .94);
+  border: 1px solid rgba(244, 195, 92, .45);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.game-audio-control:hover .game-audio-control-tooltip,
+.game-audio-control:focus-visible .game-audio-control-tooltip { opacity: 1; transform: translateX(0); }
+
+/* Context offsets keep the global control clear of the EXP strip, mobile
+   dashboard navigation, and the lesson combat skill cluster. */
+.game-audio-control[data-page="dashboard"] { bottom: max(34px, env(safe-area-inset-bottom)); }
+.game-audio-control[data-page="lesson"] { bottom: max(72px, env(safe-area-inset-bottom)); }
+
+@media (max-width: 640px) {
+  .game-audio-control { width: 42px; height: 42px; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
+  .game-audio-control[data-page="dashboard"] { bottom: max(96px, env(safe-area-inset-bottom)); }
+  .game-audio-control[data-page="lesson"] { bottom: max(196px, env(safe-area-inset-bottom)); }
+  .game-audio-control-icon { width: 23px; height: 23px; }
+}

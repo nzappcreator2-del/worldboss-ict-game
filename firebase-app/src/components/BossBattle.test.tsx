@@ -3,9 +3,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BossBattle, type BattleService } from './BossBattle'
 import type { QuizQuestion } from './QuizQuestionView'
+import * as gameAudio from '../services/gameAudio'
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   cleanup()
 })
 
@@ -115,6 +117,7 @@ describe('BossBattle', () => {
   })
 
   it('lets the player move around the boss map and manually trade light attacks before the skill question', async () => {
+    const playSword = vi.spyOn(gameAudio, 'playSwordHit')
     vi.useFakeTimers()
     setup(questions, { skillDelayMs: 5000, random: () => 0 })
 
@@ -148,6 +151,7 @@ describe('BossBattle', () => {
     expect(positionStyle(player)).not.toBe(startPosition)
 
     fireEvent.click(screen.getByTestId('boss-attack-button'))
+    expect(playSword).toHaveBeenCalledOnce()
     expect(screen.getByText('92 / 100')).toBeTruthy()
     expect(screen.getByText('96 / 100')).toBeTruthy()
     expect(screen.queryByText('Question one')).toBeNull()

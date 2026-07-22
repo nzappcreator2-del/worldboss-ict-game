@@ -15,6 +15,7 @@ import pvpSealRed from '../assets/ui/pvp/seal-red.png'
 import pvpBtnClose from '../assets/ui/pvp/btn-close.png'
 import pvpModeDuelArt from '../assets/ui/pvp/mode-duel-art.webp'
 import pvpModeTeamArt from '../assets/ui/pvp/mode-team-art.webp'
+import { playSwordHit } from '../services/gameAudio'
 import { characterLayerImages } from './characterAssets'
 import {
   TEST_CHARACTER_SPRITE,
@@ -449,6 +450,7 @@ export function PvpMode({ service, onExit }: Props) {
     const action = room?.battle?.lastAction
     if (!action || action.round === fxRoundRef.current) return
     fxRoundRef.current = action.round
+    playSwordHit()
     setFx({ ...action, key: Date.now() })
     const timer = window.setTimeout(() => setFx(null), FX_DURATION_MS)
     return () => window.clearTimeout(timer)

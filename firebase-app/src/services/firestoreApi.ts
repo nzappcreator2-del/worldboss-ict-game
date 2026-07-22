@@ -718,16 +718,18 @@ async function getDailyQuestConfig() {
   return { success: true, data }
 }
 
+// Read-only: computes today's daily state for display but never persists it.
+// The reset is redundant to persist here — resetDailyState is idempotent and
+// every real mutation (applyLoginBonus, applyDailyProgress, completeQuest)
+// resets stale daily state before writing. Persisting it used to race
+// claimLoginBonus (both fire on nextgen:login-complete and both write
+// `inventory` on the first login of a new day), producing a benign but noisy
+// Firestore `failed-precondition` in the console. Dropping the write removes
+// that contention entirely.
 async function getDailyQuestStatus(rawUserId: unknown) {
-  return mutateOwnedUser(rawUserId, (user) => {
-    const current = (user.inventory as Inventory) || {}
-    const inventory = resetDailyState(current, todayThailand())
-    const changed = current.dailyDate !== inventory.dailyDate
-    return {
-      result: { success: true, progress: inventory.dailyProgress, done: inventory.dailyDone },
-      ...(changed ? { update: { inventory } } : {}),
-    }
-  })
+  const { snapshot } = await ownedUser(rawUserId)
+  const inventory = resetDailyState((snapshot.data().inventory as Inventory) || {}, todayThailand())
+  return { success: true, progress: inventory.dailyProgress, done: inventory.dailyDone }
 }
 
 async function updateDailyProgress(rawUserId: unknown, rawQuestId: unknown, rawIncrement: unknown, rawExtraData?: unknown) {

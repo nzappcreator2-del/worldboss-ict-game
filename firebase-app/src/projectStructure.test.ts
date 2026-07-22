@@ -130,6 +130,15 @@ describe('Firebase migration project structure', () => {
     expect(existsSync(`${appRoot}/src/assets/ui/icon-star.png`)).toBe(true)
   })
 
+  it('starts loading login audio before React mounts the full game tree', () => {
+    const main = readFileSync(`${appRoot}/src/main.tsx`, 'utf8')
+    const app = readFileSync(`${appRoot}/src/App.tsx`, 'utf8')
+
+    expect(main).toContain("import { installGameAudioRouting } from './services/gameAudio'")
+    expect(main.indexOf('installGameAudioRouting()')).toBeLessThan(main.indexOf('createRoot(root).render'))
+    expect(app).not.toContain('installGameAudioRouting')
+  })
+
   it('keeps dashboard board sections visible over the preserved legacy section reset', () => {
     const styles = readFileSync(`${appRoot}/src/index.css`, 'utf8')
 

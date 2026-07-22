@@ -5,10 +5,12 @@ import { PvpMode, type PvpArenaService, type PvpModeUser } from './PvpMode'
 import type { PvpRoomView } from '../services/pvpRoomApi'
 import { buildPvpPlayer, PVP_COUNTDOWN_SECONDS } from './pvpRoomLogic'
 import type { QuizQuestion } from './QuizQuestionView'
+import * as gameAudio from '../services/gameAudio'
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 const me: PvpModeUser = {
@@ -211,6 +213,7 @@ describe('PvpMode battle', () => {
   })
 
   it('announces the strike from the shared battle log', async () => {
+    const playSword = vi.spyOn(gameAudio, 'playSwordHit')
     const context = setup()
     await enterLobby(context)
     const room = playingRoom(2)
@@ -221,6 +224,7 @@ describe('PvpMode battle', () => {
     }
     context.emit(room)
     expect((await screen.findAllByText(/-19/)).length).toBeGreaterThan(0)
+    expect(playSword).toHaveBeenCalledOnce()
     expect(screen.getAllByText(/คริติคอล|CRITICAL/i).length).toBeGreaterThan(0)
   })
 

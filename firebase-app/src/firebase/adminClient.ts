@@ -1,15 +1,22 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { browserSessionPersistence, getAuth, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { browserSessionPersistence, getAuth, initializeAuth, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { firebaseConfig } from './config'
 
 export const ADMIN_EMAIL = 'admin@nextgen-play.local'
 
-const adminApp = getApps().some((app) => app.name === 'nextgen-admin')
-  ? getApp('nextgen-admin')
-  : initializeApp(firebaseConfig, 'nextgen-admin')
+const adminAppExists = getApps().some((app) => app.name === 'nextgen-admin')
+const adminApp = adminAppExists ? getApp('nextgen-admin') : initializeApp(firebaseConfig, 'nextgen-admin')
 
-export const adminAuth = getAuth(adminApp)
+// initializeAuth (not getAuth) with no popupRedirectResolver: the admin panel
+// only uses email/password auth, so we skip the eager apis.google.com/js/api.js
+// OAuth iframe that the Hosting CSP intentionally blocks from script-src.
+// Session-only persistence keeps the admin login from surviving a tab close. On
+// HMR the app is already auth-initialized, so fall back to getAuth since
+// initializeAuth may run only once per Firebase app.
+export const adminAuth = adminAppExists
+  ? getAuth(adminApp)
+  : initializeAuth(adminApp, { persistence: browserSessionPersistence })
 export const adminDb = getFirestore(adminApp)
 
 let persistenceTask: Promise<void> | undefined

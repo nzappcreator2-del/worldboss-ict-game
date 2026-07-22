@@ -198,6 +198,8 @@
                 targetPage.classList.add('page-active');
             }
         }
+        // Stable navigation signal for contextual systems such as game audio.
+        window.dispatchEvent(new CustomEvent('nextgen:page-changed', { detail: pageId }));
 
         // จัดการพื้นหลังเฉพาะจุด ให้ออกเฉพาะหน้า
         const loginBg = document.getElementById('login-bg-layer');
