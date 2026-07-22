@@ -17,13 +17,24 @@ import { adminDb, ensureAdminSession } from '../firebase/adminClient'
 import { adminQuestion, resetUserData, sanitizePublicSettings, studentReport } from './adminLogic'
 import { invalidateAiConfigCache } from './aiApi'
 import { maskApiKey } from './geminiLogic'
-import { DAILY_QUEST_DEFAULTS, mergeDailyQuestConfig } from './gameLogic'
+import { DAILY_QUEST_DEFAULTS, mergeDailyQuestConfig, unlockAllCosmetics } from './gameLogic'
+import {
+  CLEANUP_TASKS,
+  cleanupConfirmPhrase,
+  cleanupTask,
+  emptyCleanupSnapshot,
+  planCleanup,
+  type CleanupCollection,
+  type CleanupSnapshot,
+  type CleanupTaskKey,
+} from './adminCleanupLogic'
 import { directoryEntry, normalizeUser } from './normalizers'
 import {
   aggregateTeacherQuestStats,
   normalizeTeacherQuest,
   questTargetsClass,
   studentQuestStatus,
+  validateQuestRewards,
   type StudentQuestSnapshot,
   type TeacherQuestState,
 } from './teacherQuestLogic'
@@ -85,18 +96,26 @@ async function saveAdminLesson(rawData: unknown, pin: unknown) {
     worksheetUrl: String(data.worksheetUrl || ''),
     content: String(data.content || ''),
     mapStyle: String(data.mapStyle || ''),
+    lessonMapSet: String(data.lessonMapSet || ''),
     updatedAt: serverTimestamp(),
   }, { merge: true })
   return { success: true, id, message: data.id ? 'Updated successfully' : 'Created successfully' }
 }
 
+// Deleting a lesson cascades to everything that only exists to point at it:
+// its exam questions and any ครูวีรภัทร์ quest assigned to it. A quest whose
+// lesson is gone can never be completed — leaving it would strand students on
+// an objective with no lesson behind it.
 async function deleteAdminLesson(rawLessonId: unknown, pin: unknown) {
   await ensureAdminSession(pin)
   const lessonId = String(rawLessonId || '')
-  const questionRows = await getDocs(query(collection(adminDb, 'questions'), where('lessonId', '==', lessonId)))
-  await deleteReferences(questionRows.docs.map((item) => item.ref))
+  const [questionRows, questRows] = await Promise.all([
+    getDocs(query(collection(adminDb, 'questions'), where('lessonId', '==', lessonId))),
+    getDocs(query(collection(adminDb, 'teacherQuests'), where('lessonId', '==', lessonId))),
+  ])
+  await deleteReferences([...questionRows.docs, ...questRows.docs].map((item) => item.ref))
   await deleteDoc(doc(adminDb, 'lessons', lessonId))
-  return { success: true }
+  return { success: true, deletedQuests: questRows.docs.length }
 }
 
 async function getAdminQuestionsByLessonAndType(rawLessonId: unknown, rawType: unknown, pin: unknown) {
@@ -165,6 +184,21 @@ async function getAdminStudents(pin: unknown) {
   return { success: true, data }
 }
 
+// Score rows a student owns outside their own user document. `inventory` bags
+// (quest stamps, worksheets, cosmetics) ride along with the user document and
+// are handled by resetUserData; these live in their own collections and would
+// otherwise survive a reset, leaving a wiped student still on the leaderboards.
+async function studentScoreRefs(userId: string): Promise<DocumentReference[]> {
+  const [worldBoss, pvpRanking] = await Promise.all([
+    getDocs(query(collection(adminDb, 'worldBossScores'), where('userId', '==', userId))),
+    getDoc(doc(adminDb, 'pvpRankings', userId)),
+  ])
+  return [
+    ...worldBoss.docs.map((item) => item.ref),
+    ...(pvpRanking.exists() ? [pvpRanking.ref] : []),
+  ]
+}
+
 async function resetStudentData(rawUserId: unknown, pin: unknown) {
   await ensureAdminSession(pin)
   const userId = String(rawUserId || '')
@@ -175,7 +209,7 @@ async function resetStudentData(rawUserId: unknown, pin: unknown) {
   await setDoc(userRef, reset, { merge: true })
   await setDoc(doc(adminDb, 'directory', userId), directoryEntry(reset), { merge: true })
   const progress = await getDocs(query(collection(adminDb, 'progress'), where('userId', '==', userId)))
-  await deleteReferences(progress.docs.map((item) => item.ref))
+  await deleteReferences([...progress.docs.map((item) => item.ref), ...await studentScoreRefs(userId)])
   return { success: true }
 }
 
@@ -183,9 +217,12 @@ async function deleteStudentData(rawUserId: unknown, pin: unknown) {
   await ensureAdminSession(pin)
   const userId = String(rawUserId || '')
   const progress = await getDocs(query(collection(adminDb, 'progress'), where('userId', '==', userId)))
-  await deleteReferences(progress.docs.map((item) => item.ref))
-  await deleteDoc(doc(adminDb, 'users', userId))
+  // Directory first: a leftover directory row whose user document is gone makes
+  // the student's name unusable at login, so it must never be what survives a
+  // half-finished delete.
   await deleteDoc(doc(adminDb, 'directory', userId))
+  await deleteReferences([...progress.docs.map((item) => item.ref), ...await studentScoreRefs(userId)])
+  await deleteDoc(doc(adminDb, 'users', userId))
   return { success: true }
 }
 
@@ -199,6 +236,24 @@ async function unbindStudentDevice(rawUserId: unknown, pin: unknown) {
   // again from a new device or a wiped browser profile.
   await updateDoc(userRef, { ownerUid: deleteField() })
   return { success: true, message: 'ปลดล็อกโปรไฟล์แล้ว นักเรียนสามารถล็อกอินจากอุปกรณ์ใหม่ได้ทันที' }
+}
+
+// Bulk version of unbindStudentDevice, for a new term or a room of swapped
+// tablets. Only `ownerUid` is removed — XP, coins, inventory and progress are
+// untouched, so this is a login-binding reset, not a data reset.
+async function unbindAllStudentDevices(rawClass: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const classFilter = String(rawClass || '')
+  const users = (await getDocs(collection(adminDb, 'users'))).docs
+    .filter((item) => !classFilter || String(item.data().class || '') === classFilter)
+  // Only documents that are actually bound need a write.
+  const bound = users.filter((item) => Boolean(item.data().ownerUid))
+  for (let offset = 0; offset < bound.length; offset += 200) {
+    const batch = writeBatch(adminDb)
+    bound.slice(offset, offset + 200).forEach((item) => batch.update(item.ref, { ownerUid: deleteField() }))
+    await batch.commit()
+  }
+  return { success: true, count: bound.length, message: `ปลดล็อกเครื่องให้นักเรียน ${bound.length} คนแล้ว` }
 }
 
 async function resetAllStudentData(rawClass: unknown, pin: unknown) {
@@ -215,8 +270,19 @@ async function resetAllStudentData(rawClass: unknown, pin: unknown) {
     })
     await batch.commit()
   }
-  const progress = await getDocs(collection(adminDb, 'progress'))
-  await deleteReferences(progress.docs.filter((item) => targetIds.has(String(item.data().userId))).map((item) => item.ref))
+  // Same scope as the single-student reset: progress plus the score rows that
+  // live outside the user document. Collections are read once and filtered in
+  // memory rather than queried per student.
+  const [progress, worldBoss, rankings] = await Promise.all([
+    getDocs(collection(adminDb, 'progress')),
+    getDocs(collection(adminDb, 'worldBossScores')),
+    getDocs(collection(adminDb, 'pvpRankings')),
+  ])
+  await deleteReferences([
+    ...progress.docs.filter((item) => targetIds.has(String(item.data().userId))),
+    ...worldBoss.docs.filter((item) => targetIds.has(String(item.data().userId))),
+    ...rankings.docs.filter((item) => targetIds.has(item.id)),
+  ].map((item) => item.ref))
   return { success: true, count: users.length }
 }
 
@@ -413,8 +479,27 @@ async function saveAdminTeacherQuest(rawData: unknown, pin: unknown) {
   })
   if (!quest.title.trim()) return { success: false, error: 'กรุณาระบุชื่อเควสต์' }
   if (quest.objectives.length === 0) return { success: false, error: 'เลือกสิ่งที่นักเรียนต้องทำอย่างน้อย 1 ข้อ' }
+  // Re-checked here, not just in the form: a reward above the Firestore ±1000
+  // per-write delta cap would be written fine but rejected at payout time,
+  // leaving students unable to hand the quest in at all.
+  const rewards = validateQuestRewards(quest.rewards)
+  if (!rewards.valid) return { success: false, error: rewards.error }
   await setDoc(doc(adminDb, 'teacherQuests', id), { ...quest, updatedAt: serverTimestamp() }, { merge: true })
   return { success: true, id, message: data.questId ? 'บันทึกเควสต์แล้ว' : 'สร้างเควสต์ใหม่แล้ว' }
+}
+
+// Hard delete, distinct from "เก็บถาวร" (archive) which keeps the quest and its
+// submission history. The per-student acceptance stamps live inside each user's
+// own inventory bag and are left alone: they are inert once the quest document
+// is gone (the board only ever shows quests that still exist), and rewriting
+// every user document here would be a mass write for no visible gain. The
+// cleanup tab's orphan scan is the place to sweep them if that ever matters.
+async function deleteAdminTeacherQuest(rawQuestId: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const questId = String(rawQuestId || '').trim()
+  if (!questId) return { success: false, error: 'ไม่พบเควสต์ที่จะลบ' }
+  await deleteDoc(doc(adminDb, 'teacherQuests', questId))
+  return { success: true, message: 'ลบเควสต์แล้ว' }
 }
 
 async function getAdminTeacherQuestSubmissions(rawQuestId: unknown, pin: unknown) {
@@ -512,6 +597,99 @@ async function deleteAdminCyberScenario(rawId: unknown, pin: unknown) {
   return { success: true, message: 'ลบสถานการณ์แล้ว' }
 }
 
+// --- System cleanup ---------------------------------------------------------
+// Two-phase and deliberately so: scan builds a plan the teacher can read, and
+// run re-scans and deletes only what the pure planner returns. Nothing here
+// deletes a collection by name — every delete goes through a document id that
+// planCleanup produced, which is what keeps authored content safe.
+
+const cleanupSnapshotFor = async (keys: CleanupTaskKey[]): Promise<CleanupSnapshot> => {
+  const snapshot = emptyCleanupSnapshot()
+  // Only read what the selected tasks actually need; the orphan scan needs the
+  // parent collections too, so it can tell a real orphan from a failed read.
+  const needed = new Set<CleanupCollection>()
+  for (const key of keys) cleanupTask(key).collections.forEach((name) => needed.add(name))
+  if (keys.includes('orphans')) {
+    ([
+      'users', 'directory', 'progress', 'lessons', 'questions', 'teacherQuests',
+      'worldBossScores', 'pvpRankings',
+    ] as CleanupCollection[]).forEach((name) => needed.add(name))
+  }
+  await Promise.all([...needed].map(async (name) => {
+    snapshot[name] = (await rows(name)) as CleanupSnapshot[CleanupCollection]
+  }))
+  return snapshot
+}
+
+const normalizeCleanupKeys = (raw: unknown): CleanupTaskKey[] => {
+  const keys = Array.isArray(raw) ? raw.map(String) : []
+  return CLEANUP_TASKS.map((task) => task.key).filter((key) => keys.includes(key))
+}
+
+async function scanSystemCleanup(rawKeys: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const keys = normalizeCleanupKeys(rawKeys)
+  const plan = planCleanup(keys, await cleanupSnapshotFor(keys))
+  return { success: true, data: { summary: plan.summary, total: plan.total, confirmPhrase: cleanupConfirmPhrase(keys) } }
+}
+
+async function runSystemCleanup(rawKeys: unknown, rawConfirmation: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const keys = normalizeCleanupKeys(rawKeys)
+  if (keys.length === 0) return { success: false, error: 'ยังไม่ได้เลือกรายการที่จะล้าง' }
+  // The typed phrase is re-checked here, not only in the UI, so a mis-wired
+  // button can never reach the delete loop.
+  if (String(rawConfirmation || '').trim() !== cleanupConfirmPhrase(keys)) {
+    return { success: false, error: 'คำยืนยันไม่ถูกต้อง กรุณาพิมพ์ข้อความยืนยันให้ตรง' }
+  }
+  // Re-scanned rather than trusting the ids from the preview: the plan the
+  // teacher approved may be minutes old, and deleting a stale id set could
+  // remove a student who registered in the meantime.
+  const plan = planCleanup(keys, await cleanupSnapshotFor(keys))
+  await deleteReferences(plan.targets.map((target) => doc(adminDb, target.collection, target.id)))
+  return { success: true, count: plan.total, message: `ล้างข้อมูลแล้ว ${plan.total} รายการ` }
+}
+
+async function exportSystemBackup(pin: unknown) {
+  await ensureAdminSession(pin)
+  // Everything the cleanup tab can touch, so a mistaken wipe is recoverable.
+  const names: CleanupCollection[] = [
+    'users', 'directory', 'progress', 'lessons', 'questions', 'teacherQuests',
+    'clientErrors', 'pvpMatches', 'pvpRooms', 'pvpRankings', 'worldBossScores',
+  ]
+  const data: Record<string, Data[]> = {}
+  await Promise.all(names.map(async (name) => { data[name] = await rows(name) }))
+  return { success: true, data: { exportedAt: new Date().toISOString(), collections: data } }
+}
+
+// --- Equipment grants -------------------------------------------------------
+
+async function unlockAllStudentEquipment(rawUserId: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const userId = String(rawUserId || '')
+  const userRef = doc(adminDb, 'users', userId)
+  const user = await getDoc(userRef)
+  if (!user.exists()) return { success: false, error: 'ไม่พบผู้เล่น' }
+  const inventory = unlockAllCosmetics((user.data().inventory || {}) as Data)
+  await updateDoc(userRef, { inventory })
+  return { success: true, message: 'ปลดล็อกอุปกรณ์ทั้งหมดให้ผู้เล่นแล้ว' }
+}
+
+async function unlockAllEquipmentForClass(rawClass: unknown, pin: unknown) {
+  await ensureAdminSession(pin)
+  const classFilter = String(rawClass || '')
+  const users = (await getDocs(collection(adminDb, 'users'))).docs
+    .filter((item) => !classFilter || String(item.data().class || '') === classFilter)
+  for (let offset = 0; offset < users.length; offset += 200) {
+    const batch = writeBatch(adminDb)
+    users.slice(offset, offset + 200).forEach((item) => {
+      batch.update(item.ref, { inventory: unlockAllCosmetics((item.data().inventory || {}) as Data) })
+    })
+    await batch.commit()
+  }
+  return { success: true, count: users.length, message: `ปลดล็อกอุปกรณ์ให้นักเรียน ${users.length} คนแล้ว` }
+}
+
 async function getExamReports(rawLessonId: unknown, pin: unknown) {
   await ensureAdminSession(pin)
   const lessonId = String(rawLessonId || '')
@@ -534,7 +712,13 @@ export const adminApi = {
   resetStudentData,
   deleteStudentData,
   unbindStudentDevice,
+  unbindAllStudentDevices,
   resetAllStudentData,
+  unlockAllStudentEquipment,
+  unlockAllEquipmentForClass,
+  scanSystemCleanup,
+  runSystemCleanup,
+  exportSystemBackup,
   saveSettings,
   getAiSettingsAdmin,
   saveAiSettings,
@@ -547,6 +731,7 @@ export const adminApi = {
   saveAdminDailyQuest,
   getAdminTeacherQuests,
   saveAdminTeacherQuest,
+  deleteAdminTeacherQuest,
   getAdminTeacherQuestSubmissions,
   getAdminCyberScenarios,
   saveAdminCyberScenario,

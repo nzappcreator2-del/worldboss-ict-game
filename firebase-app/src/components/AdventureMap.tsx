@@ -22,6 +22,7 @@ import { characterLayerImages } from './characterAssets'
 import { LESSON_MAP_ICON_IMAGES } from './lessonUiAssets'
 import { entranceTemplateForLesson } from './mapEntranceTemplates'
 import { VirtualJoystick } from './VirtualJoystick'
+import { TEACHER_NPC_NAME } from '../services/teacherQuestLogic'
 import iconBook from '../assets/ui/icon-book.png'
 
 export type MapLesson = {
@@ -30,6 +31,7 @@ export type MapLesson = {
   description: string
   icon: string
   mapStyle?: string
+  lessonMapSet?: string
 }
 
 export type MapUser = {
@@ -50,6 +52,8 @@ export type MapResult = {
 export type MapService = {
   getCurrentUser(): MapUser | null
   loadLessons(userId: string): Promise<MapResult>
+  /** Lesson ids with an accepted, unfinished teacher quest — drives the "!" markers. */
+  loadQuestTargets?(userId: string): Promise<{ success: boolean; data?: string[] }>
 }
 
 type Props = {
@@ -67,6 +71,7 @@ const regionNames = [
 export function AdventureMap({ service, onSelectLesson }: Props) {
   const [lessons, setLessons] = useState<MapLesson[]>([])
   const [passed, setPassed] = useState<string[]>([])
+  const [questTargets, setQuestTargets] = useState<string[]>([])
   const [avatar, setAvatar] = useState('🧙')
   const [heroInventory, setHeroInventory] = useState<unknown>(undefined)
   const [heroGender, setHeroGender] = useState<string | undefined>(undefined)
@@ -166,6 +171,15 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
       setStatus('ready')
     } catch {
       setStatus('error')
+      return
+    }
+    // Quest markers are decoration over a map that already loaded: fetched
+    // separately so a quest-board failure never blocks the map itself.
+    try {
+      const quests = await service.loadQuestTargets?.(user.id)
+      setQuestTargets(quests?.success ? (quests.data || []).map(String) : [])
+    } catch {
+      setQuestTargets([])
     }
   }, [service])
 
@@ -281,6 +295,7 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
           const unlocked = index === 0 || passed.includes(String(lessons[index - 1]?.id))
           const cleared = passed.includes(String(lesson.id))
           const current = index === currentLessonIndex
+          const questTarget = questTargets.includes(String(lesson.id))
           const node = lessonNodePosition(index)
           const template = entranceTemplateForLesson(lesson.mapStyle, index)
           return <div
@@ -288,6 +303,14 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
             className={`map-lesson-card ${unlocked ? 'unlocked' : 'locked'} ${cleared ? 'cleared' : ''} ${current ? 'current' : ''}`}
             style={{ left: `${node.x}%`, top: `${node.y}%` }}
           >
+            {questTarget && (
+              <span
+                className="map-quest-marker"
+                data-testid={`map-quest-marker-${lesson.id}`}
+                title={`ภารกิจจาก${TEACHER_NPC_NAME}`}
+                aria-label={`มีภารกิจจาก${TEACHER_NPC_NAME}ที่ด่าน ${lesson.title}`}
+              >!</span>
+            )}
             {current && <div className="map-current-callout"><strong>{lesson.title}</strong><small>คลิกเพื่อเดินไปยังบทเรียน ⚔️</small></div>}
             <button
               type="button"

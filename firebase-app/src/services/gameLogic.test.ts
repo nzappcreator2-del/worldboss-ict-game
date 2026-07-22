@@ -9,6 +9,7 @@ import {
   cosmeticsState,
   pickGachaAvatar,
   resetDailyState,
+  unlockAllCosmetics,
   consumeInventoryItem,
   toggleCosmetic,
   worldBossResult,
@@ -248,5 +249,31 @@ describe('cosmetic wardrobe', () => {
     if (!back.success) throw new Error('toggle failed')
     // Removing the bought hair falls back to the free starter bangs, never bald.
     expect(cosmeticsState(back.inventory).equipped.hair).toBe('hair-bangs')
+  })
+})
+
+describe('unlockAllCosmetics', () => {
+  it('grants every catalog item without charging coins', () => {
+    const inventory = unlockAllCosmetics({})
+    expect(cosmeticsState(inventory).owned.sort()).toEqual(Object.keys(COSMETIC_CATALOG).sort())
+  })
+
+  it('keeps whatever the player is already wearing', () => {
+    const bought = buyCosmetic(600, {}, 'hat-feather')
+    if (!bought.success) throw new Error('buy failed')
+    const inventory = unlockAllCosmetics(bought.inventory)
+    expect(cosmeticsState(inventory).equipped.hat).toBe('hat-feather')
+  })
+
+  it('is idempotent — unlocking twice does not duplicate anything', () => {
+    const once = unlockAllCosmetics({})
+    const twice = unlockAllCosmetics(once)
+    expect(cosmeticsState(twice).owned).toEqual(cosmeticsState(once).owned)
+  })
+
+  it('leaves unrelated inventory keys alone', () => {
+    const inventory = unlockAllCosmetics({ potion: 3, badges: ['badge_streak_7'] })
+    expect(inventory.potion).toBe(3)
+    expect(inventory.badges).toEqual(['badge_streak_7'])
   })
 })

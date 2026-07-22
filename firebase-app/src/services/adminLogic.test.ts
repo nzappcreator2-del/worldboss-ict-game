@@ -27,6 +27,45 @@ describe('admin data safety', () => {
       inventory: { potion: 0, magnifier: 0, dailyDone: [] },
     })
   })
+
+  // The reset rebuilds `inventory` from scratch rather than deleting known
+  // keys, so every feature added later is cleared by default. These assertions
+  // pin that down: a half-reset student keeping quest stamps or worksheet
+  // submissions would look "already done" on work they no longer have.
+  it('clears every progress bag a reset student must not keep', () => {
+    const reset = resetUserData({
+      name: 'Ada',
+      ownerUid: 'auth-1',
+      xp: 900,
+      coins: 200,
+      inventory: {
+        potion: 5,
+        badges: ['badge_streak_7', 'ดาวเด่น'],
+        worksheets: { L1: { answer: 'ส่งแล้ว', submittedAt: '2026-07-18' } },
+        teacherQuests: { TQ001: { acceptedAt: '2026-07-17', turnedInAt: '2026-07-18' } },
+        cosmetics: { owned: ['hat-crown'], equipped: { hat: 'hat-crown' } },
+        stats: { atk: 9 },
+      },
+    })
+    const inventory = reset.inventory as Record<string, unknown>
+    expect(inventory.teacherQuests).toBeUndefined()
+    expect(inventory.worksheets).toBeUndefined()
+    expect(inventory.badges).toEqual([])
+    expect(inventory.cosmetics).toBeUndefined()
+    expect(inventory.stats).toBeUndefined()
+    expect(inventory.potion).toBe(0)
+  })
+
+  it('keeps the identity fields a reset must not touch', () => {
+    const reset = resetUserData({
+      name: 'Ada', class: 'ป.5/1', avatar: '🧙', gender: 'female', ownerUid: 'auth-1', userId: 'u1',
+    })
+    // Wiping ownerUid here would silently unbind the student's device, and
+    // gender drives their character sheet.
+    expect(reset).toMatchObject({
+      name: 'Ada', class: 'ป.5/1', avatar: '🧙', gender: 'female', ownerUid: 'auth-1', userId: 'u1',
+    })
+  })
 })
 
 describe('admin view mapping', () => {

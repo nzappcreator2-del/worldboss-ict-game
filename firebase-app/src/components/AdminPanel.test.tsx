@@ -27,7 +27,7 @@ const aiBundle = {
   posttest: [aiQuestion('หลังเรียนข้อ 1', 2), aiQuestion('หลังเรียนข้อ 2', 3)],
 }
 
-function setup(overrides: Partial<AdminService> = {}, confirmAction: (message: string) => boolean = () => true) {
+function setup(overrides: Partial<AdminService> = {}, confirmAction: ((message: string) => boolean) | null = () => true) {
   const service: AdminService = {
     verify: vi.fn().mockResolvedValue({ success: true, isValid: true }),
     logout: vi.fn().mockResolvedValue(undefined),
@@ -59,6 +59,7 @@ function setup(overrides: Partial<AdminService> = {}, confirmAction: (message: s
     deleteCyberScenario: vi.fn().mockResolvedValue({ success: true }),
     loadTeacherQuests: vi.fn().mockResolvedValue({ success: true, data: [teacherQuest] }),
     saveTeacherQuest: vi.fn().mockResolvedValue({ success: true, id: 'TQ001' }),
+    deleteTeacherQuest: vi.fn().mockResolvedValue({ success: true }),
     loadTeacherQuestSubmissions: vi.fn().mockResolvedValue({ success: true, data: [
       { id: 'u1', name: 'ฟ้า', class: 'ป.5/1', avatar: '🧙', status: 'COMPLETED', worksheetAnswer: 'สรุปว่าอินเทอร์เน็ตมีประโยชน์', submittedAt: '2026-07-18T09:00:00.000Z', score: 8, maxScore: 10, rewarded: true, acceptedAt: '2026-07-17', turnedInAt: '2026-07-18' },
       { id: 'u2', name: 'น้ำ', class: 'ป.5/1', avatar: '🧝', status: 'IN_PROGRESS', worksheetAnswer: '', submittedAt: '', score: null, maxScore: null, rewarded: false, acceptedAt: '2026-07-17', turnedInAt: '' },
@@ -68,10 +69,19 @@ function setup(overrides: Partial<AdminService> = {}, confirmAction: (message: s
     saveAiKey: vi.fn().mockResolvedValue({ success: true, message: 'บันทึกแล้ว' }),
     clearAiKey: vi.fn().mockResolvedValue({ success: true }),
     testAiKey: vi.fn().mockResolvedValue({ success: true }),
+    unbindAllStudents: vi.fn().mockResolvedValue({ success: true, count: 1 }),
+    unlockAllEquipment: vi.fn().mockResolvedValue({ success: true }),
+    unlockAllEquipmentForClass: vi.fn().mockResolvedValue({ success: true, count: 1 }),
+    scanCleanup: vi.fn().mockResolvedValue({
+      success: true,
+      data: { summary: [{ collection: 'clientErrors', label: 'log ข้อผิดพลาด', count: 12 }], total: 12, confirmPhrase: 'ยืนยัน' },
+    }),
+    runCleanup: vi.fn().mockResolvedValue({ success: true, count: 12 }),
+    exportBackup: vi.fn().mockResolvedValue({ success: true, data: { exportedAt: '2026-07-21T00:00:00.000Z', collections: {} } }),
     ...overrides,
   }
   const onExit = vi.fn()
-  render(<AdminPanel service={service} onExit={onExit} confirmAction={confirmAction} downloadCsv={vi.fn()} />)
+  render(<AdminPanel service={service} onExit={onExit} {...(confirmAction ? { confirmAction } : {})} downloadCsv={vi.fn()} />)
   fireEvent(window, new Event('nextgen:open-admin'))
   return { service, onExit }
 }
@@ -83,6 +93,24 @@ async function login() {
 }
 
 describe('AdminPanel', () => {
+  it('uses a polished in-app confirmation dialog instead of a browser alert', async () => {
+    const { service } = setup({}, null)
+    await login()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ลบ อินเทอร์เน็ต' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'ยืนยันการดำเนินการ' })
+    expect(within(dialog).getByText(/ลบบทเรียน อินเทอร์เน็ต/)).toBeTruthy()
+    expect(service.deleteLesson).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ยกเลิก' }))
+    expect(screen.queryByRole('alertdialog', { name: 'ยืนยันการดำเนินการ' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ลบ อินเทอร์เน็ต' }))
+    const confirmedDialog = await screen.findByRole('alertdialog', { name: 'ยืนยันการดำเนินการ' })
+    fireEvent.click(within(confirmedDialog).getByRole('button', { name: 'ยืนยัน' }))
+    await waitFor(() => expect(service.deleteLesson).toHaveBeenCalledWith('L1', 'secret123'))
+  })
+
   it('keeps the authenticated page visible over the legacy #page-admin display rule', async () => {
     setup()
     await login()
@@ -168,6 +196,21 @@ describe('AdminPanel', () => {
     await waitFor(() => expect(service.saveQuestions).toHaveBeenCalledWith('L1', 'posttest', [expect.objectContaining({ text: 'ข้อใดถูกต้อง', pattern: 'matching', matchingPairs: [{ left: 'CPU', right: 'หน่วยประมวลผล' }] })], 'secret123'))
   })
 
+  it('defaults new lessons to automatic map sets and lets teachers choose an explicit themed set', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มบทเรียน' }))
+    expect((screen.getByRole('radio', { name: /ชุดฉากอัตโนมัติ/ }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.change(screen.getByLabelText('ชื่อบทเรียน'), { target: { value: 'โลกแห่งเห็ด' } })
+    fireEvent.click(screen.getByRole('radio', { name: /Mushroom Grove/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกบทเรียน' }))
+
+    await waitFor(() => expect(service.saveLesson).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'โลกแห่งเห็ด', lessonMapSet: 'mushroom-grove' }),
+      'secret123',
+    ))
+  })
+
   it('filters students, generates a local progress report, and performs confirmed reset actions', async () => {
     const { service } = setup()
     await login()
@@ -180,6 +223,184 @@ describe('AdminPanel', () => {
     await waitFor(() => expect(service.resetStudent).toHaveBeenCalledWith('u1', 'secret123'))
     fireEvent.click(screen.getByRole('button', { name: 'รีเซ็ตทั้งหมด' }))
     await waitFor(() => expect(service.resetAllStudents).toHaveBeenCalledWith('', 'secret123'))
+  })
+
+  it('unlocks every wardrobe item for one student and for the filtered class', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'นักเรียน' }))
+    expect(await screen.findByText(/ฟ้า/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปลดล็อกไอเทม ฟ้า' }))
+    await waitFor(() => expect(service.unlockAllEquipment).toHaveBeenCalledWith('u1', 'secret123'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปลดล็อกไอเทมทั้งหมด' }))
+    await waitFor(() => expect(service.unlockAllEquipmentForClass).toHaveBeenCalledWith('', 'secret123'))
+  })
+
+  it('unbinds every device in the filtered class after a double confirmation', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'นักเรียน' }))
+    expect(await screen.findByText(/ฟ้า/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปลดล็อกเครื่องทั้งหมด' }))
+    await waitFor(() => expect(service.unbindAllStudents).toHaveBeenCalledWith('', 'secret123'))
+  })
+
+  it('never bulk-unbinds devices when the teacher backs out', async () => {
+    const { service } = setup({}, () => false)
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'นักเรียน' }))
+    expect(await screen.findByText(/ฟ้า/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปลดล็อกเครื่องทั้งหมด' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(service.unbindAllStudents).not.toHaveBeenCalled()
+  })
+
+  it('keeps the device unbind action separate from the wardrobe unlock', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'นักเรียน' }))
+    expect(await screen.findByText(/ฟ้า/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปลดล็อกเครื่อง ฟ้า' }))
+    await waitFor(() => expect(service.unbindStudent).toHaveBeenCalledWith('u1', 'secret123'))
+    expect(service.unlockAllEquipment).not.toHaveBeenCalled()
+  })
+
+  it('never unlocks anything when the teacher cancels the confirmation', async () => {
+    const { service } = setup({}, () => false)
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'นักเรียน' }))
+    expect(await screen.findByText(/ฟ้า/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ปลดล็อกไอเทม ฟ้า' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(service.unlockAllEquipment).not.toHaveBeenCalled()
+  })
+})
+
+describe('AdminPanel — ทำความสะอาดระบบ', () => {
+  it('previews what a cleanup would delete before anything is removed', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: /ล้าง log ระบบ/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'ตรวจสอบ' }))
+
+    await waitFor(() => expect(service.scanCleanup).toHaveBeenCalledWith(['logs'], 'secret123'))
+    const preview = await screen.findByTestId('cleanup-preview')
+    expect(preview.textContent).toContain('log ข้อผิดพลาด')
+    expect(preview.textContent).toContain('12')
+    // Nothing is deleted by a scan.
+    expect(service.runCleanup).not.toHaveBeenCalled()
+  })
+
+  it('requires the exact typed phrase before it will run the cleanup', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /ล้าง log ระบบ/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'ตรวจสอบ' }))
+    await screen.findByTestId('cleanup-preview')
+
+    const runButton = screen.getByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' })
+    expect((runButton as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText('พิมพ์คำยืนยัน'), { target: { value: 'ยืนยันผิด' } })
+    expect((screen.getByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText('พิมพ์คำยืนยัน'), { target: { value: 'ยืนยัน' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' }))
+    await waitFor(() => expect(service.runCleanup).toHaveBeenCalledWith(['logs'], 'ยืนยัน', 'secret123'))
+  })
+
+  // The typed phrase IS the confirmation. Popping a modal on top of it asks the
+  // same question twice and reads as an accidental double-alert.
+  it('does not stack a confirmation dialog on top of the typed phrase', async () => {
+    const confirmations: string[] = []
+    const { service } = setup({}, (message) => { confirmations.push(message); return true })
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /ล้าง log ระบบ/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'ตรวจสอบ' }))
+    await screen.findByTestId('cleanup-preview')
+
+    fireEvent.change(screen.getByLabelText('พิมพ์คำยืนยัน'), { target: { value: 'ยืนยัน' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' }))
+
+    await waitFor(() => expect(service.runCleanup).toHaveBeenCalled())
+    expect(confirmations).toEqual([])
+  })
+
+  it('demands the strict phrase when the destructive player wipe is selected', async () => {
+    const { service } = setup({
+      scanCleanup: vi.fn().mockResolvedValue({
+        success: true,
+        data: { summary: [{ collection: 'users', label: 'บัญชีนักเรียน', count: 30 }], total: 30, confirmPhrase: 'ลบถาวร' },
+      }),
+    })
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /ลบผู้เล่นทั้งหมด/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'ตรวจสอบ' }))
+    await screen.findByTestId('cleanup-preview')
+
+    fireEvent.change(screen.getByLabelText('พิมพ์คำยืนยัน'), { target: { value: 'ยืนยัน' } })
+    expect((screen.getByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText('พิมพ์คำยืนยัน'), { target: { value: 'ลบถาวร' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' }))
+    await waitFor(() => expect(service.runCleanup).toHaveBeenCalledWith(['players'], 'ลบถาวร', 'secret123'))
+  })
+
+  it('selects every task with one click but still goes through preview and confirmation', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'เลือกทั้งหมด' }))
+
+    for (const label of [/ลบผู้เล่นทั้งหมด/, /ล้าง log ระบบ/, /ล้างข้อมูลเกมค้าง/, /ล้างข้อมูลกำพร้า/]) {
+      expect((screen.getByRole('checkbox', { name: label }) as HTMLInputElement).checked).toBe(true)
+    }
+    // One click selects; it does not delete.
+    expect(service.runCleanup).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'ตรวจสอบ' }))
+    await waitFor(() => expect(service.scanCleanup).toHaveBeenCalledWith(
+      ['players', 'logs', 'gameSessions', 'orphans'],
+      'secret123',
+    ))
+  })
+
+  it('cannot run a cleanup that was never previewed', async () => {
+    setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /ล้าง log ระบบ/ }))
+    expect(screen.queryByRole('button', { name: 'ล้างข้อมูลตามรายการนี้' })).toBeNull()
+  })
+
+  it('invalidates a stale preview as soon as the selection changes', async () => {
+    setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /ล้าง log ระบบ/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'ตรวจสอบ' }))
+    await screen.findByTestId('cleanup-preview')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /ล้างข้อมูลเกมค้าง/ }))
+    expect(screen.queryByTestId('cleanup-preview')).toBeNull()
+  })
+
+  it('downloads a backup before the teacher wipes anything', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: /ทำความสะอาดระบบ/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'ดาวน์โหลดสำรองข้อมูล' }))
+    await waitFor(() => expect(service.exportBackup).toHaveBeenCalledWith('secret123'))
   })
 
   it('edits public settings without ever rendering the Admin PIN or a stored secret value', async () => {
@@ -230,7 +451,7 @@ describe('AdminPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'บันทึกบทเรียน AI ลงระบบ' }))
     await waitFor(() => expect(service.saveLesson).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'ผจญภัยระบบสุริยะ', mapStyle: 'volcano-forge', enablePretest: true, isActive: true }),
+      expect.objectContaining({ title: 'ผจญภัยระบบสุริยะ', mapStyle: 'volcano-forge', lessonMapSet: 'auto', enablePretest: true, isActive: true }),
       'secret123',
     ))
     await waitFor(() => expect(service.saveQuestions).toHaveBeenCalledWith('L2', 'posttest', [expect.objectContaining({ text: 'หลังเรียนข้อ 1' }), expect.objectContaining({ text: 'หลังเรียนข้อ 2' })], 'secret123'))
@@ -361,5 +582,54 @@ describe('AdminPanel', () => {
       expect.objectContaining({ questId: 'TQ001', status: 'archived' }),
       'secret123',
     ))
+  })
+
+  it('deletes a quest outright once the teacher confirms', async () => {
+    const { service } = setup()
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByText('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ลบเควสต์ ภารกิจ: อินเทอร์เน็ต' }))
+    await waitFor(() => expect(service.deleteTeacherQuest).toHaveBeenCalledWith('TQ001', 'secret123'))
+    // The list refreshes so the deleted quest cannot linger on screen.
+    expect(service.loadTeacherQuests).toHaveBeenCalledTimes(2)
+  })
+
+  it('never deletes a quest when the teacher backs out of the confirmation', async () => {
+    const { service } = setup({}, () => false)
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByText('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ลบเควสต์ ภารกิจ: อินเทอร์เน็ต' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(service.deleteTeacherQuest).not.toHaveBeenCalled()
+  })
+
+  // An archived quest is still a real document the teacher may want gone.
+  it('can delete an archived quest too', async () => {
+    const { service } = setup({
+      loadTeacherQuests: vi.fn().mockResolvedValue({
+        success: true,
+        data: [{ ...teacherQuest, status: 'archived' as const }],
+      }),
+    })
+    await login()
+    fireEvent.click(screen.getByRole('button', { name: 'เควสต์มอบหมาย' }))
+    await screen.findByText('ภารกิจ: อินเทอร์เน็ต')
+
+    fireEvent.click(screen.getByRole('button', { name: 'ลบเควสต์ ภารกิจ: อินเทอร์เน็ต' }))
+    await waitFor(() => expect(service.deleteTeacherQuest).toHaveBeenCalledWith('TQ001', 'secret123'))
+  })
+
+  it('warns that deleting a lesson removes its quests as well', async () => {
+    const confirmations: string[] = []
+    const { service } = setup({}, (message) => { confirmations.push(message); return true })
+    await login()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ลบ อินเทอร์เน็ต' }))
+    await waitFor(() => expect(service.deleteLesson).toHaveBeenCalledWith('L1', 'secret123'))
+    expect(confirmations.join(' ')).toContain('เควสต์')
   })
 })

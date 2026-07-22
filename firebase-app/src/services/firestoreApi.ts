@@ -42,9 +42,12 @@ import {
   WORKSHEET_FIRST_SUBMIT_COINS,
   WORKSHEET_FIRST_SUBMIT_XP,
   buildStudentQuestView,
+  earnedQuestRewards,
+  grantQuestRewards,
   normalizeTeacherQuest,
   questVisibleToStudent,
   studentQuestStatus,
+  type EarnedQuestRewards,
   type StudentQuestContext,
   type TeacherQuestState,
 } from './teacherQuestLogic'
@@ -223,6 +226,28 @@ export async function getInitialData() {
   return { success: true, users: users.data, settings: settings.data, news }
 }
 
+// Shape of a brand-new student document. Shared by first registration and by
+// the stale-directory repair below so the two can never drift.
+export function newStudentRecord(name: string, className: string, rawAvatar: unknown, rawGender: unknown, ownerUid: string) {
+  const gender = normalizeGender(rawGender)
+  return {
+    name,
+    class: className,
+    avatar: String(rawAvatar || '🧙‍♂️'),
+    // Gender is only written at registration; rules keep it immutable afterwards.
+    ...(gender ? { gender } : {}),
+    xp: 0,
+    rank: 'BRONZE',
+    level: 1,
+    coins: 0,
+    streak: 0,
+    inventory: { potion: 0, magnifier: 0 },
+    ownerUid,
+    createdAt: serverTimestamp(),
+    lastLogin: serverTimestamp(),
+  }
+}
+
 export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvatar: unknown, rawGender?: unknown) {
   const identity = await ensureSignedIn()
   const name = String(rawName || '').trim()
@@ -239,7 +264,23 @@ export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvata
     try {
       await updateDoc(userRef, { ownerUid: identity.uid, lastLogin: serverTimestamp() })
     } catch {
-      return { success: false, error: 'โปรไฟล์นี้ถูกผูกกับอุปกรณ์หรือบัญชีอื่นแล้ว' }
+      // The claim failed for one of two very different reasons, and the rules
+      // report both as permission-denied (a missing document has no
+      // `resource.data` to test ownership against):
+      //   1. the directory row is stale — its user document was deleted, e.g.
+      //      by a wipe that removed `users` but not `directory`. The name would
+      //      otherwise be unusable forever.
+      //   2. the profile genuinely belongs to another device.
+      // Re-creating the user document tells them apart: `create` succeeds only
+      // when nothing is there, so case 2 is denied again and reports honestly.
+      const repaired = newStudentRecord(name, className, rawAvatar, rawGender, identity.uid)
+      try {
+        await setDoc(userRef, repaired)
+      } catch {
+        return { success: false, error: 'โปรไฟล์นี้ถูกผูกกับอุปกรณ์หรือบัญชีอื่นแล้ว' }
+      }
+      await setDoc(doc(db, 'directory', userId), directoryEntry(repaired), { merge: true })
+      return { success: true, user: normalizeUser(userId, repaired), isNew: true }
     }
     const snapshot = await getDoc(userRef)
     const data = snapshot.data() || {}
@@ -250,23 +291,7 @@ export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvata
   }
 
   const ref = doc(collection(db, 'users'))
-  const gender = normalizeGender(rawGender)
-  const record = {
-    name,
-    class: className,
-    avatar: String(rawAvatar || '🧙‍♂️'),
-    // Gender is only written at registration; rules keep it immutable afterwards.
-    ...(gender ? { gender } : {}),
-    xp: 0,
-    rank: 'BRONZE',
-    level: 1,
-    coins: 0,
-    streak: 0,
-    inventory: { potion: 0, magnifier: 0 },
-    ownerUid: identity.uid,
-    createdAt: serverTimestamp(),
-    lastLogin: serverTimestamp(),
-  }
+  const record = newStudentRecord(name, className, rawAvatar, rawGender, identity.uid)
   await setDoc(ref, record)
   await setDoc(doc(db, 'directory', ref.id), directoryEntry(record))
   return { success: true, user: normalizeUser(ref.id, record), isNew: true }
@@ -301,6 +326,7 @@ async function getLessons(rawUserId?: unknown) {
     worksheetUrl: String(item.worksheetUrl || ''),
     content: String(item.content || ''),
     mapStyle: String(item.mapStyle || ''),
+    lessonMapSet: String(item.lessonMapSet || ''),
     questionCount: counts[String(item.lessonId || item.id)] || 0,
   }))
   return { success: true, data: lessons, passedLessons: progress.data }
@@ -542,6 +568,32 @@ async function acceptTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
   })
 }
 
+// Called when the student actually opens a lesson: stamps `studiedAt` on every
+// accepted, un-turned-in quest that points at it. This is where "ศึกษาบทเรียน"
+// is earned — walking to the map is not studying.
+async function markTeacherQuestStudiedForLesson(rawUserId: unknown, rawLessonId: unknown) {
+  const lessonId = String(rawLessonId || '')
+  if (!lessonId) return { success: true, stamped: 0 }
+  const quests = await studentQuestRows()
+  const questIds = quests.filter((quest) => quest.lessonId === lessonId).map((quest) => quest.questId)
+  if (questIds.length === 0) return { success: true, stamped: 0 }
+  return mutateOwnedUser(rawUserId, (user) => {
+    const states = { ...questStatesOf(user) }
+    const stamped: string[] = []
+    for (const questId of questIds) {
+      const state = states[questId]
+      // Idempotent: only quests the student accepted and has not already
+      // studied or handed in get a stamp.
+      if (!state?.acceptedAt || state.studiedAt || state.turnedInAt) continue
+      states[questId] = { ...state, studiedAt: new Date().toISOString() }
+      stamped.push(questId)
+    }
+    if (stamped.length === 0) return { result: { success: true, stamped: 0 } }
+    const inventory = { ...(user.inventory as Data || {}), teacherQuests: states }
+    return { result: { success: true, stamped: stamped.length }, update: { inventory } }
+  })
+}
+
 async function markTeacherQuestStudied(rawUserId: unknown, rawQuestId: unknown) {
   const questId = String(rawQuestId || '')
   if (!questId) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ' }
@@ -555,6 +607,14 @@ async function markTeacherQuestStudied(rawUserId: unknown, rawQuestId: unknown) 
   })
 }
 
+type TurnInResult = {
+  success: boolean
+  alreadyTurnedIn?: boolean
+  error?: string
+  earned?: EarnedQuestRewards
+  stats?: { xp: number; coins: number; level: number; rank: string; inventory: Data }
+}
+
 async function turnInTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
   const userId = String(rawUserId || '')
   const questId = String(rawQuestId || '')
@@ -566,19 +626,48 @@ async function turnInTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
   if (quest.status !== 'active') return { success: false, error: 'ภารกิจนี้ปิดรับงานแล้ว' }
   const progressSnapshot = await getDoc(doc(db, 'progress', `${userId}_${quest.lessonId}`))
   const lessonPassed = ['Passed', 'Completed'].includes(String(progressSnapshot.data()?.status || ''))
-  return mutateOwnedUser<{ success: boolean; alreadyTurnedIn?: boolean; error?: string }>(userId, (user) => {
+  const today = todayThailand()
+  return mutateOwnedUser<TurnInResult>(userId, (user) => {
     const states = { ...questStatesOf(user) }
     const state = states[questId]
+    // The turnedInAt stamp is the payout ledger: a quest already stamped never
+    // pays again, no matter how many times the button is pressed.
     if (state?.turnedInAt) return { result: { success: true, alreadyTurnedIn: true } }
     if (!state?.acceptedAt) return { result: { success: false, error: 'ต้องรับภารกิจกับครูวีรภัทร์ก่อนจึงจะส่งงานได้' } }
     const context = questContextFor(quest.lessonId, state, new Set(lessonPassed ? [quest.lessonId] : []), user)
-    if (studentQuestStatus(quest, context, todayThailand()) !== 'READY_TO_TURN_IN') {
+    if (studentQuestStatus(quest, context, today) !== 'READY_TO_TURN_IN') {
       return { result: { success: false, error: 'ยังทำภารกิจไม่ครบทุกเป้าหมาย ลองตรวจสอบรายละเอียดภารกิจอีกครั้งนะ' } }
     }
     states[questId] = { ...state, turnedInAt: new Date().toISOString() }
-    const inventory = { ...(user.inventory as Data || {}), teacherQuests: states }
-    // Presentation-only: rewards were already paid by the original flows.
-    return { result: { success: true, alreadyTurnedIn: false }, update: { inventory } }
+
+    // Quest rewards are paid here, once, on top of whatever the worksheet and
+    // lesson flows already paid for the underlying work.
+    const earned = earnedQuestRewards(quest.rewards, quest.dueAt, today)
+    const granted = grantQuestRewards(user, earned)
+    granted.inventory.teacherQuests = states
+    return {
+      result: {
+        success: true,
+        alreadyTurnedIn: false,
+        earned,
+        // inventory rides along so granted items/cosmetics/badges land in the
+        // bag without a page refresh (updateBattleUser accepts an inventory).
+        stats: {
+          xp: granted.xp,
+          coins: granted.coins,
+          level: granted.level,
+          rank: granted.rank,
+          inventory: granted.inventory,
+        },
+      },
+      update: {
+        inventory: granted.inventory,
+        xp: granted.xp,
+        coins: granted.coins,
+        level: granted.level,
+        rank: granted.rank,
+      },
+    }
   })
 }
 
@@ -855,6 +944,7 @@ export const firestoreApi = {
   getTeacherQuestBoard,
   acceptTeacherQuest,
   markTeacherQuestStudied,
+  markTeacherQuestStudiedForLesson,
   turnInTeacherQuest,
   getStudentProgress,
   getLeaderboard,

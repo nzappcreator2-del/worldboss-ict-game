@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   LESSON_MONSTER_KILL_TARGET,
+  completedLessonQuests,
   createLessonAdventure,
   defeatLessonMonster,
   finishLessonVideo,
@@ -100,6 +101,56 @@ describe('lessonAdventureLogic', () => {
 
     it('has no checklist objectives for the boss zone', () => {
       expect(lessonQuestObjectives({ ...createLessonAdventure(), zone: 3 })).toEqual([])
+    })
+  })
+
+  // Lessons the admin never gave a video link to must not demand the video
+  // quest — the cabinet would only open an empty player.
+  describe('lessons without a video', () => {
+    // Inlined rather than extracted into a helper: a lowercase helper calling
+    // useLessonPortal trips the react-hooks lint rule on the "use" prefix.
+    const zone1Cleared = (hasVideo: boolean) =>
+      readLessonNote(killMonsters(createLessonAdventure(hasVideo), LESSON_MONSTER_KILL_TARGET))
+
+    it('carries the hasVideo flag from creation and keeps it across the zone 1 to 2 reset', () => {
+      expect(createLessonAdventure(false).hasVideo).toBe(false)
+      expect(useLessonPortal(zone1Cleared(false)).hasVideo).toBe(false)
+      expect(useLessonPortal(zone1Cleared(true)).hasVideo).toBe(true)
+    })
+
+    it('defaults to having a video so an unspecified lesson never skips a real one', () => {
+      expect(createLessonAdventure().hasVideo).toBe(true)
+    })
+
+    it('lists only the kill objective in zone 2', () => {
+      expect(lessonQuestObjectives(useLessonPortal(zone1Cleared(false)))).toEqual([
+        { id: 'zone2-kills', label: 'ปราบผู้พิทักษ์หอจดหมายเหตุ', current: 0, target: 20, done: false },
+      ])
+    })
+
+    it('unlocks the boss room on kills alone', () => {
+      const killsOnly = killMonsters(useLessonPortal(zone1Cleared(false)), LESSON_MONSTER_KILL_TARGET)
+      expect(useLessonPortal(killsOnly).zone).toBe(3)
+    })
+
+    it('still holds the portal shut while the kill quest is unfinished', () => {
+      expect(useLessonPortal(killMonsters(useLessonPortal(zone1Cleared(false)), 5)).zone).toBe(2)
+    })
+
+    it('counts the video out of the completed-quest tally', () => {
+      const cleared = killMonsters(useLessonPortal(zone1Cleared(false)), LESSON_MONSTER_KILL_TARGET)
+      // Zone 1's note is the only completable side quest in a video-less lesson.
+      expect(completedLessonQuests(cleared)).toBe(0)
+      expect(completedLessonQuests(finishLessonVideo(useLessonPortal(zone1Cleared(true))))).toBe(1)
+    })
+
+    it('leaves zone 1 completely unchanged', () => {
+      const zone1 = killMonsters(createLessonAdventure(false), 4)
+      expect(lessonQuestObjectives(zone1)).toEqual([
+        { id: 'zone1-kills', label: 'โจมตีมอนสเตอร์', current: 4, target: 20, done: false },
+        { id: 'zone1-note', label: 'โน้ตความรู้', current: 0, target: 1, done: false },
+      ])
+      expect(useLessonPortal(zone1).zone).toBe(1)
     })
   })
 })

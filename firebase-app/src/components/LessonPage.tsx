@@ -27,8 +27,10 @@ import {
   finishLessonVideo,
   lessonKillQuestDone,
   lessonQuestObjectives,
+  lessonZoneQuestDone,
   readLessonNote,
   useLessonPortal,
+  type LessonAdventureProgress,
 } from './lessonAdventureLogic'
 import {
   LESSON_COMBO_WINDOW_MS,
@@ -68,15 +70,16 @@ import {
   type GroundDrop,
   type LootRarity,
 } from './lessonWorldLogic'
-import { hasTrackableLessonVideo, isDirectLessonVideo, lessonVideoMessageEnded, toTrackedLessonEmbedUrl } from './lessonMedia'
+import { hasLessonVideo, hasTrackableLessonVideo, isDirectLessonVideo, lessonVideoMessageEnded, toTrackedLessonEmbedUrl } from './lessonMedia'
 import { QuizQuestionView, type QuizQuestion } from './QuizQuestionView'
 import { applyBattleAnswer, applySkirmishExchange, battleOutcome, selectBossSkillQuestionIndex, skirmishBossDamagePerTick, starsForScore, type BattleState } from './quizLogic'
 import { HERO_BASE_MAX_HP, heroCombatProfile, type HeroCombatProfile } from '../services/heroStats'
 import { characterLayerImages } from './characterAssets'
 import { levelForXp, levelProgress } from '../services/levelSystem'
-import { LessonMonsterSprite } from './LessonMonsterSprites'
+import { LessonAssetMonsterSprite, LessonMonsterSprite } from './LessonMonsterSprites'
 import { LESSON_BAR_BADGE_IMAGES, LESSON_CHEST_IMAGES, LESSON_DEATH_PANEL_IMAGES, LESSON_HOTBAR_IMAGES, LESSON_LOOT_IMAGES, LESSON_SCROLL_IMAGE, LESSON_STAT_IMAGES } from './lessonUiAssets'
 import { VirtualJoystick } from './VirtualJoystick'
+import { LEGACY_LESSON_MAP_SET, MONSTER_SKIN_NAMES, monsterSkinForSpawn, resolveLessonMapSet, type LessonMapSet } from './lessonMapSets'
 
 export type Lesson = {
   id: string
@@ -87,6 +90,7 @@ export type Lesson = {
   icon?: string
   enablePretest?: boolean
   worksheetUrl?: string
+  lessonMapSet?: string
 }
 
 type LessonBattleUser = {
@@ -112,6 +116,8 @@ export type LessonService = {
   saveProgress?(userId: string, lessonId: string, status: 'Passed' | 'Failed', score: number, maxScore: number): Promise<{ success: boolean; stats?: ProgressStats; error?: string }>
   saveAdventureRewards?(userId: string, xpGain: number, coinGain: number): Promise<{ success: boolean; skipped?: boolean; stats?: AdventureRewardStats; error?: string }>
   trackDailyProgress?(type: 'play1' | 'correct5', questionId?: string): void
+  /** Marks any accepted teacher quest for this lesson as studied. */
+  markLessonStudied?(lessonId: string): Promise<unknown>
 }
 
 type Props = {
@@ -135,9 +141,16 @@ const questTitles = {
   3: 'เควส 3: ปราบผู้พิทักษ์บทเรียน',
 } as const
 
-const createZoneEnemies = (zone: 1 | 2): LessonEnemy[] =>
+// Zone 2 is named after its side quest, so a lesson with no video needs a title
+// that describes what the student is actually there to do.
+const QUEST_TITLE_ZONE2_NO_VIDEO = 'เควส 2: เคลียร์หอจดหมายเหตุ'
+
+const questTitleFor = (progress: LessonAdventureProgress) =>
+  progress.zone === 2 && !progress.hasVideo ? QUEST_TITLE_ZONE2_NO_VIDEO : questTitles[progress.zone]
+
+const createZoneEnemies = (zone: 1 | 2, mapSet: LessonMapSet = LEGACY_LESSON_MAP_SET): LessonEnemy[] =>
   LESSON_ZONE_CONFIGS[zone].enemySpawns.map((spawn, index) =>
-    createLessonEnemy(index + 1, spawn, LESSON_MONSTER_SPECIES[spawn.species]))
+    createLessonEnemy(index + 1, spawn, LESSON_MONSTER_SPECIES[spawn.species], monsterSkinForSpawn(mapSet, zone, index)))
 
 const attackRows: Record<WalkDirection, number> = { up: 55, left: 58, down: 61, right: 64 }
 const attackFrameColumns = [1, 4, 7, 10, 13, 16] as const
@@ -168,7 +181,7 @@ const LESSON_DEATH_REVEAL_MS = 900
 const BOSS_MIN_STARTING_PLAYER_HP = 70
 const BOSS_SPRITE_COLUMNS = 24
 const BOSS_SPRITE_ROWS = 90
-const BOSS_SPRITE_RENDER_SIZE = 150
+const BOSS_SPRITE_RENDER_SIZE = 240
 const BOSS_SPRITE_IDLE_ROW = 10
 const BOSS_WALK_ROWS: Record<WalkDirection, number> = { up: 8, left: 9, down: 10, right: 11 }
 const BOSS_ATTACK_ROWS: Record<WalkDirection, number> = { up: 12, left: 13, down: 14, right: 15 }
@@ -178,6 +191,7 @@ const createBossBattleState = (playerHp = 100): BattleState => ({ bossHp: 100, p
 
 export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUserUpdate, onExitGame, random = Math.random, videoUnlockMs }: Props) {
   const [lesson, setLesson] = useState<Lesson | null>(null)
+  const activeMapSet = lesson ? resolveLessonMapSet(lesson.lessonMapSet, lesson.id) : LEGACY_LESSON_MAP_SET
   const [progress, setProgress] = useState(createLessonAdventure)
   const [enemies, setEnemies] = useState<LessonEnemy[]>(() => createZoneEnemies(1))
   const [playerHp, setPlayerHp] = useState(100)
@@ -555,6 +569,10 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     setAutoBattle(false)
     autoAttackLastRef.current = 0
     setLesson(nextLesson)
+    // Opening the lesson is what satisfies a teacher quest's "ศึกษาบทเรียน"
+    // objective. Fire-and-forget: the stamp is idempotent server-side and must
+    // never delay or block the adventure starting.
+    if (nextLesson?.id) void service.markLessonStudied?.(nextLesson.id)
     const hero = service.getCurrentUser?.() || null
     setHeroUser(hero)
     heroUserRef.current = hero
@@ -568,8 +586,8 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     const heroProfile = heroCombatProfile(hero?.inventory?.stats)
     heroProfileRef.current = heroProfile
     setHeroMaxHp(heroProfile.maxHp)
-    setProgress(createLessonAdventure())
-    const freshEnemies = createZoneEnemies(1)
+    setProgress(createLessonAdventure(hasLessonVideo(nextLesson?.videoUrl)))
+    const freshEnemies = createZoneEnemies(1, nextLesson ? resolveLessonMapSet(nextLesson.lessonMapSet, nextLesson.id) : LEGACY_LESSON_MAP_SET)
     enemiesRef.current = freshEnemies
     setEnemies(freshEnemies)
     setPlayerHp(heroProfile.maxHp)
@@ -942,8 +960,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
       }
       const zoneProgress = progressRef.current
       if (zoneProgress.zone === 1 || zoneProgress.zone === 2) {
-        const zoneQuestDone = zoneProgress.zone === 1 ? zoneProgress.noteRead : zoneProgress.videoWatched
-        const canWarp = zoneQuestDone && lessonKillQuestDone(zoneProgress)
+        const canWarp = lessonZoneQuestDone(zoneProgress) && lessonKillQuestDone(zoneProgress)
         if (canWarp && isWithinRange(LESSON_ZONE_CONFIGS[zoneProgress.zone].portal, positionRef.current, LESSON_PORTAL_WARP_RANGE)) {
           enterZoneRef.current(zoneProgress.zone === 1 ? 2 : 3)
           return
@@ -1035,6 +1052,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     width: `${LESSON_CAMERA_SCALE.x * 100}%`,
     height: `${LESSON_CAMERA_SCALE.y * 100}%`,
     transform: `translate(-${cameraOffset(position.x, LESSON_CAMERA_SCALE.x)}%, -${cameraOffset(position.y, LESSON_CAMERA_SCALE.y)}%)`,
+    backgroundImage: `url(${activeMapSet.zoneImages[progress.zone]})`,
   }
   const zoneConfig = LESSON_ZONE_CONFIGS[progress.zone]
   // Paper-doll hero: every equipped LPC layer stacks in one div; a single
@@ -1059,7 +1077,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   const bossColumn = bossAnimating ? bossFrame % bossFrameCount : 0
   const bossSpriteStyle: CSSProperties = {
     display: 'block',
-    backgroundImage: `url(${warriorSprite})`,
+    backgroundImage: activeMapSet.bossSkin ? 'none' : `url(${warriorSprite})`,
     backgroundSize: `${BOSS_SPRITE_COLUMNS * BOSS_SPRITE_RENDER_SIZE}px ${BOSS_SPRITE_ROWS * BOSS_SPRITE_RENDER_SIZE}px`,
     backgroundPosition: `${-bossColumn * BOSS_SPRITE_RENDER_SIZE}px ${-bossRow * BOSS_SPRITE_RENDER_SIZE}px`,
     backgroundRepeat: 'no-repeat',
@@ -1400,7 +1418,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     setDrops([])
     setNotePickup(null)
     if (zone === 2) {
-      const next = createZoneEnemies(2)
+      const next = createZoneEnemies(2, activeMapSet)
       enemiesRef.current = next
       setEnemies(next)
     }
@@ -1461,7 +1479,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   const potionCount = bag.find((item) => item.kind === 'potion')?.count ?? 0
   const cardCount = bag.find((item) => item.kind === 'card')?.count ?? 0
   const attackPower = LESSON_PLAYER_BASE_DAMAGE + atkBonus + heroProfileRef.current.bonusAttack
-  const zoneQuestDone = progress.zone === 1 ? progress.noteRead : progress.zone === 2 ? progress.videoWatched : false
+  const zoneQuestDone = lessonZoneQuestDone(progress)
   const portalUnlocked = zoneQuestDone && lessonKillQuestDone(progress)
   const minimapPortalVisible = progress.zone !== 3 && portalUnlocked
   const questObjectives = lessonQuestObjectives(progress)
@@ -1470,7 +1488,9 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   // percentage coordinates toward the center so edge-of-map blips stay inside the ring.
   const mmPos = (value: number) => 14 + value * 0.72
 
-  const monsterVisual = (enemy: LessonEnemy) => enemy.species.body === 'lpc-archer'
+  const monsterVisual = (enemy: LessonEnemy) => enemy.skin
+    ? <LessonAssetMonsterSprite skin={enemy.skin} mode={enemy.mode} direction={enemy.direction} frame={enemy.frame} />
+    : enemy.species.body === 'lpc-archer'
     ? <span style={{ backgroundImage: `url(${archerSprite})`, backgroundPosition: `${-(enemy.frame % (enemy.mode === 'attack' || enemy.mode === 'windup' ? 13 : 9)) * 104}px ${-(enemy.mode === 'attack' || enemy.mode === 'windup' ? enemyAttackRows[enemy.direction] : enemyWalkRows[enemy.direction]) * 104}px` }} />
     : <span className="lesson-monster-svg"><LessonMonsterSprite body={enemy.species.body} mode={enemy.mode} direction={enemy.direction} /></span>
 
@@ -1478,7 +1498,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     if (deathChoiceTimer.current !== null) window.clearTimeout(deathChoiceTimer.current)
     deathChoiceTimer.current = null
     const zone = progress.zone === 1 ? 1 : 2
-    const reset = createZoneEnemies(zone)
+    const reset = createZoneEnemies(zone, activeMapSet)
     enemiesRef.current = reset
     setEnemies(reset)
     const spawn = LESSON_ZONE_CONFIGS[zone].playerSpawn
@@ -1523,7 +1543,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
       </div>
 
       <div className={`lesson-adventure-viewport${shaking ? ' lesson-shake' : ''}${playerDead ? ' lesson-world-dying' : ''}`}>
-        <div ref={worldRef} data-testid="lesson-adventure-world" className="lesson-adventure-world lesson-world-canvas" style={worldCanvasStyle} onPointerDown={moveToPointer} onMouseDown={moveToMouse}>
+        <div ref={worldRef} data-testid="lesson-adventure-world" data-map-set={activeMapSet.id} className="lesson-adventure-world lesson-world-canvas" style={worldCanvasStyle} onPointerDown={moveToPointer} onMouseDown={moveToMouse}>
         <div data-testid="lesson-player" data-direction={direction} data-action={playerAction} className="lesson-player-sprite" style={playerStyle} aria-label="ตัวละครผู้เล่น">
           {playerAction === 'attack' && <span data-testid="lesson-slash-effect" className="lesson-player-slash" aria-hidden="true" />}
         </div>
@@ -1537,9 +1557,9 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
         {progress.zone === 1 && (
           <>
             {enemies.map((enemy) => (enemy.hp > 0 || enemy.mode === 'dead') && (
-              <button key={enemy.id} type="button" aria-label={`โจมตีมอนสเตอร์ ${enemy.id}`} data-mode={enemy.mode} data-species={enemy.species.key} className={`lesson-monster lesson-monster-${enemy.id}`} style={{ left: `${enemy.x}%`, top: `${enemy.y}%` }} onClick={() => attackOrChaseEnemy(enemy.id)}>
+              <button key={enemy.id} type="button" aria-label={`โจมตีมอนสเตอร์ ${enemy.id}`} data-mode={enemy.mode} data-species={enemy.species.key} data-skin={enemy.skin} className={`lesson-monster lesson-monster-${enemy.id}`} style={{ left: `${enemy.x}%`, top: `${enemy.y}%` }} onClick={() => attackOrChaseEnemy(enemy.id)}>
                 {monsterVisual(enemy)}
-                <b>Lv.{enemy.species.level} {enemy.species.name}</b>
+                <b>Lv.{enemy.species.level} {enemy.skin ? MONSTER_SKIN_NAMES[enemy.skin] : enemy.species.name}</b>
                 <i><em style={{ width: `${(enemy.hp / enemy.species.maxHp) * 100}%` }} />{enemy.hp}/{enemy.species.maxHp}</i>
               </button>
             ))}
@@ -1551,12 +1571,12 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
         {progress.zone === 2 && (
           <>
             {enemies.map((enemy) => (enemy.hp > 0 || enemy.mode === 'dead') && (
-              <button key={enemy.id} type="button" aria-label={`โจมตีมอนสเตอร์เฝ้าหอ ${enemy.id}`} data-mode={enemy.mode} data-species={enemy.species.key} className={`lesson-monster archive-monster-${enemy.id}`} style={{ left: `${enemy.x}%`, top: `${enemy.y}%` }} onClick={() => attackOrChaseEnemy(enemy.id)}>
-                {monsterVisual(enemy)}<b>Lv.{enemy.species.level} {enemy.species.name}</b>
+              <button key={enemy.id} type="button" aria-label={`โจมตีมอนสเตอร์เฝ้าหอ ${enemy.id}`} data-mode={enemy.mode} data-species={enemy.species.key} data-skin={enemy.skin} className={`lesson-monster archive-monster-${enemy.id}`} style={{ left: `${enemy.x}%`, top: `${enemy.y}%` }} onClick={() => attackOrChaseEnemy(enemy.id)}>
+                {monsterVisual(enemy)}<b>Lv.{enemy.species.level} {enemy.skin ? MONSTER_SKIN_NAMES[enemy.skin] : enemy.species.name}</b>
                 <i><em style={{ width: `${(enemy.hp / enemy.species.maxHp) * 100}%` }} />{enemy.hp}/{enemy.species.maxHp}</i>
               </button>
             ))}
-            {!progress.videoWatched && <button type="button" aria-label="เปิดตู้วิดีโอลับ" className="lesson-video-cabinet" style={{ left: `${zoneConfig.landmark.x}%`, top: `${zoneConfig.landmark.y}%` }} onClick={openVideo}><span>▶</span> เปิดตู้วิดีโอลับ</button>}
+            {progress.hasVideo && !progress.videoWatched && <button type="button" aria-label="เปิดตู้วิดีโอลับ" className="lesson-video-cabinet" style={{ left: `${zoneConfig.landmark.x}%`, top: `${zoneConfig.landmark.y}%` }} onClick={openVideo}><span>▶</span> เปิดตู้วิดีโอลับ</button>}
             {portalUnlocked && <button type="button" aria-label="วาร์ปไปแมพ 3" className="lesson-portal" style={{ left: `${zoneConfig.portal.x}%`, top: `${zoneConfig.portal.y}%` }} onClick={() => enterZone(3)}><i aria-hidden="true" />วาร์ปไปแมพ 3 ✦</button>}
           </>
         )}
@@ -1564,7 +1584,9 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
         {progress.zone === 3 && (
           <div data-testid="lesson-boss-encounter" data-state={bossPhase} data-impact={bossImpact || undefined} data-action={bossPhase === 'skirmish' ? bossAction : undefined} data-enrage={bossPhase !== 'idle' && bossBattle.bossHp <= 30 ? 'true' : undefined} className="lesson-boss-encounter" style={{ left: `${bossPosition.x}%`, top: `${bossPosition.y}%` }}>
             <button type="button" data-testid="lesson-boss-target" aria-label="โจมตีบอสบทเรียนในแมพ" className="lesson-boss-target" onClick={bossPhase === 'skirmish' ? attackLessonBoss : () => void challengeLessonBoss()}>
-              <span data-testid="lesson-boss-sprite" className="lesson-boss-sprite" style={bossSpriteStyle} aria-label="ผู้พิทักษ์บทเรียน" />
+              <span data-testid="lesson-boss-sprite" data-skin={activeMapSet.bossSkin} className="lesson-boss-sprite" style={bossSpriteStyle} aria-label="ผู้พิทักษ์บทเรียน">
+                {activeMapSet.bossSkin && <LessonAssetMonsterSprite skin={activeMapSet.bossSkin} mode={bossAction === 'swing' ? 'attack' : 'chase'} direction={bossDirection} frame={bossFrame} renderSize={BOSS_SPRITE_RENDER_SIZE} />}
+              </span>
             </button>
             {bossPhase === 'idle' && <button type="button" data-testid="lesson-boss-challenge" aria-label="ท้าทายบอสบทเรียน" onClick={() => void challengeLessonBoss()}>⚔ ท้าทายบอสบทเรียน</button>}
             {bossPhase === 'loading' && <div data-testid="lesson-boss-hud" className="lesson-boss-hud">กำลังปลุกพลังบอส...</div>}
@@ -1615,7 +1637,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
               <>
                 <img src={LESSON_SCROLL_IMAGE} alt="" draggable={false} />
                 <span>
-                  <b>{questTitles[progress.zone]}</b>
+                  <b>{questTitleFor(progress)}</b>
                   {/* Compact at-a-glance progress; the full detail panel opens on tap. */}
                   <small>{portalUnlocked && progress.zone !== 3
                     ? '✓ เควสสำเร็จ! เดินเข้าวาร์ปไปต่อ'
@@ -1629,7 +1651,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
           {questOpen && (
             <div className="lesson-quest-body">
               <span>พื้นที่ {progress.zone}/3</span>
-              <h3>{questTitles[progress.zone]}</h3>
+              <h3>{questTitleFor(progress)}</h3>
               {progress.zone === 1 && <p>{lesson.description || 'กำจัดผู้พิทักษ์เงา ค้นหาโน้ต และอ่านเนื้อหาให้จบ'}</p>}
               {progress.zone === 2 && <p>สำรวจหอจดหมายเหตุ ฝ่ามอนสเตอร์ และค้นหาตู้วิดีโอที่ซ่อนอยู่</p>}
               {progress.zone === 3 && <p>ตอบคำถามให้ถูกเพื่อสะท้อนสกิลรุนแรงกลับไปยังบอส</p>}
@@ -1665,7 +1687,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
             ))}
             {minimapPortalVisible && <i className="mm-dot mm-portal" style={{ left: `${mmPos(zoneConfig.portal.x)}%`, top: `${mmPos(zoneConfig.portal.y)}%` }} />}
             {progress.zone === 1 && progress.noteDropped && !progress.noteRead && <i className="mm-dot mm-quest" style={{ left: `${mmPos((notePickup || zoneConfig.landmark).x)}%`, top: `${mmPos((notePickup || zoneConfig.landmark).y)}%` }} />}
-            {progress.zone === 2 && !progress.videoWatched && <i className="mm-dot mm-quest" style={{ left: `${mmPos(zoneConfig.landmark.x)}%`, top: `${mmPos(zoneConfig.landmark.y)}%` }} />}
+            {progress.zone === 2 && progress.hasVideo && !progress.videoWatched && <i className="mm-dot mm-quest" style={{ left: `${mmPos(zoneConfig.landmark.x)}%`, top: `${mmPos(zoneConfig.landmark.y)}%` }} />}
             <i className="mm-dot mm-player" style={{ left: `${mmPos(position.x)}%`, top: `${mmPos(position.y)}%` }} />
           </div>
         </div>

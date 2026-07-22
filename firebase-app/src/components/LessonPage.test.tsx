@@ -202,6 +202,35 @@ describe('LessonPage', () => {
     }
   })
 
+  // A lesson the admin never gave a video link to must not spawn the video
+  // quest — the cabinet would only open an empty player the student still has
+  // to confirm.
+  it('drops the zone 2 video quest entirely when the lesson has no video link', async () => {
+    const noVideo = { ...lesson, videoUrl: '' }
+    setup(noVideo, { random: () => 0 })
+    vi.useFakeTimers()
+    try {
+      act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+      defeatFirstMonster()
+      fireEvent.click(screen.getByRole('button', { name: 'เปิดโน้ตบทเรียน' }))
+      fireEvent.click(screen.getByRole('button', { name: 'อ่านจบแล้ว' }))
+      await grindMonsterKills(LESSON_MONSTER_KILL_TARGET - 1)
+      fireEvent.click(screen.getByRole('button', { name: 'วาร์ปไปแมพ 2' }))
+
+      // No cabinet to open, and the checklist carries the kill quest only.
+      expect(screen.queryByRole('button', { name: 'เปิดตู้วิดีโอลับ' })).toBeNull()
+      openQuestCard()
+      expect(screen.queryByText(/ตู้วิดีโอลับ/)).toBeNull()
+
+      // Kills alone open the boss portal.
+      await grindMonsterKills(LESSON_MONSTER_KILL_TARGET)
+      fireEvent.click(screen.getByRole('button', { name: 'วาร์ปไปแมพ 3' }))
+      expect(screen.getByRole('heading', { name: 'เควส 3: ปราบผู้พิทักษ์บทเรียน' })).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('uses a direct-media ended event to show verified completion without blocking the manual button', async () => {
     setup({ ...lesson, videoUrl: 'https://cdn.test/lesson.mp4' }, { random: () => 0 })
     vi.useFakeTimers()
@@ -273,8 +302,8 @@ describe('LessonPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ท้าทายบอสบทเรียน' }))
     const bossSpriteStyle = screen.getByTestId('lesson-boss-sprite').getAttribute('style') || ''
     expect(bossSpriteStyle).toContain('display: block')
-    expect(bossSpriteStyle).toContain('background-size: 3600px 13500px')
-    expect(bossSpriteStyle).toContain('background-position: 0px -1500px')
+    expect(bossSpriteStyle).toContain('background-size: 5760px 21600px')
+    expect(bossSpriteStyle).toContain('background-position: 0px -2400px')
     expect(handlers.onStartQuiz).not.toHaveBeenCalled()
     expect(handlers.service.loadQuestions).toHaveBeenCalledWith('lesson-1')
     await waitFor(() => expect(screen.getByTestId('lesson-boss-encounter').getAttribute('data-state')).toBe('skirmish'))
@@ -974,6 +1003,18 @@ describe('LessonPage', () => {
     openQuestCard()
     expect(screen.getByText(lesson.description)).toBeTruthy()
     expect(screen.getByText('ภารกิจบทเรียน 0/3')).toBeTruthy()
+  })
+
+  it('applies an explicit themed map set and deterministic monster skins without changing species', async () => {
+    setup({ ...lesson, lessonMapSet: 'desert-ruins' })
+    window.dispatchEvent(new Event('nextgen:open-lesson'))
+
+    const world = await screen.findByTestId('lesson-adventure-world')
+    expect(world.getAttribute('data-map-set')).toBe('desert-ruins')
+    const firstMonster = document.querySelector('[aria-label^="โจมตีมอนสเตอร์"]') as HTMLElement | null
+    expect(firstMonster?.dataset.species).toBe('shadow-keeper')
+    expect(firstMonster?.dataset.skin).toBe('tiny-orc')
+    expect(firstMonster?.querySelector('[data-monster-skin="tiny-orc"]')).toBeTruthy()
   })
 
   it('keeps worksheet and retreat actions available from the adventure HUD', async () => {

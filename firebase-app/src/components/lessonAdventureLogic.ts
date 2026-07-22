@@ -6,12 +6,19 @@ export type LessonAdventureProgress = {
   noteDropped: boolean
   noteRead: boolean
   videoWatched: boolean
+  // False when the admin never gave this lesson a video link. Zone 2 then runs
+  // on its kill quest alone — the cabinet would only open an empty player.
+  // Carried on the progress object so every derived function stays pure and
+  // self-contained instead of threading the flag through each call site.
+  hasVideo: boolean
 }
 
 export const LESSON_MONSTER_KILL_TARGET = 20
 
-export function createLessonAdventure(): LessonAdventureProgress {
-  return { zone: 1, monstersDefeated: 0, noteDropped: false, noteRead: false, videoWatched: false }
+// Defaults to true: an unspecified lesson must never silently skip a video it
+// actually has.
+export function createLessonAdventure(hasVideo = true): LessonAdventureProgress {
+  return { zone: 1, monstersDefeated: 0, noteDropped: false, noteRead: false, videoWatched: false, hasVideo }
 }
 
 export function defeatLessonMonster(progress: LessonAdventureProgress, roll: number): LessonAdventureProgress {
@@ -39,18 +46,25 @@ export function lessonKillQuestDone(progress: LessonAdventureProgress): boolean 
   return progress.monstersDefeated >= LESSON_MONSTER_KILL_TARGET
 }
 
+// The zone-2 side quest only exists when the lesson has a video.
+export function lessonZoneQuestDone(progress: LessonAdventureProgress): boolean {
+  if (progress.zone === 1) return progress.noteRead
+  if (progress.zone === 2) return !progress.hasVideo || progress.videoWatched
+  return false
+}
+
 export function useLessonPortal(progress: LessonAdventureProgress): LessonAdventureProgress {
-  if (progress.zone === 1 && progress.noteRead && lessonKillQuestDone(progress)) {
-    return { zone: 2, monstersDefeated: 0, noteDropped: false, noteRead: false, videoWatched: false }
+  if (progress.zone === 1 && lessonZoneQuestDone(progress) && lessonKillQuestDone(progress)) {
+    return { zone: 2, monstersDefeated: 0, noteDropped: false, noteRead: false, videoWatched: false, hasVideo: progress.hasVideo }
   }
-  if (progress.zone === 2 && progress.videoWatched && lessonKillQuestDone(progress)) {
+  if (progress.zone === 2 && lessonZoneQuestDone(progress) && lessonKillQuestDone(progress)) {
     return { ...progress, zone: 3 }
   }
   return progress
 }
 
 export function completedLessonQuests(progress: LessonAdventureProgress) {
-  return Number(progress.noteRead) + Number(progress.videoWatched)
+  return Number(progress.noteRead) + Number(progress.hasVideo && progress.videoWatched)
 }
 
 export type LessonQuestObjective = {
@@ -76,8 +90,10 @@ export function lessonQuestObjectives(progress: LessonAdventureProgress): Lesson
     ]
   }
   if (progress.zone === 2) {
+    const kills = killObjective('zone2-kills', 'ปราบผู้พิทักษ์หอจดหมายเหตุ')
+    if (!progress.hasVideo) return [kills]
     return [
-      killObjective('zone2-kills', 'ปราบผู้พิทักษ์หอจดหมายเหตุ'),
+      kills,
       { id: 'zone2-video', label: 'ตู้วิดีโอลับ', current: progress.videoWatched ? 1 : 0, target: 1, done: progress.videoWatched },
     ]
   }

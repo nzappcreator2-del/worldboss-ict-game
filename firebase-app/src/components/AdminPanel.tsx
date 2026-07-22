@@ -3,20 +3,41 @@ import { reportSummary, reportsToCsv, type ExamReport } from './adminPanelLogic'
 import { MAP_ENTRANCE_TEMPLATES, entranceTemplateForLesson } from './mapEntranceTemplates'
 import { MarkdownLite } from './MarkdownLite'
 import {
+  EMPTY_QUEST_REWARDS,
   NPC_MESSAGE_TEMPLATES,
   QUEST_STATUS_LABELS,
+  REWARD_BADGE_MAX_LENGTH,
+  REWARD_COINS_MAX,
+  REWARD_ITEM_CATALOG,
+  REWARD_ITEM_MAX_QTY,
+  REWARD_XP_MAX,
   STUDENT_STATUS_LABELS,
   TEACHER_NPC_NAME,
+  WORKSHEET_FIRST_SUBMIT_COINS,
+  WORKSHEET_FIRST_SUBMIT_XP,
   availableObjectivesForLesson,
   defaultQuestTitle,
+  describeQuestRewards,
+  normalizeQuestRewards,
   questTargetsClass,
   validateTeacherQuestDraft,
   type LessonCapabilities,
   type StudentQuestStatus,
   type TeacherQuest,
+  type TeacherQuestRewards,
   type TeacherQuestStats,
 } from '../services/teacherQuestLogic'
+import { COSMETIC_CATALOG } from '../services/gameLogic'
+import { CLEANUP_TASKS, type CleanupTaskKey } from '../services/adminCleanupLogic'
+
+export type CleanupScan = {
+  summary: Array<{ collection: string; label: string; count: number }>
+  total: number
+  confirmPhrase: string
+}
+export type SystemBackup = { exportedAt: string; collections: Record<string, unknown[]> }
 import type { GeneratedLessonBundle } from '../services/geminiLogic'
+import { LESSON_MAP_SETS, resolveLessonMapSet } from './lessonMapSets'
 
 type Result<T = unknown> = { success: boolean; data?: T; error?: string; isValid?: boolean; answer?: string; count?: number; id?: string; mode?: string; message?: string }
 
@@ -43,6 +64,7 @@ export type AdminLesson = {
   worksheetUrl?: string
   content?: string
   mapStyle?: string
+  lessonMapSet?: string
   questionCount?: number
 }
 
@@ -131,6 +153,12 @@ export interface AdminService {
   deleteStudent(id: string, password: string): Promise<Result>
   unbindStudent(id: string, password: string): Promise<Result>
   resetAllStudents(className: string, password: string): Promise<Result>
+  unbindAllStudents(className: string, password: string): Promise<Result>
+  unlockAllEquipment(id: string, password: string): Promise<Result>
+  unlockAllEquipmentForClass(className: string, password: string): Promise<Result>
+  scanCleanup(keys: CleanupTaskKey[], password: string): Promise<Result<CleanupScan>>
+  runCleanup(keys: CleanupTaskKey[], confirmation: string, password: string): Promise<Result>
+  exportBackup(password: string): Promise<Result<SystemBackup>>
   loadSettings(): Promise<Result<Record<string, unknown>>>
   saveSettings(settings: Record<string, unknown>, password: string): Promise<Result>
   loadNews(password: string): Promise<Result<AdminNews[]>>
@@ -142,6 +170,7 @@ export interface AdminService {
   saveDailyQuest(quest: AdminDailyQuest, password: string): Promise<Result>
   loadTeacherQuests(password: string): Promise<Result<AdminTeacherQuest[]>>
   saveTeacherQuest(quest: TeacherQuest, password: string): Promise<Result>
+  deleteTeacherQuest(questId: string, password: string): Promise<Result>
   loadTeacherQuestSubmissions(questId: string, password: string): Promise<Result<AdminQuestSubmission[]>>
   loadCyberScenarios(password: string): Promise<Result<AdminCyberScenario[]>>
   saveCyberScenario(scenario: AdminCyberScenario, password: string): Promise<Result>
@@ -171,14 +200,15 @@ const emptyAiDraft = (): AiDraft => ({
   includePretest: true, notes: '', bundle: null, working: false, error: '',
 })
 
-type Tab = 'lessons' | 'quests' | 'daily' | 'cyber' | 'students' | 'reports' | 'settings' | 'news'
+type Tab = 'lessons' | 'quests' | 'daily' | 'cyber' | 'students' | 'reports' | 'settings' | 'news' | 'cleanup'
 
 const emptyTeacherQuest = (): AdminTeacherQuest => ({
   questId: '', lessonId: '', lessonTitle: '', title: '', npcMessage: '',
   objectives: ['study'], classes: [], startAt: '', dueAt: '', status: 'draft',
+  rewards: EMPTY_QUEST_REWARDS,
 })
 
-const emptyLesson = (): AdminLesson => ({ id: '', title: '', description: '', videoUrl: '', icon: '🗺️', isActive: true, enablePretest: false, worksheetUrl: '', content: '', mapStyle: '' })
+const emptyLesson = (): AdminLesson => ({ id: '', title: '', description: '', videoUrl: '', icon: '🗺️', isActive: true, enablePretest: false, worksheetUrl: '', content: '', mapStyle: '', lessonMapSet: 'auto' })
 const emptyQuestion = (): AdminQuestion => ({ text: '', options: ['', '', '', ''], answer: 1, explanation: '', pattern: 'choice', image: '', matchingPairs: [{ left: '', right: '' }] })
 const emptyNews = (): AdminNews => ({ title: '', content: '', icon: '📢', type: 'NEWS', date: new Date().toLocaleDateString('th-TH'), isActive: true })
 const emptyCyberScenario = (): AdminCyberScenario => ({ id: '', timeOfDay: '', title: '', text: '', opt1: '', opt2: '', answerIdx: 0, feedbackWrong: '', feedbackRight: '' })
@@ -192,15 +222,49 @@ function Modal({ label, children, onClose }: { label: string; children: ReactNod
   </div>
 }
 
+function AdminConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  const dangerous = /ลบ|รีเซ็ต|ถาวร|ย้อนกลับไม่ได้/.test(message)
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onCancel])
+
+  // The backdrop scrolls and the panel is height-capped: on a short window (or
+  // with a long message) the dialog would otherwise overflow the viewport and
+  // put its own buttons out of reach.
+  return <div className="fixed inset-0 z-[120] grid place-items-center overflow-y-auto overscroll-contain bg-slate-950/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.currentTarget === event.target) onCancel() }}>
+    <div role="alertdialog" aria-modal="true" aria-label="ยืนยันการดำเนินการ" className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_30px_90px_rgba(15,23,42,.55)]">
+      <div className={`h-2 shrink-0 ${dangerous ? 'bg-gradient-to-r from-rose-500 via-red-500 to-orange-400' : 'bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500'}`} />
+      <div className="overflow-y-auto p-6 sm:p-7">
+        <div className="flex items-start gap-4">
+          <span aria-hidden="true" className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl shadow-inner ${dangerous ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>{dangerous ? '⚠️' : '🛡️'}</span>
+          <div className="min-w-0">
+            <p className={`text-xs font-black uppercase tracking-[.16em] ${dangerous ? 'text-rose-600' : 'text-indigo-600'}`}>NextGen Play Admin</p>
+            <h2 className="mt-1 text-xl font-black text-slate-900">{dangerous ? 'ยืนยันการเปลี่ยนแปลงสำคัญ' : 'ตรวจสอบก่อนดำเนินการ'}</h2>
+            <p className="mt-3 whitespace-pre-wrap text-[15px] font-semibold leading-7 text-slate-600">{message}</p>
+          </div>
+        </div>
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button type="button" autoFocus className="rounded-xl border border-slate-200 bg-slate-100 px-5 py-3 font-black text-slate-700 transition hover:bg-slate-200 focus:outline-none focus:ring-4 focus:ring-slate-200" onClick={onCancel}>ยกเลิก</button>
+          <button type="button" className={`rounded-xl px-5 py-3 font-black text-white shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 ${dangerous ? 'bg-gradient-to-r from-rose-600 to-red-600 shadow-rose-200 focus:ring-rose-200' : 'bg-gradient-to-r from-indigo-600 to-violet-600 shadow-indigo-200 focus:ring-indigo-200'}`} onClick={onConfirm}>ยืนยัน</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 outline-none focus:border-indigo-500'
 const primary = 'rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 font-bold text-white shadow hover:brightness-110 disabled:opacity-50'
 const secondary = 'rounded-xl bg-slate-200 px-3 py-2 font-bold text-slate-700 hover:bg-slate-300'
 
-export function AdminPanel({ service, onExit, confirmAction = (message) => window.confirm(message), downloadCsv = defaultDownload }: {
+export function AdminPanel({ service, onExit, confirmAction, downloadCsv = defaultDownload }: {
   service: AdminService
   onExit: () => void
   confirmAction?: (message: string) => boolean
-  downloadCsv?: (csv: string) => void
+  // Also used for the JSON system backup, hence the optional filename.
+  downloadCsv?: (contents: string, filename?: string) => void
 }) {
   const [authenticated, setAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
@@ -236,6 +300,25 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   const [questBaseline, setQuestBaseline] = useState<AdminTeacherQuest | null>(null)
   const [questSubmissions, setQuestSubmissions] = useState<{ quest: AdminTeacherQuest; rows: AdminQuestSubmission[] } | null>(null)
   const [submissionFilter, setSubmissionFilter] = useState({ class: '', status: '', search: '' })
+  const [confirmation, setConfirmation] = useState<{ message: string; resolve: (accepted: boolean) => void } | null>(null)
+  const [cleanupKeys, setCleanupKeys] = useState<CleanupTaskKey[]>([])
+  // A preview is only valid for the exact selection it was scanned from; any
+  // change to the selection clears it, so the run button can never act on a
+  // plan the teacher did not actually read.
+  const [cleanupScan, setCleanupScan] = useState<CleanupScan | null>(null)
+  const [cleanupConfirmation, setCleanupConfirmation] = useState('')
+
+  const requestConfirmation = useCallback((message: string) => {
+    if (confirmAction) return Promise.resolve(confirmAction(message))
+    return new Promise<boolean>((resolve) => setConfirmation({ message, resolve }))
+  }, [confirmAction])
+
+  const settleConfirmation = (accepted: boolean) => {
+    if (!confirmation) return
+    const pending = confirmation
+    setConfirmation(null)
+    pending.resolve(accepted)
+  }
 
   const run = useCallback(async (task: () => Promise<Result>, success = '') => {
     setBusy(true); setStatus('')
@@ -358,6 +441,13 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     setQuestDraft({ ...questDraft, classes })
   }
 
+  // Every reward edit round-trips through normalizeQuestRewards, so the form
+  // can only ever hold a value the payout would actually accept.
+  const setQuestReward = (patch: Partial<TeacherQuestRewards>) => {
+    if (!questDraft) return
+    setQuestDraft({ ...questDraft, rewards: normalizeQuestRewards({ ...questDraft.rewards, ...patch }) })
+  }
+
   const questTargetCount = (quest: TeacherQuest) => students.filter((student) => questTargetsClass(quest, student.class)).length
 
   const submitTeacherQuest = async (publish: boolean) => {
@@ -373,9 +463,9 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       || questBaseline.objectives.join(',') !== candidate.objectives.join(',')
       || [...questBaseline.classes].sort().join(',') !== [...candidate.classes].sort().join(',')
     )) {
-      if (!confirmAction('เควสต์นี้เผยแพร่แล้ว การแก้บทเรียน เป้าหมาย หรือกลุ่มนักเรียน อาจกระทบนักเรียนที่เริ่มทำไปแล้ว (ความคืบหน้าของนักเรียนจะไม่ถูกรีเซ็ต) ยืนยันบันทึกหรือไม่?')) return
+      if (!await requestConfirmation('เควสต์นี้เผยแพร่แล้ว การแก้บทเรียน เป้าหมาย หรือกลุ่มนักเรียน อาจกระทบนักเรียนที่เริ่มทำไปแล้ว (ความคืบหน้าของนักเรียนจะไม่ถูกรีเซ็ต) ยืนยันบันทึกหรือไม่?')) return
     }
-    if (publish && !confirmAction(`เผยแพร่เควสต์ "${candidate.title}" ให้นักเรียน ${questTargetCount(candidate)} คน?`)) return
+    if (publish && !await requestConfirmation(`เผยแพร่เควสต์ "${candidate.title}" ให้นักเรียน ${questTargetCount(candidate)} คน?`)) return
     const payload = { ...candidate }
     delete payload.stats
     const result = await run(() => service.saveTeacherQuest(payload, password), publish ? 'เผยแพร่เควสต์แล้ว นักเรียนจะเห็นเครื่องหมาย ! ที่ครูวีรภัทร์' : 'บันทึกเควสต์แล้ว')
@@ -383,10 +473,18 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   }
 
   const setQuestStatus = async (quest: AdminTeacherQuest, nextStatus: TeacherQuest['status'], message: string, confirmMessage?: string) => {
-    if (confirmMessage && !confirmAction(confirmMessage)) return
+    if (confirmMessage && !await requestConfirmation(confirmMessage)) return
     const payload = { ...quest, status: nextStatus }
     delete payload.stats
     const result = await run(() => service.saveTeacherQuest(payload, password), message)
+    if (result) await reloadTeacherQuests()
+  }
+
+  // Hard delete, unlike "เก็บถาวร" which keeps the quest and its submissions.
+  // Two confirmations because the submission history goes with it.
+  const deleteTeacherQuest = async (quest: AdminTeacherQuest) => {
+    if (!await requestConfirmation(`ลบเควสต์ "${quest.title}" และประวัติการส่งงานของเควสต์นี้ถาวร? ย้อนกลับไม่ได้ — ถ้าต้องการเก็บประวัติไว้ ให้ใช้ "เก็บถาวร" แทน`)) return
+    const result = await run(() => service.deleteTeacherQuest(quest.questId, password), 'ลบเควสต์แล้ว')
     if (result) await reloadTeacherQuests()
   }
 
@@ -402,7 +500,7 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     if (result) { setScenarioDraft(null); const refreshed = await service.loadCyberScenarios(password); if (refreshed.data) setCyberScenarios(refreshed.data) }
   }
   const deleteCyberScenario = async (scenario: AdminCyberScenario) => {
-    if (!scenario.id || !confirmAction(`ลบสถานการณ์ ${scenario.title || scenario.id}?`)) return
+    if (!scenario.id || !await requestConfirmation(`ลบสถานการณ์ ${scenario.title || scenario.id}?`)) return
     const result = await run(() => service.deleteCyberScenario(scenario.id!, password), 'ลบสถานการณ์แล้ว')
     if (result) setCyberScenarios((all) => all.filter((item) => item.id !== scenario.id))
   }
@@ -414,7 +512,9 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     if (result) { setLessonDraft(null); await loadLessons() }
   }
   const deleteLesson = async (lesson: AdminLesson) => {
-    if (!confirmAction(`ลบบทเรียน ${lesson.title} และข้อสอบทั้งหมด?`)) return
+    // The cascade is spelled out: quests pointing at a deleted lesson can never
+    // be completed, so they go with it.
+    if (!await requestConfirmation(`ลบบทเรียน ${lesson.title} พร้อมข้อสอบทั้งหมด และเควสต์มอบหมายที่ผูกกับบทเรียนนี้?`)) return
     const result = await run(() => service.deleteLesson(lesson.id, password), 'ลบบทเรียนแล้ว')
     if (result) await loadLessons()
   }
@@ -441,7 +541,7 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   }
   const studentAction = async (kind: 'reset' | 'delete' | 'unbind', student: AdminStudent) => {
     const labels = { reset: 'รีเซ็ตข้อมูล', delete: 'ลบข้อมูล', unbind: 'ปลดล็อกโปรไฟล์จากอุปกรณ์เดิมของ' } as const
-    if (!confirmAction(`${labels[kind]} ${student.name}?`)) return
+    if (!await requestConfirmation(`${labels[kind]} ${student.name}?`)) return
     const task = kind === 'reset'
       ? service.resetStudent(student.id, password)
       : kind === 'delete'
@@ -450,6 +550,72 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     const result = await run(() => task, kind === 'unbind' ? 'ปลดล็อกโปรไฟล์แล้ว นักเรียนล็อกอินจากเครื่องใหม่ได้ทันที' : 'อัปเดตข้อมูลนักเรียนแล้ว')
     if (result && kind !== 'unbind') { const refreshed = await service.loadStudents(password); if (refreshed.data) setStudents(refreshed.data) }
   }
+  const unbindAllDevices = async () => {
+    const scope = classFilter ? `ในชั้น ${classFilter}` : 'ทั้งหมด'
+    // One dialog that states the real consequence: no game data is lost, but
+    // every matched profile becomes claimable by whoever logs in first.
+    if (!await requestConfirmation(`ปลดล็อกเครื่องของนักเรียน${scope}? โปรไฟล์จะเปิดให้ล็อกอินจากเครื่องใหม่ได้ทันที (XP เหรียญ และความก้าวหน้าไม่หาย) ควรทำตอนเปลี่ยนเครื่องหรือขึ้นเทอมใหม่เท่านั้น`)) return
+    await run(() => service.unbindAllStudents(classFilter, password), 'ปลดล็อกเครื่องให้นักเรียนแล้ว')
+  }
+
+  const unlockStudentEquipment = async (student: AdminStudent) => {
+    if (!await requestConfirmation(`ปลดล็อกไอเทมแต่งตัวทั้งหมดให้ ${student.name}? (ไม่เสียเหรียญ และชุดที่ใส่อยู่ไม่เปลี่ยน)`)) return
+    await run(() => service.unlockAllEquipment(student.id, password), 'ปลดล็อกไอเทมทั้งหมดแล้ว')
+  }
+
+  const unlockClassEquipment = async () => {
+    const scope = classFilter ? `ชั้น ${classFilter}` : 'ทุกคน'
+    if (!await requestConfirmation(`ปลดล็อกไอเทมแต่งตัวทั้งหมดให้นักเรียน${scope}? (ไม่เสียเหรียญ และชุดที่ใส่อยู่ไม่เปลี่ยน)`)) return
+    await run(() => service.unlockAllEquipmentForClass(classFilter, password), 'ปลดล็อกไอเทมให้นักเรียนแล้ว')
+  }
+
+  // --- System cleanup -------------------------------------------------------
+
+  const toggleCleanupKey = (key: CleanupTaskKey) => {
+    setCleanupScan(null)
+    setCleanupConfirmation('')
+    setCleanupKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])
+  }
+
+  const selectAllCleanupKeys = () => {
+    setCleanupScan(null)
+    setCleanupConfirmation('')
+    // Selecting everything is still only a selection — preview and the typed
+    // phrase remain mandatory before anything is deleted.
+    setCleanupKeys(CLEANUP_TASKS.map((task) => task.key))
+  }
+
+  // Keeps the task order canonical so the payload never depends on click order.
+  const orderedCleanupKeys = CLEANUP_TASKS.map((task) => task.key).filter((key) => cleanupKeys.includes(key))
+
+  const scanCleanup = async () => {
+    if (orderedCleanupKeys.length === 0) return setStatus('เลือกรายการที่ต้องการล้างก่อน')
+    setCleanupConfirmation('')
+    const result = await run(() => service.scanCleanup(orderedCleanupKeys, password))
+    if (result?.data) setCleanupScan(result.data as CleanupScan)
+  }
+
+  // No modal here on purpose: the teacher already read the preview and typed
+  // the exact phrase, which is a stronger gate than a yes/no dialog. Adding one
+  // would ask the same question twice.
+  const runCleanup = async () => {
+    if (!cleanupScan || cleanupConfirmation !== cleanupScan.confirmPhrase) return
+    const result = await run(() => service.runCleanup(orderedCleanupKeys, cleanupConfirmation, password), 'ล้างข้อมูลเรียบร้อยแล้ว')
+    if (result) {
+      setCleanupScan(null)
+      setCleanupConfirmation('')
+      setCleanupKeys([])
+    }
+  }
+
+  const downloadBackup = async () => {
+    const result = await run(() => service.exportBackup(password), 'ดาวน์โหลดไฟล์สำรองข้อมูลแล้ว')
+    const backup = result?.data as SystemBackup | undefined
+    if (!backup) return
+    const stamp = backup.exportedAt.slice(0, 10)
+    downloadCsv(JSON.stringify(backup, null, 2), `nextgen-backup-${stamp}.json`)
+  }
+
   const analyzeStudent = async (student: AdminStudent) => {
     setAnalysis({ name: student.name, text: '', loading: true })
     try {
@@ -499,6 +665,7 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
         content: bundle.lesson.content,
         icon: bundle.lesson.icon || '🗺️',
         mapStyle: bundle.lesson.mapStyle,
+        lessonMapSet: 'auto',
         isActive: true,
         enablePretest: bundle.pretest.length > 0,
         videoUrl: '',
@@ -567,16 +734,16 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   }
 
   const clearAiKey = async () => {
-    if (!confirmAction('ลบ Gemini API Key ออกจากระบบ? ฟีเจอร์ AI ทั้งหมดจะกลับสู่โหมดพื้นฐาน')) return
+    if (!await requestConfirmation('ลบ Gemini API Key ออกจากระบบ? ฟีเจอร์ AI ทั้งหมดจะกลับสู่โหมดพื้นฐาน')) return
     const result = await run(() => service.clearAiKey(password), 'ลบคีย์แล้ว ระบบ AI กลับสู่โหมดพื้นฐาน')
     if (result) await refreshAiSettings()
   }
   const resetAll = async () => {
     const scope = classFilter ? `ในชั้น ${classFilter}` : 'ทั้งหมด'
-    if (!confirmAction(`รีเซ็ตนักเรียน${scope}?`)) return
+    if (!await requestConfirmation(`รีเซ็ตนักเรียน${scope}?`)) return
     // Second explicit confirmation: this wipes XP/coins/progress for every
     // matched student and cannot be undone without a backup file.
-    if (!confirmAction(`ยืนยันอีกครั้ง: ข้อมูลความก้าวหน้า เหรียญ และ XP ของนักเรียน${scope}จะถูกลบถาวร และย้อนกลับไม่ได้หากไม่มีไฟล์สำรองข้อมูล ดำเนินการต่อหรือไม่?`)) return
+    if (!await requestConfirmation(`ยืนยันอีกครั้ง: ข้อมูลความก้าวหน้า เหรียญ และ XP ของนักเรียน${scope}จะถูกลบถาวร และย้อนกลับไม่ได้หากไม่มีไฟล์สำรองข้อมูล ดำเนินการต่อหรือไม่?`)) return
     const result = await run(() => service.resetAllStudents(classFilter, password), 'รีเซ็ตข้อมูลแล้ว')
     if (result) { const refreshed = await service.loadStudents(password); if (refreshed.data) setStudents(refreshed.data) }
   }
@@ -592,7 +759,7 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
     if (result) { setNewsDraft(null); const refreshed = await service.loadNews(password); if (refreshed.data) setNews(refreshed.data) }
   }
   const deleteNews = async (item: AdminNews) => {
-    if (!item.id || !confirmAction(`ลบประกาศ ${item.title}?`)) return
+    if (!item.id || !await requestConfirmation(`ลบประกาศ ${item.title}?`)) return
     const result = await run(() => service.deleteNews(item.id!, password), 'ลบประกาศแล้ว')
     if (result) setNews((all) => all.filter((newsItem) => newsItem.id !== item.id))
   }
@@ -620,12 +787,12 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       <div><h1 className="text-2xl font-black md:text-3xl">ศูนย์บัญชาการผู้ดูแลระบบ</h1><p className="text-indigo-100">จัดการข้อมูลผ่าน Firestore โดยตรง</p></div>
       <button type="button" className="rounded-xl bg-white/20 px-4 py-2 font-bold hover:bg-white/30" onClick={logout}>ออกจากระบบ</button>
     </header>
-    <nav className="mb-5 flex flex-wrap gap-2">{([['lessons', '📚', 'บทเรียน'], ['quests', '🧑‍🏫', 'เควสต์มอบหมาย'], ['daily', '📜', 'ภารกิจรายวัน'], ['cyber', '🛡️', 'ไซเบอร์'], ['students', '🧑‍🎓', 'นักเรียน'], ['reports', '📊', 'รายงาน'], ['settings', '⚙️', 'ตั้งค่า'], ['news', '📢', 'ประกาศ']] as Array<[Tab, string, string]>).map(([id, icon, label]) => <button type="button" key={id} onClick={() => void changeTab(id)} className={`${tab === id ? primary : secondary}`}><span aria-hidden="true">{icon}</span> {label}</button>)}</nav>
+    <nav className="mb-5 flex flex-wrap gap-2">{([['lessons', '📚', 'บทเรียน'], ['quests', '🧑‍🏫', 'เควสต์มอบหมาย'], ['daily', '📜', 'ภารกิจรายวัน'], ['cyber', '🛡️', 'ไซเบอร์'], ['students', '🧑‍🎓', 'นักเรียน'], ['reports', '📊', 'รายงาน'], ['settings', '⚙️', 'ตั้งค่า'], ['news', '📢', 'ประกาศ'], ['cleanup', '🧹', 'ทำความสะอาดระบบ']] as Array<[Tab, string, string]>).map(([id, icon, label]) => <button type="button" key={id} onClick={() => void changeTab(id)} className={`${tab === id ? primary : secondary}`}><span aria-hidden="true">{icon}</span> {label}</button>)}</nav>
     {status && <p role="status" className={`mb-4 rounded-xl p-3 font-bold ${status.includes('แล้ว') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{status}</p>}
     {busy && <p className="mb-4 text-indigo-700">กำลังดำเนินการ...</p>}
 
     {tab === 'lessons' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-800">บทเรียน</h2><div className="flex flex-wrap gap-2"><button aria-label="สร้างบทเรียนด้วย AI" className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2 font-bold text-white shadow hover:brightness-110" onClick={() => setAiDraft(emptyAiDraft())}>✨ สร้างด้วย AI</button><button className={primary} onClick={() => setLessonDraft(emptyLesson())}>เพิ่มบทเรียน</button></div></div>
-      <div className="grid gap-3">{lessons.map((item, index) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4"><div className="flex items-center gap-3"><span className="block h-12 w-12 shrink-0" aria-hidden="true">{(() => { const Entrance = entranceTemplateForLesson(item.mapStyle, index).Art; return <Entrance /> })()}</span><span className="text-3xl">{item.icon}</span><div><h3 className="font-black">{item.title}</h3><p className="text-sm text-slate-500">{item.id} · {item.questionCount || 0} ข้อ · {item.isActive === false ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</p></div></div><div className="flex flex-wrap gap-2"><button className={secondary} onClick={() => void openQuestions(item)} aria-label={`จัดการข้อสอบ ${item.title}`}>ข้อสอบ</button><button className={secondary} onClick={() => setLessonDraft({ ...item })} aria-label={`แก้ไข ${item.title}`}>แก้ไข</button><button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" onClick={() => void deleteLesson(item)} aria-label={`ลบ ${item.title}`}>ลบ</button></div></article>)}</div>
+      <div className="grid gap-3">{lessons.map((item, index) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4"><div className="flex items-center gap-3"><span className="block h-12 w-12 shrink-0" aria-hidden="true">{(() => { const Entrance = entranceTemplateForLesson(item.mapStyle, index).Art; return <Entrance /> })()}</span><span className="text-3xl">{item.icon}</span><div><h3 className="font-black">{item.title}</h3><p className="text-sm text-slate-500">{item.id} · {item.questionCount || 0} ข้อ · {item.isActive === false ? 'ปิดใช้งาน' : 'เปิดใช้งาน'} · {resolveLessonMapSet(item.lessonMapSet, item.id).name}</p></div></div><div className="flex flex-wrap gap-2"><button className={secondary} onClick={() => void openQuestions(item)} aria-label={`จัดการข้อสอบ ${item.title}`}>ข้อสอบ</button><button className={secondary} onClick={() => setLessonDraft({ ...item })} aria-label={`แก้ไข ${item.title}`}>แก้ไข</button><button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" onClick={() => void deleteLesson(item)} aria-label={`ลบ ${item.title}`}>ลบ</button></div></article>)}</div>
     </div>}
 
     {tab === 'quests' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl">
@@ -656,6 +823,7 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
               {quest.status !== 'archived' && <button className={secondary} aria-label={`เปิดปิดเควสต์ ${quest.title}`} onClick={() => void setQuestStatus(quest, quest.status === 'active' ? 'closed' : 'active', quest.status === 'active' ? 'ปิดรับงานเควสต์แล้ว (ข้อมูลการส่งยังอยู่ครบ)' : 'เปิดรับงานเควสต์แล้ว')}>{quest.status === 'active' ? 'ปิดรับงาน' : 'เปิดรับงาน'}</button>}
               <button className={secondary} aria-label={`คัดลอกเควสต์ ${quest.title}`} onClick={() => { setQuestDraft({ ...quest, questId: '', title: `${quest.title} (สำเนา)`, status: 'draft', stats: undefined }); setQuestBaseline(null) }}>คัดลอก</button>
               {quest.status !== 'archived' && <button className="rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700" aria-label={`เก็บถาวรเควสต์ ${quest.title}`} onClick={() => void setQuestStatus(quest, 'archived', 'เก็บถาวรเควสต์แล้ว', `เก็บถาวรเควสต์ "${quest.title}"? นักเรียนจะไม่เห็นเควสต์นี้อีก แต่ข้อมูลการส่งงานทั้งหมดยังอยู่ครบ`)}>เก็บถาวร</button>}
+              <button className="rounded-xl bg-red-600 px-3 py-2 font-bold text-white" aria-label={`ลบเควสต์ ${quest.title}`} onClick={() => void deleteTeacherQuest(quest)}>ลบ</button>
             </div>
           </div>
         </article>)}
@@ -687,8 +855,82 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       {cyberScenarios.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-slate-500">ยังไม่มีสถานการณ์ในระบบ</p>}</div>
     </div>}
 
-    {tab === 'students' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black">นักเรียน</h2><div className="flex gap-2"><select aria-label="กรองชั้นเรียน" className={fieldClass} value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="">ทุกชั้น</option>{classes.map((item) => <option key={item}>{item}</option>)}</select><button className="rounded-xl bg-red-600 px-3 py-2 font-bold text-white" onClick={() => void resetAll()}>รีเซ็ตทั้งหมด</button></div></div>
-      <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="border-b"><th className="p-2">นักเรียน</th><th>ชั้น</th><th>XP / Rank</th><th>บทเรียนปัจจุบัน</th><th>จัดการ</th></tr></thead><tbody>{filteredStudents.map((item) => <tr key={item.id} className="border-b"><td className="p-2 font-bold">{item.avatar} {item.name}</td><td>{item.class}</td><td>{item.xp || 0} / {item.rank || '-'}</td><td>{item.currentLesson || '-'}</td><td className="flex flex-wrap gap-1 py-2"><button className={secondary} onClick={() => void analyzeStudent(item)} aria-label={`วิเคราะห์ ${item.name}`}>วิเคราะห์</button><button className={secondary} onClick={() => void studentAction('reset', item)} aria-label={`รีเซ็ต ${item.name}`}>รีเซ็ต</button><button className={secondary} onClick={() => void studentAction('unbind', item)} aria-label={`ปลดล็อกอุปกรณ์ ${item.name}`}>ปลดล็อกอุปกรณ์</button><button className="rounded-lg bg-red-100 px-2 text-red-700" onClick={() => void studentAction('delete', item)} aria-label={`ลบ ${item.name}`}>ลบ</button></td></tr>)}</tbody></table></div>
+    {tab === 'students' && <div className="rounded-3xl bg-white/90 p-5 shadow-xl"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black">นักเรียน</h2><div className="flex gap-2"><select aria-label="กรองชั้นเรียน" className={fieldClass} value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="">ทุกชั้น</option>{classes.map((item) => <option key={item}>{item}</option>)}</select><button className={secondary} onClick={() => void unbindAllDevices()}>ปลดล็อกเครื่องทั้งหมด</button><button className={secondary} onClick={() => void unlockClassEquipment()}>ปลดล็อกไอเทมทั้งหมด</button><button className="rounded-xl bg-red-600 px-3 py-2 font-bold text-white" onClick={() => void resetAll()}>รีเซ็ตทั้งหมด</button></div></div>
+      <div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="border-b"><th className="p-2">นักเรียน</th><th>ชั้น</th><th>XP / Rank</th><th>บทเรียนปัจจุบัน</th><th>จัดการ</th></tr></thead><tbody>{filteredStudents.map((item) => <tr key={item.id} className="border-b"><td className="p-2 font-bold">{item.avatar} {item.name}</td><td>{item.class}</td><td>{item.xp || 0} / {item.rank || '-'}</td><td>{item.currentLesson || '-'}</td><td className="flex flex-wrap gap-1 py-2"><button className={secondary} onClick={() => void analyzeStudent(item)} aria-label={`วิเคราะห์ ${item.name}`}>วิเคราะห์</button><button className={secondary} onClick={() => void studentAction('reset', item)} aria-label={`รีเซ็ต ${item.name}`}>รีเซ็ต</button><button className={secondary} onClick={() => void studentAction('unbind', item)} aria-label={`ปลดล็อกเครื่อง ${item.name}`}>ปลดล็อกเครื่อง</button><button className={secondary} onClick={() => void unlockStudentEquipment(item)} aria-label={`ปลดล็อกไอเทม ${item.name}`}>ปลดล็อกไอเทม</button><button className="rounded-lg bg-red-100 px-2 text-red-700" onClick={() => void studentAction('delete', item)} aria-label={`ลบ ${item.name}`}>ลบ</button></td></tr>)}</tbody></table></div>
+    </div>}
+
+    {tab === 'cleanup' && <div className="mx-auto grid max-w-3xl gap-5">
+      <div className="rounded-3xl bg-white/90 p-6 shadow-xl">
+        <h2 className="mb-1 text-2xl font-black">🧹 ทำความสะอาดระบบ</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          ระบบนี้ย้ายมาจากโปรเจกต์เดิม จึงมีข้อมูลตกค้างสะสมอยู่ เครื่องมือนี้ช่วยล้างให้สะอาด
+          โดย <b>ไม่แตะบทเรียน ข้อสอบ ประกาศ และการตั้งค่า</b> เด็ดขาด
+        </p>
+        <div className="mb-4 rounded-2xl bg-amber-50 p-4">
+          <p className="mb-2 text-sm font-bold text-amber-900">แนะนำ: ดาวน์โหลดไฟล์สำรองข้อมูลก่อนล้างทุกครั้ง</p>
+          <button type="button" className={secondary} disabled={busy} onClick={() => void downloadBackup()}>ดาวน์โหลดสำรองข้อมูล</button>
+        </div>
+
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-black">เลือกสิ่งที่ต้องการล้าง</h3>
+          <button type="button" className={secondary} onClick={selectAllCleanupKeys}>เลือกทั้งหมด</button>
+        </div>
+        <div className="grid gap-2">
+          {CLEANUP_TASKS.map((task) => (
+            <label
+              key={task.key}
+              className={`flex items-start gap-3 rounded-2xl border-2 p-3 ${cleanupKeys.includes(task.key) ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                aria-label={task.label}
+                checked={cleanupKeys.includes(task.key)}
+                onChange={() => toggleCleanupKey(task.key)}
+              />
+              <span>
+                <b>{task.label}</b>
+                {task.danger === 'high' && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-black text-red-700">อันตรายสูง</span>}
+                <small className="mt-1 block text-slate-600">{task.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" className={primary} disabled={busy || cleanupKeys.length === 0} onClick={() => void scanCleanup()}>ตรวจสอบ</button>
+        </div>
+
+        {cleanupScan && <div className="mt-4 rounded-2xl border-2 border-red-200 bg-red-50 p-4" data-testid="cleanup-preview">
+          <h3 className="mb-2 font-black text-red-800">จะลบทั้งหมด {cleanupScan.total} รายการ</h3>
+          {cleanupScan.total === 0 && <p className="text-sm text-slate-600">ไม่มีข้อมูลที่เข้าเงื่อนไข ระบบสะอาดอยู่แล้ว</p>}
+          <ul className="mb-3 grid gap-1 text-sm">
+            {cleanupScan.summary.map((line) => (
+              <li key={line.collection}><b>{line.count}</b> · {line.label} <small className="text-slate-500">({line.collection})</small></li>
+            ))}
+          </ul>
+          {cleanupScan.total > 0 && <>
+            <p className="mb-2 text-sm font-bold text-red-800">
+              ⚠️ ข้อมูลทั้งหมดนี้จะถูกลบถาวรและย้อนกลับไม่ได้ หากไม่มีไฟล์สำรองข้อมูล
+            </p>
+            <label className="block font-bold">พิมพ์คำยืนยัน
+              <span className="ml-2 rounded bg-white px-2 py-0.5 font-black text-red-700">{cleanupScan.confirmPhrase}</span>
+              <input
+                aria-label="พิมพ์คำยืนยัน"
+                className={`${fieldClass} mt-1`}
+                value={cleanupConfirmation}
+                onChange={(event) => setCleanupConfirmation(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="mt-3 rounded-xl bg-red-600 px-4 py-2 font-bold text-white disabled:opacity-40"
+              disabled={busy || cleanupConfirmation !== cleanupScan.confirmPhrase}
+              onClick={() => void runCleanup()}
+            >ล้างข้อมูลตามรายการนี้</button>
+          </>}
+        </div>}
+      </div>
     </div>}
 
     {tab === 'settings' && <div className="mx-auto grid max-w-3xl gap-5">
@@ -742,6 +984,24 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
               <input type="radio" name="lesson-map-style" className="sr-only" aria-label={`เทมเพลต ${template.name}`} checked={lessonDraft.mapStyle === template.id} onChange={() => setLessonDraft({ ...lessonDraft, mapStyle: template.id })} />
               <span className="block h-12 w-12" aria-hidden="true"><template.Art /></span>
               <small className="text-[10px] font-bold leading-tight text-slate-600">{template.name}</small>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="md:col-span-2">
+        <legend className="mb-2 font-bold">ชุดฉากภายในบทเรียนผจญภัย</legend>
+        <p className="mb-2 text-xs text-slate-500">อัตโนมัติจะเลือกแบบคงที่จากรหัสบทเรียน ปัจจุบันคือ {resolveLessonMapSet('auto', lessonDraft.id || `L${lessons.length + 1}`).name}</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+          <label className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 p-2 text-center ${lessonDraft.lessonMapSet === 'auto' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-400'}`}>
+            <input type="radio" name="lesson-map-set" className="sr-only" aria-label="ชุดฉากอัตโนมัติ" checked={lessonDraft.lessonMapSet === 'auto'} onChange={() => setLessonDraft({ ...lessonDraft, lessonMapSet: 'auto' })} />
+            <span className="grid h-16 w-full place-items-center rounded-lg bg-gradient-to-br from-indigo-200 to-purple-300 text-3xl" aria-hidden="true">🎲</span>
+            <small className="font-bold">อัตโนมัติ</small>
+          </label>
+          {LESSON_MAP_SETS.map((mapSet) => (
+            <label key={mapSet.id} className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 p-2 text-center ${(lessonDraft.lessonMapSet || 'legacy-forest') === mapSet.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-400'}`}>
+              <input type="radio" name="lesson-map-set" className="sr-only" aria-label={`ชุดฉาก ${mapSet.name}`} checked={(lessonDraft.lessonMapSet || 'legacy-forest') === mapSet.id} onChange={() => setLessonDraft({ ...lessonDraft, lessonMapSet: mapSet.id })} />
+              <img src={mapSet.zoneImages[1]} alt="" className="h-16 w-full rounded-lg object-cover" />
+              <small className="font-bold leading-tight">{mapSet.name}</small>
             </label>
           ))}
         </div>
@@ -869,7 +1129,88 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
           </label>
         </div>
 
-        {questDraft.objectives.includes('worksheet') && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">🎁 รางวัลใช้ของระบบเดิม: ส่งใบงานครั้งแรกได้ +40 XP +25 เหรียญ (จ่ายครั้งเดียว ระบบกันรับซ้ำอยู่แล้ว) — เควสต์นี้ไม่สร้างการจ่ายรางวัลใหม่</p>}
+        <fieldset className="rounded-2xl border-2 border-amber-200 bg-amber-50/60 p-3">
+          <legend className="px-1 font-bold text-amber-800">7) รางวัลเมื่อส่งงานกับครูวีรภัทร์</legend>
+          <p className="mb-2 text-xs text-amber-800">จ่ายครั้งเดียวต่อนักเรียนตอนกดส่งงาน (ระบบกันรับซ้ำด้วยตราประทับ turnedInAt)</p>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="font-bold">⭐ EXP
+              <input
+                aria-label="รางวัล EXP" type="number" min={0} max={REWARD_XP_MAX}
+                className={`${fieldClass} mt-1`} value={questDraft.rewards.xp}
+                onChange={(event) => setQuestReward({ xp: Number(event.target.value) })}
+              />
+            </label>
+            <label className="font-bold">🪙 เหรียญ
+              <input
+                aria-label="รางวัลเหรียญ" type="number" min={0} max={REWARD_COINS_MAX}
+                className={`${fieldClass} mt-1`} value={questDraft.rewards.coins}
+                onChange={(event) => setQuestReward({ coins: Number(event.target.value) })}
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="font-bold">🎯 โบนัส EXP (ส่งก่อนกำหนด)
+              <input
+                aria-label="โบนัส EXP ส่งก่อนกำหนด" type="number" min={0} max={REWARD_XP_MAX}
+                disabled={!questDraft.dueAt}
+                className={`${fieldClass} mt-1`} value={questDraft.rewards.bonusXp}
+                onChange={(event) => setQuestReward({ bonusXp: Number(event.target.value) })}
+              />
+            </label>
+            <label className="font-bold">🎯 โบนัสเหรียญ (ส่งก่อนกำหนด)
+              <input
+                aria-label="โบนัสเหรียญ ส่งก่อนกำหนด" type="number" min={0} max={REWARD_COINS_MAX}
+                disabled={!questDraft.dueAt}
+                className={`${fieldClass} mt-1`} value={questDraft.rewards.bonusCoins}
+                onChange={(event) => setQuestReward({ bonusCoins: Number(event.target.value) })}
+              />
+            </label>
+          </div>
+          {!questDraft.dueAt && <p className="mt-1 text-xs text-slate-500">กำหนด “วันกำหนดส่ง” ก่อน จึงจะตั้งโบนัสส่งก่อนกำหนดได้</p>}
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {Object.entries(REWARD_ITEM_CATALOG).map(([itemId, itemName]) => (
+              <label key={itemId} className="font-bold">🎁 {itemName}
+                <input
+                  aria-label={`จำนวน ${itemName}`} type="number" min={0} max={REWARD_ITEM_MAX_QTY}
+                  className={`${fieldClass} mt-1`} value={questDraft.rewards.items[itemId] || 0}
+                  onChange={(event) => setQuestReward({
+                    items: { ...questDraft.rewards.items, [itemId]: Number(event.target.value) },
+                  })}
+                />
+              </label>
+            ))}
+          </div>
+
+          <label className="mt-3 block font-bold">👕 ปลดล็อกไอเทมแต่งตัว (เลือกได้หลายชิ้น)
+            <select
+              multiple aria-label="ไอเทมแต่งตัวที่ปลดล็อก" size={5}
+              className={`${fieldClass} mt-1`} value={questDraft.rewards.cosmeticIds}
+              onChange={(event) => setQuestReward({
+                cosmeticIds: [...event.target.selectedOptions].map((option) => option.value),
+              })}
+            >
+              {Object.values(COSMETIC_CATALOG).filter((item) => item.price > 0).map((item) => (
+                <option key={item.id} value={item.id}>{item.name} ({item.price} เหรียญ)</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="mt-3 block font-bold">🏅 เหรียญตรา / ฉายาที่ได้รับ (เว้นว่าง = ไม่มี)
+            <input
+              aria-label="เหรียญตราที่ได้รับ" maxLength={REWARD_BADGE_MAX_LENGTH}
+              className={`${fieldClass} mt-1`} value={questDraft.rewards.badge}
+              onChange={(event) => setQuestReward({ badge: event.target.value })}
+            />
+          </label>
+
+          <p className="mt-3 rounded-xl bg-white/70 p-2 text-xs font-bold text-amber-900" data-testid="quest-reward-preview">
+            สรุปรางวัล: {describeQuestRewards(questDraft.rewards).join(' · ') || 'ยังไม่ได้ตั้งรางวัล'}
+          </p>
+          {questDraft.objectives.includes('worksheet') && <p className="mt-1 text-xs text-slate-600">หมายเหตุ: การส่งใบงานครั้งแรกยังได้ +{WORKSHEET_FIRST_SUBMIT_XP} XP +{WORKSHEET_FIRST_SUBMIT_COINS} เหรียญ จากระบบใบงานเดิมแยกต่างหาก</p>}
+        </fieldset>
 
         <div className="flex flex-wrap gap-2">
           {(!questDraft.questId || questDraft.status === 'draft') && <button type="button" className={secondary} disabled={busy} onClick={() => void submitTeacherQuest(false)}>บันทึกแบบร่าง</button>}
@@ -916,6 +1257,8 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
       </div>
       <p className="mt-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-700">สถานะคำนวณจากข้อมูลจริงของระบบเดิม (ใบงาน + ผลการเล่นด่าน) โดยอัตโนมัติ — การปิดหรือเก็บเควสต์จะไม่ลบคำตอบของนักเรียน</p>
     </Modal>}
+
+    {confirmation && <AdminConfirmDialog message={confirmation.message} onCancel={() => settleConfirmation(false)} onConfirm={() => settleConfirmation(true)} />}
 
     {analysis && <Modal label="รายงานวิเคราะห์นักเรียน" onClose={() => setAnalysis(null)}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -983,7 +1326,8 @@ export function AdminPanel({ service, onExit, confirmAction = (message) => windo
   </section>
 }
 
-function defaultDownload(csv: string) {
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'exam-report.csv'; anchor.click(); URL.revokeObjectURL(url)
+function defaultDownload(contents: string, filename = 'exam-report.csv') {
+  const type = filename.endsWith('.json') ? 'application/json;charset=utf-8' : 'text/csv;charset=utf-8'
+  const url = URL.createObjectURL(new Blob([contents], { type }))
+  const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); URL.revokeObjectURL(url)
 }

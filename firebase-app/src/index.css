@@ -1780,6 +1780,38 @@
 
 .map-node-label i { color: #c8d1da; font-style: normal; }
 
+/* MMO quest marker: golden "!" bobbing over a gate the teacher assigned. */
+.map-quest-marker {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #7a4f12;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 32%, #fff3b0, #ffc531 55%, #e59b12);
+  box-shadow: 0 0 16px #ffc53199, 0 3px 6px rgba(0, 0, 0, .5);
+  color: #4a2c05;
+  font-size: 19px;
+  font-weight: 1000;
+  text-shadow: 0 1px 0 #ffe9a8;
+  transform: translateX(-50%);
+  animation: map-quest-marker-bob 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes map-quest-marker-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-quest-marker { animation: none; }
+}
+
 .map-current-callout {
   position: absolute;
   left: 50%;
@@ -1963,23 +1995,76 @@
   pointer-events: none;
 }
 
+/* Painted hall gate. The hotspot itself stays invisible; hovering lights the
+   archway and reveals the caption so the gate reads as clickable. */
 .dashboard-portal-button {
   position: absolute;
   top: 8%;
   left: 63%;
   z-index: 32;
+  display: grid;
+  place-items: end center;
   width: 22%;
   height: 38%;
+  padding: 0 0 6%;
   border: 0;
-  background: transparent;
-  color: transparent;
+  border-radius: 46% 46% 12% 12%;
+  background: radial-gradient(ellipse at 50% 45%, rgba(140, 232, 255, 0) 0%, rgba(140, 232, 255, 0) 70%);
   cursor: pointer;
+  transition: background .28s ease, box-shadow .28s ease;
+}
+
+.dashboard-portal-button:hover,
+.dashboard-portal-button:focus-visible {
+  background: radial-gradient(ellipse at 50% 45%, rgba(150, 236, 255, .38) 0%, rgba(93, 232, 255, .16) 55%, rgba(93, 232, 255, 0) 74%);
+  box-shadow: inset 0 0 60px rgba(140, 232, 255, .32);
 }
 
 .dashboard-portal-button:focus-visible {
   outline: 4px solid #5de8ff;
   outline-offset: -8px;
-  border-radius: 48%;
+}
+
+/* The caption is always in the DOM for screen readers; hover/focus fades it in. */
+.dashboard-portal-button span {
+  padding: 7px 15px;
+  border: 2px solid #78e6ff;
+  border-radius: 999px;
+  background: linear-gradient(#123a63e6, #0b1c3ce6);
+  box-shadow: 0 0 18px #34caff88, inset 0 1px 0 #ffffff33;
+  color: #eaf9ff;
+  font-size: 15px;
+  font-weight: 1000;
+  white-space: nowrap;
+  text-shadow: 0 2px 3px #000;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .22s ease, transform .22s ease;
+  pointer-events: none;
+}
+
+.dashboard-portal-button:hover span,
+.dashboard-portal-button:focus-visible span {
+  opacity: 1;
+  transform: translateY(0);
+  animation: dashboard-portal-caption 1.9s ease-in-out infinite;
+}
+
+@keyframes dashboard-portal-caption {
+  0%, 100% { box-shadow: 0 0 18px #34caff88, inset 0 1px 0 #ffffff33; }
+  50% { box-shadow: 0 0 30px #6fe4ffcc, inset 0 1px 0 #ffffff44; }
+}
+
+/* Touch devices have no hover: keep the caption permanently visible there. */
+@media (hover: none) {
+  .dashboard-portal-button span { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-portal-button,
+  .dashboard-portal-button span { transition: none; }
+  .dashboard-portal-button:hover span,
+  .dashboard-portal-button:focus-visible span { animation: none; }
 }
 
 .dashboard-move-controls {
@@ -2272,7 +2357,7 @@
 .lesson-player-sprite { position: absolute; z-index: 7; width: 104px; height: 104px; transform: translate(-50%, -76%); image-rendering: pixelated; filter: drop-shadow(0 9px 6px #0009); transition: none; pointer-events: none; }
 /* The hero is a stacked LPC paper-doll: equipped layers render as multiple
    background-images on the sprite div itself (see characterAssets.ts). */
-.lesson-monster { --monster-hue: 190deg; position: absolute; z-index: 5; width: 108px; height: 132px; padding: 0; border: 0; background: transparent; cursor: crosshair; transition: left .1s linear, top .1s linear; }
+.lesson-monster { --monster-hue: 190deg; position: absolute; z-index: 5; width: 140px; height: 168px; padding: 0; border: 0; background: transparent; cursor: crosshair; transition: left .1s linear, top .1s linear; }
 .lesson-monster[data-species='archive-guard'] { --monster-hue: 320deg; }
 .lesson-monster span { display: block; width: 104px; height: 104px; overflow: hidden; background-position: 0 -1040px; background-size: 1872px 6448px; image-rendering: pixelated; filter: drop-shadow(0 8px 7px #000b) hue-rotate(var(--monster-hue)) saturate(1.5); transition: transform .16s; }
 .lesson-monster:hover span { transform: scale(1.08) translateY(-5px); }
@@ -2340,9 +2425,9 @@
 .lesson-bag-slot.lesson-bag-uncommon { border-color: #3f7c2e; }
 .lesson-bag-slot.lesson-bag-rare { border-color: #a44dff; box-shadow: inset 0 2px 6px #0009, 0 0 10px #a44dff66; }
 .lesson-boss-encounter { position: absolute; z-index: 5; display: flex; flex-direction: column; align-items: center; transition: none; transform: translateX(-50%); }
-.lesson-boss-encounter .lesson-boss-target { position: relative; width: 178px; height: 166px; padding: 0; border: 0; background: transparent; box-shadow: none; cursor: crosshair; }
-.lesson-boss-target::after { content: ''; position: absolute; left: 50%; bottom: 9px; width: 108px; height: 24px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, rgba(255, 82, 54, .32), rgba(255, 82, 54, 0) 70%); filter: blur(1px); }
-.lesson-boss-sprite { display: block; width: 150px; height: 150px; background-position: 0 -1500px; background-size: 3600px 13500px; background-repeat: no-repeat; image-rendering: pixelated; filter: drop-shadow(0 14px 9px #000b) drop-shadow(0 0 14px #fb4); animation: boss-breathe 1.7s ease-in-out infinite; }
+.lesson-boss-encounter .lesson-boss-target { position: relative; width: 270px; height: 250px; padding: 0; border: 0; background: transparent; box-shadow: none; cursor: crosshair; }
+.lesson-boss-target::after { content: ''; position: absolute; left: 50%; bottom: 9px; width: 170px; height: 34px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, rgba(255, 82, 54, .32), rgba(255, 82, 54, 0) 70%); filter: blur(1px); }
+.lesson-boss-sprite { display: block; width: 240px; height: 240px; margin: 0 auto; background-position: 0 -2400px; background-size: 5760px 21600px; background-repeat: no-repeat; image-rendering: pixelated; filter: drop-shadow(0 18px 12px #000c) drop-shadow(0 0 20px #fb4); animation: boss-breathe 1.7s ease-in-out infinite; }
 .lesson-boss-encounter button { margin-top: -3px; padding: 17px 26px; border-radius: 12px; color: #ffe570; font-size: 24px; }
 .lesson-boss-encounter[data-state='skirmish'] .lesson-boss-sprite, .lesson-boss-encounter[data-state='question'] .lesson-boss-sprite { filter: drop-shadow(0 14px 9px #000b) drop-shadow(0 0 20px #ff533e); }
 .lesson-boss-encounter[data-impact='boss'] .lesson-boss-sprite { animation: battle-heavy-hit .52s ease-out; filter: brightness(2.5) drop-shadow(0 0 18px #fff); }
@@ -3575,7 +3660,9 @@
 .npc-quest-objectives li[data-done="true"] { color: #1d7c40; }
 .npc-quest-objectives li[data-done="true"] i { border-color: #1d7c40; background: #d6ffd9; color: #1d7c40; }
 
-.npc-quest-rewards { margin: 0 0 8px; padding: 9px 12px; border: 2px solid #b47a3d; border-radius: 10px; background: linear-gradient(#ffe9ad, #eec25f); font-size: 13px; font-weight: 800; }
+/* Quest turn-in reward list: one line per configured reward channel. */
+.npc-quest-rewards { display: grid; gap: 5px; margin: 0 0 8px; padding: 9px 12px; border: 2px solid #b47a3d; border-radius: 10px; background: linear-gradient(#ffe9ad, #eec25f); list-style: none; font-size: 13px; font-weight: 800; }
+.npc-quest-reward-note { margin: 0 0 8px; color: #8b4a24; font-size: 12px; font-weight: 800; }
 
 /* Quest complete overlay — MMORPG victory card. */
 .npc-celebration-backdrop {
@@ -3613,7 +3700,8 @@
 .npc-celebration-sparkles i:nth-child(2n) { animation-delay: .45s; }
 .npc-celebration-sparkles i:nth-child(3n) { animation-delay: .8s; }
 
-.npc-celebration-rewards { display: flex; justify-content: center; gap: 9px; margin: 13px 0 6px; }
+/* Wraps: a quest can pay several channels at once (xp, coins, items, gear, badge). */
+.npc-celebration-rewards { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin: 13px 0 6px; }
 
 .npc-celebration-rewards span {
   padding: 7px 15px;
@@ -3627,6 +3715,65 @@
 }
 
 .npc-celebration-rewards span:nth-child(2) { animation-delay: .14s; }
+.npc-celebration-rewards span:nth-child(3) { animation-delay: .28s; }
+.npc-celebration-rewards span:nth-child(n+4) { animation-delay: .42s; }
+.npc-celebration-bonus { margin: 2px 0 0; color: #1d7c40; font-size: 13px; font-weight: 1000; }
+
+/* Loot numbers rising over the hub HUD when a quest pays out. */
+.npc-reward-pops {
+  position: fixed;
+  left: 50%;
+  top: 22%;
+  z-index: 95;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.npc-reward-pops span {
+  color: #ffe14e;
+  font-size: 32px;
+  font-weight: 1000;
+  text-shadow: 0 2px 3px #000, 0 0 14px #ffb020;
+  animation: npc-reward-pop 1.6s ease-out forwards;
+}
+
+@keyframes npc-reward-pop {
+  0% { opacity: 0; transform: translateY(24px) scale(.6); }
+  18% { opacity: 1; transform: translateY(0) scale(1.18); }
+  32% { transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-58px) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .npc-reward-pops span { animation-duration: .01s; }
+}
+
+/* Level-up flourish on the quest-complete card. */
+.npc-celebration-levelup {
+  display: grid;
+  gap: 2px;
+  margin: 10px auto 0;
+  padding: 8px 18px;
+  border: 2px solid #ffd34e;
+  border-radius: 12px;
+  background: linear-gradient(#3a2a06, #6b4a08);
+  box-shadow: 0 0 22px #ffc53177, inset 0 1px 0 #ffffff33;
+  animation: npc-levelup-flare 1.5s ease-in-out infinite;
+}
+.npc-celebration-levelup b { color: #ffe9a8; font-size: 19px; letter-spacing: 2px; text-shadow: 0 2px 3px #000, 0 0 12px #ffb020; }
+.npc-celebration-levelup span { color: #ffd98a; font-size: 13px; font-weight: 900; }
+
+@keyframes npc-levelup-flare {
+  0%, 100% { box-shadow: 0 0 22px #ffc53177, inset 0 1px 0 #ffffff33; }
+  50% { box-shadow: 0 0 36px #ffd865bb, inset 0 1px 0 #ffffff55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .npc-celebration-levelup { animation: none; }
+}
 .npc-celebration-note { margin: 4px 0 14px; color: #8b4a24; font-size: 12px; font-weight: 800; }
 
 @keyframes teacher-marker-float { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -7px); } }

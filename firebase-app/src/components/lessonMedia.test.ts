@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasTrackableLessonVideo, isDirectLessonVideo, lessonVideoMessageEnded, toTrackedLessonEmbedUrl } from './lessonMedia'
+import { hasLessonVideo, hasTrackableLessonVideo, isDirectLessonVideo, lessonVideoMessageEnded, toTrackedLessonEmbedUrl } from './lessonMedia'
 
 describe('lesson video completion adapters', () => {
   it('enables the YouTube player API without discarding the configured video', () => {
@@ -25,5 +25,15 @@ describe('lesson video completion adapters', () => {
     expect(hasTrackableLessonVideo('https://youtu.be/dQw4w9WgXcQ')).toBe(true)
     expect(hasTrackableLessonVideo('https://cdn.test/lesson.webm')).toBe(true)
     expect(hasTrackableLessonVideo('https://example.com/watch/lesson')).toBe(false)
+  })
+
+  // Drives whether the lesson map spawns the video quest at all, so it asks the
+  // looser question: did the admin configure *any* video for this lesson?
+  it('reports whether a lesson was given a video at all', () => {
+    expect(hasLessonVideo('https://youtu.be/dQw4w9WgXcQ')).toBe(true)
+    expect(hasLessonVideo('https://example.com/watch/lesson')).toBe(true)
+    expect(hasLessonVideo('')).toBe(false)
+    expect(hasLessonVideo('   ')).toBe(false)
+    expect(hasLessonVideo(undefined)).toBe(false)
   })
 })

@@ -270,6 +270,16 @@ export function buyCosmetic(rawCoins: number, rawInventory: Inventory, itemId: s
   return { success: true, coins: coins - item.price, inventory: { ...rawInventory, cosmetics } }
 }
 
+// Admin grant: marks every catalog item owned without spending coins and
+// without touching what the student is currently wearing, so unlocking gear for
+// a class never rearranges anyone's look.
+export function unlockAllCosmetics(rawInventory: Inventory): Inventory {
+  const inventory = rawInventory && typeof rawInventory === 'object' ? { ...rawInventory } : {}
+  const raw = inventory.cosmetics && typeof inventory.cosmetics === 'object' ? inventory.cosmetics as Inventory : {}
+  const equipped = raw.equipped && typeof raw.equipped === 'object' ? raw.equipped : {}
+  return { ...inventory, cosmetics: { owned: Object.keys(COSMETIC_CATALOG), equipped } }
+}
+
 export function toggleCosmetic(rawInventory: Inventory, itemId: string, gender?: unknown):
   { success: true; inventory: Inventory; equipped: boolean } | { success: false; error: string } {
   const item = COSMETIC_CATALOG[itemId]

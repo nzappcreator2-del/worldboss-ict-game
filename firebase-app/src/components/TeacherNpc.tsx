@@ -5,14 +5,17 @@ import {
   STUDENT_STATUS_LABELS,
   TEACHER_NPC_NAME,
   TEACHER_NPC_ROLE,
+  describeQuestRewards,
   dialogueForQuest,
   newQuestIdsToNotify,
   npcMarkerForStatuses,
   trackedQuest,
   trackerHint,
   type DialogueAction,
+  type EarnedQuestRewards,
   type StudentQuestView,
 } from '../services/teacherQuestLogic'
+import { playSound } from '../services/soundFx'
 import {
   BLINK_GAP_MS,
   BLINK_HOLD_MS,
@@ -25,17 +28,28 @@ import {
   npcSpriteStyle,
 } from './teacherNpcSprite'
 
+export type TeacherQuestStats = { xp: number; coins: number; level: number; rank: string; inventory?: unknown }
+
 export type TeacherNpcService = {
-  getCurrentUser(): { id: string } | null
+  getCurrentUser(): { id: string; level?: number } | null
   loadQuestBoard(userId: string): Promise<{ success: boolean; data?: StudentQuestView[]; error?: string }>
   acceptQuest(userId: string, questId: string): Promise<{ success: boolean; error?: string }>
   markStudied(userId: string, questId: string): Promise<{ success: boolean; error?: string }>
-  turnInQuest(userId: string, questId: string): Promise<{ success: boolean; alreadyTurnedIn?: boolean; error?: string }>
+  turnInQuest(userId: string, questId: string): Promise<{
+    success: boolean
+    alreadyTurnedIn?: boolean
+    error?: string
+    earned?: EarnedQuestRewards
+    stats?: TeacherQuestStats
+  }>
 }
 
 type Props = {
   service: TeacherNpcService
-  onOpenLesson(lessonId: string): void
+  /** Opens the adventure map so the student walks into the lesson themselves. */
+  onOpenMap(lessonId: string): void
+  /** Pushes the paid reward into the shared user object so the HUD updates live. */
+  onUserUpdate(stats: TeacherQuestStats): void
 }
 
 // Guild-hall home scene: ครูวีรภัทร์ stands centered on the red carpet in
@@ -77,22 +91,38 @@ const STATUS_PRIORITY: Record<StudentQuestView['studentStatus'], number> = {
   COMPLETED: 4,
 }
 
-export function TeacherNpc({ service, onOpenLesson }: Props) {
+export function TeacherNpc({ service, onOpenMap, onUserUpdate }: Props) {
   const [views, setViews] = useState<StudentQuestView[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [dialogueOpen, setDialogueOpen] = useState(false)
   const [selectedQuestId, setSelectedQuestId] = useState('')
   const [detailOpen, setDetailOpen] = useState(false)
-  const [celebration, setCelebration] = useState<StudentQuestView | null>(null)
+  // The celebration always renders what the server said it paid (`earned`),
+  // never the client-side preview, so a stale board can't promise a reward the
+  // payout did not actually grant.
+  const [celebration, setCelebration] = useState<{
+    view: StudentQuestView
+    earned?: EarnedQuestRewards
+    leveledUpTo?: number | null
+  } | null>(null)
   const [toastVisible, setToastVisible] = useState(false)
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const [frame, setFrame] = useState(IDLE_BASE_FRAME)
   const [speech, setSpeech] = useState('')
   const [near, setNear] = useState(false)
+  const [rewardPops, setRewardPops] = useState<{ id: number; text: string; index: number }[]>([])
   const loadedOnce = useRef(false)
   const inFlight = useRef(false)
   const refreshTimer = useRef<number | null>(null)
+  const rewardPopId = useRef(0)
+  const popTimers = useRef<Set<number>>(new Set())
+
+  // Unmounting mid-animation must not leave timers writing to dead state.
+  useEffect(() => () => {
+    popTimers.current.forEach((timer) => window.clearTimeout(timer))
+    popTimers.current.clear()
+  }, [])
 
   const load = useCallback(async (notify: boolean) => {
     const user = service.getCurrentUser()
@@ -223,9 +253,11 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
     if (action === 'close') return closeDialogue()
     if (action === 'detail') return setDetailOpen(true)
     if (action === 'continue' || action === 'review') {
-      if (action === 'continue') void service.markStudied(user.id, view.questId)
+      // Land on the adventure map, not inside the lesson: the student walks
+      // into the gate themselves. The "studied" stamp therefore belongs to the
+      // lesson actually opening, not to this button.
       closeDialogue()
-      onOpenLesson(view.lessonId)
+      onOpenMap(view.lessonId)
       return
     }
     if (action === 'accept') {
@@ -233,6 +265,7 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
       try {
         const result = await service.acceptQuest(user.id, view.questId)
         if (!result.success) throw new Error(result.error || 'accept failed')
+        playSound('questAccept')
         await load(false)
       } catch (error) {
         setActionError(error instanceof Error && error.message !== 'accept failed' ? error.message : 'รับภารกิจไม่สำเร็จ กรุณาลองใหม่')
@@ -243,15 +276,28 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
     }
     if (action === 'turnIn') {
       setBusy(true)
+      // Captured before the payout so a level-up can be detected against it.
+      const levelBefore = Number(user.level) || 0
       try {
         const result = await service.turnInQuest(user.id, view.questId)
         if (!result.success) {
           setActionError(result.error || 'ส่งงานไม่สำเร็จ กรุณาลองใหม่')
           return
         }
+        // Push the paid totals into the shared user object. Dispatching an
+        // event alone is not enough — every HUD listener re-reads that object,
+        // so without this the student sees stale XP/coins until they refresh.
+        if (!result.alreadyTurnedIn && result.stats) onUserUpdate(result.stats)
         await load(false)
         closeDialogue()
-        if (!result.alreadyTurnedIn) setCelebration(view)
+        if (!result.alreadyTurnedIn) {
+          const leveledUpTo = result.stats && result.stats.level > levelBefore && levelBefore > 0
+            ? result.stats.level
+            : null
+          setCelebration({ view, earned: result.earned, leveledUpTo })
+          spawnRewardPops(result.earned)
+          playSound(leveledUpTo ? 'levelUp' : 'questTurnIn')
+        }
       } catch {
         setActionError('ส่งงานไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่')
       } finally {
@@ -261,6 +307,25 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
   }
 
   const closeCelebration = () => setCelebration(null)
+
+  // Loot-style numbers rising over the HUD, so the payout is felt and not just
+  // read. Purely decorative: the celebration panel remains the source of truth.
+  const spawnRewardPops = (earned?: EarnedQuestRewards) => {
+    if (!earned) return
+    const lines = [
+      ...(earned.xp > 0 ? [`+${earned.xp} XP`] : []),
+      ...(earned.coins > 0 ? [`+${earned.coins} 🪙`] : []),
+    ]
+    if (lines.length === 0) return
+    const spawned = lines.map((text, index) => ({ id: rewardPopId.current++, text, index }))
+    setRewardPops((current) => [...current, ...spawned])
+    const timer = window.setTimeout(() => {
+      const ids = new Set(spawned.map((pop) => pop.id))
+      setRewardPops((current) => current.filter((pop) => !ids.has(pop.id)))
+      popTimers.current.delete(timer)
+    }, 1600)
+    popTimers.current.add(timer)
+  }
 
   const reducedMotion = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -346,6 +411,15 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
           ))}
           <em>{trackerHint(tracked)}</em>
         </button>
+      )}
+
+      {rewardPops.length > 0 && createPortal(
+        <div className="npc-reward-pops" aria-hidden="true">
+          {rewardPops.map((pop) => (
+            <span key={pop.id} style={{ animationDelay: `${pop.index * 0.12}s` }}>{pop.text}</span>
+          ))}
+        </div>,
+        document.body,
       )}
 
       {toastVisible && createPortal(
@@ -480,9 +554,24 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
                         </li>
                       ))}
                     </ul>
-                    {selected.rewards && (
-                      <p className="npc-quest-rewards">
-                        รางวัลส่งใบงานครั้งแรก: <b>+{selected.rewards.xp} XP</b> · <b>+{selected.rewards.coins} เหรียญ</b>
+                    {selected.hasRewards && (
+                      <>
+                        <h4>รางวัลเมื่อส่งงาน</h4>
+                        <ul className="npc-quest-rewards" data-testid="npc-quest-rewards">
+                          {describeQuestRewards(selected.earnable).map((line) => <li key={line}>{line}</li>)}
+                        </ul>
+                        {selected.rewards.bonusXp + selected.rewards.bonusCoins > 0 && (
+                          <p className="npc-quest-reward-note">
+                            {selected.earnable.earlyBonusApplied
+                              ? `🎯 รวมโบนัสส่งก่อนกำหนดแล้ว (ส่งภายใน ${selected.dueAt})`
+                              : '🎯 เลยกำหนดส่งแล้ว จึงไม่ได้รับโบนัสส่งก่อนกำหนด'}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {selected.worksheetReward && (
+                      <p className="npc-quest-reward-note">
+                        และการส่งใบงานครั้งแรกได้ +{selected.worksheetReward.xp} XP · +{selected.worksheetReward.coins} เหรียญ แยกต่างหาก
                       </p>
                     )}
                     <div className="npc-dialogue-actions">
@@ -503,14 +592,25 @@ export function TeacherNpc({ service, onOpenLesson }: Props) {
             <span className="npc-celebration-sparkles" aria-hidden="true"><i>✦</i><i>✧</i><i>✦</i><i>✧</i><i>✦</i></span>
             <span className="npc-celebration-sprite" aria-hidden="true"><i style={npcSpriteStyle('celebrate', CELEBRATE_OVERLAY_FRAME, 0.62)} /></span>
             <h3>ภารกิจสำเร็จ!</h3>
-            <p className="npc-celebration-title">{celebration.title}</p>
-            {celebration.rewards && (
+            <p className="npc-celebration-title">{celebration.view.title}</p>
+            {celebration.earned && describeQuestRewards(celebration.earned).length > 0 && (
               <div className="npc-celebration-rewards">
-                <span>⭐ +{celebration.rewards.xp} XP</span>
-                <span>🪙 +{celebration.rewards.coins} เหรียญ</span>
+                {describeQuestRewards(celebration.earned).map((line) => <span key={line}>{line}</span>)}
               </div>
             )}
-            <p className="npc-celebration-note">รางวัลถูกมอบให้ตอนส่งใบงานเรียบร้อยแล้ว เก่งมาก!</p>
+            {celebration.earned?.earlyBonusApplied && (
+              <p className="npc-celebration-bonus">🎯 รวมโบนัสส่งก่อนกำหนดแล้ว!</p>
+            )}
+            {celebration.leveledUpTo && (
+              <p className="npc-celebration-levelup" data-testid="npc-celebration-levelup">
+                <b>LEVEL UP!</b> <span>เลเวล {celebration.leveledUpTo}</span>
+              </p>
+            )}
+            <p className="npc-celebration-note">
+              {celebration.earned && describeQuestRewards(celebration.earned).length > 0
+                ? 'ครูมอบรางวัลให้เรียบร้อยแล้ว เก่งมาก!'
+                : 'ครูรับงานเรียบร้อยแล้ว เก่งมาก!'}
+            </p>
             <button type="button" className="npc-btn primary" onClick={closeCelebration}>รับรางวัล</button>
           </div>
         </div>,

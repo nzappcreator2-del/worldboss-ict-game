@@ -11,10 +11,11 @@ const lessons = [
 
 afterEach(cleanup)
 
-function setup(passedLessons: string[] = ['L1']) {
+function setup(passedLessons: string[] = ['L1'], overrides: Partial<MapService> = {}) {
   const service: MapService = {
     getCurrentUser: () => ({ id: 'user-1', avatar: '🧙', passedLessons }),
     loadLessons: vi.fn().mockResolvedValue({ success: true, data: lessons, passedLessons }),
+    ...overrides,
   }
   const onSelectLesson = vi.fn()
   render(<AdventureMap service={service} onSelectLesson={onSelectLesson} />)
@@ -188,6 +189,54 @@ describe('AdventureMap', () => {
 
     expect(screen.queryByRole('dialog', { name: 'ตัวอย่างบทเรียน' })).toBeNull()
     expect(onSelectLesson).not.toHaveBeenCalled()
+  })
+
+  // MMO-style "!" marker so the student can see which gate the teacher's quest
+  // wants, instead of relying on the NPC dialogue they just closed.
+  describe('teacher quest markers', () => {
+    const withTargets = (lessonIds: string[]) => ({
+      loadQuestTargets: vi.fn().mockResolvedValue({ success: true, data: lessonIds }),
+    })
+
+    it('marks only the lesson a quest is pointing at', async () => {
+      setup(['L1'], withTargets(['L2']))
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      expect(await screen.findByTestId('map-quest-marker-L2')).toBeTruthy()
+      expect(screen.queryByTestId('map-quest-marker-L1')).toBeNull()
+      expect(screen.queryByTestId('map-quest-marker-L3')).toBeNull()
+    })
+
+    it('marks every targeted lesson when several quests are running', async () => {
+      setup(['L1'], withTargets(['L1', 'L3']))
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      expect(await screen.findByTestId('map-quest-marker-L1')).toBeTruthy()
+      expect(screen.getByTestId('map-quest-marker-L3')).toBeTruthy()
+    })
+
+    it('shows no markers when nothing is assigned', async () => {
+      setup(['L1'], withTargets([]))
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      await screen.findByTestId('adventure-map')
+      await waitFor(() => expect(screen.queryByTestId('map-quest-marker-L2')).toBeNull())
+    })
+
+    it('still renders the map when the quest lookup fails', async () => {
+      setup(['L1'], { loadQuestTargets: vi.fn().mockRejectedValue(new Error('offline')) })
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      expect(await screen.findByTestId('adventure-map')).toBeTruthy()
+      expect(screen.queryByTestId('map-quest-marker-L2')).toBeNull()
+    })
+
+    it('works when the host never supplies a quest lookup at all', async () => {
+      setup(['L1'])
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      expect(await screen.findByTestId('adventure-map')).toBeTruthy()
+    })
   })
 
   it('shows a retryable error when Firestore loading fails', async () => {

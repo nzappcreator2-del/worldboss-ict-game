@@ -1,5 +1,8 @@
+import type { CSSProperties } from 'react'
 import type { WalkDirection } from './dashboardCharacter'
 import type { LessonEnemyMode, LessonMonsterBody } from './lessonCombatLogic'
+import type { LessonMonsterSkinKey } from './lessonMapSets'
+import { monsterAnimationFor } from './lessonMonsterAnimation'
 
 // Hand-drawn SVG pixel art for the RO-style field monsters that don't use the LPC archer
 // spritesheet — no licensed Ragnarok/Gravity assets involved. Each grid cell maps to one
@@ -123,4 +126,22 @@ export function LessonMonsterSprite({ body, direction }: Props) {
       <PixelGrid rows={TOME_ROWS} palette={TOME_PALETTE} y={5} />
     </svg>
   )
+}
+
+export function LessonAssetMonsterSprite({ skin, mode, direction, frame, renderSize = 136 }: { skin: LessonMonsterSkinKey; mode: LessonEnemyMode; direction: WalkDirection; frame: number; renderSize?: number }) {
+  const animation = monsterAnimationFor(skin, mode)
+  const frameIndex = Math.abs(Math.floor(frame || 0)) % animation.frames
+  const renderWidth = renderSize
+  const renderHeight = renderWidth * (animation.frameHeight / animation.frameWidth)
+  const style: CSSProperties = {
+    backgroundImage: `url(${animation.image})`,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: `${animation.frames * renderWidth}px ${renderHeight}px`,
+    backgroundPosition: `${-frameIndex * renderWidth}px bottom`,
+    transform: direction === 'left' ? 'scaleX(-1)' : undefined,
+    width: renderSize,
+    height: renderSize,
+    display: 'block',
+  }
+  return <span className="lesson-asset-monster-sprite" data-monster-skin={skin} data-animation={animation.animation} data-frames={animation.frames} data-render-size={renderSize} style={style} aria-hidden="true" />
 }

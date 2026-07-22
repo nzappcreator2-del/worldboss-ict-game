@@ -44,6 +44,13 @@ export function toTrackedLessonEmbedUrl(value?: string, origin = '') {
   return url.toString()
 }
 
+// Looser than hasTrackableLessonVideo: "did the admin give this lesson a video
+// at all?". Drives whether the lesson map spawns the video quest, so a lesson
+// with no link never asks the student to watch an empty player.
+export function hasLessonVideo(value?: string) {
+  return Boolean(value?.trim())
+}
+
 export function hasTrackableLessonVideo(value?: string) {
   return isDirectLessonVideo(value) || toLessonEmbedUrl(value).startsWith('https://www.youtube.com/embed/')
 }

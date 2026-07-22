@@ -6,6 +6,11 @@ export function sanitizePublicSettings(settings: Data): Data {
   return Object.fromEntries(Object.entries(settings).filter(([key]) => publicSettingKeys.has(key)))
 }
 
+// The inventory is rebuilt from scratch, never key-deleted: anything a future
+// feature stores in the bag (teacher-quest stamps, worksheet submissions,
+// cosmetics, hero stat points) is therefore cleared by default. Keep it that
+// way — a student who keeps quest stamps through a reset looks "already done"
+// on work they no longer have.
 export function resetUserData(user: Data): Data {
   return {
     ...user,
@@ -20,6 +25,7 @@ export function resetUserData(user: Data): Data {
       dailyDone: [],
       dailyProgress: { play1: 0, correct5: 0 },
       dailyAnswers: [],
+      badges: [],
     },
     lastLogin: '',
     streak: 0,

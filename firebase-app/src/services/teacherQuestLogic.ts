@@ -1,13 +1,33 @@
 // Pure quest engine for the ครูวีรภัทร์ NPC feature: quest assignments live in
 // the admin-managed `teacherQuests` collection, while every per-student fact is
 // derived from systems that already exist (progress docs, inventory.worksheets,
-// inventory.teacherQuests acceptance stamps). Nothing here pays rewards — the
-// worksheet/lesson flows keep doing that exactly once, and the NPC only
-// presents the outcome.
+// inventory.teacherQuests acceptance stamps).
+//
+// Each quest carries its own admin-configured turn-in reward (XP, coins,
+// consumables, wardrobe unlocks, a badge, plus an early-submission bonus). That
+// payout is separate from — and on top of — the one-time worksheet study reward
+// the worksheet flow already pays; the two never overlap because they fire on
+// different actions (first worksheet submit vs. handing the quest to the NPC).
+
+import { COSMETIC_CATALOG } from './gameLogic'
+import { levelForXp } from './levelSystem'
+import { rankForXp } from './normalizers'
 
 export type TeacherQuestObjective = 'study' | 'posttest' | 'worksheet'
 export type TeacherQuestStatus = 'draft' | 'active' | 'closed' | 'archived'
 export type StudentQuestStatus = 'AVAILABLE' | 'IN_PROGRESS' | 'READY_TO_TURN_IN' | 'COMPLETED' | 'OVERDUE'
+
+// Reward channels an admin can attach to a quest. `bonusXp`/`bonusCoins` are
+// only paid when the student turns the quest in on or before its due date.
+export type TeacherQuestRewards = {
+  xp: number
+  coins: number
+  bonusXp: number
+  bonusCoins: number
+  items: Record<string, number>
+  cosmeticIds: string[]
+  badge: string
+}
 
 export type TeacherQuest = {
   questId: string
@@ -20,6 +40,7 @@ export type TeacherQuest = {
   startAt: string
   dueAt: string
   status: TeacherQuestStatus
+  rewards: TeacherQuestRewards
 }
 
 // Acceptance stamps saved under users/{id}.inventory.teacherQuests[questId].
@@ -38,7 +59,12 @@ export type StudentQuestContext = {
 export type StudentQuestView = Omit<TeacherQuest, 'objectives'> & {
   studentStatus: StudentQuestStatus
   objectives: Array<{ key: TeacherQuestObjective; label: string; done: boolean }>
-  rewards: { xp: number; coins: number } | null
+  // The quest's own turn-in payout, plus what it would actually be worth if the
+  // student handed it in today (early bonus included while still in time).
+  hasRewards: boolean
+  earnable: EarnedQuestRewards
+  // The separate one-time worksheet study reward, shown for context only.
+  worksheetReward: { xp: number; coins: number } | null
   accepted: boolean
 }
 
@@ -88,6 +114,146 @@ export const NPC_SMALL_TALK = [
 const OBJECTIVE_KEYS: TeacherQuestObjective[] = ['study', 'posttest', 'worksheet']
 const QUEST_STATUSES: TeacherQuestStatus[] = ['draft', 'active', 'closed', 'archived']
 
+// --- Quest rewards ----------------------------------------------------------
+// Firestore rules cap every single user write at ±1000 XP and ±1000 coins, so
+// base + bonus must stay inside that ceiling or the payout would be rejected
+// mid-flight. Validation happens in the admin form; normalization clamps as a
+// second line of defence for documents written before the cap existed.
+export const REWARD_XP_MAX = 1000
+export const REWARD_COINS_MAX = 1000
+export const REWARD_ITEM_MAX_QTY = 20
+export const REWARD_BADGE_MAX_LENGTH = 40
+
+// Consumables the quest can grant, keyed by the same bag ids the shop uses.
+export const REWARD_ITEM_CATALOG: Record<string, string> = {
+  potion: 'ยาเพิ่มพลัง',
+  magnifier: 'แว่นขยายช่วยตอบ',
+}
+
+export const EMPTY_QUEST_REWARDS: TeacherQuestRewards = {
+  xp: 0, coins: 0, bonusXp: 0, bonusCoins: 0, items: {}, cosmeticIds: [], badge: '',
+}
+
+const clampInt = (value: unknown, max: number) => {
+  const number = Math.floor(Number(value))
+  if (!Number.isFinite(number) || number <= 0) return 0
+  return Math.min(number, max)
+}
+
+export function normalizeQuestRewards(raw: unknown): TeacherQuestRewards {
+  if (!raw || typeof raw !== 'object') return EMPTY_QUEST_REWARDS
+  const data = raw as Record<string, unknown>
+  const rawItems = data.items && typeof data.items === 'object' ? data.items as Record<string, unknown> : {}
+  const items: Record<string, number> = {}
+  for (const itemId of Object.keys(REWARD_ITEM_CATALOG)) {
+    const quantity = clampInt(rawItems[itemId], REWARD_ITEM_MAX_QTY)
+    if (quantity > 0) items[itemId] = quantity
+  }
+  const rawCosmetics = Array.isArray(data.cosmeticIds) ? data.cosmeticIds.map(String) : []
+  return {
+    xp: clampInt(data.xp, REWARD_XP_MAX),
+    coins: clampInt(data.coins, REWARD_COINS_MAX),
+    bonusXp: clampInt(data.bonusXp, REWARD_XP_MAX),
+    bonusCoins: clampInt(data.bonusCoins, REWARD_COINS_MAX),
+    items,
+    cosmeticIds: [...new Set(rawCosmetics.filter((id) => id in COSMETIC_CATALOG))],
+    badge: String(data.badge || '').trim().slice(0, REWARD_BADGE_MAX_LENGTH),
+  }
+}
+
+export function hasQuestRewards(rewards: TeacherQuestRewards): boolean {
+  return rewards.xp > 0 || rewards.coins > 0 || rewards.bonusXp > 0 || rewards.bonusCoins > 0
+    || Object.keys(rewards.items).length > 0 || rewards.cosmeticIds.length > 0 || rewards.badge !== ''
+}
+
+export function validateQuestRewards(rewards: TeacherQuestRewards): { valid: boolean; error?: string } {
+  if (rewards.xp + rewards.bonusXp > REWARD_XP_MAX) {
+    return { valid: false, error: `XP รวมโบนัสต้องไม่เกิน ${REWARD_XP_MAX} ต่อการส่งงาน 1 ครั้ง` }
+  }
+  if (rewards.coins + rewards.bonusCoins > REWARD_COINS_MAX) {
+    return { valid: false, error: `เหรียญรวมโบนัสต้องไม่เกิน ${REWARD_COINS_MAX} ต่อการส่งงาน 1 ครั้ง` }
+  }
+  return { valid: true }
+}
+
+export type EarnedQuestRewards = Omit<TeacherQuestRewards, 'bonusXp' | 'bonusCoins'> & {
+  earlyBonusApplied: boolean
+}
+
+// `dueAt` and `turnInDay` are Asia/Bangkok YYYY-MM-DD strings, so a plain string
+// comparison is a correct date comparison. A quest with no due date always pays
+// its bonus — there is nothing to be late for.
+export function earnedQuestRewards(
+  rewards: TeacherQuestRewards,
+  dueAt: string,
+  turnInDay: string,
+): EarnedQuestRewards {
+  const earlyBonusApplied = !dueAt || turnInDay <= dueAt
+  return {
+    xp: rewards.xp + (earlyBonusApplied ? rewards.bonusXp : 0),
+    coins: rewards.coins + (earlyBonusApplied ? rewards.bonusCoins : 0),
+    items: rewards.items,
+    cosmeticIds: rewards.cosmeticIds,
+    badge: rewards.badge,
+    earlyBonusApplied,
+  }
+}
+
+export type QuestRewardTarget = { xp?: unknown; coins?: unknown; inventory?: unknown }
+export type GrantedQuestRewards = {
+  xp: number
+  coins: number
+  level: number
+  rank: string
+  inventory: Record<string, unknown>
+}
+
+// Pure payout: folds an earned reward set into a user document's totals and
+// bag. Every channel is additive and idempotent in shape — cosmetics are only
+// added to `owned` (never auto-equipped, so a surprise unlock can't change the
+// look the student chose), badges de-duplicate, and consumables stack.
+export function grantQuestRewards(user: QuestRewardTarget, earned: EarnedQuestRewards): GrantedQuestRewards {
+  const inventory = user.inventory && typeof user.inventory === 'object'
+    ? { ...(user.inventory as Record<string, unknown>) }
+    : {}
+
+  for (const [itemId, quantity] of Object.entries(earned.items)) {
+    inventory[itemId] = (Number(inventory[itemId]) || 0) + quantity
+  }
+
+  if (earned.cosmeticIds.length > 0) {
+    const raw = inventory.cosmetics && typeof inventory.cosmetics === 'object'
+      ? inventory.cosmetics as Record<string, unknown>
+      : {}
+    const owned = Array.isArray(raw.owned) ? raw.owned.map(String) : []
+    const equipped = raw.equipped && typeof raw.equipped === 'object' ? raw.equipped : {}
+    inventory.cosmetics = { owned: [...new Set([...owned, ...earned.cosmeticIds])], equipped }
+  }
+
+  if (earned.badge) {
+    const badges = Array.isArray(inventory.badges) ? inventory.badges.map(String) : []
+    inventory.badges = badges.includes(earned.badge) ? badges : [...badges, earned.badge]
+  }
+
+  const xp = Math.max(0, Number(user.xp) || 0) + earned.xp
+  const coins = Math.max(0, Number(user.coins) || 0) + earned.coins
+  return { xp, coins, level: levelForXp(xp), rank: rankForXp(xp), inventory }
+}
+
+export function describeQuestRewards(rewards: TeacherQuestRewards | EarnedQuestRewards): string[] {
+  const lines: string[] = []
+  if (rewards.xp > 0) lines.push(`⭐ ${rewards.xp} XP`)
+  if (rewards.coins > 0) lines.push(`🪙 ${rewards.coins} เหรียญ`)
+  for (const [itemId, quantity] of Object.entries(rewards.items)) {
+    lines.push(`🎁 ${REWARD_ITEM_CATALOG[itemId] || itemId} ×${quantity}`)
+  }
+  for (const cosmeticId of rewards.cosmeticIds) {
+    lines.push(`👕 ${COSMETIC_CATALOG[cosmeticId]?.name || cosmeticId}`)
+  }
+  if (rewards.badge) lines.push(`🏅 ${rewards.badge}`)
+  return lines
+}
+
 export function normalizeTeacherQuest(id: string, data: Record<string, unknown>): TeacherQuest {
   const rawObjectives = Array.isArray(data.objectives) ? data.objectives.map(String) : []
   const rawStatus = String(data.status || 'active') as TeacherQuestStatus
@@ -102,6 +268,7 @@ export function normalizeTeacherQuest(id: string, data: Record<string, unknown>)
     startAt: String(data.startAt || ''),
     dueAt: String(data.dueAt || ''),
     status: QUEST_STATUSES.includes(rawStatus) ? rawStatus : 'active',
+    rewards: normalizeQuestRewards(data.rewards),
   }
 }
 
@@ -156,7 +323,11 @@ export function buildStudentQuestView(quest: TeacherQuest, context: StudentQuest
     ...quest,
     studentStatus: studentQuestStatus(quest, context, today),
     objectives: quest.objectives.map((key) => ({ key, label: OBJECTIVE_LABELS[key], done: objectiveDone(key, context) })),
-    rewards: quest.objectives.includes('worksheet')
+    hasRewards: hasQuestRewards(quest.rewards),
+    // Previewed against today, so the student can see the early bonus they are
+    // still in time for (or that they have already missed).
+    earnable: earnedQuestRewards(quest.rewards, quest.dueAt, today),
+    worksheetReward: quest.objectives.includes('worksheet')
       ? { xp: WORKSHEET_FIRST_SUBMIT_XP, coins: WORKSHEET_FIRST_SUBMIT_COINS }
       : null,
     accepted: Boolean(context.state?.acceptedAt),
@@ -232,6 +403,16 @@ export function trackedQuest(views: StudentQuestView[]): StudentQuestView | null
     || null
 }
 
+// Lessons that deserve a "!" quest marker on the adventure map: accepted but
+// still unfinished. READY_TO_TURN_IN is deliberately excluded — that student
+// should walk back to the NPC, not into the lesson again.
+export function questTargetLessonIds(views: StudentQuestView[]): string[] {
+  return [...new Set(views
+    .filter((view) => view.studentStatus === 'IN_PROGRESS' || (view.studentStatus === 'OVERDUE' && view.accepted))
+    .map((view) => view.lessonId)
+    .filter(Boolean))]
+}
+
 export function trackerHint(view: StudentQuestView): string {
   if (view.studentStatus === 'READY_TO_TURN_IN') return `กลับไปส่งงานกับ${TEACHER_NPC_NAME}`
   const next = view.objectives.find((objective) => !objective.done)
@@ -290,6 +471,13 @@ export function validateTeacherQuestDraft(
   }
   if (draft.startAt && draft.dueAt && draft.dueAt < draft.startAt) {
     return { valid: false, error: 'วันกำหนดส่งต้องไม่อยู่ก่อนวันเริ่มภารกิจ' }
+  }
+  const rewards = validateQuestRewards(draft.rewards)
+  if (!rewards.valid) return rewards
+  // An early-submission bonus with no deadline would always pay out, which is
+  // never what the teacher meant when they typed it.
+  if (!draft.dueAt && (draft.rewards.bonusXp > 0 || draft.rewards.bonusCoins > 0)) {
+    return { valid: false, error: 'โบนัสส่งก่อนกำหนดต้องระบุวันกำหนดส่งด้วย' }
   }
   return { valid: true }
 }

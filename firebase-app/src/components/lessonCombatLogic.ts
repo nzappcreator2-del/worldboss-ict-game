@@ -1,4 +1,5 @@
 import type { CharacterPosition, WalkDirection } from './dashboardCharacter'
+import type { LessonMonsterSkinKey } from './lessonMapSets'
 
 export type LessonEnemyMode = 'patrol' | 'chase' | 'windup' | 'attack' | 'hurt' | 'dead'
 
@@ -52,6 +53,7 @@ export type LessonEnemy = {
   attackCooldownMs: number
   windupMs: number
   species: LessonMonsterSpecies
+  skin?: LessonMonsterSkinKey
 }
 
 export const LESSON_ENEMY_AGGRO_RANGE = 22
@@ -71,12 +73,12 @@ export const LESSON_ENEMY_DEATH_TICKS = 6
 // Dead monsters keep their corpse slot until this many 100ms ticks pass, then respawn at home.
 export const LESSON_ENEMY_RESPAWN_TICKS = 80
 
-export function createLessonEnemy(id: number, home: CharacterPosition, species: LessonMonsterSpecies = LESSON_MONSTER_SPECIES['shadow-keeper']): LessonEnemy {
-  return { id, x: home.x, y: home.y, homeX: home.x, homeY: home.y, hp: species.maxHp, mode: 'patrol', direction: 'down', frame: 0, attackCooldownMs: 0, windupMs: 0, species }
+export function createLessonEnemy(id: number, home: CharacterPosition, species: LessonMonsterSpecies = LESSON_MONSTER_SPECIES['shadow-keeper'], skin?: LessonMonsterSkinKey): LessonEnemy {
+  return { id, x: home.x, y: home.y, homeX: home.x, homeY: home.y, hp: species.maxHp, mode: 'patrol', direction: 'down', frame: 0, attackCooldownMs: 0, windupMs: 0, species, skin }
 }
 
 export function respawnLessonEnemy(enemy: LessonEnemy): LessonEnemy {
-  return createLessonEnemy(enemy.id, { x: enemy.homeX, y: enemy.homeY }, enemy.species)
+  return createLessonEnemy(enemy.id, { x: enemy.homeX, y: enemy.homeY }, enemy.species, enemy.skin)
 }
 
 // Player strike: base damage plus a small variance roll, doubled on a lucky critical roll.

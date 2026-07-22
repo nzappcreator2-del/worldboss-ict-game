@@ -9,19 +9,31 @@ import {
   availableObjectivesForLesson,
   buildStudentQuestView,
   defaultQuestTitle,
+  describeQuestRewards,
   dialogueForQuest,
+  earnedQuestRewards,
+  grantQuestRewards,
+  hasQuestRewards,
   newQuestIdsToNotify,
+  normalizeQuestRewards,
   normalizeTeacherQuest,
+  questTargetLessonIds,
   npcMarkerForStatuses,
   questTargetsClass,
   questVisibleToStudent,
   studentQuestStatus,
   trackedQuest,
   trackerHint,
+  validateQuestRewards,
   validateTeacherQuestDraft,
+  EMPTY_QUEST_REWARDS,
+  REWARD_COINS_MAX,
+  REWARD_ITEM_MAX_QTY,
   type StudentQuestContext,
   type TeacherQuest,
 } from './teacherQuestLogic'
+import { levelForXp } from './levelSystem'
+import { rankForXp } from './normalizers'
 
 const quest = (override: Partial<TeacherQuest> = {}): TeacherQuest => ({
   questId: 'TQ001',
@@ -34,6 +46,7 @@ const quest = (override: Partial<TeacherQuest> = {}): TeacherQuest => ({
   startAt: '',
   dueAt: '',
   status: 'active',
+  rewards: EMPTY_QUEST_REWARDS,
   ...override,
 })
 
@@ -178,11 +191,222 @@ describe('buildStudentQuestView objectives', () => {
     expect(view.studentStatus).toBe('READY_TO_TURN_IN')
   })
 
-  it('previews the real worksheet study reward without inventing new payouts', () => {
-    const view = buildStudentQuestView(quest(), context(), TODAY)
-    expect(view.rewards).toEqual({ xp: WORKSHEET_FIRST_SUBMIT_XP, coins: WORKSHEET_FIRST_SUBMIT_COINS })
+  it('previews the quest-configured turn-in reward', () => {
+    const view = buildStudentQuestView(
+      quest({ rewards: normalizeQuestRewards({ xp: 120, coins: 60 }) }),
+      context(),
+      TODAY,
+    )
+    expect(view.rewards).toMatchObject({ xp: 120, coins: 60 })
+    expect(view.hasRewards).toBe(true)
+  })
+
+  it('reports no turn-in reward when the quest was configured without one', () => {
+    const view = buildStudentQuestView(quest({ rewards: EMPTY_QUEST_REWARDS }), context(), TODAY)
+    expect(view.hasRewards).toBe(false)
+  })
+
+  it('still surfaces the separate first-worksheet study reward for worksheet quests', () => {
+    const view = buildStudentQuestView(quest({ objectives: ['study', 'worksheet'] }), context(), TODAY)
+    expect(view.worksheetReward).toEqual({ xp: WORKSHEET_FIRST_SUBMIT_XP, coins: WORKSHEET_FIRST_SUBMIT_COINS })
     const noWorksheet = buildStudentQuestView(quest({ objectives: ['study'] }), context(), TODAY)
-    expect(noWorksheet.rewards).toBeNull()
+    expect(noWorksheet.worksheetReward).toBeNull()
+  })
+
+  it('previews the early-bird bonus while the due date has not passed', () => {
+    const rewards = normalizeQuestRewards({ xp: 100, coins: 50, bonusXp: 30, bonusCoins: 10 })
+    const early = buildStudentQuestView(quest({ rewards, dueAt: '2026-07-25' }), context(), TODAY)
+    expect(early.earnable).toMatchObject({ xp: 130, coins: 60, earlyBonusApplied: true })
+    const late = buildStudentQuestView(quest({ rewards, dueAt: '2026-07-01' }), context(), TODAY)
+    expect(late.earnable).toMatchObject({ xp: 100, coins: 50, earlyBonusApplied: false })
+  })
+})
+
+describe('normalizeQuestRewards', () => {
+  it('coerces raw Firestore reward data into safe, capped numbers', () => {
+    const rewards = normalizeQuestRewards({
+      xp: '250', coins: 9999, bonusXp: -40, bonusCoins: 25,
+      items: { potion: '3', magnifier: 0, ghostItem: 5 },
+      cosmeticIds: ['hat-crown', 'not-a-real-item'],
+      badge: '  ผู้พิชิตบทเรียน  ',
+    })
+    expect(rewards.xp).toBe(250)
+    // Capped to the Firestore per-write delta ceiling.
+    expect(rewards.coins).toBe(REWARD_COINS_MAX)
+    // Negative bonuses are clamped away; zero-count items drop out.
+    expect(rewards.bonusXp).toBe(0)
+    expect(rewards.bonusCoins).toBe(25)
+    expect(rewards.items).toEqual({ potion: 3 })
+    expect(rewards.cosmeticIds).toEqual(['hat-crown'])
+    expect(rewards.badge).toBe('ผู้พิชิตบทเรียน')
+  })
+
+  it('returns an empty reward set for missing or malformed data', () => {
+    expect(normalizeQuestRewards(undefined)).toEqual(EMPTY_QUEST_REWARDS)
+    expect(normalizeQuestRewards('nope')).toEqual(EMPTY_QUEST_REWARDS)
+  })
+
+  it('caps item quantities so a typo cannot flood the bag', () => {
+    expect(normalizeQuestRewards({ items: { potion: 500 } }).items).toEqual({ potion: REWARD_ITEM_MAX_QTY })
+  })
+})
+
+describe('hasQuestRewards', () => {
+  it('is true when any reward channel carries something', () => {
+    expect(hasQuestRewards(EMPTY_QUEST_REWARDS)).toBe(false)
+    expect(hasQuestRewards(normalizeQuestRewards({ xp: 1 }))).toBe(true)
+    expect(hasQuestRewards(normalizeQuestRewards({ items: { potion: 1 } }))).toBe(true)
+    expect(hasQuestRewards(normalizeQuestRewards({ cosmeticIds: ['hat-crown'] }))).toBe(true)
+    expect(hasQuestRewards(normalizeQuestRewards({ badge: 'ดาวเด่น' }))).toBe(true)
+  })
+})
+
+describe('validateQuestRewards', () => {
+  it('rejects a base + bonus total above the Firestore per-write delta cap', () => {
+    const overXp = validateQuestRewards({ ...EMPTY_QUEST_REWARDS, xp: 900, bonusXp: 200 })
+    expect(overXp.valid).toBe(false)
+    const overCoins = validateQuestRewards({ ...EMPTY_QUEST_REWARDS, coins: 950, bonusCoins: 100 })
+    expect(overCoins.valid).toBe(false)
+  })
+
+  it('accepts a reward set that stays inside the cap', () => {
+    expect(validateQuestRewards(normalizeQuestRewards({ xp: 800, bonusXp: 200, coins: 500 })).valid).toBe(true)
+    expect(validateQuestRewards(EMPTY_QUEST_REWARDS).valid).toBe(true)
+  })
+})
+
+describe('earnedQuestRewards', () => {
+  const rewards = normalizeQuestRewards({
+    xp: 100, coins: 50, bonusXp: 40, bonusCoins: 20,
+    items: { potion: 2 }, cosmeticIds: ['hat-crown'], badge: 'ดาวเด่น',
+  })
+
+  it('adds the early bonus when turned in on or before the due date', () => {
+    expect(earnedQuestRewards(rewards, '2026-07-20', '2026-07-20')).toMatchObject({
+      xp: 140, coins: 70, earlyBonusApplied: true,
+    })
+  })
+
+  it('pays only the base reward after the due date', () => {
+    expect(earnedQuestRewards(rewards, '2026-07-20', '2026-07-25')).toMatchObject({
+      xp: 100, coins: 50, earlyBonusApplied: false,
+    })
+  })
+
+  it('treats a quest with no due date as always eligible for the bonus', () => {
+    expect(earnedQuestRewards(rewards, '', '2026-07-25').earlyBonusApplied).toBe(true)
+  })
+
+  it('carries the non-numeric reward channels through unchanged', () => {
+    const earned = earnedQuestRewards(rewards, '', '2026-07-25')
+    expect(earned.items).toEqual({ potion: 2 })
+    expect(earned.cosmeticIds).toEqual(['hat-crown'])
+    expect(earned.badge).toBe('ดาวเด่น')
+  })
+})
+
+describe('grantQuestRewards', () => {
+  const earned = earnedQuestRewards(normalizeQuestRewards({
+    xp: 100, coins: 50, items: { potion: 2 }, cosmeticIds: ['hat-crown'], badge: 'ดาวเด่น',
+  }), '', '2026-07-20')
+
+  it('adds XP and coins on top of the current totals', () => {
+    const granted = grantQuestRewards({ xp: 500, coins: 200, inventory: {} }, earned)
+    expect(granted.xp).toBe(600)
+    expect(granted.coins).toBe(250)
+  })
+
+  it('stacks consumables onto the existing bag instead of overwriting it', () => {
+    const granted = grantQuestRewards({ xp: 0, coins: 0, inventory: { potion: 3, magnifier: 1 } }, earned)
+    expect(granted.inventory.potion).toBe(5)
+    expect(granted.inventory.magnifier).toBe(1)
+  })
+
+  it('adds wardrobe unlocks to the owned list without equipping or duplicating them', () => {
+    const granted = grantQuestRewards(
+      { xp: 0, coins: 0, inventory: { cosmetics: { owned: ['hat-crown', 'acc-scarf'], equipped: { hat: 'acc-scarf' } } } },
+      earned,
+    )
+    const cosmetics = granted.inventory.cosmetics as { owned: string[]; equipped: Record<string, string> }
+    expect(cosmetics.owned.filter((id) => id === 'hat-crown')).toHaveLength(1)
+    expect(cosmetics.owned).toContain('acc-scarf')
+    expect(cosmetics.equipped).toEqual({ hat: 'acc-scarf' })
+  })
+
+  it('appends the badge once, leaving earlier badges intact', () => {
+    const granted = grantQuestRewards({ xp: 0, coins: 0, inventory: { badges: ['badge_streak_7', 'ดาวเด่น'] } }, earned)
+    expect(granted.inventory.badges).toEqual(['badge_streak_7', 'ดาวเด่น'])
+  })
+
+  it('recomputes level and rank from the new XP total', () => {
+    const granted = grantQuestRewards({ xp: 0, coins: 0, inventory: {} }, earned)
+    expect(granted.level).toBe(levelForXp(100))
+    expect(granted.rank).toBe(rankForXp(100))
+  })
+
+  it('never drives coins negative or loses an unrelated inventory key', () => {
+    const granted = grantQuestRewards({ xp: 0, coins: 0, inventory: { worksheets: { L1: { answer: 'a' } } } }, earned)
+    expect(granted.coins).toBeGreaterThanOrEqual(0)
+    expect(granted.inventory.worksheets).toEqual({ L1: { answer: 'a' } })
+  })
+})
+
+describe('questTargetLessonIds', () => {
+  const viewWith = (questId: string, lessonId: string, override: Partial<StudentQuestContext>) =>
+    buildStudentQuestView(quest({ questId, lessonId }), context(override), TODAY)
+
+  it('marks lessons the student has accepted but not finished', () => {
+    const inProgress = viewWith('TQ1', 'L1', { state: { acceptedAt: '2026-07-18' } })
+    expect(questTargetLessonIds([inProgress])).toEqual(['L1'])
+  })
+
+  it('marks an overdue quest the student is still working on', () => {
+    const overdue = buildStudentQuestView(
+      quest({ questId: 'TQ2', lessonId: 'L2', dueAt: '2026-07-01' }),
+      context({ state: { acceptedAt: '2026-06-30' } }),
+      TODAY,
+    )
+    expect(overdue.studentStatus).toBe('OVERDUE')
+    expect(questTargetLessonIds([overdue])).toEqual(['L2'])
+  })
+
+  it('drops a quest that is ready to turn in — the student should walk back to the NPC', () => {
+    const ready = viewWith('TQ3', 'L3', { state: { acceptedAt: TODAY }, worksheetSubmitted: true })
+    expect(ready.studentStatus).toBe('READY_TO_TURN_IN')
+    expect(questTargetLessonIds([ready])).toEqual([])
+  })
+
+  it('drops completed and unaccepted quests', () => {
+    const done = viewWith('TQ4', 'L4', { state: { acceptedAt: TODAY, turnedInAt: TODAY } })
+    const notAccepted = viewWith('TQ5', 'L5', {})
+    expect(questTargetLessonIds([done, notAccepted])).toEqual([])
+  })
+
+  it('de-duplicates two quests pointing at the same lesson', () => {
+    const first = viewWith('TQ6', 'L6', { state: { acceptedAt: TODAY } })
+    const second = viewWith('TQ7', 'L6', { state: { acceptedAt: TODAY } })
+    expect(questTargetLessonIds([first, second])).toEqual(['L6'])
+  })
+
+  it('returns nothing for an empty board', () => {
+    expect(questTargetLessonIds([])).toEqual([])
+  })
+})
+
+describe('describeQuestRewards', () => {
+  it('renders every configured channel as a human line', () => {
+    const lines = describeQuestRewards(normalizeQuestRewards({
+      xp: 100, coins: 50, items: { potion: 2 }, cosmeticIds: ['hat-crown'], badge: 'ดาวเด่น',
+    }))
+    expect(lines.join(' | ')).toContain('100 XP')
+    expect(lines.join(' | ')).toContain('50')
+    expect(lines.some((line) => line.includes('ยาเพิ่มพลัง'))).toBe(true)
+    expect(lines.some((line) => line.includes('มงกุฎราชาแห่งปัญญา'))).toBe(true)
+    expect(lines.some((line) => line.includes('ดาวเด่น'))).toBe(true)
+  })
+
+  it('returns an empty list when nothing is configured', () => {
+    expect(describeQuestRewards(EMPTY_QUEST_REWARDS)).toEqual([])
   })
 })
 
