@@ -6,6 +6,14 @@ import { checkDeployPreflight } from './deploy-preflight.mjs'
 
 const roots: string[] = []
 
+// Cache policy the preflight requires: revalidate-by-default for HTML/sw.js,
+// immutable for content-hashed build output. Mirrors the real firebase.json.
+const cacheHeaders = [
+  { source: '**', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
+  { source: '/assets/**', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+  { source: '/workbox-*.js', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+]
+
 function tempProject() {
   const root = join(tmpdir(), `nextgen-preflight-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   roots.push(root)
@@ -20,6 +28,7 @@ function tempProject() {
       ignore: ['firebase.json', '**/.*', '**/node_modules/**'],
       predeploy: ['npm run verify'],
       rewrites: [{ source: '**', destination: '/index.html' }],
+      headers: cacheHeaders,
     },
   }))
   writeFileSync(join(root, 'package.json'), JSON.stringify({
@@ -73,6 +82,42 @@ describe('checkDeployPreflight', () => {
       'firebase-app/package.json must not depend on firebase-functions.',
       'firebase.json hosting.public must be firebase-app/dist.',
     ]))
+  })
+
+  it('rejects a hosting config without the required Cache-Control policy', () => {
+    const root = tempProject()
+    writeFileSync(join(root, 'firebase.json'), JSON.stringify({
+      firestore: { rules: 'firestore.rules', indexes: 'firestore.indexes.json' },
+      hosting: {
+        public: 'firebase-app/dist',
+        predeploy: ['npm run verify'],
+        rewrites: [{ source: '**', destination: '/index.html' }],
+        headers: [{ source: '**', headers: [{ key: 'X-Content-Type-Options', value: 'nosniff' }] }],
+      },
+    }))
+
+    expect(checkDeployPreflight(root).issues).toEqual(expect.arrayContaining([
+      'firebase.json hosting must set Cache-Control: no-cache on ** so HTML and sw.js always revalidate.',
+      'firebase.json hosting must set Cache-Control: public, max-age=31536000, immutable on /assets/**.',
+      'firebase.json hosting must set Cache-Control: public, max-age=31536000, immutable on /workbox-*.js.',
+    ]))
+  })
+
+  it('rejects immutable cache blocks listed before the no-cache default (last match wins)', () => {
+    const root = tempProject()
+    writeFileSync(join(root, 'firebase.json'), JSON.stringify({
+      firestore: { rules: 'firestore.rules', indexes: 'firestore.indexes.json' },
+      hosting: {
+        public: 'firebase-app/dist',
+        predeploy: ['npm run verify'],
+        rewrites: [{ source: '**', destination: '/index.html' }],
+        headers: [cacheHeaders[1], cacheHeaders[2], cacheHeaders[0]],
+      },
+    }))
+
+    expect(checkDeployPreflight(root).issues).toContain(
+      'firebase.json hosting headers must list the ** Cache-Control block before /assets/** and /workbox-*.js so the immutable overrides win.',
+    )
   })
 
   it('rejects project id drift between Firebase CLI and app config', () => {

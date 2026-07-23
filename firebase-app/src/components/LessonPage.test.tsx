@@ -6,6 +6,7 @@ import type { QuizQuestion } from './QuizQuestionView'
 import { toLessonEmbedUrl } from './lessonMedia'
 import { LESSON_MONSTER_KILL_TARGET } from './lessonAdventureLogic'
 import * as gameAudio from '../services/gameAudio'
+import { EMPTY_QUEST_REWARDS, buildStudentQuestView, type TeacherQuest } from '../services/teacherQuestLogic'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -26,7 +27,11 @@ const bossQuestions: QuizQuestion[] = [
   { qId: 'boss-q2', text: 'Boss question two', options: ['Correct boss 2', 'Wrong boss 2'], answer: 0, pattern: 'choice' },
 ]
 
-function setup(currentLesson: Lesson | null = lesson, options: { random?: () => number; videoUnlockMs?: number; questions?: QuizQuestion[] } = {}) {
+function setup(
+  currentLesson: Lesson | null = lesson,
+  options: { random?: () => number; videoUnlockMs?: number; questions?: QuizQuestion[] } = {},
+  serviceOverride: Partial<LessonService> = {},
+) {
   const service: LessonService = {
     getCurrentLesson: vi.fn(() => currentLesson),
     getCurrentUser: vi.fn(() => ({ id: 'u1', avatar: '🧙', xp: 100, coins: 20, level: 2, rank: 'BRONZE', passedLessons: [] })),
@@ -35,13 +40,15 @@ function setup(currentLesson: Lesson | null = lesson, options: { random?: () => 
     saveProgress: vi.fn().mockResolvedValue({ success: true, stats: { xp: 110, coins: 25, level: 2, rank: 'BRONZE', gainedXp: 10, alreadyPassed: false } }),
     saveAdventureRewards: vi.fn().mockResolvedValue({ success: true, stats: { xp: 150, coins: 40, level: 2, rank: 'BRONZE', gainedXp: 50, gainedCoins: 20 } }),
     trackDailyProgress: vi.fn(),
+    ...serviceOverride,
   }
   const onBack = vi.fn()
   const onStartQuiz = vi.fn()
   const onOpenWorksheet = vi.fn()
   const onExitGame = vi.fn()
-  render(<LessonPage service={service} onBack={onBack} onStartQuiz={onStartQuiz} onOpenWorksheet={onOpenWorksheet} onExitGame={onExitGame} {...options} />)
-  return { service, onBack, onStartQuiz, onOpenWorksheet, onExitGame }
+  const onOpenNpc = vi.fn()
+  render(<LessonPage service={service} onBack={onBack} onStartQuiz={onStartQuiz} onOpenWorksheet={onOpenWorksheet} onExitGame={onExitGame} onOpenNpc={onOpenNpc} {...options} />)
+  return { service, onBack, onStartQuiz, onOpenWorksheet, onExitGame, onOpenNpc }
 }
 
 function mockFullWorldRect(world: HTMLElement) {
@@ -1116,6 +1123,97 @@ describe('LessonPage', () => {
     expect(topbar).toBeTruthy()
     expect(topbar?.textContent).toContain('บอสบทเรียน')
     expect(topbar?.textContent).toContain(`คำถามเหลือ ${bossQuestions.length}/${bossQuestions.length}`)
+  })
+
+  // Same persistent tracker the hub and map show, so the active teacher
+  // quest stays visible while fighting monsters/bosses in the lesson too.
+  describe('teacher quest tracker', () => {
+    const trackedQuestView = () => buildStudentQuestView(
+      {
+        questId: 'TQ001',
+        lessonId: 'lesson-1',
+        lessonTitle: 'ป่าแห่งเศษส่วน',
+        title: 'ภารกิจ: ป่าแห่งเศษส่วน',
+        npcMessage: '',
+        objectives: ['study'],
+        classes: [],
+        startAt: '',
+        dueAt: '',
+        status: 'active',
+        rewards: EMPTY_QUEST_REWARDS,
+      } satisfies TeacherQuest,
+      { state: { acceptedAt: '2026-07-19' }, lessonPassed: false, worksheetSubmitted: false },
+      '2026-07-19',
+    )
+
+    it('expands an in-place detail card on click instead of warping straight to the hub', async () => {
+      const handlers = setup(lesson, {}, {
+        loadQuestBoard: vi.fn().mockResolvedValue({ success: true, data: [trackedQuestView()] }),
+      })
+      window.dispatchEvent(new Event('nextgen:open-lesson'))
+
+      const tracker = await screen.findByTestId('lesson-npc-tracker')
+      expect(tracker.textContent).toContain('ภารกิจ: ป่าแห่งเศษส่วน')
+
+      // Clicking the tracker itself must never leave the lesson on its own.
+      fireEvent.click(tracker)
+      expect(handlers.onBack).not.toHaveBeenCalled()
+      expect(handlers.onOpenNpc).not.toHaveBeenCalled()
+      const detail = await screen.findByTestId('lesson-npc-tracker-detail')
+
+      // Only the explicit "go to the NPC" button inside the detail card does.
+      fireEvent.click(within(detail).getByRole('button', { name: /ไปหาครูวีรภัทร์/ }))
+      expect(handlers.onBack).toHaveBeenCalledTimes(1)
+      expect(handlers.onOpenNpc).toHaveBeenCalledTimes(1)
+    })
+
+    it('hides during a boss question so it never covers the live quiz choices', async () => {
+      setup(lesson, { random: () => 0, videoUnlockMs: 0 }, {
+        loadQuestBoard: vi.fn().mockResolvedValue({ success: true, data: [trackedQuestView()] }),
+      })
+      vi.useFakeTimers()
+      try {
+        act(() => { window.dispatchEvent(new Event('nextgen:open-lesson')) })
+        await enterBossRoom()
+      } finally {
+        vi.useRealTimers()
+      }
+
+      await screen.findByTestId('lesson-npc-tracker')
+
+      const world = screen.getByTestId('lesson-adventure-world')
+      const player = screen.getByTestId('lesson-player')
+      vi.spyOn(world, 'getBoundingClientRect').mockReturnValue({
+        left: 0, top: 0, width: 1000, height: 1000, x: 0, y: 0, right: 1000, bottom: 1000, toJSON: () => ({}),
+      })
+
+      fireEvent.click(screen.getByTestId('lesson-boss-challenge'))
+      await waitFor(() => expect(screen.getByTestId('lesson-boss-attack-button')).toBeTruthy())
+      fireEvent.click(screen.getByRole('button', { name: 'สลับโหมดโจมตีอัตโนมัติ' }))
+
+      vi.useFakeTimers()
+      try {
+        fireEvent.mouseDown(world, { clientX: 500, clientY: 430, button: 0 })
+        await act(() => vi.advanceTimersByTimeAsync(3200))
+        expect(positionStyle(player)).toContain('left: 50%; top: 43%;')
+
+        const attack = screen.getByTestId('lesson-boss-attack-button')
+        await act(async () => { fireEvent.click(attack) })
+        await act(async () => { fireEvent.click(attack) })
+        await act(async () => { fireEvent.click(attack) })
+
+        expect(screen.getByTestId('lesson-boss-question-panel')).toBeTruthy()
+        expect(screen.queryByTestId('lesson-npc-tracker')).toBeNull()
+
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Correct boss 1/ }))
+        })
+        expect(screen.queryByTestId('lesson-boss-question-panel')).toBeNull()
+        expect(screen.getByTestId('lesson-npc-tracker')).toBeTruthy()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })
 

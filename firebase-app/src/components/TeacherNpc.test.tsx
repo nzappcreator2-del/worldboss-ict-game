@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HUB_PLAYER_POSITION_EVENT, TeacherNpc, type TeacherNpcService } from './TeacherNpc'
 import {
@@ -431,5 +431,28 @@ describe('TeacherNpc', () => {
       window.dispatchEvent(new CustomEvent(HUB_PLAYER_POSITION_EVENT, { detail: { x: 10, y: 90 } }))
     })
     expect(screen.queryByText(/แตะเพื่อพูดคุย/)).toBeNull()
+  })
+
+  it('locks a finished quest tab with a "เสร็จแล้ว" badge and blocks switching to it', async () => {
+    const finished = view(
+      { questId: 'TQ001', title: 'ภารกิจ: หลักการทำงานของคอมพิวเตอร์' },
+      { state: { acceptedAt: TODAY, turnedInAt: TODAY }, worksheetSubmitted: true },
+    )
+    const inProgress = view(
+      { questId: 'TQ002', title: 'ภารกิจ: ผจญภัยในหมู่บ้านไคโนะ' },
+      { state: { acceptedAt: TODAY } },
+    )
+    setup([finished, inProgress])
+    await settle()
+
+    fireEvent.click(await screen.findByRole('button', { name: /พูดคุยกับครูวีรภัทร์/ }))
+    const switcher = await screen.findByRole('tablist', { name: 'เลือกภารกิจ' })
+    const finishedTab = within(switcher).getByRole('tab', { name: /หลักการทำงานของคอมพิวเตอร์/ })
+
+    expect(finishedTab.textContent).toContain('เสร็จแล้ว')
+    expect(finishedTab.hasAttribute('disabled')).toBe(true)
+
+    fireEvent.click(finishedTab)
+    expect(screen.getByRole('heading', { name: 'ภารกิจ: ผจญภัยในหมู่บ้านไคโนะ' })).toBeTruthy()
   })
 })

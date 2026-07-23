@@ -144,6 +144,34 @@
   .page-transition-bar-fill { animation: none; width: 100%; }
 }
 
+/* Full-viewport cover-then-reveal flash for Adventure Lesson scene changes
+   (map/lesson/pretest/boss-battle/worksheet — see AdventureFadeOverlay.tsx).
+   showPage() already swaps the DOM synchronously before this ever toggles,
+   so it never delays navigation — it only smooths the cut with a brief
+   RPG-style scene-load flash. The active/base rules carry different
+   transition durations so it covers fast and reveals slow instead of a
+   linear crossfade. */
+.adventure-fade-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255, 224, 140, .08), transparent 60%),
+    linear-gradient(160deg, #14203c 0%, #0c1428 55%, #1c1030 100%);
+  transition: opacity .38s ease-out;
+}
+
+.adventure-fade-overlay-active {
+  opacity: 1;
+  transition: opacity .12s ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adventure-fade-overlay { transition: none; }
+}
+
 /* Landing page remake: isolated from the legacy application styles. */
 #page-landing.adventure-landing {
   position: fixed;
@@ -3466,6 +3494,62 @@
 .teacher-quest-tracker small i { display: inline-block; width: 15px; font-style: normal; font-weight: 1000; }
 .teacher-quest-tracker em { margin-top: 4px; color: #8ce9ff; font-size: 12px; font-style: normal; font-weight: 900; }
 
+/* Same tracker widget, reused on the lesson/combat page: parked under the
+   minimap column (which itself starts right after .lesson-topright-menu),
+   an already-empty right-edge slot so the widget reads as one persistent
+   quest pointer instead of jumping around between hub, map and lesson. */
+.teacher-quest-tracker.on-lesson { top: 246px; left: auto; right: 10px; width: 190px; }
+
+/* Map/lesson variants render the same .teacher-quest-tracker card as a <div>
+   shell around an unstyled toggle button + an optional detail panel, instead
+   of the hub's single <button> — clicking just expands an in-place summary
+   (objectives already visible, plus rewards) rather than leaving the screen.
+   The reset button still inherits every .teacher-quest-tracker descendant
+   rule above (b/small/em), since CSS descendant selectors cross the nesting. */
+.teacher-quest-tracker.expanded { border-color: #ffd76d; }
+
+.teacher-quest-tracker-toggle {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 16px;
+  cursor: pointer;
+  position: relative;
+}
+
+.teacher-quest-tracker-chevron { position: absolute; top: 1px; right: 0; color: #d9cbac; font-style: normal; font-size: 11px; }
+
+.teacher-quest-tracker-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 215, 108, .35);
+}
+
+.teacher-quest-tracker-detail ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.teacher-quest-tracker-detail li { color: #ffe9a6; font-size: 12px; font-weight: 800; }
+.teacher-quest-tracker-detail p { margin: 0; color: #8ce9ff; font-size: 11px; font-weight: 800; }
+
+.teacher-quest-tracker-goto {
+  padding: 7px 10px;
+  border: 2px solid #ffd76d;
+  border-radius: 8px;
+  background: linear-gradient(#5a3a12, #2c1a08);
+  color: #ffe9a6;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 1000;
+  text-align: center;
+  cursor: pointer;
+}
+
+.teacher-quest-tracker-goto:hover { filter: brightness(1.2); }
+
 /* New-quest toast, top-center, closable, never blocks the stage. */
 .teacher-quest-toast {
   position: fixed;
@@ -3577,6 +3661,29 @@
 }
 
 .npc-quest-switcher button.active { background: linear-gradient(#ffe9ad, #eec25f); color: #5a3410; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
+
+.npc-quest-switcher button.done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(214, 255, 217, .55);
+  border-color: #1d7c40;
+  color: #1d7c40;
+  opacity: .82;
+  cursor: not-allowed;
+}
+.npc-quest-switcher button.done.active { background: linear-gradient(#d6ffd9, #b7e8bc); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
+
+.npc-quest-switcher-done {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #1d7c40;
+  color: #eafff0;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: .04em;
+}
 
 .npc-quest-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .npc-quest-heading h3 { margin: 0; font-size: 19px; font-weight: 1000; }
@@ -3796,6 +3903,11 @@
   .teacher-npc-anchor { transform: translate(-50%, -92%) scale(.78); }
   .teacher-quest-toast { top: 8px; max-width: calc(100vw - 18px); font-size: 13px; }
   .npc-dialogue-panel { padding: 22px 20px 18px; }
+  /* Matches .lesson-minimap's own shrink at this breakpoint so the tracker
+     stays parked directly under it instead of drifting off the column. */
+  .teacher-quest-tracker.on-lesson { top: 196px; right: 8px; width: 150px; padding: 8px 10px; }
+  .teacher-quest-tracker.on-lesson b { font-size: 12px; }
+  .teacher-quest-tracker.on-lesson small, .teacher-quest-tracker.on-lesson em { font-size: 11px; }
 }
 
 /* Sprite frame stepping honours reduced-motion in the component itself

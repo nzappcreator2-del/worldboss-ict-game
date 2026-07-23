@@ -16,6 +16,8 @@ function withDistFixture(run: (distRoot: string) => void) {
     writeFileSync(join(distRoot, 'world-boss', 'mario-game', 'index.html'), '<!doctype html>')
     writeFileSync(join(distRoot, 'assets', 'index.js'), 'console.log("ok")')
     writeFileSync(join(distRoot, 'assets', 'index.css'), '.flex{display:flex}')
+    writeFileSync(join(distRoot, 'sw.js'), 'self.addEventListener("fetch", () => {})')
+    writeFileSync(join(distRoot, 'asset-warmup.json'), '{"version":1,"assets":[]}')
     run(distRoot)
   } finally {
     rmSync(distRoot, { recursive: true, force: true })
@@ -54,6 +56,18 @@ describe('verifyDistribution', () => {
       expect(verifyDistribution(distRoot).issues).toContain(
         'Production index.html must use the local CSS bundle instead of cdn.tailwindcss.com.',
       )
+    })
+  })
+
+  it('rejects a distribution missing the service worker or warm-up manifest', () => {
+    withDistFixture((distRoot) => {
+      rmSync(join(distRoot, 'sw.js'))
+      rmSync(join(distRoot, 'asset-warmup.json'))
+
+      expect(verifyDistribution(distRoot).issues).toEqual(expect.arrayContaining([
+        'Missing required build artifact: sw.js',
+        'Missing required build artifact: asset-warmup.json',
+      ]))
     })
   })
 

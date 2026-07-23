@@ -22,7 +22,8 @@ import { characterLayerImages } from './characterAssets'
 import { LESSON_MAP_ICON_IMAGES } from './lessonUiAssets'
 import { entranceTemplateForLesson } from './mapEntranceTemplates'
 import { VirtualJoystick } from './VirtualJoystick'
-import { TEACHER_NPC_NAME } from '../services/teacherQuestLogic'
+import { TeacherQuestTracker } from './TeacherQuestTracker'
+import { TEACHER_NPC_NAME, trackedQuest, type StudentQuestView } from '../services/teacherQuestLogic'
 import iconBook from '../assets/ui/icon-book.png'
 
 export type MapLesson = {
@@ -54,11 +55,15 @@ export type MapService = {
   loadLessons(userId: string): Promise<MapResult>
   /** Lesson ids with an accepted, unfinished teacher quest — drives the "!" markers. */
   loadQuestTargets?(userId: string): Promise<{ success: boolean; data?: string[] }>
+  /** Full teacher-quest board — drives the persistent tracker widget. */
+  loadQuestBoard?(userId: string): Promise<{ success: boolean; data?: StudentQuestView[] }>
 }
 
 type Props = {
   service: MapService
   onSelectLesson(lessonId: string): void
+  /** Returns to the hub and opens the teacher NPC, e.g. from the tracker widget. */
+  onOpenNpc?(): void
 }
 
 const regionNames = [
@@ -68,10 +73,11 @@ const regionNames = [
   'ป่าต้นไม้แห่งความรู้', 'ปราสาทแห่งปัญญา', 'ยอดเขานักปราชญ์',
 ]
 
-export function AdventureMap({ service, onSelectLesson }: Props) {
+export function AdventureMap({ service, onSelectLesson, onOpenNpc }: Props) {
   const [lessons, setLessons] = useState<MapLesson[]>([])
   const [passed, setPassed] = useState<string[]>([])
   const [questTargets, setQuestTargets] = useState<string[]>([])
+  const [trackedTeacherQuest, setTrackedTeacherQuest] = useState<StudentQuestView | null>(null)
   const [avatar, setAvatar] = useState('🧙')
   const [heroInventory, setHeroInventory] = useState<unknown>(undefined)
   const [heroGender, setHeroGender] = useState<string | undefined>(undefined)
@@ -181,6 +187,13 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
     } catch {
       setQuestTargets([])
     }
+    // Same rule for the persistent quest tracker widget.
+    try {
+      const board = await service.loadQuestBoard?.(user.id)
+      setTrackedTeacherQuest(board?.success ? trackedQuest(board.data || []) : null)
+    } catch {
+      setTrackedTeacherQuest(null)
+    }
   }, [service])
 
   useEffect(() => {
@@ -282,6 +295,8 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
       <div className="adventure-map-vignette" aria-hidden="true" />
       <div className="adventure-map-title" aria-hidden="true"><span>◆</span> แผนที่การผจญภัย <span>◆</span></div>
 
+      <TeacherQuestTracker tracked={trackedTeacherQuest} onClick={() => onOpenNpc?.()} variant="map" testId="map-npc-tracker" />
+
       <div className="adventure-map-world" data-testid="map-world" onPointerDown={moveFromPointer}>
         <svg className="map-route-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <polyline points={routePoints} />
@@ -379,7 +394,7 @@ export function AdventureMap({ service, onSelectLesson }: Props) {
               <span><img src={LESSON_MAP_ICON_IMAGES.reward} alt="" className="map-reward-icon" draggable={false} /> โบนัส XP</span>
               <span><img src={iconBook} alt="" className="map-reward-icon" draggable={false} /> ความรู้ใหม่</span>
             </div>
-            <button type="button" className="map-preview-enter" aria-label="บุกโจมตี!" onClick={() => { const lessonId = preview.id; setPreview(null); onSelectLesson(lessonId) }}>⚔️ บุกโจมตี!</button>
+            <button type="button" className="map-preview-enter" data-ui-sound="confirm" aria-label="บุกโจมตี!" onClick={() => { const lessonId = preview.id; setPreview(null); onSelectLesson(lessonId) }}>⚔️ บุกโจมตี!</button>
           </div>
         </div>,
         document.body,

@@ -63,6 +63,37 @@ function includesPredeployVerify(hosting) {
     && hosting.predeploy.includes('npm run verify')
 }
 
+const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable'
+
+function cacheControlOf(headerBlocks, source) {
+  const block = headerBlocks.find((candidate) => candidate?.source === source)
+  if (!block || !Array.isArray(block.headers)) return undefined
+  return block.headers.find((header) => header?.key === 'Cache-Control')?.value
+}
+
+// Firebase Hosting applies every matching headers block; for a duplicated key
+// the last match wins. The caching policy therefore needs the no-cache default
+// on ** first, then the immutable overrides for content-hashed build output.
+function checkCacheControlHeaders(hosting, issues) {
+  const headerBlocks = Array.isArray(hosting?.headers) ? hosting.headers : []
+
+  if (cacheControlOf(headerBlocks, '**') !== 'no-cache') {
+    issues.push('firebase.json hosting must set Cache-Control: no-cache on ** so HTML and sw.js always revalidate.')
+  }
+  for (const source of ['/assets/**', '/workbox-*.js']) {
+    if (cacheControlOf(headerBlocks, source) !== IMMUTABLE_CACHE) {
+      issues.push(`firebase.json hosting must set Cache-Control: ${IMMUTABLE_CACHE} on ${source}.`)
+    }
+  }
+
+  const blockIndex = (source) => headerBlocks.findIndex((candidate) => candidate?.source === source)
+  const defaultIndex = blockIndex('**')
+  const overrideIndexes = [blockIndex('/assets/**'), blockIndex('/workbox-*.js')]
+  if (defaultIndex !== -1 && overrideIndexes.some((index) => index !== -1 && index < defaultIndex)) {
+    issues.push('firebase.json hosting headers must list the ** Cache-Control block before /assets/** and /workbox-*.js so the immutable overrides win.')
+  }
+}
+
 function defaultCommandExists(command) {
   const locator = process.platform === 'win32' ? 'where' : 'which'
   const result = spawnSync(locator, [command], {
@@ -130,6 +161,7 @@ export function checkDeployPreflight(projectRoot = defaultProjectRoot, options =
     if (!hasSpaRewrite(firebaseJson.hosting)) {
       issues.push('firebase.json hosting.rewrites must route ** to /index.html.')
     }
+    checkCacheControlHeaders(firebaseJson.hosting, issues)
   }
 
   if (firebaserc?.projects?.default !== expectedProjectId) {

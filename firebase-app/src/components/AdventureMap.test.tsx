@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AdventureMap, type MapService } from './AdventureMap'
+import { EMPTY_QUEST_REWARDS, buildStudentQuestView, type TeacherQuest } from '../services/teacherQuestLogic'
 
 const lessons = [
   { id: 'L1', title: 'ด่านป่าเริ่มต้น', description: 'เรียนรู้พื้นฐาน', icon: '🌳' },
@@ -18,8 +19,9 @@ function setup(passedLessons: string[] = ['L1'], overrides: Partial<MapService> 
     ...overrides,
   }
   const onSelectLesson = vi.fn()
-  render(<AdventureMap service={service} onSelectLesson={onSelectLesson} />)
-  return { service, onSelectLesson }
+  const onOpenNpc = vi.fn()
+  render(<AdventureMap service={service} onSelectLesson={onSelectLesson} onOpenNpc={onOpenNpc} />)
+  return { service, onSelectLesson, onOpenNpc }
 }
 
 function positionStyle(node: HTMLElement) {
@@ -236,6 +238,55 @@ describe('AdventureMap', () => {
       window.dispatchEvent(new Event('nextgen:open-map'))
 
       expect(await screen.findByTestId('adventure-map')).toBeTruthy()
+    })
+  })
+
+  // The same persistent tracker widget the hub shows, so the active teacher
+  // quest stays visible while walking the map instead of disappearing.
+  describe('teacher quest tracker', () => {
+    const trackedQuestView = () => buildStudentQuestView(
+      {
+        questId: 'TQ001',
+        lessonId: 'L2',
+        lessonTitle: 'ถ้ำแห่งความมืด',
+        title: 'ภารกิจ: ถ้ำแห่งความมืด',
+        npcMessage: '',
+        objectives: ['study'],
+        classes: [],
+        startAt: '',
+        dueAt: '',
+        status: 'active',
+        rewards: EMPTY_QUEST_REWARDS,
+      } satisfies TeacherQuest,
+      { state: { acceptedAt: '2026-07-19' }, lessonPassed: false, worksheetSubmitted: false },
+      '2026-07-19',
+    )
+
+    it('expands an in-place detail card on click instead of warping straight to the hub', async () => {
+      const { onOpenNpc } = setup(['L1'], {
+        loadQuestBoard: vi.fn().mockResolvedValue({ success: true, data: [trackedQuestView()] }),
+      })
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      const tracker = await screen.findByTestId('map-npc-tracker')
+      expect(tracker.textContent).toContain('ภารกิจ: ถ้ำแห่งความมืด')
+
+      // Clicking the tracker itself must never navigate away on its own.
+      fireEvent.click(tracker)
+      expect(onOpenNpc).not.toHaveBeenCalled()
+      const detail = await screen.findByTestId('map-npc-tracker-detail')
+
+      // Only the explicit "go to the NPC" button inside the detail card does.
+      fireEvent.click(within(detail).getByRole('button', { name: /ไปหาครูวีรภัทร์/ }))
+      expect(onOpenNpc).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows no tracker when nothing is tracked or the lookup fails', async () => {
+      setup(['L1'], { loadQuestBoard: vi.fn().mockRejectedValue(new Error('offline')) })
+      window.dispatchEvent(new Event('nextgen:open-map'))
+
+      await screen.findByTestId('adventure-map')
+      await waitFor(() => expect(screen.queryByTestId('map-npc-tracker')).toBeNull())
     })
   })
 

@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite'
 import type { Plugin, ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { extname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -462,6 +463,104 @@ function closeCertificate() {
   }
 }
 
+// Emits /asset-warmup.json listing every bundled media file, so
+// src/services/assetWarmup.ts can prime the cache in the background after the
+// app boots. Only content-hashed files under assets/ are listed — world-boss
+// mini-games cache on demand instead.
+const WARMABLE_ASSET_PATTERN = /^assets\/.+\.(png|webp|jpe?g|gif|svg|ogg|wav|mp3|woff2?)$/i
+
+function assetWarmupManifestPlugin(): Plugin {
+  return {
+    name: 'nextgen-asset-warmup-manifest',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const assets = Object.keys(bundle)
+        .filter((fileName) => WARMABLE_ASSET_PATTERN.test(fileName))
+        .sort()
+        .map((fileName) => `/${fileName}`)
+      this.emitFile({
+        type: 'asset',
+        fileName: 'asset-warmup.json',
+        source: JSON.stringify({ version: 1, assets }),
+      })
+    },
+  }
+}
+
+// Offline-first caching for the production build. Precache covers the app
+// shell (JS/CSS/HTML — small, content-hashed); the heavy media under /assets/
+// is cached on first use (and warmed in the background by assetWarmup.ts)
+// with CacheFirst, which is safe because Vite content-hashes every filename.
+// Firestore/Auth/Gemini traffic (*.googleapis.com) has no route on purpose —
+// it always passes straight through to the network.
+function serviceWorkerPlugin(): Plugin[] {
+  return VitePWA({
+    registerType: 'autoUpdate',
+    injectRegister: false,
+    manifest: false,
+    workbox: {
+      globPatterns: ['**/*.{js,css,html}'],
+      // The standalone mini-games are separate pages with their own loaders —
+      // keep them out of the app-shell precache and cache them on demand.
+      globIgnores: ['world-boss/**'],
+      navigateFallback: '/index.html',
+      navigateFallbackDenylist: [/^\/world-boss\//],
+      cleanupOutdatedCaches: true,
+      runtimeCaching: [
+        {
+          // Content-hashed build assets (sprites, audio, fonts): immutable.
+          urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/assets/'),
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'nextgen-assets-v1',
+            expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 365, purgeOnQuotaError: true },
+            cacheableResponse: { statuses: [200] },
+          },
+        },
+        {
+          // Legacy mini-game files are not content-hashed: serve from cache
+          // instantly, refresh in the background.
+          urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/world-boss/'),
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'nextgen-world-boss-v1',
+            expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+            cacheableResponse: { statuses: [200] },
+          },
+        },
+        {
+          urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'nextgen-font-css-v1',
+            expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 30 },
+          },
+        },
+        {
+          urlPattern: ({ url }) => url.origin === 'https://fonts.gstatic.com',
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'nextgen-font-files-v1',
+            expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+        {
+          // sweetalert2 / marked / MediaPipe pose models — the MediaPipe files
+          // are multi-MB, so caching them makes the fitness boss load fast.
+          urlPattern: ({ url }) => url.origin === 'https://cdn.jsdelivr.net',
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'nextgen-cdn-v1',
+            expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+      ],
+    },
+  })
+}
+
 export default defineConfig({
   publicDir: false,
   // The lesson RPG tests grind long fake-timer combat cycles; under a fully
@@ -478,6 +577,10 @@ export default defineConfig({
             // Teacher-only surface: keep the admin console out of the main
             // student bundle so the index chunk stays under the 500 KiB cap.
             if (path.includes('/src/components/AdminPanel') || path.includes('/src/components/adminPanelLogic') || path.includes('/src/services/adminApi')) return 'admin'
+            // PvP is its own large, self-contained mode (rooms, chat, presence,
+            // rankings) — same reasoning as admin: split it out so ordinary
+            // solo-lesson growth doesn't keep pushing the index chunk over the cap.
+            if (path.includes('/src/components/PvpMode') || path.includes('/src/services/pvpRoomApi')) return 'pvp'
             return undefined
           }
           if (path.includes('/react/') || path.includes('/react-dom/')) return 'react-vendor'
@@ -487,5 +590,5 @@ export default defineConfig({
       },
     },
   },
-  plugins: [worldBossAssetsPlugin(), legacySourcesPlugin(), react()],
+  plugins: [worldBossAssetsPlugin(), legacySourcesPlugin(), react(), assetWarmupManifestPlugin(), serviceWorkerPlugin()],
 })

@@ -10,11 +10,11 @@ import {
   newQuestIdsToNotify,
   npcMarkerForStatuses,
   trackedQuest,
-  trackerHint,
   type DialogueAction,
   type EarnedQuestRewards,
   type StudentQuestView,
 } from '../services/teacherQuestLogic'
+import { TeacherQuestTracker } from './TeacherQuestTracker'
 import { playSound } from '../services/soundFx'
 import {
   BLINK_GAP_MS,
@@ -399,18 +399,13 @@ export function TeacherNpc({ service, onOpenMap, onUserUpdate }: Props) {
       </div>
 
       {tracked && (
-        <button type="button" className="teacher-quest-tracker" data-testid="npc-tracker" onClick={() => {
-          setSelectedQuestId(tracked.questId)
-          openDialogue()
-        }}>
-          <b><span aria-hidden="true">◆</span> {tracked.title}</b>
-          {tracked.objectives.map((objective) => (
-            <small key={objective.key} data-done={objective.done}>
-              <i aria-hidden="true">{objective.done ? '✓' : '○'}</i> {objective.label} {objective.done ? '1/1' : '0/1'}
-            </small>
-          ))}
-          <em>{trackerHint(tracked)}</em>
-        </button>
+        <TeacherQuestTracker
+          tracked={tracked}
+          onClick={() => {
+            setSelectedQuestId(tracked.questId)
+            openDialogue()
+          }}
+        />
       )}
 
       {rewardPops.length > 0 && createPortal(
@@ -497,20 +492,31 @@ export function TeacherNpc({ service, onOpenMap, onUserUpdate }: Props) {
               <div className="npc-dialogue-body">
                 {orderedViews.length > 1 && (
                   <div className="npc-quest-switcher" role="tablist" aria-label="เลือกภารกิจ">
-                    {orderedViews.map((view) => (
-                      <button
-                        key={view.questId}
-                        type="button"
-                        role="tab"
-                        aria-selected={view.questId === selected.questId}
-                        className={view.questId === selected.questId ? 'active' : ''}
-                        onClick={() => {
-                          setSelectedQuestId(view.questId)
-                          setDetailOpen(false)
-                          setActionError('')
-                        }}
-                      >{view.title}</button>
-                    ))}
+                    {orderedViews.map((view) => {
+                      const isDone = view.studentStatus === 'COMPLETED'
+                      return (
+                        <button
+                          key={view.questId}
+                          type="button"
+                          role="tab"
+                          aria-selected={view.questId === selected.questId}
+                          disabled={isDone}
+                          className={[
+                            view.questId === selected.questId ? 'active' : '',
+                            isDone ? 'done' : '',
+                          ].filter(Boolean).join(' ')}
+                          onClick={() => {
+                            if (isDone) return
+                            setSelectedQuestId(view.questId)
+                            setDetailOpen(false)
+                            setActionError('')
+                          }}
+                        >
+                          {view.title}
+                          {isDone && <em className="npc-quest-switcher-done" aria-hidden="true">เสร็จแล้ว</em>}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
 

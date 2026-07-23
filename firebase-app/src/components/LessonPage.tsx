@@ -81,6 +81,8 @@ import { LessonAssetMonsterSprite, LessonMonsterSprite } from './LessonMonsterSp
 import { LESSON_BAR_BADGE_IMAGES, LESSON_CHEST_IMAGES, LESSON_DEATH_PANEL_IMAGES, LESSON_HOTBAR_IMAGES, LESSON_LOOT_IMAGES, LESSON_SCROLL_IMAGE, LESSON_STAT_IMAGES } from './lessonUiAssets'
 import { VirtualJoystick } from './VirtualJoystick'
 import { LEGACY_LESSON_MAP_SET, MONSTER_SKIN_NAMES, monsterSkinForSpawn, resolveLessonMapSet, type LessonMapSet } from './lessonMapSets'
+import { TeacherQuestTracker } from './TeacherQuestTracker'
+import { trackedQuest, type StudentQuestView } from '../services/teacherQuestLogic'
 
 export type Lesson = {
   id: string
@@ -119,6 +121,8 @@ export type LessonService = {
   trackDailyProgress?(type: 'play1' | 'correct5', questionId?: string): void
   /** Marks any accepted teacher quest for this lesson as studied. */
   markLessonStudied?(lessonId: string): Promise<unknown>
+  /** Full teacher-quest board — drives the persistent tracker widget. */
+  loadQuestBoard?(userId: string): Promise<{ success: boolean; data?: StudentQuestView[] }>
 }
 
 type Props = {
@@ -128,6 +132,8 @@ type Props = {
   onOpenWorksheet(): void
   onUserUpdate?(user: LessonUserUpdate): void
   onExitGame?(): void
+  /** Returns to the hub and opens the teacher NPC, e.g. from the tracker widget. */
+  onOpenNpc?(): void
   random?: () => number
   videoUnlockMs?: number
 }
@@ -190,8 +196,9 @@ const BOSS_WALK_FRAME_COUNT = 9
 const BOSS_ATTACK_FRAME_COUNT = 6
 const createBossBattleState = (playerHp = 100): BattleState => ({ bossHp: 100, playerHp, score: 0, combo: 1 })
 
-export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUserUpdate, onExitGame, random = Math.random, videoUnlockMs }: Props) {
+export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUserUpdate, onExitGame, onOpenNpc, random = Math.random, videoUnlockMs }: Props) {
   const [lesson, setLesson] = useState<Lesson | null>(null)
+  const [trackedTeacherQuest, setTrackedTeacherQuest] = useState<StudentQuestView | null>(null)
   const activeMapSet = lesson ? resolveLessonMapSet(lesson.lessonMapSet, lesson.id) : LEGACY_LESSON_MAP_SET
   const [progress, setProgress] = useState(createLessonAdventure)
   const [enemies, setEnemies] = useState<LessonEnemy[]>(() => createZoneEnemies(1))
@@ -737,6 +744,39 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     window.addEventListener('nextgen:user-updated', sync)
     return () => window.removeEventListener('nextgen:user-updated', sync)
   }, [service])
+
+  // Persistent teacher-quest tracker, mirroring the hub widget: fetched fresh
+  // whenever a lesson opens, and refreshed (debounced) after accept/turn-in
+  // events elsewhere so it never goes stale without leaving the lesson.
+  useEffect(() => {
+    if (!lesson) {
+      setTrackedTeacherQuest(null)
+      return
+    }
+    let cancelled = false
+    const fetchTracked = async () => {
+      const user = service.getCurrentUser?.()
+      if (!user) return
+      try {
+        const board = await service.loadQuestBoard?.(user.id)
+        if (!cancelled) setTrackedTeacherQuest(board?.success ? trackedQuest(board.data || []) : null)
+      } catch {
+        if (!cancelled) setTrackedTeacherQuest(null)
+      }
+    }
+    void fetchTracked()
+    let refreshTimer: number | null = null
+    const onUserUpdated = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => void fetchTracked(), 1200)
+    }
+    window.addEventListener('nextgen:user-updated', onUserUpdated)
+    return () => {
+      cancelled = true
+      window.removeEventListener('nextgen:user-updated', onUserUpdated)
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+    }
+  }, [lesson, service])
 
   // The worksheet page covers this fixed overlay; hide and pause the run (and bank
   // pending rewards) until nextgen:open-lesson resumes it.
@@ -1698,6 +1738,18 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
             <i className="mm-dot mm-player" style={{ left: `${mmPos(position.x)}%`, top: `${mmPos(position.y)}%` }} />
           </div>
         </div>
+
+        {/* Hidden during the boss question/result panels only — those are
+            centered and can reach edge-to-edge on narrower screens, which
+            would otherwise sit under this top-right widget. */}
+        {!(bossPhase === 'question' || bossPhase === 'result') && (
+          <TeacherQuestTracker
+            tracked={trackedTeacherQuest}
+            onClick={() => { retreatToMap(); onOpenNpc?.() }}
+            variant="lesson"
+            testId="lesson-npc-tracker"
+          />
+        )}
 
         <div className="lesson-loot-feed" data-testid="lesson-loot-feed" aria-live="polite">
           {lootFeed.map((entry) => (

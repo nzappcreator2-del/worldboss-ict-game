@@ -23,6 +23,7 @@ import { HeroProfile, type HeroProfileInventory, type HeroProfileUser } from './
 import { LoginBonus } from './components/LoginBonus'
 import { DashboardShell, type DashboardShellUser, type DashboardTab } from './components/DashboardShell'
 import { PageTransitionIndicator } from './components/PageTransitionIndicator'
+import { AdventureFadeOverlay } from './components/AdventureFadeOverlay'
 import { GameAudioControl } from './components/GameAudioControl'
 import { legacyBody, legacyCss, legacyScript } from './legacy/sources'
 import { endAdminSession } from './firebase/adminClient'
@@ -127,6 +128,12 @@ function App() {
     if (!dashboardTarget) throw new Error('Missing React dashboard shell target')
     const dashboardApp = createRoot(dashboardTarget)
     const bridge = () => (window as typeof window & { nextGenLegacyBridge?: LegacyBridge }).nextGenLegacyBridge
+    // Reverse of TeacherNpc's own onOpenMap: returns from the map/lesson
+    // tracker widget to the hub scene where ครูวีรภัทร์ actually stands.
+    const goToTeacherNpc = () => {
+      window.dispatchEvent(new CustomEvent('nextgen:dashboard-tab', { detail: 'home' }))
+      bridge()?.openDashboardTab('home')
+    }
     const lessonTarget = document.getElementById('react-lesson-root')
     if (!lessonTarget) throw new Error('Missing React lesson target')
     const lessonApp = createRoot(lessonTarget)
@@ -190,8 +197,10 @@ function App() {
                 const board = await firestoreApi.getTeacherQuestBoard(userId)
                 return { success: board.success, data: questTargetLessonIds(board.data || []) }
               },
+              loadQuestBoard: async (userId) => await firestoreApi.getTeacherQuestBoard(userId),
             }}
             onSelectLesson={(lessonId) => bridge()?.openMapLesson(lessonId)}
+            onOpenNpc={goToTeacherNpc}
           />
         }
         teacherNpc={
@@ -302,12 +311,14 @@ function App() {
             if (!user) return
             await firestoreApi.markTeacherQuestStudiedForLesson(user.id, lessonId)
           },
+          loadQuestBoard: async (userId) => await firestoreApi.getTeacherQuestBoard(userId),
         }}
         onBack={() => bridge()?.backFromLesson()}
         onStartQuiz={() => bridge()?.startLessonQuiz()}
         onOpenWorksheet={() => bridge()?.openLessonWorksheet()}
         onUserUpdate={(user) => bridge()?.updateBattleUser(user as Partial<BattleUser>)}
         onExitGame={() => bridge()?.logout()}
+        onOpenNpc={goToTeacherNpc}
       />,
     )
     pretestApp.render(
@@ -464,6 +475,7 @@ function App() {
     overlayApp.render(
       <>
         <PageTransitionIndicator />
+        <AdventureFadeOverlay />
         <GameAudioControl />
         <LoginBonus
           service={{

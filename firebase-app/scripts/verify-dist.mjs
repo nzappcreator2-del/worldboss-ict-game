@@ -7,6 +7,8 @@ export const MAX_JS_CHUNK_BYTES = 500 * 1024
 
 const requiredFiles = [
   'index.html',
+  'sw.js',
+  'asset-warmup.json',
   'world-boss/fitness.html',
   'world-boss/neck_quiz.html',
   'world-boss/mario-game/index.html',
