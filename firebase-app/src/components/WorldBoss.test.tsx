@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorldBoss, type WorldBossService } from './WorldBoss'
+import { gameAudio } from '../services/gameAudio'
 
 afterEach(() => {
   cleanup()
@@ -17,7 +18,7 @@ const bosses = [
 ]
 
 function setup() {
-  const popup = {} as Window
+  const popup = { closed: false } as unknown as Window
   const openGame = vi.fn((url: string): Window | null => {
     void url
     return popup
@@ -213,5 +214,93 @@ describe('WorldBoss Motion & AR zone', () => {
     vi.mocked(service.loadBosses).mockResolvedValueOnce({ success: false, error: 'โหลดบอสไม่ได้' })
     fireEvent(window, new Event('nextgen:open-world-boss'))
     expect(await screen.findByText('โหลดบอสไม่ได้')).toBeTruthy()
+  })
+})
+
+describe('WorldBoss hub music while a game tab is open', () => {
+  it('stops the hub background music the instant an external game opens', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+    setup()
+    await screen.findByText('Mario Education')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+
+    expect(setMusic).toHaveBeenCalledWith(null)
+  })
+
+  it('stops the hub background music the instant a motion/camera game opens', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+    setup()
+    await enterMotionZone()
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น สมรภูมิมือปราบภัย AI' }))
+
+    expect(setMusic).toHaveBeenCalledWith(null)
+  })
+
+  it('does not resume music while the launched game tab is still open', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+    setup()
+    await screen.findByText('Mario Education')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+    setMusic.mockClear()
+
+    // Real-time wait spanning at least one poll tick of the (still-open) popup.
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    expect(setMusic).not.toHaveBeenCalled()
+  })
+
+  it('resumes the hub music once the game tab closes, while still on the mini-game hub', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+    const { popup, container } = setup()
+    await screen.findByText('Mario Education')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+
+    // Mirrors legacy showPage(): the section loses "hidden" while it is the active page.
+    container.querySelector('#page-world-boss')!.classList.remove('hidden')
+    ;(popup as unknown as { closed: boolean }).closed = true
+
+    await waitFor(() => expect(setMusic).toHaveBeenCalledWith('bossBattle'), { timeout: 3000 })
+  })
+
+  it('does not force the hub music back on if the player already navigated away before the tab closed', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+    const { popup, container } = setup()
+    await screen.findByText('Mario Education')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+    setMusic.mockClear()
+
+    // Page stays hidden (student navigated elsewhere) when the tab closes.
+    expect(container.querySelector('#page-world-boss')!.classList.contains('hidden')).toBe(true)
+    ;(popup as unknown as { closed: boolean }).closed = true
+
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    expect(setMusic).not.toHaveBeenCalledWith('bossBattle')
+  })
+
+  it('keeps music off until every simultaneously open game tab has closed', async () => {
+    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+    const popupA = { closed: false } as unknown as Window
+    const popupB = { closed: false } as unknown as Window
+    const openGame = vi.fn().mockReturnValueOnce(popupA).mockReturnValueOnce(popupB)
+    const service: WorldBossService = {
+      getCurrentUser: () => ({ id: 'u1', name: 'ฟ้า', className: 'ป.5/1', avatar: '🧙', coins: 10, xp: 20 }),
+      loadBosses: vi.fn().mockResolvedValue({ success: true, data: bosses }),
+      loadLeaderboard: vi.fn(),
+      submitScore: vi.fn(),
+    }
+    const view = render(<WorldBoss service={service} onExit={vi.fn()} onUserUpdate={vi.fn()} openGame={openGame} createSession={() => 's1'} />)
+    fireEvent(window, new Event('nextgen:open-world-boss'))
+    view.container.querySelector('#page-world-boss')!.classList.remove('hidden')
+
+    await screen.findByText('Mario Education')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Math Speed Race 3D' }))
+    setMusic.mockClear()
+
+    ;(popupA as unknown as { closed: boolean }).closed = true
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    expect(setMusic).not.toHaveBeenCalledWith('bossBattle')
+
+    ;(popupB as unknown as { closed: boolean }).closed = true
+    await waitFor(() => expect(setMusic).toHaveBeenCalledWith('bossBattle'), { timeout: 3000 })
   })
 })

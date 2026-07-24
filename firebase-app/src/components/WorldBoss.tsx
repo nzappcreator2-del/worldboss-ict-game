@@ -9,9 +9,22 @@ import {
   validWorldBossResult,
   type WorldBossConfig,
 } from './worldBossLogic'
+import { gameAudio, musicForPage } from '../services/gameAudio'
 import itemCoins from '../assets/ui/item-coins.png'
 import iconStar from '../assets/ui/icon-star.png'
 import arcadeBackground from '../assets/minigame-arcade-background.png'
+
+// Every mini-game opens in its own tab/window with its own audio. Our hub's
+// background music has no way to duck itself in that other tab, so instead we
+// stop it here the moment a game launches and only bring it back once that
+// window reports itself closed — polled via `Window.closed`, which stays
+// readable even for the cross-origin external games (Mario, Math Speed Race).
+const GAME_POPUP_POLL_MS = 700
+
+function isWorldBossPageVisible(): boolean {
+  const page = document.getElementById('page-world-boss')
+  return !!page && !page.classList.contains('hidden')
+}
 
 export type WorldBossUser = {
   id: string
@@ -202,6 +215,29 @@ export function WorldBoss({
   const [leaderboardLoading, setLeaderboardLoading] = useState(false)
   const [notice, setNotice] = useState('')
   const activeGame = useRef<{ session: string; popup: Window } | null>(null)
+  // Tracks every mini-game tab currently open, not just the last one — a
+  // student can launch a second game without closing the first, and the hub's
+  // music must stay off until every one of them is closed.
+  const activePopups = useRef<Set<Window>>(new Set())
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (activePopups.current.size === 0) return
+      for (const popup of activePopups.current) {
+        if (popup.closed) activePopups.current.delete(popup)
+      }
+      if (activePopups.current.size > 0) return
+      if (!isWorldBossPageVisible()) return
+      const music = musicForPage('world-boss')
+      if (music !== undefined) gameAudio.setMusic(music)
+    }, GAME_POPUP_POLL_MS)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  const launchGame = (popup: Window): void => {
+    activePopups.current.add(popup)
+    gameAudio.setMusic(null)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -294,6 +330,7 @@ export function WorldBoss({
       setError('เบราว์เซอร์บล็อกหน้าต่างเกม กรุณาอนุญาต Pop-up แล้วลองใหม่')
       return
     }
+    launchGame(popup)
     setError('')
     setNotice(`เปิด ${item.title} ในแท็บใหม่แล้ว (มินิเกมเสริม ไม่มีการนับคะแนนในระบบ)`)
   }
@@ -334,6 +371,7 @@ export function WorldBoss({
       return
     }
     activeGame.current = { session, popup }
+    launchGame(popup)
     setNotice('เปิดสมรภูมิในแท็บใหม่แล้ว เมื่อจบเกมระบบจะบันทึกผลกลับ Firestore อัตโนมัติ')
   }
 
