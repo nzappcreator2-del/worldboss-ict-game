@@ -31,6 +31,9 @@ describe('LandingLogin', () => {
     expect(screen.getByRole('button', { name: /Admin Panel/ })).toBeTruthy()
     expect(screen.getByTestId('landing-background').getAttribute('aria-hidden')).toBe('true')
     expect(screen.getByTestId('mobile-brand').textContent).toContain('NextGen Play')
+    expect(screen.getByLabelText('ระดับชั้นเรียน').closest('.landing-field-class')).toBeTruthy()
+    expect(screen.getByLabelText('ห้องเรียน').closest('.landing-field-room')).toBeTruthy()
+    expect(screen.getByLabelText('รายชื่อผู้กล้า').closest('.landing-field-name')).toBeTruthy()
     // Exactly two production-quality 3D student hero portraits are offered.
     expect(screen.getAllByRole('button', { name: /เลือกตัวละคร/ })).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'เลือกตัวละคร นักเรียนชาย' })).toBeTruthy()

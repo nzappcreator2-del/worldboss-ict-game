@@ -197,6 +197,7 @@ describe('LessonPage', () => {
     defeatFirstMonster()
     fireEvent.click(await screen.findByRole('button', { name: /เปิดโน้ตบทเรียน/ }))
 
+    expect(screen.getByTestId('lesson-note-header')).toBeTruthy()
     expect(screen.getByTestId('lesson-note-worksheet-badge').textContent).toContain('บทนี้มีใบงาน')
     fireEvent.click(screen.getByRole('button', { name: 'ทำใบงานบทนี้' }))
     expect(handlers.onOpenWorksheet).toHaveBeenCalledOnce()
@@ -451,6 +452,12 @@ describe('LessonPage', () => {
     })
     fireEvent.click(screen.getByTestId('lesson-boss-challenge'))
     await waitFor(() => expect(screen.getByTestId('lesson-boss-attack-button')).toBeTruthy())
+    // This case verifies the manual level-up/result flow. Zone 3 intentionally
+    // enables AUTO by default, so turn it off explicitly before the timed walk
+    // or the smoother auto driver may legitimately open the question first.
+    const autoToggle = screen.getByRole('button', { name: 'สลับโหมดโจมตีอัตโนมัติ' })
+    expect(autoToggle.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(autoToggle)
 
     vi.useFakeTimers()
     try {
@@ -1156,7 +1163,9 @@ describe('LessonPage', () => {
       expect(tracker.textContent).toContain('ภารกิจ: ป่าแห่งเศษส่วน')
 
       // Clicking the tracker itself must never leave the lesson on its own.
-      fireEvent.click(tracker)
+      // Re-query after the async board load so the click always targets the
+      // tracker from the latest lesson render.
+      fireEvent.click(screen.getByTestId('lesson-npc-tracker'))
       expect(handlers.onBack).not.toHaveBeenCalled()
       expect(handlers.onOpenNpc).not.toHaveBeenCalled()
       const detail = await screen.findByTestId('lesson-npc-tracker-detail')

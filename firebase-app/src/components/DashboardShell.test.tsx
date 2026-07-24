@@ -34,10 +34,14 @@ describe('DashboardShell', () => {
   it('renders the guild hall background and the configurable test character', () => {
     setup()
 
+    const cameraWorld = screen.getByTestId('dashboard-camera-world')
     expect(screen.getByTestId('dashboard-background').getAttribute('aria-hidden')).toBe('true')
     const character = screen.getByTestId('walkable-character')
     expect(character.getAttribute('aria-label')).toBe('ตัวละครผู้เล่น')
     expect(character.getAttribute('data-direction')).toBe('down')
+    expect(cameraWorld.contains(character)).toBe(true)
+    expect(cameraWorld.classList.contains('dashboard-camera-world')).toBe(true)
+    expect(cameraWorld.querySelector('#react-home-root')).toBeTruthy()
   })
 
   it('stacks equipped LPC layers onto the hub character as paper-doll backgrounds', () => {

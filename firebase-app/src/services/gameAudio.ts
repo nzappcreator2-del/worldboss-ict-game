@@ -18,6 +18,7 @@ export const GAME_EFFECTS = {
 
 export type MusicTrackName = keyof typeof MUSIC_TRACKS
 export type GameEffectName = keyof typeof GAME_EFFECTS
+export type PvpAudioScene = 'select' | 'joining' | 'lobby' | 'battle' | 'result' | 'error'
 
 export type GameAudioElement = {
   src: string
@@ -255,6 +256,14 @@ export const gameAudio = createGameAudioManager()
 
 export function setLessonMusic(zone: number): void {
   gameAudio.setMusic(zone === 3 ? 'bossBattle' : 'monsterBattle')
+}
+
+export function musicForPvpScene(scene: PvpAudioScene): MusicTrackName {
+  return scene === 'battle' || scene === 'result' ? 'bossBattle' : 'adventure'
+}
+
+export function setPvpMusic(scene: PvpAudioScene): void {
+  gameAudio.setMusic(musicForPvpScene(scene))
 }
 
 export function playSwordHit(): void {

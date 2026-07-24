@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
   AUTO_POTION_HP_PERCENT,
+  autoMovementStepForFrame,
   decideAutoBattle,
   nearestLivingEnemy,
   type AutoBattleContext,
 } from './autoBattleLogic'
+
+describe('autoMovementStepForFrame', () => {
+  it('uses real frame time while capping delayed mobile frames to prevent a speed burst', () => {
+    expect(autoMovementStepForFrame(null, 100)).toBeCloseTo(0.288)
+    expect(autoMovementStepForFrame(100, 116)).toBeCloseTo(0.288)
+    expect(autoMovementStepForFrame(100, 260)).toBeCloseTo(0.612)
+  })
+})
 
 const baseContext = (overrides: Partial<AutoBattleContext> = {}): AutoBattleContext => ({
   zone: 1,

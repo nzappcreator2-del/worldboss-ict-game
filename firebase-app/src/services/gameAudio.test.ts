@@ -4,6 +4,7 @@ import {
   createGameAudioManager,
   MUSIC_TRACKS,
   musicForPage,
+  musicForPvpScene,
   type GameAudioElement,
 } from './gameAudio'
 
@@ -65,6 +66,17 @@ describe('musicForPage', () => {
   it('lets the lesson component choose its zone music without an incorrect intermediate switch', () => {
     expect(musicForPage('lesson')).toBeUndefined()
     expect(musicForPage('worksheet')).toBeUndefined()
+  })
+})
+
+describe('musicForPvpScene', () => {
+  it('shares adventure music with room creation/waiting and boss music with combat', () => {
+    expect(musicForPvpScene('select')).toBe('adventure')
+    expect(musicForPvpScene('joining')).toBe('adventure')
+    expect(musicForPvpScene('lobby')).toBe('adventure')
+    expect(musicForPvpScene('battle')).toBe('bossBattle')
+    expect(musicForPvpScene('result')).toBe('bossBattle')
+    expect(musicForPvpScene('error')).toBe('adventure')
   })
 })
 

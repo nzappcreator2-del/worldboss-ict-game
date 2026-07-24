@@ -3,7 +3,8 @@
 // the fastest correct answer strikes a random enemy. Game rules live in
 // pvpRoomLogic.ts; Firestore traffic goes through services/pvpRoomApi.ts.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import pvpArenaBackground from '../assets/pvp-arena-background.png'
+import pvpDuelArena from '../assets/generated/pvp-duel-arena-v2.webp'
+import pvpTeamArena from '../assets/generated/pvp-team-arena-v2.webp'
 import lobbyMapBackground from '../assets/generated/pvp-lobby-courtyard.jpg'
 import pvpSelectBackground from '../assets/pvp-select-background.jpg'
 import pvpScrollPanel from '../assets/ui/pvp/panel-scroll-ranking.png'
@@ -15,7 +16,7 @@ import pvpSealRed from '../assets/ui/pvp/seal-red.png'
 import pvpBtnClose from '../assets/ui/pvp/btn-close.png'
 import pvpModeDuelArt from '../assets/ui/pvp/mode-duel-art.webp'
 import pvpModeTeamArt from '../assets/ui/pvp/mode-team-art.webp'
-import { playSwordHit } from '../services/gameAudio'
+import { playSwordHit, setPvpMusic } from '../services/gameAudio'
 import { characterLayerImages } from './characterAssets'
 import {
   TEST_CHARACTER_SPRITE,
@@ -246,6 +247,7 @@ export function PvpMode({ service, onExit }: Props) {
     setMyPosition(LOBBY_SPAWN)
     setMyAction('idle')
     setView('select')
+    setPvpMusic('select')
     void service.getRankings().then((result) => setRankings(result.data || [])).catch(() => setRankings([]))
   }, [service, stopSubscriptions])
 
@@ -260,14 +262,22 @@ export function PvpMode({ service, onExit }: Props) {
 
   const onRoom = useCallback((next: PvpRoomView) => {
     setRoom(next)
-    if (next.status === 'LOBBY') setView('lobby')
-    else if (next.status === 'PLAYING') setView('battle')
-    else if (next.status === 'FINISHED') setView('result')
+    if (next.status === 'LOBBY') {
+      setView('lobby')
+      setPvpMusic('lobby')
+    } else if (next.status === 'PLAYING') {
+      setView('battle')
+      setPvpMusic('battle')
+    } else if (next.status === 'FINISHED') {
+      setView('result')
+      setPvpMusic('result')
+    }
     else if (next.status === 'CANCELLED') {
       if (leavingRef.current) return
       stopSubscriptions()
       setMessage('ห้องถูกยกเลิก หรือหัวหน้าห้องออกจากห้องแล้ว')
       setView('error')
+      setPvpMusic('error')
     }
   }, [stopSubscriptions])
 
@@ -278,6 +288,7 @@ export function PvpMode({ service, onExit }: Props) {
       service.subscribeRoom(roomId, onRoom, () => {
         setMessage('การเชื่อมต่อห้องประลองขัดข้อง')
         setView('error')
+        setPvpMusic('error')
       }),
       service.subscribeChat(roomId, (messages) => {
         setChat(messages)
@@ -306,6 +317,7 @@ export function PvpMode({ service, onExit }: Props) {
     }
     setMessage('')
     setView('joining')
+    setPvpMusic('joining')
     try {
       const size = selectedMode === 'duel' ? 1 : teamSize
       const result = kind === 'public'
@@ -316,6 +328,7 @@ export function PvpMode({ service, onExit }: Props) {
     } catch (error) {
       setMessage(error instanceof Error && error.message !== 'join failed' ? error.message : 'ค้นหาห้องประลองไม่สำเร็จ ลองใหม่อีกครั้ง')
       setView('error')
+      setPvpMusic('error')
     }
   }, [attachRoom, code, me, mode, service, teamSize])
 
@@ -497,28 +510,28 @@ export function PvpMode({ service, onExit }: Props) {
   return (
     <section
       id="page-pvp"
-      className="isolate z-[60] pointer-events-auto flex flex-1 absolute inset-0 w-full h-full overflow-hidden bg-slate-950 text-white font-prompt"
-      style={{ backgroundImage: `linear-gradient(rgba(2,6,23,.72),rgba(2,6,23,.88)),url(${pvpArenaBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      className="pvp-page isolate z-[60] pointer-events-auto flex flex-1 absolute inset-0 w-full h-full overflow-hidden bg-slate-950 text-white font-prompt"
+      style={{ backgroundImage: `linear-gradient(rgba(2,6,23,.58),rgba(2,6,23,.78)),url(${pvpDuelArena})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
     >
       <style>{PVP_STYLES}</style>
 
       {view === 'select' && (
         <div
-          className="absolute inset-0 overflow-x-hidden overflow-y-auto bg-no-repeat bg-cover bg-center flex flex-col items-center"
+          className="pvp-select-screen absolute inset-0 overflow-x-hidden overflow-y-auto bg-no-repeat bg-cover bg-center flex flex-col items-center"
           style={{ backgroundImage: `url(${pvpSelectBackground})` }}
         >
           {/* pt clears the "PVP ARENA" title baked into the background art */}
-          <div className="w-full max-w-[1480px] min-h-full flex flex-col items-center px-[clamp(14px,2vw,32px)] pb-5 pt-[clamp(160px,12vw,215px)]">
+          <div className="pvp-select-shell w-full max-w-[1480px] min-h-full flex flex-col items-center px-[clamp(14px,2vw,32px)] pb-5 pt-[clamp(160px,12vw,215px)]">
             <div className="shrink-0 mb-[1.6vh] px-5 py-1.5 rounded-full bg-gradient-to-b from-amber-100/95 to-amber-200/90 border-2 border-amber-700/80 shadow-[0_4px_14px_rgba(0,0,0,.5)]">
               <p className="text-amber-950 font-black text-[clamp(10px,1.5vw,14px)] text-center tracking-wide">ศึกประลองความรู้เรียลไทม์ — ท้าเพื่อนทั้งห้องได้เลย</p>
             </div>
 
-            <div className="w-full flex flex-col xl:flex-1 xl:min-h-0 xl:flex-row gap-5 xl:gap-7 items-stretch">
+            <div className="pvp-select-layout w-full flex flex-col xl:flex-1 xl:min-h-0 xl:flex-row gap-5 xl:gap-7 items-stretch">
               {/* Left: each game mode carries its own room action in one card */}
               <div className="flex flex-none flex-col gap-[1.4vh] justify-start xl:flex-[3] xl:min-h-0 xl:justify-center">
                 {/* Two complete destination cards: duel/public and team/private */}
-                <div className="mx-auto grid w-full max-w-[820px] grid-cols-1 gap-5 sm:grid-cols-2 lg:gap-6">
-                  <div className={`relative aspect-[4/5] min-w-0 overflow-hidden rounded-[26px] border-[4px] bg-[#1b2130] transition-transform duration-200 ${mode === 'duel' ? 'scale-[1.018] border-pink-300 shadow-[0_0_0_2px_rgba(88,28,68,.9),0_0_30px_rgba(244,114,182,.65),0_16px_30px_rgba(15,23,42,.52)]' : 'border-amber-200/80 shadow-[0_0_0_2px_rgba(92,56,29,.9),0_14px_26px_rgba(15,23,42,.46)]'}`}>
+                <div className="pvp-mode-grid mx-auto grid w-full max-w-[820px] grid-cols-1 gap-5 sm:grid-cols-2 lg:gap-6">
+                  <div className={`pvp-mode-card relative aspect-[4/5] min-w-0 overflow-hidden rounded-[26px] border-[4px] bg-[#1b2130] transition-transform duration-200 ${mode === 'duel' ? 'scale-[1.018] border-pink-300 shadow-[0_0_0_2px_rgba(88,28,68,.9),0_0_30px_rgba(244,114,182,.65),0_16px_30px_rgba(15,23,42,.52)]' : 'border-amber-200/80 shadow-[0_0_0_2px_rgba(92,56,29,.9),0_14px_26px_rgba(15,23,42,.46)]'}`}>
                     <button type="button" onClick={() => setMode('duel')} aria-pressed={mode === 'duel'} className="group block h-[43%] w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-pink-200/90">
                       <ModeCardArt tone="duel" selected={mode === 'duel'} />
                     </button>
@@ -534,7 +547,7 @@ export function PvpMode({ service, onExit }: Props) {
                     {['left-1.5 top-1.5', 'right-1.5 top-1.5', 'bottom-1.5 left-1.5', 'bottom-1.5 right-1.5'].map((position) => <span key={position} aria-hidden="true" className={`absolute h-2.5 w-2.5 rotate-45 rounded-[2px] border border-white/70 ${position} bg-pink-400 shadow-[0_1px_3px_rgba(0,0,0,.7)]`} />)}
                   </div>
 
-                  <div className={`relative aspect-[4/5] min-w-0 overflow-hidden rounded-[26px] border-[4px] bg-[#1b2130] transition-transform duration-200 ${mode === 'team' ? 'scale-[1.018] border-sky-200 shadow-[0_0_0_2px_rgba(24,63,98,.9),0_0_30px_rgba(56,189,248,.65),0_16px_30px_rgba(15,23,42,.52)]' : 'border-amber-200/80 shadow-[0_0_0_2px_rgba(92,56,29,.9),0_14px_26px_rgba(15,23,42,.46)]'}`}>
+                  <div className={`pvp-mode-card relative aspect-[4/5] min-w-0 overflow-hidden rounded-[26px] border-[4px] bg-[#1b2130] transition-transform duration-200 ${mode === 'team' ? 'scale-[1.018] border-sky-200 shadow-[0_0_0_2px_rgba(24,63,98,.9),0_0_30px_rgba(56,189,248,.65),0_16px_30px_rgba(15,23,42,.52)]' : 'border-amber-200/80 shadow-[0_0_0_2px_rgba(92,56,29,.9),0_14px_26px_rgba(15,23,42,.46)]'}`}>
                     <button type="button" onClick={() => setMode('team')} aria-pressed={mode === 'team'} className="group block h-[43%] w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-200/90">
                       <ModeCardArt tone="team" selected={mode === 'team'} />
                     </button>
@@ -558,7 +571,7 @@ export function PvpMode({ service, onExit }: Props) {
 
               {/* Right: ranking scroll */}
               {showRankings ? (
-                <div className="relative mx-auto w-full max-w-[520px] flex-none aspect-[350/417] bg-no-repeat bg-center [background-size:100%_100%] xl:mx-0 xl:h-full xl:max-h-full xl:w-auto xl:flex-[2] xl:min-h-0" style={{ backgroundImage: `url(${pvpScrollPanel})` }}>
+                <div className="pvp-ranking-panel relative mx-auto w-full max-w-[520px] flex-none aspect-[350/417] bg-no-repeat bg-center [background-size:100%_100%] xl:mx-0 xl:h-full xl:max-h-full xl:w-auto xl:flex-[2] xl:min-h-0" style={{ backgroundImage: `url(${pvpScrollPanel})` }}>
                   <h3 className="absolute left-[11%] top-[5%] font-black text-[clamp(12px,1.5vw,17px)] text-amber-950">🏆 อันดับนักสู้ PVP</h3>
                   <button
                     type="button"
@@ -611,7 +624,7 @@ export function PvpMode({ service, onExit }: Props) {
       )}
 
       {view === 'joining' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-4 text-center">
+        <div className="pvp-status-screen absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-4 text-center">
           <div className="text-6xl animate-spin mb-4">⌛</div>
           <h2 className="text-3xl font-black">กำลังหาห้องประลอง...</h2>
           <button type="button" onClick={() => void leave()} className="mt-6 px-6 py-2 bg-red-600 rounded-full font-bold">ยกเลิก</button>
@@ -619,11 +632,11 @@ export function PvpMode({ service, onExit }: Props) {
       )}
 
       {view === 'lobby' && room && (
-        <div className="absolute inset-0 flex flex-col md:flex-row">
+        <div className="pvp-room-screen absolute inset-0 flex flex-col md:flex-row">
           <div
             ref={mapRef}
             onPointerDown={walkTo}
-            className="relative flex-1 min-h-[45%] cursor-pointer overflow-hidden"
+            className="pvp-room-map relative flex-1 min-h-[45%] cursor-pointer overflow-hidden"
             style={{ backgroundImage: `url(${lobbyMapBackground})`, backgroundSize: 'cover', backgroundPosition: 'center bottom' }}
           >
             <div className="absolute inset-x-0 top-0 p-3 flex items-center gap-3 bg-gradient-to-b from-slate-950/85 to-transparent pointer-events-none">
@@ -667,7 +680,7 @@ export function PvpMode({ service, onExit }: Props) {
             </div>
           </div>
 
-          <div className="w-full md:w-[360px] md:max-w-[42%] bg-slate-950/92 border-t-2 md:border-t-0 md:border-l-2 border-amber-800/60 flex flex-col overflow-y-auto">
+          <div className="pvp-room-panel w-full md:w-[360px] md:max-w-[42%] bg-slate-950/92 border-t-2 md:border-t-0 md:border-l-2 border-amber-800/60 flex flex-col overflow-y-auto">
             <div className="p-4 flex flex-col gap-3">
               {isHost && room.mode === 'team' && (
                 <div className="bg-slate-900 rounded-2xl p-3 border border-slate-700">
@@ -722,7 +735,7 @@ export function PvpMode({ service, onExit }: Props) {
               {message && <p className="text-red-300 text-sm font-bold text-center">{message}</p>}
             </div>
             <form
-              className="mt-auto p-3 border-t border-slate-800 flex gap-2"
+              className="pvp-room-chat mt-auto p-3 border-t border-slate-800 flex gap-2"
               onSubmit={(event) => {
                 event.preventDefault()
                 if (!me || !chatText.trim()) return
@@ -738,8 +751,8 @@ export function PvpMode({ service, onExit }: Props) {
       )}
 
       {view === 'battle' && room && room.battle && (
-        <div className={`absolute inset-0 flex flex-col ${fx?.crit ? 'pvp-crit-screen' : ''}`}>
-          <div className="flex items-center justify-between px-4 py-2 bg-slate-950/85 border-b-2 border-indigo-600/70">
+        <div className={`pvp-battle-screen absolute inset-0 flex flex-col ${fx?.crit ? 'pvp-crit-screen' : ''}`}>
+          <div className="pvp-battle-topbar flex items-center justify-between px-4 py-2 bg-slate-950/85 border-b-2 border-indigo-600/70">
             <div className="flex items-center gap-2 text-sm font-black text-sky-300">{TEAM_NAMES[myTeam]}<span className="text-slate-400 font-bold">({players.filter((player) => player.team === myTeam && player.hp > 0).length} รอด)</span></div>
             <div className="text-center">
               <div className="text-xs text-slate-400 font-bold">รอบที่ {room.battle.round}</div>
@@ -750,7 +763,14 @@ export function PvpMode({ service, onExit }: Props) {
             <div className="flex items-center gap-2 text-sm font-black text-rose-300"><span className="text-slate-400 font-bold">({players.filter((player) => player.team !== myTeam && player.hp > 0).length} รอด)</span>{TEAM_NAMES[myTeam === 0 ? 1 : 0]}</div>
           </div>
 
-          <div className="relative flex-1 overflow-hidden">
+          <div
+            data-testid="pvp-battle-stage"
+            data-arena-mode={room.mode}
+            className="pvp-battle-stage relative flex-1 overflow-hidden bg-cover bg-center"
+            style={{
+              backgroundImage: `linear-gradient(180deg,rgba(8,18,38,.08),rgba(5,11,24,.22)),url(${room.mode === 'team' ? pvpTeamArena : pvpDuelArena})`,
+            }}
+          >
             {fx && (
               <div className="pvp-banner absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-slate-950/90 border-2 border-yellow-500 rounded-2xl px-5 py-2 font-black text-center whitespace-nowrap">
                 ⚡ {room.players[fx.attackerId]?.name || '???'} จู่โจม {room.players[fx.targetId]?.name || '???'}!
@@ -771,12 +791,18 @@ export function PvpMode({ service, onExit }: Props) {
               const hit = fx?.targetId === player.userId ? 'pvp-hit' : ''
               const dead = player.hp <= 0
               return (
-                <div key={player.userId} className={`absolute -translate-x-1/2 -translate-y-1/2 ${lunge}`} style={{ left: `${slot.x}%`, top: `${slot.y}%`, zIndex: Math.round(slot.y) }}>
+                <div
+                  key={player.userId}
+                  data-team={isAlly ? 'ally' : 'enemy'}
+                  data-slot={slotIndex % 4}
+                  className={`pvp-battle-player absolute -translate-x-1/2 -translate-y-1/2 ${lunge}`}
+                  style={{ left: `${slot.x}%`, top: `${slot.y}%`, zIndex: Math.round(slot.y) }}
+                >
                   {fx?.targetId === player.userId && (
                     <div key={fx.key} className="pvp-damage-pop absolute -top-8 left-1/2 -translate-x-1/2 text-3xl md:text-4xl font-black text-red-400 z-40">-{fx.damage}</div>
                   )}
-                  <div className={`${hit} ${dead ? 'grayscale opacity-45 rotate-90' : ''} transition-all duration-500`} style={spriteStyle(player, direction, 0, BATTLE_SPRITE_SIZE)} />
-                  <div className="w-24 -mt-3 mx-auto">
+                  <div className={`pvp-battle-sprite ${hit} ${dead ? 'grayscale opacity-45 rotate-90' : ''} transition-all duration-500`} style={spriteStyle(player, direction, 0, BATTLE_SPRITE_SIZE)} />
+                  <div className="pvp-player-status w-24 -mt-3 mx-auto">
                     <div className={`text-center text-[11px] font-black truncate drop-shadow ${isAlly ? 'text-sky-200' : 'text-rose-200'}`}>{player.name}</div>
                     <HpBar hp={player.hp} maxHp={player.maxHp} small />
                     <div className="text-center text-[10px] text-slate-300 font-bold">{Math.ceil(player.hp)}/{player.maxHp}</div>
@@ -796,24 +822,24 @@ export function PvpMode({ service, onExit }: Props) {
           </div>
 
           {countdown === null && (
-            <div className="bg-slate-950/90 border-t-2 border-indigo-600/70 p-3 md:p-4">
+            <div data-testid="pvp-question-panel" className="pvp-question-panel bg-slate-950/90 border-t-2 border-indigo-600/70 p-3 md:p-4">
               {activeQuestion ? (
-                <div className="max-w-4xl mx-auto">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="pvp-question-content max-w-4xl mx-auto">
+                  <div className="pvp-question-meta flex items-center justify-between mb-2">
                     <span className="font-black text-yellow-300 text-sm md:text-base">⚡ รอบที่ {room.battle.round}</span>
                     {lockedRound === room.battle.round && <span className="text-red-300 font-black text-sm animate-pulse">❌ ตอบผิด! รอบนี้ต้องรอเพื่อนชิงจังหวะ...</span>}
                     {answeredRound === room.battle.round && <span className="text-emerald-300 font-black text-sm animate-pulse">✅ ส่งคำตอบแล้ว รอผลการชิงโจมตี...</span>}
                     <span className="bg-slate-800 px-3 py-0.5 rounded-full font-mono font-bold text-sm">{Math.max(0, timeLeft)}s</span>
                   </div>
-                  <h3 className="text-lg md:text-2xl font-black mb-3">{activeQuestion.text}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  <h3 className="pvp-question-title text-lg md:text-2xl font-black mb-3">{activeQuestion.text}</h3>
+                  <div className="pvp-answer-grid grid grid-cols-1 md:grid-cols-2 gap-2.5">
                     {activeQuestion.options.map((option, optionIndex) => option ? (
                       <button
                         key={optionIndex}
                         type="button"
                         disabled={lockedRound === room.battle!.round || answeredRound === room.battle!.round || (myPlayer?.hp ?? 0) <= 0}
                         onClick={() => answer(optionIndex)}
-                        className="p-3 md:p-3.5 text-left border-2 border-indigo-400/80 rounded-2xl bg-slate-900 hover:bg-indigo-900/60 font-bold disabled:opacity-40 transition"
+                        className="pvp-answer-button p-3 md:p-3.5 text-left border-2 border-indigo-400/80 rounded-2xl bg-slate-900 hover:bg-indigo-900/60 font-bold disabled:opacity-40 transition"
                       ><span className="text-yellow-300 mr-2 font-black">{optionIndex + 1}.</span>{String(option)}</button>
                     ) : null)}
                   </div>
@@ -824,7 +850,7 @@ export function PvpMode({ service, onExit }: Props) {
               )}
             </div>
           )}
-          <button type="button" onClick={() => void leave()} className="absolute bottom-2 left-2 z-40 bg-black/60 px-3 py-1.5 rounded-full font-bold text-xs">🏳️ ยอมแพ้ / ออก</button>
+          <button type="button" onClick={() => void leave()} className="pvp-forfeit-button absolute bottom-2 left-2 z-40 bg-black/60 px-3 py-1.5 rounded-full font-bold text-xs">🏳️ ยอมแพ้ / ออก</button>
         </div>
       )}
 
@@ -836,7 +862,7 @@ export function PvpMode({ service, onExit }: Props) {
         const delta = rankingDelta(outcome)
         const board = [...players].sort((a, b) => battleScore(b) - battleScore(a))
         return (
-          <div className="absolute inset-0 overflow-y-auto flex flex-col items-center justify-center bg-black/80 px-4 py-8 text-center">
+          <div className="pvp-result-screen absolute inset-0 overflow-y-auto flex flex-col items-center justify-center bg-black/80 px-4 py-8 text-center">
             <div className="text-7xl mb-3">{outcome === 'win' ? '🏆' : outcome === 'draw' ? '🤝' : '💀'}</div>
             <h2 className={`text-5xl md:text-7xl font-black ${outcome === 'win' ? 'text-yellow-300' : outcome === 'draw' ? 'text-sky-300' : 'text-red-500'} drop-shadow-[0_4px_0_rgba(0,0,0,.6)]`}>
               {outcome === 'win' ? 'ชัยชนะ!' : outcome === 'draw' ? 'เสมอ!' : 'พ่ายแพ้...'}
@@ -882,7 +908,7 @@ export function PvpMode({ service, onExit }: Props) {
       })()}
 
       {view === 'error' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 px-4 text-center">
+        <div className="pvp-status-screen absolute inset-0 flex flex-col items-center justify-center bg-black/85 px-4 text-center">
           <p className="text-red-300 text-xl font-black">{message}</p>
           <button type="button" onClick={reset} className="mt-5 bg-blue-600 px-6 py-2 rounded-xl font-bold">กลับหน้าเลือกโหมด</button>
         </div>

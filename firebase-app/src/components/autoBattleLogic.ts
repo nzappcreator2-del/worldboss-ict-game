@@ -1,4 +1,8 @@
-import type { CharacterPosition } from './dashboardCharacter'
+import {
+  movementElapsedForFrame,
+  movementStepForElapsed,
+  type CharacterPosition,
+} from './dashboardCharacter'
 
 // MMORPG-style auto-battle brain for the lesson adventure. Pure decision
 // logic only: the component (LessonPage) feeds a snapshot of the run each
@@ -14,6 +18,10 @@ export const AUTO_ATTACK_COOLDOWN_MS = 600
 // simply run at the movement rate and attacks stay paced by the cooldown.
 export const AUTO_TICK_MS = 16
 export const AUTO_MOVE_SPEED = 18
+
+export function autoMovementStepForFrame(previousTimestamp: number | null, timestamp: number) {
+  return movementStepForElapsed(movementElapsedForFrame(previousTimestamp, timestamp), AUTO_MOVE_SPEED)
+}
 
 export type AutoBattleTarget = { id: number; hp: number; x: number; y: number }
 export type AutoBattleDropTarget = { id: number; x: number; y: number }

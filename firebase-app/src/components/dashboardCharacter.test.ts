@@ -8,6 +8,7 @@ import {
   directionTowardTarget,
   moveCharacter,
   moveTowardTarget,
+  movementElapsedForFrame,
   movementStepForElapsed,
   nextWalkFrame,
   pointerToWalkPosition,
@@ -21,6 +22,7 @@ describe('dashboardCharacter', () => {
     expect(directionForKey('S')).toBe('down')
     expect(directionForKey('d')).toBe('right')
     expect(directionForKey('Enter')).toBeNull()
+    expect(directionForKey(undefined)).toBeNull()
   })
 
   it('moves within the configured walkable floor and clamps every edge', () => {
@@ -41,6 +43,13 @@ describe('dashboardCharacter', () => {
     expect(CHARACTER_RENDER_SIZE).toBe(112)
     expect(movementStepForElapsed(16)).toBeCloseTo(0.208)
     expect(movementStepForElapsed(1000)).toBe(0.65)
+  })
+
+  it('normalizes animation-frame timing so mobile frame stalls never create speed bursts', () => {
+    expect(movementElapsedForFrame(null, 120)).toBe(16)
+    expect(movementElapsedForFrame(120, 136)).toBe(16)
+    expect(movementElapsedForFrame(120, 260)).toBe(34)
+    expect(movementElapsedForFrame(160, 140)).toBe(0)
   })
 
   it('converts pointer coordinates into bounded walk targets', () => {

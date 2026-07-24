@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   TEST_CHARACTER_SPRITE,
@@ -18,6 +18,7 @@ import {
   mapPointerPosition,
   moveMapCharacter,
 } from './adventureMapLogic'
+import { mobileCameraOffset } from './mobileCameraLogic'
 import { characterLayerImages } from './characterAssets'
 import { LESSON_MAP_ICON_IMAGES } from './lessonUiAssets'
 import { entranceTemplateForLesson } from './mapEntranceTemplates'
@@ -94,6 +95,66 @@ export function AdventureMap({ service, onSelectLesson, onOpenNpc }: Props) {
   const heldFrameTimer = useRef<number | null>(null)
   const heldDirection = useRef<WalkDirection | null>(null)
   const positionRef = useRef<CharacterPosition>(MAP_START_POSITION)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const worldRef = useRef<HTMLDivElement>(null)
+
+  const syncCamera = useCallback(() => {
+    const viewport = viewportRef.current
+    const world = worldRef.current
+    if (!viewport || !world) return
+
+    const viewportRect = viewport.getBoundingClientRect()
+    const worldRect = world.getBoundingClientRect()
+    const offset = mobileCameraOffset(
+      positionRef.current,
+      {
+        width: viewport.clientWidth || viewportRect.width,
+        height: viewport.clientHeight || viewportRect.height,
+      },
+      {
+        width: world.offsetWidth || worldRect.width,
+        height: world.offsetHeight || worldRect.height,
+      },
+      { x: 0.5, y: 0.58 },
+    )
+    world.style.setProperty('--camera-x', `${offset.x}px`)
+    world.style.setProperty('--camera-y', `${offset.y}px`)
+    world.dataset.cameraX = String(offset.x)
+    world.dataset.cameraY = String(offset.y)
+  }, [])
+
+  useLayoutEffect(() => {
+    syncCamera()
+  }, [position, transitionMs, syncCamera])
+
+  useEffect(() => {
+    const visualViewport = window.visualViewport
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(syncCamera)
+    let deferredSync: number | null = null
+    const scheduleCameraSync = () => {
+      syncCamera()
+      if (deferredSync !== null) window.clearTimeout(deferredSync)
+      deferredSync = window.setTimeout(syncCamera, 0)
+    }
+    if (viewportRef.current) observer?.observe(viewportRef.current)
+    if (worldRef.current) observer?.observe(worldRef.current)
+    window.addEventListener('resize', syncCamera)
+    window.addEventListener('nextgen:open-map', scheduleCameraSync)
+    window.addEventListener('nextgen:page-changed', scheduleCameraSync)
+    window.addEventListener('nextgen:dashboard-tab', scheduleCameraSync)
+    visualViewport?.addEventListener('resize', syncCamera)
+    return () => {
+      if (deferredSync !== null) window.clearTimeout(deferredSync)
+      observer?.disconnect()
+      window.removeEventListener('resize', syncCamera)
+      window.removeEventListener('nextgen:open-map', scheduleCameraSync)
+      window.removeEventListener('nextgen:page-changed', scheduleCameraSync)
+      window.removeEventListener('nextgen:dashboard-tab', scheduleCameraSync)
+      visualViewport?.removeEventListener('resize', syncCamera)
+    }
+  }, [syncCamera])
 
   const stopWalk = useCallback(() => {
     if (walkTimer.current !== null) window.clearTimeout(walkTimer.current)
@@ -291,20 +352,22 @@ export function AdventureMap({ service, onSelectLesson, onOpenNpc }: Props) {
   }
 
   return (
-    <div id="dash-tab-map" className="adventure-map" data-testid="adventure-map">
+    <div ref={viewportRef} id="dash-tab-map" className="adventure-map" data-testid="adventure-map">
       <div className="adventure-map-vignette" aria-hidden="true" />
       <div className="adventure-map-title" aria-hidden="true"><span>◆</span> แผนที่การผจญภัย <span>◆</span></div>
 
       <TeacherQuestTracker tracked={trackedTeacherQuest} onClick={() => onOpenNpc?.()} variant="map" testId="map-npc-tracker" />
 
-      <div className="adventure-map-world" data-testid="map-world" onPointerDown={moveFromPointer}>
+      <div
+        ref={worldRef}
+        className="adventure-map-world adventure-camera-world"
+        data-testid="map-world"
+        style={{ transitionDuration: `${transitionMs}ms` }}
+        onPointerDown={moveFromPointer}
+      >
         <svg className="map-route-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <polyline points={routePoints} />
         </svg>
-
-        {status === 'loading' && <div className="map-status-overlay"><span className="map-loader">◆</span><strong>กำลังเปิดแผนที่...</strong></div>}
-        {status === 'error' && <div className="map-status-overlay error"><strong>โหลดแผนที่ไม่สำเร็จ</strong><button type="button" onClick={load}>ลองใหม่</button></div>}
-        {status === 'ready' && lessons.length === 0 && <div className="map-status-overlay"><span>🏗️</span><strong>ยังไม่มีด่านผจญภัย</strong></div>}
 
         {lessons.map((lesson, index) => {
           const unlocked = index === 0 || passed.includes(String(lessons[index - 1]?.id))
@@ -362,16 +425,21 @@ export function AdventureMap({ service, onSelectLesson, onOpenNpc }: Props) {
           <span className="map-character-ring" aria-hidden="true" />
         </div>
 
-        <div className="map-move-controls" aria-label="ปุ่มควบคุมแผนที่">
-          <button type="button" aria-label="เดินขึ้นบนแผนที่" onPointerDown={() => startHeldMove('up')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('up')}>▲</button>
-          <button type="button" aria-label="เดินซ้ายบนแผนที่" onPointerDown={() => startHeldMove('left')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('left')}>◀</button>
-          <button type="button" aria-label="เดินลงบนแผนที่" onPointerDown={() => startHeldMove('down')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('down')}>▼</button>
-          <button type="button" aria-label="เดินขวาบนแผนที่" onPointerDown={() => startHeldMove('right')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('right')}>▶</button>
-        </div>
+      </div>
 
-        <div className="map-joystick-dock">
-          <VirtualJoystick label="จอยสติ๊กควบคุมแผนที่" onDirection={(direction) => (direction ? startHeldMove(direction) : stopHeldMove())} />
-        </div>
+      {status === 'loading' && <div className="map-status-overlay"><span className="map-loader">◆</span><strong>กำลังเปิดแผนที่...</strong></div>}
+      {status === 'error' && <div className="map-status-overlay error"><strong>โหลดแผนที่ไม่สำเร็จ</strong><button type="button" onClick={load}>ลองใหม่</button></div>}
+      {status === 'ready' && lessons.length === 0 && <div className="map-status-overlay"><span>🏗️</span><strong>ยังไม่มีด่านผจญภัย</strong></div>}
+
+      <div className="map-move-controls" aria-label="ปุ่มควบคุมแผนที่">
+        <button type="button" aria-label="เดินขึ้นบนแผนที่" onPointerDown={() => startHeldMove('up')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('up')}>▲</button>
+        <button type="button" aria-label="เดินซ้ายบนแผนที่" onPointerDown={() => startHeldMove('left')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('left')}>◀</button>
+        <button type="button" aria-label="เดินลงบนแผนที่" onPointerDown={() => startHeldMove('down')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('down')}>▼</button>
+        <button type="button" aria-label="เดินขวาบนแผนที่" onPointerDown={() => startHeldMove('right')} onPointerUp={stopHeldMove} onPointerLeave={stopHeldMove} onClick={() => manualMove('right')}>▶</button>
+      </div>
+
+      <div className="map-joystick-dock">
+        <VirtualJoystick label="จอยสติ๊กควบคุมแผนที่" onDirection={(direction) => (direction ? startHeldMove(direction) : stopHeldMove())} />
       </div>
 
       {preview && createPortal(

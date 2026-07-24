@@ -8,6 +8,7 @@ import {
   directionTowardTarget,
   moveCharacter,
   moveTowardTarget,
+  movementElapsedForFrame,
   movementStepForElapsed,
   pointerToWalkPosition,
   spriteBackgroundPosition,
@@ -16,8 +17,7 @@ import {
 } from './dashboardCharacter'
 import {
   AUTO_ATTACK_COOLDOWN_MS,
-  AUTO_MOVE_SPEED,
-  AUTO_TICK_MS,
+  autoMovementStepForFrame,
   decideAutoBattle,
 } from './autoBattleLogic'
 import {
@@ -565,7 +565,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
       setPaused(false)
       return
     }
-    if (pointerMoveTimer.current !== null) window.clearInterval(pointerMoveTimer.current)
+    if (pointerMoveTimer.current !== null) window.cancelAnimationFrame(pointerMoveTimer.current)
     if (pointerFrameTimer.current !== null) window.clearInterval(pointerFrameTimer.current)
     pointerMoveTimer.current = null
     pointerFrameTimer.current = null
@@ -645,7 +645,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   }, [service, setPlayerActionState, stopBossSwing])
 
   const stopPointerMove = useCallback((resetFrame = true) => {
-    if (pointerMoveTimer.current !== null) window.clearInterval(pointerMoveTimer.current)
+    if (pointerMoveTimer.current !== null) window.cancelAnimationFrame(pointerMoveTimer.current)
     if (pointerFrameTimer.current !== null) window.clearInterval(pointerFrameTimer.current)
     pointerMoveTimer.current = null
     pointerFrameTimer.current = null
@@ -656,7 +656,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   }, [setPlayerActionState])
 
   const stopHeldMove = useCallback(() => {
-    if (heldMoveTimer.current !== null) window.clearInterval(heldMoveTimer.current)
+    if (heldMoveTimer.current !== null) window.cancelAnimationFrame(heldMoveTimer.current)
     if (heldFrameTimer.current !== null) window.clearInterval(heldFrameTimer.current)
     heldMoveTimer.current = null
     heldFrameTimer.current = null
@@ -683,10 +683,21 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     heldDirection.current = nextDirection
     setDirection(nextDirection)
     setPlayerActionState('walk')
-    heldMoveTimer.current = window.setInterval(() => {
+    // Apply one frame immediately so touch/keyboard input feels responsive
+    // even when a busy mobile browser delays the first animation callback.
+    stepHeldMove(nextDirection, 16)
+    let previousFrame: number | null = null
+    const moveOnFrame = (timestamp: number) => {
       const activeDirection = heldDirection.current
-      if (activeDirection) stepHeldMove(activeDirection)
-    }, 16)
+      if (!activeDirection) {
+        heldMoveTimer.current = null
+        return
+      }
+      stepHeldMove(activeDirection, movementElapsedForFrame(previousFrame, timestamp))
+      previousFrame = timestamp
+      heldMoveTimer.current = window.requestAnimationFrame(moveOnFrame)
+    }
+    heldMoveTimer.current = window.requestAnimationFrame(moveOnFrame)
     heldFrameTimer.current = window.setInterval(() => {
       setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
     }, 110)
@@ -911,7 +922,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     return () => window.clearInterval(timer)
   }, [bossPhase, paused])
 
-  // Auto-battle driver: one decision per tick, executed through the exact
+  // Auto-battle driver: one decision per animation frame, executed through the exact
   // same handlers the player uses (attack/skill/potion refs + the shared
   // movement helpers), so the bot can never out-perform manual play. The
   // effect's dependency list is the pause switch: any modal, death, pause or
@@ -920,7 +931,14 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     if (!lesson || !autoBattle || paused || playerDead || charOpen || bagOpen || noteOpen || videoOpen || deathChoiceOpen) return
     if (progress.zone === 3 && bossPhase !== 'skirmish') return
     autoWalkAnimRef.current = 0
-    const timer = window.setInterval(() => {
+    let previousFrame: number | null = null
+    let animationFrame = 0
+    let active = true
+    const runAutoFrame = (timestamp: number) => {
+      if (!active) return
+      const elapsedMs = movementElapsedForFrame(previousFrame, timestamp)
+      const movementStep = autoMovementStepForFrame(previousFrame, timestamp)
+      previousFrame = timestamp
       const zone = progressRef.current.zone
       const decision = decideAutoBattle({
         zone,
@@ -945,45 +963,43 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
       })
       if (decision.action === 'potion') {
         potionActionRef.current()
-        return
-      }
-      if (decision.action === 'attack' || decision.action === 'boss-attack') {
+      } else if (decision.action === 'attack' || decision.action === 'boss-attack') {
         autoAttackLastRef.current = Date.now()
         attackActionRef.current()
-        return
-      }
-      if (decision.action === 'skill') {
+      } else if (decision.action === 'skill') {
         autoAttackLastRef.current = Date.now()
         skillActionRef.current()
-        return
-      }
-      if (decision.action === 'move') {
+      } else if (decision.action === 'move') {
         // Let an in-progress sword swing finish before stepping again.
-        if (playerActionRef.current === 'attack') return
-        const nextDirection = directionTowardTarget(positionRef.current, decision.target)
-        const moved = moveTowardTarget(
-          positionRef.current,
-          decision.target,
-          movementStepForElapsed(AUTO_TICK_MS, AUTO_MOVE_SPEED),
-          LESSON_WALK_BOUNDS,
-        )
-        positionRef.current = moved.position
-        setPosition(moved.position)
-        setDirection(nextDirection)
-        setPlayerActionState('walk')
-        autoWalkAnimRef.current += AUTO_TICK_MS
-        if (autoWalkAnimRef.current >= 110) {
-          autoWalkAnimRef.current = 0
-          setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
+        if (playerActionRef.current !== 'attack') {
+          const nextDirection = directionTowardTarget(positionRef.current, decision.target)
+          const moved = moveTowardTarget(
+            positionRef.current,
+            decision.target,
+            movementStep,
+            LESSON_WALK_BOUNDS,
+          )
+          positionRef.current = moved.position
+          setPosition(moved.position)
+          setDirection(nextDirection)
+          setPlayerActionState('walk')
+          autoWalkAnimRef.current += elapsedMs
+          if (autoWalkAnimRef.current >= 110) {
+            autoWalkAnimRef.current %= 110
+            setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
+          }
         }
-        return
-      }
-      if (playerActionRef.current === 'walk' && heldDirection.current === null && pointerMoveTimer.current === null) {
+      } else if (playerActionRef.current === 'walk' && heldDirection.current === null && pointerMoveTimer.current === null) {
         setPlayerActionState('idle')
         setFrame(0)
       }
-    }, AUTO_TICK_MS)
-    return () => window.clearInterval(timer)
+      animationFrame = window.requestAnimationFrame(runAutoFrame)
+    }
+    animationFrame = window.requestAnimationFrame(runAutoFrame)
+    return () => {
+      active = false
+      window.cancelAnimationFrame(animationFrame)
+    }
   }, [lesson, autoBattle, paused, playerDead, charOpen, bagOpen, noteOpen, videoOpen, deathChoiceOpen, progress.zone, bossPhase, setPlayerActionState])
 
   useEffect(() => {
@@ -1040,9 +1056,9 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
   useEffect(() => () => {
     if (levelUpTimer.current !== null) window.clearTimeout(levelUpTimer.current)
     if (attackAnimationRef.current !== null) window.clearInterval(attackAnimationRef.current)
-    if (heldMoveTimer.current !== null) window.clearInterval(heldMoveTimer.current)
+    if (heldMoveTimer.current !== null) window.cancelAnimationFrame(heldMoveTimer.current)
     if (heldFrameTimer.current !== null) window.clearInterval(heldFrameTimer.current)
-    if (pointerMoveTimer.current !== null) window.clearInterval(pointerMoveTimer.current)
+    if (pointerMoveTimer.current !== null) window.cancelAnimationFrame(pointerMoveTimer.current)
     if (pointerFrameTimer.current !== null) window.clearInterval(pointerFrameTimer.current)
     if (bossSwingTimer.current !== null) window.clearInterval(bossSwingTimer.current)
     if (bossSwingCooldownTimer.current !== null) window.clearTimeout(bossSwingCooldownTimer.current)
@@ -1064,23 +1080,32 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     const target = pointerToWalkPosition(safeClientX, safeClientY, rect, LESSON_WALK_BOUNDS)
     stopHeldMove()
     stopPointerMove(false)
-    const stepToTarget = () => {
+    const stepToTarget = (elapsedMs: number) => {
       const current = positionRef.current
       const nextDirection = directionTowardTarget(current, target)
-      const result = moveTowardTarget(current, target, movementStepForElapsed(16, 18), LESSON_WALK_BOUNDS)
+      const result = moveTowardTarget(current, target, movementStepForElapsed(elapsedMs, 18), LESSON_WALK_BOUNDS)
       positionRef.current = result.position
       setDirection(nextDirection)
       setPosition(result.position)
       setPlayerActionState(result.reached ? 'idle' : 'walk')
       if (result.reached) stopPointerMove()
+      return result.reached
     }
-    stepToTarget()
-    pointerMoveTimer.current = window.setInterval(stepToTarget, 16)
-    pointerFrameTimer.current = window.setInterval(() => {
+    const reachedImmediately = stepToTarget(16)
+    if (!reachedImmediately) {
+      let previousFrame: number | null = null
+      const moveOnFrame = (timestamp: number) => {
+        const elapsedMs = movementElapsedForFrame(previousFrame, timestamp)
+        previousFrame = timestamp
+        if (!stepToTarget(elapsedMs)) pointerMoveTimer.current = window.requestAnimationFrame(moveOnFrame)
+      }
+      pointerMoveTimer.current = window.requestAnimationFrame(moveOnFrame)
+      pointerFrameTimer.current = window.setInterval(() => {
+        setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
+      }, 110)
+      setPlayerActionState('walk')
       setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
-    }, 110)
-    setPlayerActionState('walk')
-    setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
+    }
   }
 
   const moveToPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1334,13 +1359,13 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     stopHeldMove()
     stopPointerMove(false)
     chaseEnemyIdRef.current = id
-    const stepChase = () => {
-      if (chaseEnemyIdRef.current !== id) return
+    const stepChase = (elapsedMs: number) => {
+      if (chaseEnemyIdRef.current !== id) return true
       const enemy = enemiesRef.current.find((candidate) => candidate.id === id && candidate.hp > 0)
       if (!enemy) {
         chaseEnemyIdRef.current = null
         stopPointerMove()
-        return
+        return true
       }
       const current = positionRef.current
       const distance = Math.hypot(enemy.x - current.x, enemy.y - current.y)
@@ -1351,20 +1376,29 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
         chaseEnemyIdRef.current = null
         stopPointerMove()
         attackNearest(id)
-        return
+        return true
       }
       const nextDirection = directionTowardTarget(current, enemy)
-      const result = moveTowardTarget(current, enemy, movementStepForElapsed(16, 18), LESSON_WALK_BOUNDS)
+      const result = moveTowardTarget(current, enemy, movementStepForElapsed(elapsedMs, 18), LESSON_WALK_BOUNDS)
       positionRef.current = result.position
       setDirection(nextDirection)
       setPosition(result.position)
       setPlayerActionState('walk')
+      return false
     }
-    stepChase()
-    pointerMoveTimer.current = window.setInterval(stepChase, 16)
-    pointerFrameTimer.current = window.setInterval(() => {
-      setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
-    }, 110)
+    const reachedImmediately = stepChase(16)
+    if (!reachedImmediately) {
+      let previousFrame: number | null = null
+      const moveOnFrame = (timestamp: number) => {
+        const elapsedMs = movementElapsedForFrame(previousFrame, timestamp)
+        previousFrame = timestamp
+        if (!stepChase(elapsedMs)) pointerMoveTimer.current = window.requestAnimationFrame(moveOnFrame)
+      }
+      pointerMoveTimer.current = window.requestAnimationFrame(moveOnFrame)
+      pointerFrameTimer.current = window.setInterval(() => {
+        setFrame((current) => (current + 1) % TEST_CHARACTER_SPRITE.walkFrames.length)
+      }, 110)
+    }
   }
 
   const attackOrChaseEnemy = (id: number) => {
@@ -1844,8 +1878,12 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
       {noteOpen && (
         <div className="lesson-modal-backdrop" role="dialog" aria-modal="true" aria-label="โน้ตเนื้อหาบทเรียน">
           <article className="lesson-note-modal">
-            <img className="lesson-note-scroll" src={LESSON_SCROLL_IMAGE} alt="" /><small>ไอเทมเนื้อหาบทเรียน</small><h3>{lesson.title}</h3>
-            {hasWorksheet && <p data-testid="lesson-note-worksheet-badge" className="lesson-note-worksheet-badge"><i aria-hidden="true">✦</i> บทนี้มีใบงาน <span>รับรางวัลการเรียนรู้เมื่อส่งสำเร็จ</span></p>}
+            <header className="lesson-note-header" data-testid="lesson-note-header">
+              <img className="lesson-note-scroll" src={LESSON_SCROLL_IMAGE} alt="" />
+              <small>ไอเทมเนื้อหาบทเรียน</small>
+              <h3>{lesson.title}</h3>
+              {hasWorksheet && <p data-testid="lesson-note-worksheet-badge" className="lesson-note-worksheet-badge"><i aria-hidden="true">✦</i> บทนี้มีใบงาน <span>รับรางวัลการเรียนรู้เมื่อส่งสำเร็จ</span></p>}
+            </header>
             <div className="lesson-note-content">{lesson.content || lesson.description || 'อ่านเนื้อหาบทเรียนนี้ให้จบก่อนเดินทางต่อ'}</div>
             <div className="lesson-note-actions">
               <button type="button" onClick={() => { setProgress(readLessonNote); setNoteOpen(false) }}>อ่านจบแล้ว</button>

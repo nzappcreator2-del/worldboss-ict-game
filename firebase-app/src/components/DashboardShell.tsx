@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { levelProgress } from '../services/levelSystem'
 import { characterLayerImages } from './characterAssets'
 import {
@@ -15,6 +15,7 @@ import {
   type CharacterSpriteConfig,
   type WalkDirection,
 } from './dashboardCharacter'
+import { mobileCameraOffset } from './mobileCameraLogic'
 import { VirtualJoystick } from './VirtualJoystick'
 import iconBook from '../assets/ui/icon-book.png'
 import iconFlame from '../assets/ui/icon-flame.png'
@@ -123,9 +124,6 @@ export function DashboardShell({
     // showPage() toggles hidden/page-active classes on this section, and a
     // React-managed className would wipe them on re-render and blank the page.
     <section id="page-dashboard" className="dashboard-hub" data-scene={active}>
-      <div data-testid="dashboard-background" className="dashboard-hub-background" aria-hidden="true" />
-      <div className="dashboard-hub-shade" aria-hidden="true" />
-
       <header className="dashboard-player-hud">
         <button type="button" className="dashboard-portrait-button" aria-label="เปิดโปรไฟล์ตัวละคร" onClick={() => window.dispatchEvent(new Event('nextgen:open-hero-profile'))}>
           <SpriteFrame className="dashboard-player-portrait" config={characterSprite} direction="down" frame={0} size={72} layerImages={layerImages} />
@@ -196,28 +194,26 @@ export function DashboardShell({
       <div id="react-economy-root" className="contents">{economy}</div>
 
       <main className="dashboard-hub-content">
-        <div id="react-home-root" className={active === 'home' ? 'dashboard-home-mount' : 'hidden'}>{home}</div>
         <div id="react-profile-root" className={active === 'profile' ? 'dashboard-feature-panel' : 'hidden'}>{profile}</div>
         <div id="react-map-root" className={active === 'map' ? 'dashboard-map-mount' : 'hidden'}>{map}</div>
         <div id="react-rank-root" className={active === 'rank' ? 'dashboard-feature-panel' : 'hidden'}>{rank}</div>
         <div id="react-cert-root" className={active === 'cert' ? 'dashboard-feature-panel' : 'hidden'}>{cert}</div>
       </main>
 
-      {/* ครูวีรภัทร์ stands at the crystal altar; only the home scene shows
-          the hall painting, so the NPC unmounts along with the other
-          hub-only hotspots when a feature panel takes over. */}
-      {active === 'home' && teacherNpc}
+      <WalkableCharacter active={active === 'home'} config={characterSprite} layerImages={layerImages} onOpenMap={() => navigate('map')}>
+        <div data-testid="dashboard-background" className="dashboard-hub-background" aria-hidden="true" />
+        <div className="dashboard-hub-shade" aria-hidden="true" />
+        <div id="react-home-root" className={active === 'home' ? 'dashboard-home-mount' : 'hidden'}>{home}</div>
 
-      <WalkableCharacter active={active === 'home'} config={characterSprite} layerImages={layerImages} onOpenMap={() => navigate('map')} />
-
-      {/* Invisible hotspot over the painted hall gate. The gate art only
-          exists on the home scene — mounting it anywhere else leaves a large
-          transparent button ghost-clicking over the map/feature panels. */}
-      {active === 'home' && (
-        <button type="button" className="dashboard-portal-button" aria-label="เริ่มการผจญภัย" onClick={() => navigate('map')}>
-          <span>เข้าสู่แผนที่ผจญภัย</span>
-        </button>
-      )}
+        {/* ครูวีรภัทร์ and the adventure gate belong to world-space, so they
+            pan with the hall painting while the screen-space HUD stays fixed. */}
+        {active === 'home' && teacherNpc}
+        {active === 'home' && (
+          <button type="button" className="dashboard-portal-button" aria-label="เริ่มการผจญภัย" onClick={() => navigate('map')}>
+            <span>เข้าสู่แผนที่ผจญภัย</span>
+          </button>
+        )}
+      </WalkableCharacter>
 
       {/* Classic MMO experience strip pinned to the bottom edge. */}
       <div className="dashboard-exp-bar" data-testid="dashboard-exp-bar" aria-label={`เลเวล ${level} ความคืบหน้า ${Math.round(xpProgress.percent)} เปอร์เซ็นต์`}>
@@ -267,7 +263,19 @@ function SpriteFrame({
   return <span className={`dashboard-character-sprite ${className || ''}`} style={style} aria-hidden="true" />
 }
 
-function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active: boolean; config: CharacterSpriteConfig; layerImages?: string; onOpenMap?: () => void }) {
+function WalkableCharacter({
+  active,
+  config,
+  layerImages,
+  onOpenMap,
+  children,
+}: {
+  active: boolean
+  config: CharacterSpriteConfig
+  layerImages?: string
+  onOpenMap?: () => void
+  children: ReactNode
+}) {
   const [position, setPosition] = useState(DEFAULT_CHARACTER_POSITION)
   const [direction, setDirection] = useState<WalkDirection>('down')
   const [frame, setFrame] = useState(0)
@@ -275,7 +283,67 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
   const positionRef = useRef(DEFAULT_CHARACTER_POSITION)
   const walkTarget = useRef<typeof DEFAULT_CHARACTER_POSITION | null>(null)
   const lastBroadcast = useRef(0)
+  const worldRef = useRef<HTMLDivElement>(null)
   const renderSize = CHARACTER_RENDER_SIZE
+
+  const syncCamera = useCallback(() => {
+    const viewport = document.getElementById('page-dashboard')
+    const world = worldRef.current
+    if (!viewport || !world) return
+
+    const viewportRect = viewport.getBoundingClientRect()
+    const worldRect = world.getBoundingClientRect()
+    const offset = mobileCameraOffset(
+      positionRef.current,
+      {
+        width: viewport.clientWidth || viewportRect.width,
+        height: viewport.clientHeight || viewportRect.height,
+      },
+      {
+        width: world.offsetWidth || worldRect.width,
+        height: world.offsetHeight || worldRect.height,
+      },
+      { x: 0.5, y: 0.58 },
+    )
+    world.style.setProperty('--camera-x', `${offset.x}px`)
+    world.style.setProperty('--camera-y', `${offset.y}px`)
+    world.dataset.cameraX = String(offset.x)
+    world.dataset.cameraY = String(offset.y)
+  }, [])
+
+  useLayoutEffect(() => {
+    syncCamera()
+  }, [active, position, syncCamera])
+
+  useEffect(() => {
+    const visualViewport = window.visualViewport
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(syncCamera)
+    let deferredSync: number | null = null
+    const scheduleCameraSync = () => {
+      syncCamera()
+      if (deferredSync !== null) window.clearTimeout(deferredSync)
+      deferredSync = window.setTimeout(syncCamera, 0)
+    }
+    const viewport = document.getElementById('page-dashboard')
+    if (viewport) observer?.observe(viewport)
+    if (worldRef.current) observer?.observe(worldRef.current)
+    window.addEventListener('resize', syncCamera)
+    window.addEventListener('nextgen:open-home', scheduleCameraSync)
+    window.addEventListener('nextgen:page-changed', scheduleCameraSync)
+    window.addEventListener('nextgen:dashboard-tab', scheduleCameraSync)
+    visualViewport?.addEventListener('resize', syncCamera)
+    return () => {
+      if (deferredSync !== null) window.clearTimeout(deferredSync)
+      observer?.disconnect()
+      window.removeEventListener('resize', syncCamera)
+      window.removeEventListener('nextgen:open-home', scheduleCameraSync)
+      window.removeEventListener('nextgen:page-changed', scheduleCameraSync)
+      window.removeEventListener('nextgen:dashboard-tab', scheduleCameraSync)
+      visualViewport?.removeEventListener('resize', syncCamera)
+    }
+  }, [syncCamera])
 
   // Throttled position feed for hall inhabitants (ครูวีรภัทร์ walk-up talk):
   // a coarse 4-per-second CustomEvent instead of lifted state, so the shell
@@ -340,7 +408,11 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
       ) return
       if (!hub) return
       activeDirections.current.clear()
-      walkTarget.current = pointerToWalkPosition(event.clientX, event.clientY, hub.getBoundingClientRect())
+      const worldRect = worldRef.current?.getBoundingClientRect()
+      const walkRect = worldRect && worldRect.width > 0 && worldRect.height > 0
+        ? worldRect
+        : hub.getBoundingClientRect()
+      walkTarget.current = pointerToWalkPosition(event.clientX, event.clientY, walkRect)
     }
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
@@ -416,12 +488,19 @@ function WalkableCharacter({ active, config, layerImages, onOpenMap }: { active:
   return (
     <>
       <div
-        data-testid="walkable-character"
-        data-direction={direction}
-        aria-label="ตัวละครผู้เล่น"
-        className={`dashboard-walkable-character ${active ? '' : 'hidden'}`}
-        style={style}
-      />
+        ref={worldRef}
+        data-testid="dashboard-camera-world"
+        className={`dashboard-camera-world ${active ? '' : 'hidden'}`}
+      >
+        {children}
+        <div
+          data-testid="walkable-character"
+          data-direction={direction}
+          aria-label="ตัวละครผู้เล่น"
+          className="dashboard-walkable-character"
+          style={style}
+        />
+      </div>
       <div className={`dashboard-move-controls ${active ? '' : 'hidden'}`} aria-label="ปุ่มควบคุมตัวละคร">
         <MoveButton direction="up" label="เดินขึ้น" onPress={pressDirection} onRelease={releaseDirection}>▲</MoveButton>
         <MoveButton direction="left" label="เดินซ้าย" onPress={pressDirection} onRelease={releaseDirection}>◀</MoveButton>

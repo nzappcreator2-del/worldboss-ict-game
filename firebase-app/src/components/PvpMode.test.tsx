@@ -105,6 +105,14 @@ async function enterLobby(context: ReturnType<typeof setup>) {
 }
 
 describe('PvpMode select screen', () => {
+  it('starts PVP room creation with the same music as the adventure map', async () => {
+    const setMusic = vi.spyOn(gameAudio.gameAudio, 'setMusic')
+    setup()
+
+    await screen.findByText('ท้าดวล 1v1')
+    expect(setMusic).toHaveBeenCalledWith('adventure')
+  })
+
   it('stays visible above the legacy shell and shows both battle modes plus rankings', async () => {
     setup()
     const page = document.getElementById('page-pvp')
@@ -185,6 +193,42 @@ describe('PvpMode lobby', () => {
 })
 
 describe('PvpMode battle', () => {
+  it('switches from adventure room music to boss battle music when combat starts', async () => {
+    const setMusic = vi.spyOn(gameAudio.gameAudio, 'setMusic')
+    const context = setup()
+    await enterLobby(context)
+    expect(setMusic).toHaveBeenCalledWith('adventure')
+
+    context.emit(playingRoom(2))
+    await screen.findByTestId('pvp-battle-stage')
+    expect(setMusic).toHaveBeenLastCalledWith('bossBattle')
+  })
+
+  it('uses the dedicated duel arena and responsive battle regions', async () => {
+    const context = setup()
+    await enterLobby(context)
+    context.emit(playingRoom(2))
+
+    const stage = await screen.findByTestId('pvp-battle-stage')
+    expect(stage.getAttribute('data-arena-mode')).toBe('duel')
+    expect(stage.getAttribute('style')).toContain('pvp-duel-arena-v2')
+    expect(stage.classList.contains('pvp-battle-stage')).toBe(true)
+    expect(screen.getByTestId('pvp-question-panel').classList.contains('pvp-question-panel')).toBe(true)
+  })
+
+  it('switches to the dedicated team arena for multiplayer battles', async () => {
+    const context = setup()
+    await enterLobby(context)
+    const teamRoom = playingRoom(2)
+    teamRoom.mode = 'team'
+    teamRoom.teamSize = 2
+    context.emit(teamRoom)
+
+    const stage = await screen.findByTestId('pvp-battle-stage')
+    expect(stage.getAttribute('data-arena-mode')).toBe('team')
+    expect(stage.getAttribute('style')).toContain('pvp-team-arena-v2')
+  })
+
   it('plays a professional countdown before revealing round 1', async () => {
     const context = setup()
     await enterLobby(context)

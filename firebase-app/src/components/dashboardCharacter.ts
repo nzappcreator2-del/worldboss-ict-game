@@ -31,7 +31,8 @@ function clampPosition(position: CharacterPosition, bounds: WalkBounds = HUB_WAL
   }
 }
 
-export function directionForKey(key: string): WalkDirection | null {
+export function directionForKey(key: unknown): WalkDirection | null {
+  if (typeof key !== 'string') return null
   const normalized = key.toLowerCase()
   if (normalized === 'arrowup' || normalized === 'w') return 'up'
   if (normalized === 'arrowleft' || normalized === 'a') return 'left'
@@ -56,6 +57,16 @@ export function nextWalkFrame(frame: number, frameCount: number) {
 export function movementStepForElapsed(elapsedMs: number, speedPerSecond = HUB_MOVEMENT_SPEED) {
   const safeElapsed = Math.min(50, Math.max(0, elapsedMs))
   return (safeElapsed / 1000) * speedPerSecond
+}
+
+export function movementElapsedForFrame(
+  previousTimestamp: number | null,
+  timestamp: number,
+  fallbackMs = 16,
+  maxFrameMs = 34,
+) {
+  if (previousTimestamp === null) return fallbackMs
+  return Math.min(maxFrameMs, Math.max(0, timestamp - previousTimestamp))
 }
 
 export function pointerToWalkPosition(

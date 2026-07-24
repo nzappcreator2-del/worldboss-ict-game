@@ -40,8 +40,10 @@ describe('AdventureMap', () => {
     window.dispatchEvent(new Event('nextgen:open-map'))
 
     expect(await screen.findByTestId('adventure-map')).toBeTruthy()
-    expect(screen.getByTestId('map-world')).toBeTruthy()
+    const world = screen.getByTestId('map-world')
+    expect(world.classList.contains('adventure-camera-world')).toBe(true)
     expect(screen.getByTestId('map-character').getAttribute('data-avatar')).toBe('🧙')
+    expect(world.contains(screen.getByLabelText('จอยสติ๊กควบคุมแผนที่'))).toBe(false)
   })
 
   it('loads progress only when the legacy dashboard opens the map', async () => {
@@ -272,7 +274,9 @@ describe('AdventureMap', () => {
       expect(tracker.textContent).toContain('ภารกิจ: ถ้ำแห่งความมืด')
 
       // Clicking the tracker itself must never navigate away on its own.
-      fireEvent.click(tracker)
+      // Re-query after the async map/progress load so the click always targets
+      // the currently mounted tracker rather than an element from a prior render.
+      fireEvent.click(screen.getByTestId('map-npc-tracker'))
       expect(onOpenNpc).not.toHaveBeenCalled()
       const detail = await screen.findByTestId('map-npc-tracker-detail')
 

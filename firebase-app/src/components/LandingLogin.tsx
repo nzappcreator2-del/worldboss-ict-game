@@ -153,8 +153,8 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
           <span>LMS + Gamification</span>
         </div>
 
-        <div className="adventure-fields">
-          <div className="adventure-field-panel">
+        <div className={`adventure-fields${rooms.length > 0 ? ' has-room' : ''}`}>
+          <div className="adventure-field-panel landing-field-class">
             <span className="field-emblem" aria-hidden="true">🎓</span>
             <label htmlFor="react-student-class">ระดับชั้นเรียน</label>
             <select
@@ -170,7 +170,7 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
           </div>
 
           {rooms.length > 0 && (
-            <div className="adventure-field-panel">
+            <div className="adventure-field-panel landing-field-room">
               <span className="field-emblem" aria-hidden="true">🚪</span>
               <label htmlFor="react-student-room">ห้องเรียน</label>
               <select
@@ -185,7 +185,7 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
             </div>
           )}
 
-          <div className="adventure-field-panel">
+          <div className="adventure-field-panel landing-field-name">
             <span className="field-emblem" aria-hidden="true">📜</span>
             <label htmlFor="react-student-name">รายชื่อผู้กล้า</label>
             <select
@@ -203,7 +203,7 @@ export function LandingLogin({ service, onLogin, onAdmin }: Props) {
           </div>
 
           {selectedName === 'NEW_PLAYER' && (
-            <div className="adventure-field-panel adventure-new-player">
+            <div className="adventure-field-panel adventure-new-player landing-field-new-name">
               <span className="field-emblem" aria-hidden="true">✒️</span>
               <label htmlFor="react-new-name">ชื่อผู้กล้าคนใหม่</label>
               <input
