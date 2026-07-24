@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gameFileForBoss, normalizeWorldBosses, scorePresentation, validWorldBossResult } from './worldBossLogic'
+import { gameFileForBoss, motionArcadeBosses, normalizeWorldBosses, scorePresentation, validWorldBossResult } from './worldBossLogic'
 
 describe('World Boss migration logic', () => {
   it('adds the neck quiz and groups every WB002 variant into one lobby card', () => {
@@ -24,6 +24,15 @@ describe('World Boss migration logic', () => {
     expect(scorePresentation('WB002_10', 7)).toEqual({ value: '7', unit: 'ข้อ' })
     expect(scorePresentation('WB002_SPEEDRUN', 12.345)).toEqual({ value: '12.35', unit: 'วินาที' })
     expect(scorePresentation('WB003', 9)).toEqual({ value: '9', unit: 'ข้อ' })
+  })
+
+  it('lists only camera/motion games in the Motion & AR zone, excluding the external Mario card', () => {
+    const bosses = normalizeWorldBosses([
+      { id: 'WB001', name: 'Mario', poseType: 'mario_fitness', targetReps: 10, maxHp: 100, rewardCoins: 100, rewardXp: 120 },
+      { id: 'WB002_10', name: 'Safety', poseType: 'speed_runner', targetReps: 10, maxHp: 100, rewardCoins: 100, rewardXp: 100 },
+    ])
+
+    expect(motionArcadeBosses(bosses).map((boss) => boss.id)).toEqual(['WB002', 'WB003'])
   })
 
   it('accepts only finite results with the expected session', () => {

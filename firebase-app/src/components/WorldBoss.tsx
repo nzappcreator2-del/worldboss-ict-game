@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { gameFileForBoss, normalizeWorldBosses, scorePresentation, validWorldBossResult, type WorldBossConfig } from './worldBossLogic'
+import {
+  gameFileForBoss,
+  MARIO_EDUCATION_URL,
+  MATH_SPEED_RACE_URL,
+  motionArcadeBosses,
+  normalizeWorldBosses,
+  scorePresentation,
+  validWorldBossResult,
+  type WorldBossConfig,
+} from './worldBossLogic'
 import itemCoins from '../assets/ui/item-coins.png'
 import iconStar from '../assets/ui/icon-star.png'
 import arcadeBackground from '../assets/minigame-arcade-background.png'
@@ -70,26 +79,11 @@ type BossTheme = {
 }
 
 function displayBoss(boss: WorldBossConfig): BossTheme {
-  if (boss.id === 'WB001' || boss.poseType === 'mario_fitness') return {
-    tone: 'emerald',
-    title: 'มาริโอ้ฟิตเนสสะสมเหรียญ',
-    emoji: '🍄',
-    condition: 'มาริโอ้คลาสสิก (Mario Fitness)',
-    description: 'ขยับร่างกายวิ่ง กระโดดหลบอุปสรรค และเก็บเหรียญทองเพื่อทำสถิติเวลาที่เร็วที่สุด',
-    border: 'border-emerald-500/40 hover:border-emerald-400/70',
-    art: 'from-emerald-500/25 via-teal-800/30 to-slate-950',
-    glow: 'rgba(16,185,129,0.35)',
-    chip: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/60',
-    text: 'text-emerald-300',
-    button: 'from-emerald-500 to-teal-600',
-    buttonEdge: 'border-teal-900',
-    tabActive: 'bg-emerald-400 text-slate-950',
-  }
   if (boss.id === 'WB003' || boss.poseType === 'neck_quiz') return {
     tone: 'magenta',
-    title: 'วิทยาการคำนวณ ม.2',
+    title: 'Neck-Tilt Quiz AI',
     emoji: '🧘‍♂️',
-    condition: 'เอียงคอซ้าย–ขวาเลือกคำตอบ',
+    condition: 'วิทยาการคำนวณ ม.2 · เอียงคอเลือกคำตอบ',
     description: 'ใช้กล้องตรวจจับการเอียงคอเพื่อเลือกคำตอบและพิชิตคะแนนความรู้วิทยาการคำนวณ',
     border: 'border-pink-500/40 hover:border-pink-400/70',
     art: 'from-pink-500/25 via-fuchsia-800/30 to-slate-950',
@@ -124,6 +118,74 @@ const guideChips = [
   ['🖱️', 'รองรับเมาส์/คีย์บอร์ด'],
 ] as const
 
+const menuChips = [
+  ['🍄', 'Mario 8-Bit'],
+  ['🏎️', 'Math Race 3D'],
+  ['🕹️', 'Motion & AR'],
+  ['🏆', 'เก็บสถิติ & อันดับ'],
+] as const
+
+// Top-level arcade menu. Kept separate from the Firestore boss configs: the two
+// external cards open self-contained games in a new tab (no score pipeline),
+// while the "category" card reveals the Motion & AR zone (the camera games that
+// DO record scores). Adding a future top-level game = one more entry here.
+type ArcadeMenuItem = {
+  id: string
+  kind: 'external' | 'category'
+  tone: 'emerald' | 'cyan' | 'magenta'
+  badge: string
+  title: string
+  subtitle: string
+  emoji: string
+  description: string
+  stats: readonly (readonly [string, string])[]
+  cta: string
+  url?: string
+}
+
+const arcadeMenu: readonly ArcadeMenuItem[] = [
+  {
+    id: 'mario',
+    kind: 'external',
+    tone: 'emerald',
+    badge: 'MINI-GAME',
+    title: 'Mario Education',
+    subtitle: 'Super Mario Land 8-Bit + คำถามความรู้',
+    emoji: '🍄',
+    description: 'ผจญภัยเก็บเหรียญสไตล์มาริโอ 8-Bit พร้อมคำถามท้าทาย 3 ระดับ เล่นด้วยคีย์บอร์ดหรือกล้อง เปิดเล่นในแท็บใหม่',
+    stats: [['รูปแบบเกม', 'เกมเสริมภายนอก 🎮'], ['การเล่น', 'เปิดแท็บใหม่ • ไม่นับคะแนน']],
+    cta: 'เล่นเลย',
+    url: MARIO_EDUCATION_URL,
+  },
+  {
+    id: 'math-speed-race',
+    kind: 'external',
+    tone: 'cyan',
+    badge: 'MINI-GAME',
+    title: 'Math Speed Race 3D',
+    subtitle: 'แข่งรถคณิตศาสตร์ 3 มิติ',
+    emoji: '🏎️',
+    description: 'ซิ่งรถความเร็วสูงพร้อมตอบโจทย์คณิตให้ทันเวลา ฝึกคิดเลขเร็วในสนามแข่ง 3D สุดมันส์ เปิดเล่นในแท็บใหม่',
+    stats: [['รูปแบบเกม', 'เกมเสริมภายนอก 🎮'], ['การเล่น', 'เปิดแท็บใหม่ • ไม่นับคะแนน']],
+    cta: 'เล่นเลย',
+    url: MATH_SPEED_RACE_URL,
+  },
+  {
+    id: 'motion-arcade',
+    kind: 'category',
+    tone: 'magenta',
+    badge: 'GAME ZONE',
+    title: 'Motion & AR Arcade',
+    subtitle: 'โซนเกมตรวจจับท่าทาง & AR',
+    emoji: '🕹️',
+    description: 'รวมมินิเกมที่ควบคุมด้วยกล้องและการเคลื่อนไหวร่างกาย บันทึกสถิติและไต่อันดับได้จริง พร้อมเปิดรับเกมใหม่ในอนาคต',
+    stats: [['เกมในโซน', '2 เกม + เพิ่มเรื่อยๆ'], ['การเล่น', 'กล้อง • นับคะแนน 🏆']],
+    cta: 'เข้าสู่โซน',
+  },
+]
+
+const ARCADE_SLOTS = 3
+
 export function WorldBoss({
   service,
   onExit,
@@ -132,6 +194,7 @@ export function WorldBoss({
   createSession = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
 }: Props) {
   const [bosses, setBosses] = useState<WorldBossConfig[]>([])
+  const [view, setView] = useState<'menu' | 'motion'>('menu')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [leaderboardId, setLeaderboardId] = useState<string | null>(null)
@@ -144,6 +207,7 @@ export function WorldBoss({
     setLoading(true)
     setError('')
     setNotice('')
+    setView('menu')
     setLeaderboardId(null)
     try {
       const result = await service.loadBosses()
@@ -217,6 +281,30 @@ export function WorldBoss({
     }
   }
 
+  const openMenuItem = (item: ArcadeMenuItem) => {
+    if (item.kind === 'category') {
+      setError('')
+      setNotice('')
+      setLeaderboardId(null)
+      setView('motion')
+      return
+    }
+    const popup = openGame(item.url || '')
+    if (!popup) {
+      setError('เบราว์เซอร์บล็อกหน้าต่างเกม กรุณาอนุญาต Pop-up แล้วลองใหม่')
+      return
+    }
+    setError('')
+    setNotice(`เปิด ${item.title} ในแท็บใหม่แล้ว (มินิเกมเสริม ไม่มีการนับคะแนนในระบบ)`)
+  }
+
+  const exitMotionZone = () => {
+    setLeaderboardId(null)
+    setError('')
+    setNotice('')
+    setView('menu')
+  }
+
   const start = (boss: WorldBossConfig) => {
     const user = service.getCurrentUser()
     if (!user) {
@@ -250,6 +338,8 @@ export function WorldBoss({
   }
 
   const currentUser = service.getCurrentUser()
+  const motionBosses = motionArcadeBosses(bosses)
+  const motionPlaceholders = Math.max(0, ARCADE_SLOTS - motionBosses.length)
   const leaderboardTheme = leaderboardId
     ? displayBoss(bosses.find((boss) => (leaderboardId.startsWith('WB002') ? boss.id.startsWith('WB002') : boss.id === leaderboardId)) || { id: leaderboardId, name: '', poseType: '', targetReps: 0, maxHp: 0, rewardCoins: 0, rewardXp: 0 })
     : null
@@ -268,16 +358,23 @@ export function WorldBoss({
         </div>
 
         <header className="arcade-stage__header">
-          <button type="button" aria-label="กลับห้องโถงหลัก" onClick={onExit} className="arcade-back-button">
-            <span aria-hidden>‹</span>
-            <span>กลับห้องโถงหลัก</span>
-          </button>
+          {view === 'motion' ? (
+            <button type="button" aria-label="กลับเมนูมินิเกม" onClick={exitMotionZone} className="arcade-back-button">
+              <span aria-hidden>‹</span>
+              <span>กลับเมนูมินิเกม</span>
+            </button>
+          ) : (
+            <button type="button" aria-label="กลับห้องโถงหลัก" onClick={onExit} className="arcade-back-button">
+              <span aria-hidden>‹</span>
+              <span>กลับห้องโถงหลัก</span>
+            </button>
+          )}
 
           <div className="arcade-title-console">
             <span className="arcade-title-console__light arcade-title-console__light--left" aria-hidden />
             <div>
-              <p>AI MOTION ARCADE</p>
-              <h2>มินิเกมตรวจจับท่าทาง</h2>
+              <p>{view === 'motion' ? 'AI MOTION ARCADE' : 'NEXTGEN ARCADE'}</p>
+              <h2>{view === 'motion' ? 'มินิเกมตรวจจับท่าทาง' : 'ศูนย์รวมมินิเกม'}</h2>
             </div>
             <span className="arcade-title-console__light arcade-title-console__light--right" aria-hidden />
           </div>
@@ -297,80 +394,184 @@ export function WorldBoss({
           ) : <span className="arcade-player-console arcade-player-console--empty" aria-hidden />}
         </header>
 
-        <section aria-label="คู่มือเตรียมกล้อง AI" className="arcade-camera-guide">
-          <div className="arcade-camera-guide__title">
-            <span aria-hidden>⌁</span>
-            <strong>คู่มือผู้ใช้งาน</strong>
-            <small>AI Camera Guide</small>
-          </div>
-          <div className="arcade-camera-guide__items">
-            {guideChips.map(([icon, label]) => (
-              <span key={label}>
-                <b aria-hidden>{icon}</b>
-                <small>{label}</small>
-              </span>
-            ))}
-          </div>
-        </section>
+        {view === 'motion' ? (
+          <section aria-label="คู่มือเตรียมกล้อง AI" className="arcade-camera-guide">
+            <div className="arcade-camera-guide__title">
+              <span aria-hidden>⌁</span>
+              <strong>คู่มือผู้ใช้งาน</strong>
+              <small>AI Camera Guide</small>
+            </div>
+            <div className="arcade-camera-guide__items">
+              {guideChips.map(([icon, label]) => (
+                <span key={label}>
+                  <b aria-hidden>{icon}</b>
+                  <small>{label}</small>
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section aria-label="โหมดเกมที่เลือกได้" className="arcade-camera-guide">
+            <div className="arcade-camera-guide__title">
+              <span aria-hidden>⌁</span>
+              <strong>เลือกโหมดเกม</strong>
+              <small>Game Modes</small>
+            </div>
+            <div className="arcade-camera-guide__items">
+              {menuChips.map(([icon, label]) => (
+                <span key={label}>
+                  <b aria-hidden>{icon}</b>
+                  <small>{label}</small>
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="arcade-stage__feedback">
           {notice && <div role="status" className="arcade-message arcade-message--success"><span aria-hidden>✓</span>{notice}</div>}
           {error && <div role="alert" className="arcade-message arcade-message--error"><span aria-hidden>!</span>{error}</div>}
-          {loading && <div className="arcade-message arcade-message--loading"><span className="arcade-spinner" aria-hidden />กำลังโหลดข้อมูลมินิเกม...</div>}
-          {!loading && !error && bosses.length === 0 && <div className="arcade-message">ขณะนี้มินิเกมกำลังเตรียมพร้อม กรุณาลองใหม่อีกครั้ง</div>}
+          {view === 'motion' && loading && <div className="arcade-message arcade-message--loading"><span className="arcade-spinner" aria-hidden />กำลังโหลดข้อมูลมินิเกม...</div>}
+          {view === 'motion' && !loading && !error && motionBosses.length === 0 && <div className="arcade-message">ขณะนี้มินิเกมกำลังเตรียมพร้อม กรุณาลองใหม่อีกครั้ง</div>}
         </div>
 
-        <div className="arcade-game-grid">
-          {bosses.map((boss) => {
-            const theme = displayBoss(boss)
-            const localBest = currentUser ? localStorage.getItem(`wb_best_time_${currentUser.id}_${boss.id}`) : null
-            return (
-              <article key={boss.id} className={`arcade-game-card arcade-game-card--${theme.tone}`}>
+        {view === 'menu' ? (
+          <div className="arcade-game-grid">
+            {arcadeMenu.map((item) => (
+              <article key={item.id} className={`arcade-game-card arcade-game-card--${item.tone}`}>
                 <div className="arcade-game-card__energy" aria-hidden><i /><i /><i /></div>
                 <div className="arcade-game-card__topbar">
-                  <span>MINI-GAME</span>
-                  <button type="button" aria-label={`ดูอันดับ ${theme.title}`} onClick={() => void showLeaderboard(boss.id)}>
-                    <span aria-hidden>🏆</span>
-                  </button>
+                  <span>{item.badge}</span>
                 </div>
 
                 <div className="arcade-game-card__content">
                   <header>
-                    <h3>{theme.title}</h3>
-                    <p>{theme.condition}</p>
+                    <h3>{item.title}</h3>
+                    <p>{item.subtitle}</p>
                   </header>
 
                   <div className="arcade-game-card__art" aria-hidden>
                     <span className="arcade-game-card__orbit" />
-                    <b>{theme.emoji}</b>
+                    <b>{item.emoji}</b>
                     <i /><i /><i />
                   </div>
 
-                  <p className="arcade-game-card__description">{theme.description}</p>
+                  <p className="arcade-game-card__description">{item.description}</p>
+
+                  <div className="arcade-game-card__stats">
+                    {item.stats.map(([label, value]) => (
+                      <div key={label}>
+                        <strong>{label}</strong>
+                        <span>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={`${item.kind === 'category' ? 'เข้าสู่' : 'เริ่มเล่น'} ${item.title}`}
+                  onClick={() => openMenuItem(item)}
+                  className="arcade-game-card__play"
+                >
+                  <span>{item.cta}</span>
+                  <b aria-hidden>{item.kind === 'category' ? '→' : '↗'}</b>
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="arcade-game-grid">
+            {motionBosses.map((boss) => {
+              const theme = displayBoss(boss)
+              const localBest = currentUser ? localStorage.getItem(`wb_best_time_${currentUser.id}_${boss.id}`) : null
+              return (
+                <article key={boss.id} className={`arcade-game-card arcade-game-card--${theme.tone}`}>
+                  <div className="arcade-game-card__energy" aria-hidden><i /><i /><i /></div>
+                  <div className="arcade-game-card__topbar">
+                    <span>MINI-GAME</span>
+                    <button type="button" aria-label={`ดูอันดับ ${theme.title}`} onClick={() => void showLeaderboard(boss.id)}>
+                      <span aria-hidden>🏆</span>
+                    </button>
+                  </div>
+
+                  <div className="arcade-game-card__content">
+                    <header>
+                      <h3>{theme.title}</h3>
+                      <p>{theme.condition}</p>
+                    </header>
+
+                    <div className="arcade-game-card__art" aria-hidden>
+                      <span className="arcade-game-card__orbit" />
+                      <b>{theme.emoji}</b>
+                      <i /><i /><i />
+                    </div>
+
+                    <p className="arcade-game-card__description">{theme.description}</p>
+
+                    <div className="arcade-game-card__stats">
+                      <div>
+                        <strong>รางวัลสูงสุด</strong>
+                        <span>
+                          <img src={itemCoins} alt="เหรียญ" /> +{boss.rewardCoins}
+                          <img src={iconStar} alt="XP" /> +{boss.rewardXp}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>สถิติของคุณ</strong>
+                        <span>{localBest || 'ยังไม่มีสถิติ'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button type="button" aria-label={`เริ่มเล่น ${theme.title}`} onClick={() => start(boss)} className="arcade-game-card__play">
+                    <span>เริ่มเล่น</span>
+                    <b aria-hidden>⚔</b>
+                  </button>
+                </article>
+              )
+            })}
+            {Array.from({ length: motionPlaceholders }).map((_, index) => (
+              <article key={`soon-${index}`} className="arcade-game-card arcade-game-card--cyan arcade-game-card--soon" aria-label="ช่องเกมที่กำลังจะเปิด">
+                <div className="arcade-game-card__energy" aria-hidden><i /><i /><i /></div>
+                <div className="arcade-game-card__topbar">
+                  <span>COMING SOON</span>
+                </div>
+
+                <div className="arcade-game-card__content">
+                  <header>
+                    <h3>เร็วๆ นี้</h3>
+                    <p>เปิดรับมินิเกมใหม่</p>
+                  </header>
+
+                  <div className="arcade-game-card__art" aria-hidden>
+                    <span className="arcade-game-card__orbit" />
+                    <b>✨</b>
+                    <i /><i /><i />
+                  </div>
+
+                  <p className="arcade-game-card__description">พื้นที่สำหรับมินิเกมตรวจจับท่าทางและ AR ใหม่ที่กำลังจะมาถึง</p>
 
                   <div className="arcade-game-card__stats">
                     <div>
-                      <strong>รางวัลสูงสุด</strong>
-                      <span>
-                        <img src={itemCoins} alt="เหรียญ" /> +{boss.rewardCoins}
-                        <img src={iconStar} alt="XP" /> +{boss.rewardXp}
-                      </span>
+                      <strong>สถานะ</strong>
+                      <span>กำลังพัฒนา</span>
                     </div>
                     <div>
-                      <strong>สถิติของคุณ</strong>
-                      <span>{localBest || 'ยังไม่มีสถิติ'}</span>
+                      <strong>อัปเดต</strong>
+                      <span>เร็วๆ นี้</span>
                     </div>
                   </div>
                 </div>
 
-                <button type="button" aria-label={`เริ่มเล่น ${theme.title}`} onClick={() => start(boss)} className="arcade-game-card__play">
-                  <span>เริ่มเล่น</span>
-                  <b aria-hidden>⚔</b>
+                <button type="button" className="arcade-game-card__play" disabled aria-disabled="true">
+                  <span>เร็วๆ นี้</span>
+                  <b aria-hidden>✨</b>
                 </button>
               </article>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
         {leaderboardId && (
           <div className="arcade-leaderboard-overlay">

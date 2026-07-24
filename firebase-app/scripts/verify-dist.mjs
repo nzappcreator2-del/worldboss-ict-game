@@ -11,15 +11,13 @@ const requiredFiles = [
   'asset-warmup.json',
   'world-boss/fitness.html',
   'world-boss/neck_quiz.html',
-  'world-boss/mario-game/index.html',
 ]
 
 const forbiddenFiles = [
   'fitness.html',
   'neck_quiz.html',
   'mario-game/index.html',
-  'world-boss/mario-game/todo.txt',
-  'world-boss/mario-game/js/outline.txt',
+  'world-boss/mario-game/index.html',
 ]
 
 const forbiddenPatterns = [

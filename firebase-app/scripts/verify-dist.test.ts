@@ -8,12 +8,11 @@ function withDistFixture(run: (distRoot: string) => void) {
   const distRoot = join(tmpdir(), `nextgen-play-dist-${crypto.randomUUID()}`)
 
   try {
-    mkdirSync(join(distRoot, 'world-boss', 'mario-game'), { recursive: true })
+    mkdirSync(join(distRoot, 'world-boss'), { recursive: true })
     mkdirSync(join(distRoot, 'assets'), { recursive: true })
     writeFileSync(join(distRoot, 'index.html'), '<link rel="stylesheet" href="/assets/index.css"><div id="root"></div>')
     writeFileSync(join(distRoot, 'world-boss', 'fitness.html'), '<!doctype html>')
     writeFileSync(join(distRoot, 'world-boss', 'neck_quiz.html'), '<!doctype html>')
-    writeFileSync(join(distRoot, 'world-boss', 'mario-game', 'index.html'), '<!doctype html>')
     writeFileSync(join(distRoot, 'assets', 'index.js'), 'console.log("ok")')
     writeFileSync(join(distRoot, 'assets', 'index.css'), '.flex{display:flex}')
     writeFileSync(join(distRoot, 'sw.js'), 'self.addEventListener("fetch", () => {})')
@@ -68,6 +67,17 @@ describe('verifyDistribution', () => {
         'Missing required build artifact: sw.js',
         'Missing required build artifact: asset-warmup.json',
       ]))
+    })
+  })
+
+  it('rejects a distribution that still ships the retired local mario-game bundle', () => {
+    withDistFixture((distRoot) => {
+      mkdirSync(join(distRoot, 'world-boss', 'mario-game'), { recursive: true })
+      writeFileSync(join(distRoot, 'world-boss', 'mario-game', 'index.html'), '<!doctype html>')
+
+      expect(verifyDistribution(distRoot).issues).toContain(
+        'Unexpected build artifact is exposed: world-boss/mario-game/index.html',
+      )
     })
   })
 

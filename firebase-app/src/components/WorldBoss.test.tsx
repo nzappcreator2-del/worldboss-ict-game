@@ -8,6 +8,9 @@ afterEach(() => {
   localStorage.clear()
 })
 
+const MARIO_URL = 'https://banwanghin-ed.web.app/games/mario-education/index.html'
+const MATH_URL = 'https://banwanghin-ed.web.app/gamification/math-speed-race-3d'
+
 const bosses = [
   { id: 'WB001', name: 'Mario', poseType: 'mario_fitness', targetReps: 10, maxHp: 100, rewardCoins: 100, rewardXp: 120 },
   { id: 'WB002_10', name: 'Safety', poseType: 'speed_runner', targetReps: 10, maxHp: 100, rewardCoins: 200, rewardXp: 200 },
@@ -23,7 +26,7 @@ function setup() {
     getCurrentUser: () => ({ id: 'u1', name: 'ฟ้า', className: 'ป.5/1', avatar: '🧙', coins: 10, xp: 20 }),
     loadBosses: vi.fn().mockResolvedValue({ success: true, data: bosses }),
     loadLeaderboard: vi.fn().mockResolvedValue({ success: true, data: [{ userId: 'u1', name: 'ฟ้า', className: 'ป.5/1', bestTime: 7, date: '2026-06-29' }] }),
-    submitScore: vi.fn().mockResolvedValue({ success: true, newCoins: 115, newXp: 140, level: 2, rank: 'SILVER', rewardCoins: 100, rewardXp: 120, previousBest: null, bestTime: 12.5, isPersonalBest: true, bossName: 'Mario' }),
+    submitScore: vi.fn().mockResolvedValue({ success: true, newCoins: 115, newXp: 140, level: 2, rank: 'SILVER', rewardCoins: 100, rewardXp: 120, previousBest: null, bestTime: 12.5, isPersonalBest: true, bossName: 'AI Safety' }),
   }
   const onExit = vi.fn()
   const onUserUpdate = vi.fn()
@@ -31,37 +34,39 @@ function setup() {
   const page = view.container.querySelector('#page-world-boss')
   expect(page?.classList.contains('hidden')).toBe(true)
   fireEvent(window, new Event('nextgen:open-world-boss'))
-  return { service, popup, openGame, onExit, onUserUpdate }
+  return { service, popup, openGame, onExit, onUserUpdate, container: view.container }
 }
 
-describe('WorldBoss', () => {
-  it('loads Firestore configuration, groups WB002, and keeps the built-in neck quiz', async () => {
-    const { service, onExit } = setup()
-    expect(await screen.findByRole('heading', { name: /มินิเกมตรวจจับท่าทาง/ })).toBeTruthy()
-    expect(service.loadBosses).toHaveBeenCalledOnce()
-    expect(screen.getByText('มาริโอ้ฟิตเนสสะสมเหรียญ')).toBeTruthy()
-    expect(screen.getByText('สมรภูมิมือปราบภัย AI')).toBeTruthy()
-    expect(screen.getByText('วิทยาการคำนวณ ม.2')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: /เริ่มเล่น/ })).toHaveLength(3)
+async function enterMotionZone() {
+  await screen.findByText('Mario Education')
+  fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ Motion & AR Arcade' }))
+  await screen.findByText('สมรภูมิมือปราบภัย AI')
+}
+
+describe('WorldBoss top-level arcade menu', () => {
+  it('shows the three arcade menu cards and exits to the main hall', async () => {
+    const { onExit } = setup()
+    expect(await screen.findByRole('heading', { name: /ศูนย์รวมมินิเกม/ })).toBeTruthy()
+    expect(screen.getByText('Mario Education')).toBeTruthy()
+    expect(screen.getByText('Math Speed Race 3D')).toBeTruthy()
+    expect(screen.getByText('Motion & AR Arcade')).toBeTruthy()
+    // The menu is a mode chooser, not a scoreboard — no reward columns here.
+    expect(screen.queryByText('รางวัลสูงสุด')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'กลับห้องโถงหลัก' }))
     expect(onExit).toHaveBeenCalledOnce()
   })
 
-  it('shows arcade guide chips, rewards, and stored personal bests on the renovated hub', async () => {
-    localStorage.setItem('wb_best_time_u1_WB001', '12.50')
+  it('shows the game-mode guide chips on the menu', async () => {
     setup()
-    await screen.findByText('มาริโอ้ฟิตเนสสะสมเหรียญ')
-    expect(screen.getByText('อนุญาตสิทธิ์กล้อง')).toBeTruthy()
-    expect(screen.getByText('แสงสว่างเพียงพอ')).toBeTruthy()
-    expect(screen.getByText('อยู่กึ่งกลางเฟรม')).toBeTruthy()
-    expect(screen.getAllByText('รางวัลสูงสุด')).toHaveLength(3)
-    expect(screen.getAllByText('สถิติของคุณ')).toHaveLength(3)
-    expect(screen.getByText('12.50')).toBeTruthy()
-    expect(screen.getAllByText('ยังไม่มีสถิติ')).toHaveLength(2)
+    await screen.findByText('Mario Education')
+    expect(screen.getByText('เลือกโหมดเกม')).toBeTruthy()
+    expect(screen.getByText('Mario 8-Bit')).toBeTruthy()
+    expect(screen.getByText('Math Race 3D')).toBeTruthy()
+    expect(screen.getByText('Motion & AR')).toBeTruthy()
   })
 
-  it('renders the reference arcade stage and production card shells', async () => {
+  it('renders the reference arcade stage with exactly three menu card shells', async () => {
     const { container } = render(
       <WorldBoss
         service={{
@@ -82,9 +87,87 @@ describe('WorldBoss', () => {
     expect(container.querySelectorAll('.arcade-game-card__energy')).toHaveLength(3)
   })
 
+  it('opens Mario Education in a new tab, bypassing the session/score pipeline', async () => {
+    const { openGame, service } = setup()
+    await screen.findByText('Mario Education')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+
+    expect(openGame).toHaveBeenCalledWith(MARIO_URL)
+    expect(await screen.findByText(/เปิด Mario Education ในแท็บใหม่แล้ว/)).toBeTruthy()
+    expect(service.submitScore).not.toHaveBeenCalled()
+  })
+
+  it('opens Math Speed Race 3D in a new tab, bypassing the session/score pipeline', async () => {
+    const { openGame, service } = setup()
+    await screen.findByText('Math Speed Race 3D')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Math Speed Race 3D' }))
+
+    expect(openGame).toHaveBeenCalledWith(MATH_URL)
+    expect(await screen.findByText(/เปิด Math Speed Race 3D ในแท็บใหม่แล้ว/)).toBeTruthy()
+    expect(service.submitScore).not.toHaveBeenCalled()
+  })
+
+  it('lets students launch the external games without being logged in', async () => {
+    const openGame = vi.fn((): Window => ({} as Window))
+    const service: WorldBossService = {
+      getCurrentUser: () => null,
+      loadBosses: vi.fn().mockResolvedValue({ success: true, data: bosses }),
+      loadLeaderboard: vi.fn(),
+      submitScore: vi.fn(),
+    }
+    render(<WorldBoss service={service} onExit={vi.fn()} onUserUpdate={vi.fn()} openGame={openGame} createSession={() => 'session-1'} />)
+    fireEvent(window, new Event('nextgen:open-world-boss'))
+
+    await screen.findByText('Math Speed Race 3D')
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Math Speed Race 3D' }))
+
+    expect(openGame).toHaveBeenCalledWith(MATH_URL)
+    expect(screen.queryByText('กรุณาล็อกอินก่อนเริ่ม World Boss')).toBeNull()
+  })
+
+  it('reports a blocked pop-up for an external game without leaving the menu', async () => {
+    const { openGame } = setup()
+    await screen.findByText('Mario Education')
+    vi.mocked(openGame).mockReturnValueOnce(null)
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
+    expect(screen.getByText(/เบราว์เซอร์บล็อกหน้าต่างเกม/)).toBeTruthy()
+    // Still on the menu.
+    expect(screen.getByText('Motion & AR Arcade')).toBeTruthy()
+  })
+})
+
+describe('WorldBoss Motion & AR zone', () => {
+  it('reveals the relocated camera games plus a coming-soon slot, and returns to the menu', async () => {
+    setup()
+    await enterMotionZone()
+
+    expect(screen.getByRole('heading', { name: /มินิเกมตรวจจับท่าทาง/ })).toBeTruthy()
+    expect(screen.getByText('สมรภูมิมือปราบภัย AI')).toBeTruthy()
+    expect(screen.getByText('Neck-Tilt Quiz AI')).toBeTruthy()
+    // Extensible: a coming-soon placeholder fills the third cabinet slot.
+    expect(screen.getByText('เปิดรับมินิเกมใหม่')).toBeTruthy()
+    expect(screen.getByText('อนุญาตสิทธิ์กล้อง')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /เริ่มเล่น/ })).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'กลับเมนูมินิเกม' }))
+    expect(await screen.findByText('Math Speed Race 3D')).toBeTruthy()
+    expect(screen.queryByText('สมรภูมิมือปราบภัย AI')).toBeNull()
+  })
+
+  it('shows rewards and stored personal bests for the camera games', async () => {
+    localStorage.setItem('wb_best_time_u1_WB002', '12.50')
+    setup()
+    await enterMotionZone()
+
+    expect(screen.getAllByText('รางวัลสูงสุด')).toHaveLength(2)
+    expect(screen.getAllByText('สถิติของคุณ')).toHaveLength(2)
+    expect(screen.getByText('12.50')).toBeTruthy()
+    expect(screen.getAllByText('ยังไม่มีสถิติ')).toHaveLength(1)
+  })
+
   it('loads leaderboard variants with the correct score unit', async () => {
     const { service } = setup()
-    await screen.findByText('สมรภูมิมือปราบภัย AI')
+    await enterMotionZone()
     fireEvent.click(screen.getByRole('button', { name: 'ดูอันดับ สมรภูมิมือปราบภัย AI' }))
     await waitFor(() => expect(service.loadLeaderboard).toHaveBeenCalledWith('WB002_10'))
     expect(screen.getByText('7 ข้อ')).toBeTruthy()
@@ -94,8 +177,8 @@ describe('WorldBoss', () => {
 
   it('opens a same-origin Vite game without a GAS callback URL', async () => {
     const { openGame } = setup()
-    await screen.findByText('มาริโอ้ฟิตเนสสะสมเหรียญ')
-    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น มาริโอ้ฟิตเนสสะสมเหรียญ' }))
+    await enterMotionZone()
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น สมรภูมิมือปราบภัย AI' }))
 
     const target = new URL(vi.mocked(openGame).mock.calls[0][0])
     expect(target.origin).toBe(window.location.origin)
@@ -106,18 +189,18 @@ describe('WorldBoss', () => {
 
   it('accepts one trusted popup result and persists it through Firestore', async () => {
     const { service, popup, onUserUpdate } = setup()
-    await screen.findByText('มาริโอ้ฟิตเนสสะสมเหรียญ')
-    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น มาริโอ้ฟิตเนสสะสมเหรียญ' }))
+    await enterMotionZone()
+    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น สมรภูมิมือปราบภัย AI' }))
 
-    const invalid = new MessageEvent('message', { origin: window.location.origin, data: { type: 'nextgen:world-boss-result', session: 'wrong', payload: { bossId: 'WB001', score: 12.5, bonusCoins: 5 } } })
+    const invalid = new MessageEvent('message', { origin: window.location.origin, data: { type: 'nextgen:world-boss-result', session: 'wrong', payload: { bossId: 'WB002_10', score: 12.5, bonusCoins: 5 } } })
     Object.defineProperty(invalid, 'source', { value: popup })
     fireEvent(window, invalid)
     expect(service.submitScore).not.toHaveBeenCalled()
 
-    const valid = new MessageEvent('message', { origin: window.location.origin, data: { type: 'nextgen:world-boss-result', session: 'session-1', payload: { bossId: 'WB001', score: 12.5, bonusCoins: 5 } } })
+    const valid = new MessageEvent('message', { origin: window.location.origin, data: { type: 'nextgen:world-boss-result', session: 'session-1', payload: { bossId: 'WB002_10', score: 12.5, bonusCoins: 5 } } })
     Object.defineProperty(valid, 'source', { value: popup })
     fireEvent(window, valid)
-    await waitFor(() => expect(service.submitScore).toHaveBeenCalledWith('u1', 'WB001', 12.5, 5))
+    await waitFor(() => expect(service.submitScore).toHaveBeenCalledWith('u1', 'WB002_10', 12.5, 5))
     expect(onUserUpdate).toHaveBeenCalledWith({ coins: 115, xp: 140, level: 2, rank: 'SILVER' })
     expect(await screen.findByText(/บันทึกสถิติสำเร็จ/)).toBeTruthy()
 
@@ -125,17 +208,10 @@ describe('WorldBoss', () => {
     expect(service.submitScore).toHaveBeenCalledOnce()
   })
 
-  it('shows configuration and popup failures without leaving the page', async () => {
-    const { service, openGame } = setup()
+  it('surfaces a configuration load failure', async () => {
+    const { service } = setup()
     vi.mocked(service.loadBosses).mockResolvedValueOnce({ success: false, error: 'โหลดบอสไม่ได้' })
     fireEvent(window, new Event('nextgen:open-world-boss'))
     expect(await screen.findByText('โหลดบอสไม่ได้')).toBeTruthy()
-
-    vi.mocked(service.loadBosses).mockResolvedValueOnce({ success: true, data: bosses })
-    vi.mocked(openGame).mockReturnValueOnce(null)
-    fireEvent(window, new Event('nextgen:open-world-boss'))
-    await screen.findByText('มาริโอ้ฟิตเนสสะสมเหรียญ')
-    fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น มาริโอ้ฟิตเนสสะสมเหรียญ' }))
-    expect(screen.getByText(/เบราว์เซอร์บล็อกหน้าต่างเกม/)).toBeTruthy()
   })
 })

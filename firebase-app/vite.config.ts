@@ -3,8 +3,8 @@ import { defineConfig } from 'vite'
 import type { Plugin, ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { extname, relative, resolve, sep } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { extname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { extractLegacyBody, migrateLegacyBackendCalls, migrateLegacyPageCss, removeElementById, replaceElementWithPortal, stripHtmlTag } from './src/legacy/legacyDocument'
 import { stripLegacyFunctions } from './src/legacy/stripLegacyFunctions'
@@ -28,10 +28,10 @@ const worldBossContentType: Record<string, string> = {
 }
 
 export function isWorldBossAssetPath(relativePath: string) {
-  if (relativePath === 'fitness.html' || relativePath === 'neck_quiz.html') return true
-  if (!relativePath.startsWith('mario-game/')) return false
-  const name = relativePath.slice('mario-game/'.length)
-  return name !== '.gitignore' && name !== 'README.md' && !name.endsWith('.txt')
+  // The local mario-game/ bundle is retired (replaced by the external Mario
+  // Education game) but kept on disk under legacy-gas/ for reference — it is
+  // deliberately excluded here so it is never served or bundled into dist/.
+  return relativePath === 'fitness.html' || relativePath === 'neck_quiz.html'
 }
 
 function standaloneWorldBossSource(relativePath: string) {
@@ -45,17 +45,12 @@ function standaloneWorldBossSource(relativePath: string) {
 }
 
 function worldBossAssetsPlugin(): Plugin {
-  const marioRoot = resolve(legacyRoot, 'mario-game')
-  const marioFiles = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = resolve(directory, entry.name)
-    return entry.isDirectory() ? marioFiles(path) : [path]
-  })
   const serve = (server: ViteDevServer) => {
     server.middlewares.use((request, response, next) => {
       const pathname = decodeURIComponent(new URL(request.url || '/', 'http://localhost').pathname)
       if (!pathname.startsWith('/world-boss/')) return next()
       const relativePath = pathname.slice('/world-boss/'.length)
-      if (!['fitness.html', 'neck_quiz.html'].includes(relativePath) && !relativePath.startsWith('mario-game/')) return next()
+      if (!['fitness.html', 'neck_quiz.html'].includes(relativePath)) return next()
       const source = standaloneWorldBossSource(relativePath)
       if (!source) return next()
       response.statusCode = 200
@@ -71,11 +66,6 @@ function worldBossAssetsPlugin(): Plugin {
         const source = standaloneWorldBossSource(fileName)
         if (!source) throw new Error(`Missing legacy World Boss asset: ${fileName}`)
         this.emitFile({ type: 'asset', fileName: `world-boss/${fileName}`, source })
-      }
-      for (const filePath of marioFiles(marioRoot)) {
-        const name = relative(marioRoot, filePath).split(sep).join('/')
-        if (!isWorldBossAssetPath(`mario-game/${name}`)) continue
-        this.emitFile({ type: 'asset', fileName: `world-boss/mario-game/${name}`, source: readFileSync(filePath) })
       }
     },
   }

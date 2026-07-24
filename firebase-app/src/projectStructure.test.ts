@@ -97,11 +97,12 @@ describe('Firebase migration project structure', () => {
     expect(viteConfig).toContain("return 'react-vendor'")
     expect(viteConfig).toContain("return 'firebase-vendor'")
     expect(viteConfig).toContain("fileName: `world-boss/${fileName}`")
-    expect(viteConfig).toContain("fileName: `world-boss/mario-game/${name}`")
     expect(isWorldBossAssetPath('fitness.html')).toBe(true)
     expect(isWorldBossAssetPath('neck_quiz.html')).toBe(true)
-    expect(isWorldBossAssetPath('mario-game/index.html')).toBe(true)
-    expect(isWorldBossAssetPath('mario-game/css/game.css')).toBe(true)
+    // The local mario-game/ bundle is retired in favor of the external Mario
+    // Education game; it must never be served or bundled again.
+    expect(isWorldBossAssetPath('mario-game/index.html')).toBe(false)
+    expect(isWorldBossAssetPath('mario-game/css/game.css')).toBe(false)
     expect(isWorldBossAssetPath('mario-game/README.md')).toBe(false)
     expect(isWorldBossAssetPath('mario-game/.gitignore')).toBe(false)
     expect(isWorldBossAssetPath('mario-game/todo.txt')).toBe(false)

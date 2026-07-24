@@ -14,6 +14,21 @@ export type WorldBossResultMessage = {
   payload: { bossId: string; score: number; bonusCoins: number }
 }
 
+// External, self-contained supplemental games. They open in a new tab and are
+// intentionally NOT wired into the session/postMessage/score pipeline — they
+// have no leaderboard and never write to Firestore.
+export const MARIO_EDUCATION_URL = 'https://banwanghin-ed.web.app/games/mario-education/index.html'
+export const MATH_SPEED_RACE_URL = 'https://banwanghin-ed.web.app/gamification/math-speed-race-3d'
+
+// The Motion & AR zone lists the camera/motion mini-games that DO use the
+// local standalone-game pipeline (fitness.html / neck_quiz.html) and record
+// scores. Mario (mario_fitness / WB001) is an external card in the top menu,
+// so it is excluded here. New motion games added to the catalog appear
+// automatically.
+export function motionArcadeBosses<T extends Pick<WorldBossConfig, 'id' | 'poseType'>>(bosses: T[]): T[] {
+  return bosses.filter((boss) => boss.id !== 'WB001' && boss.poseType !== 'mario_fitness')
+}
+
 const neckQuiz: WorldBossConfig = {
   id: 'WB003',
   name: 'วิทยาการคำนวณ ม.2 (Neck-Tilt Quiz AI)',

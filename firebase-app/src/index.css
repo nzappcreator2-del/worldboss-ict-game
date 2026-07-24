@@ -3250,6 +3250,11 @@
 .arcade-game-card__play b { font-size: .85em; }
 .arcade-game-card__play:hover { filter: brightness(1.35); transform: translateY(-3%); }
 .arcade-game-card__play:active { transform: translateY(6%) scale(.98); }
+.arcade-game-card__play:disabled { cursor: default; filter: grayscale(.5) brightness(.85); opacity: .6; }
+.arcade-game-card__play:disabled:hover { transform: none; filter: grayscale(.5) brightness(.85); }
+.arcade-game-card--soon { filter: grayscale(.4) brightness(.92) drop-shadow(0 8px 12px #0008); }
+.arcade-game-card--soon:hover { transform: none; }
+.arcade-game-card--soon .arcade-game-card__art b { animation: none; opacity: .85; }
 
 .arcade-leaderboard-overlay { position: absolute; z-index: 50; inset: 0; display: grid; place-items: center; padding: 5%; background: #020713b5; backdrop-filter: blur(8px); }
 .arcade-leaderboard { width: min(820px, 75%); max-height: 82%; overflow: auto; border: 3px solid #9ab1c1; border-radius: 18px; background: #071422f5; box-shadow: inset 0 0 0 2px #263c4c, 0 30px 80px #000, 0 0 35px #38d8ff55; }
