@@ -230,6 +230,23 @@ export function createGameAudioManager(options: GameAudioOptions = {}) {
       startDesiredMusic()
     },
 
+    // Halts music synchronously, without the rAF cross-fade. `setMusic(null)`
+    // only *schedules* a fade, and requestAnimationFrame is frozen while the
+    // tab is in the background — which is exactly the moment a mini-game opens
+    // in a new tab — so the fade would not run and the music would keep
+    // playing. This pauses the elements right now on the current call stack.
+    // desiredMusic is cleared so nothing silently restarts it; a later
+    // setMusic() call resumes normally.
+    stopImmediately(): void {
+      desiredMusic = null
+      stopFade()
+      for (const voice of [...voices]) {
+        release(voice.element)
+        voices.delete(voice)
+      }
+      currentVoice = null
+    },
+
     dispose(): void {
       stopFade()
       for (const element of preparedMusic.values()) release(element)

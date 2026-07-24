@@ -236,7 +236,10 @@ export function WorldBoss({
 
   const launchGame = (popup: Window): void => {
     activePopups.current.add(popup)
-    gameAudio.setMusic(null)
+    // Stop synchronously (not setMusic(null)): the game opens in a new tab, so
+    // this hub tab backgrounds immediately and its rAF-based fade would freeze,
+    // leaving the music audible until the user tabs back. See gameAudio.stopImmediately.
+    gameAudio.stopImmediately()
   }
 
   const load = useCallback(async () => {

@@ -218,22 +218,24 @@ describe('WorldBoss Motion & AR zone', () => {
 })
 
 describe('WorldBoss hub music while a game tab is open', () => {
-  it('stops the hub background music the instant an external game opens', async () => {
-    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+  it('stops the hub background music synchronously the instant an external game opens', async () => {
+    const stopImmediately = vi.spyOn(gameAudio, 'stopImmediately')
     setup()
     await screen.findByText('Mario Education')
     fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น Mario Education' }))
 
-    expect(setMusic).toHaveBeenCalledWith(null)
+    // Must use the synchronous stop, not the rAF-fade setMusic(null), so audio
+    // halts even while this tab is backgrounding behind the new game tab.
+    expect(stopImmediately).toHaveBeenCalledOnce()
   })
 
-  it('stops the hub background music the instant a motion/camera game opens', async () => {
-    const setMusic = vi.spyOn(gameAudio, 'setMusic')
+  it('stops the hub background music synchronously the instant a motion/camera game opens', async () => {
+    const stopImmediately = vi.spyOn(gameAudio, 'stopImmediately')
     setup()
     await enterMotionZone()
     fireEvent.click(screen.getByRole('button', { name: 'เริ่มเล่น สมรภูมิมือปราบภัย AI' }))
 
-    expect(setMusic).toHaveBeenCalledWith(null)
+    expect(stopImmediately).toHaveBeenCalledOnce()
   })
 
   it('does not resume music while the launched game tab is still open', async () => {

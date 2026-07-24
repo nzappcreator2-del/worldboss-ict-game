@@ -198,6 +198,25 @@ describe('createGameAudioManager', () => {
     expect(() => manager.unlock()).not.toThrow()
   })
 
+  it('stops music synchronously without waiting for the rAF fade, then resumes on request', () => {
+    const audio = audioHarness()
+    const frames = frameHarness()
+    const manager = createGameAudioManager({ ...audio, ...frames, fadeDurationMs: 1000 })
+    manager.setMusic('bossBattle')
+    frames.advanceTo(1000)
+    expect(audio.elements[0].play).toHaveBeenCalledTimes(1)
+
+    // No frame advance here — this is the background-tab case where rAF is frozen.
+    manager.stopImmediately()
+    expect(audio.elements[0].pause).toHaveBeenCalledOnce()
+    expect(audio.elements[0].currentTime).toBe(0)
+
+    // A later request brings the music back on the preloaded element.
+    manager.setMusic('bossBattle')
+    expect(audio.elements).toHaveLength(1)
+    expect(audio.elements[0].play).toHaveBeenCalledTimes(2)
+  })
+
   it('stops and releases all active music during cleanup', () => {
     const audio = audioHarness()
     const manager = createGameAudioManager({ ...audio, ...frameHarness() })
