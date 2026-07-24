@@ -109,6 +109,14 @@ describe('Firebase migration project structure', () => {
     expect(isWorldBossAssetPath('mario-game/js/outline.txt')).toBe(false)
   })
 
+  it('never lets the test runner pick up test files from background-agent worktrees under .claude/', () => {
+    const viteConfig = readFileSync(`${appRoot}/vite.config.ts`, 'utf8')
+
+    expect(viteConfig).toContain("import { configDefaults } from 'vitest/config'")
+    expect(viteConfig).toContain('...configDefaults.exclude')
+    expect(viteConfig).toContain("'**/.claude/**'")
+  })
+
   it('builds Tailwind utilities locally for both React and preserved legacy UI sources', () => {
     const index = readFileSync(`${appRoot}/index.html`, 'utf8')
     const main = readFileSync(`${appRoot}/src/main.tsx`, 'utf8')

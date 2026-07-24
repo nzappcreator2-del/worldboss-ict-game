@@ -1,5 +1,5 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import type { Plugin, ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -557,6 +557,10 @@ export default defineConfig({
   // parallel suite run the default 5s per-test budget flakes on slower CPUs.
   test: {
     testTimeout: 20000,
+    // Background-agent worktrees (.claude/worktrees/**) live inside this repo
+    // checkout but are separate, independently evolving working trees — their
+    // test files must never be picked up by this project's own test run.
+    exclude: [...configDefaults.exclude, '**/.claude/**'],
   },
   build: {
     rollupOptions: {
