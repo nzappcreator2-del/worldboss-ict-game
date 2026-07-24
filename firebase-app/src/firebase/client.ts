@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { browserLocalPersistence, indexedDBLocalPersistence, initializeAuth, signInAnonymously } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { firebaseConfig } from './config'
 
 export const firebaseApp = initializeApp(firebaseConfig)
@@ -12,7 +12,21 @@ export const firebaseApp = initializeApp(firebaseConfig)
 export const auth = initializeAuth(firebaseApp, {
   persistence: [indexedDBLocalPersistence, browserLocalPersistence],
 })
-export const db = getFirestore(firebaseApp)
+// Persistent IndexedDB cache: on flaky school wifi it lets already-seen data
+// render offline, and it backs re-attached listeners from disk instead of the
+// network. It does not by itself reduce one-time getDocs reads — the readCache
+// layer (services/readCache.ts) does that — but the two are complementary.
+// Wrapped so a double-init on HMR, or an environment without IndexedDB, falls
+// back to the plain in-memory Firestore instead of throwing at startup.
+export const db = (() => {
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    })
+  } catch {
+    return getFirestore(firebaseApp)
+  }
+})()
 
 let authTask: ReturnType<typeof signInAnonymously> | undefined
 

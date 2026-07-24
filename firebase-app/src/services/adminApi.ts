@@ -16,6 +16,7 @@ import {
 import { adminDb, ensureAdminSession } from '../firebase/adminClient'
 import { adminQuestion, resetUserData, sanitizePublicSettings, studentReport } from './adminLogic'
 import { invalidateAiConfigCache } from './aiApi'
+import { clearReadCache, invalidateReadCache, invalidateReadCachePrefix } from './readCache'
 import { maskApiKey } from './geminiLogic'
 import { DAILY_QUEST_DEFAULTS, mergeDailyQuestConfig, unlockAllCosmetics } from './gameLogic'
 import {
@@ -45,6 +46,14 @@ type Data = Record<string, unknown>
 const rows = async (name: string) => {
   const snapshot = await getDocs(collection(adminDb, name))
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))
+}
+
+// A student edit changes the public directory mirror (leaderboards + name list)
+// and that student's progress list, so drop those caches for the admin session.
+const invalidateStudentCaches = (userId: string) => {
+  invalidateReadCache('directory')
+  invalidateReadCache('leaderboard:top')
+  invalidateReadCache(`progress:${userId}`)
 }
 
 async function deleteReferences(refs: DocumentReference[]) {
@@ -99,6 +108,9 @@ async function saveAdminLesson(rawData: unknown, pin: unknown) {
     lessonMapSet: String(data.lessonMapSet || ''),
     updatedAt: serverTimestamp(),
   }, { merge: true })
+  // Let the teacher's own session re-read the fresh catalog immediately;
+  // students pick it up when their content cache expires.
+  invalidateReadCache('lessons:content')
   return { success: true, id, message: data.id ? 'Updated successfully' : 'Created successfully' }
 }
 
@@ -115,6 +127,10 @@ async function deleteAdminLesson(rawLessonId: unknown, pin: unknown) {
   ])
   await deleteReferences([...questionRows.docs, ...questRows.docs].map((item) => item.ref))
   await deleteDoc(doc(adminDb, 'lessons', lessonId))
+  invalidateReadCache('lessons:content')
+  invalidateReadCache(`questions:${lessonId}`)
+  invalidateReadCache('questions:all')
+  invalidateReadCache('teacherQuests:studentRows')
   return { success: true, deletedQuests: questRows.docs.length }
 }
 
@@ -159,6 +175,10 @@ async function saveBatchQuestions(rawLessonId: unknown, rawType: unknown, rawQue
     })
     await batch.commit()
   }
+  // Question counts feed the lesson catalog, so refresh both.
+  invalidateReadCache('lessons:content')
+  invalidateReadCache(`questions:${lessonId}`)
+  invalidateReadCache('questions:all')
   return { success: true, message: 'บันทึกข้อสอบเสร็จสมบูรณ์' }
 }
 
@@ -210,6 +230,7 @@ async function resetStudentData(rawUserId: unknown, pin: unknown) {
   await setDoc(doc(adminDb, 'directory', userId), directoryEntry(reset), { merge: true })
   const progress = await getDocs(query(collection(adminDb, 'progress'), where('userId', '==', userId)))
   await deleteReferences([...progress.docs.map((item) => item.ref), ...await studentScoreRefs(userId)])
+  invalidateStudentCaches(userId)
   return { success: true }
 }
 
@@ -223,6 +244,7 @@ async function deleteStudentData(rawUserId: unknown, pin: unknown) {
   await deleteDoc(doc(adminDb, 'directory', userId))
   await deleteReferences([...progress.docs.map((item) => item.ref), ...await studentScoreRefs(userId)])
   await deleteDoc(doc(adminDb, 'users', userId))
+  invalidateStudentCaches(userId)
   return { success: true }
 }
 
@@ -283,6 +305,9 @@ async function resetAllStudentData(rawClass: unknown, pin: unknown) {
     ...worldBoss.docs.filter((item) => targetIds.has(String(item.data().userId))),
     ...rankings.docs.filter((item) => targetIds.has(item.id)),
   ].map((item) => item.ref))
+  invalidateReadCache('directory')
+  invalidateReadCache('leaderboard:top')
+  invalidateReadCachePrefix('progress:')
   return { success: true, count: users.length }
 }
 
@@ -294,6 +319,7 @@ async function saveSettings(rawSettings: unknown, pin: unknown) {
     AdminPIN: deleteField(),
     GeminiAPIKey: deleteField(),
   }, { merge: true })
+  invalidateReadCache('settings:public')
   return { success: true, message: 'Settings saved' }
 }
 
@@ -358,12 +384,14 @@ async function saveNewsItem(rawItem: unknown, pin: unknown) {
     isActive: item.isActive !== false,
     updatedAt: serverTimestamp(),
   }, { merge: true })
+  invalidateReadCache('news:active')
   return { success: true, message: item.id ? 'บันทึกอัปเดตประกาศสำเร็จ' : 'เพิ่มประกาศใหม่สำเร็จ' }
 }
 
 async function deleteNewsItem(rawId: unknown, pin: unknown) {
   await ensureAdminSession(pin)
   await deleteDoc(doc(adminDb, 'news', String(rawId || '')))
+  invalidateReadCache('news:active')
   return { success: true, message: 'ลบประกาศเรียบร้อยแล้ว' }
 }
 
@@ -395,6 +423,7 @@ async function saveAdminDailyQuest(rawData: unknown, pin: unknown) {
     isActive: merged.isActive,
     updatedAt: serverTimestamp(),
   }, { merge: true })
+  invalidateReadCache('dailyQuests')
   return { success: true, message: 'บันทึกภารกิจรายวันแล้ว' }
 }
 
@@ -485,6 +514,7 @@ async function saveAdminTeacherQuest(rawData: unknown, pin: unknown) {
   const rewards = validateQuestRewards(quest.rewards)
   if (!rewards.valid) return { success: false, error: rewards.error }
   await setDoc(doc(adminDb, 'teacherQuests', id), { ...quest, updatedAt: serverTimestamp() }, { merge: true })
+  invalidateReadCache('teacherQuests:studentRows')
   return { success: true, id, message: data.questId ? 'บันทึกเควสต์แล้ว' : 'สร้างเควสต์ใหม่แล้ว' }
 }
 
@@ -499,6 +529,7 @@ async function deleteAdminTeacherQuest(rawQuestId: unknown, pin: unknown) {
   const questId = String(rawQuestId || '').trim()
   if (!questId) return { success: false, error: 'ไม่พบเควสต์ที่จะลบ' }
   await deleteDoc(doc(adminDb, 'teacherQuests', questId))
+  invalidateReadCache('teacherQuests:studentRows')
   return { success: true, message: 'ลบเควสต์แล้ว' }
 }
 
@@ -588,12 +619,14 @@ async function saveAdminCyberScenario(rawData: unknown, pin: unknown) {
     feedbackRight: String(data.feedbackRight || ''),
     updatedAt: serverTimestamp(),
   }, { merge: true })
+  invalidateReadCache('cyberScenarios')
   return { success: true, id, message: 'บันทึกสถานการณ์ไซเบอร์แล้ว' }
 }
 
 async function deleteAdminCyberScenario(rawId: unknown, pin: unknown) {
   await ensureAdminSession(pin)
   await deleteDoc(doc(adminDb, 'cyberSafetyScenarios', String(rawId || '')))
+  invalidateReadCache('cyberScenarios')
   return { success: true, message: 'ลบสถานการณ์แล้ว' }
 }
 
@@ -647,6 +680,9 @@ async function runSystemCleanup(rawKeys: unknown, rawConfirmation: unknown, pin:
   // remove a student who registered in the meantime.
   const plan = planCleanup(keys, await cleanupSnapshotFor(keys))
   await deleteReferences(plan.targets.map((target) => doc(adminDb, target.collection, target.id)))
+  // A wipe can touch any cached collection; drop the whole cache so the admin
+  // session never shows deleted content.
+  clearReadCache()
   return { success: true, count: plan.total, message: `ล้างข้อมูลแล้ว ${plan.total} รายการ` }
 }
 

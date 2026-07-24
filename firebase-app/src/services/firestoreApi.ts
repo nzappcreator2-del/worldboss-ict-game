@@ -6,6 +6,7 @@ import {
   getDocs,
   limit,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -14,6 +15,14 @@ import {
   where,
 } from 'firebase/firestore'
 import { db, ensureSignedIn } from '../firebase/client'
+import {
+  cachedRead,
+  clearReadCache,
+  invalidateReadCache,
+  CONTENT_TTL_MS,
+  DIRECTORY_TTL_MS,
+  PROGRESS_TTL_MS,
+} from './readCache'
 import {
   applyDailyProgress,
   applyLoginBonus,
@@ -77,10 +86,22 @@ const values = async (path: string) => {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))
 }
 
-const questionRowsForLesson = async (lessonId: string) => {
-  const snapshot = await getDocs(query(collection(db, 'questions'), where('lessonId', '==', lessonId)))
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))
-}
+// The public `directory` mirror is read by the name picker, both leaderboards
+// and the profile "sequence" stat. It used to be re-downloaded in full on each
+// of those; one short-lived shared cache collapses them into a single read.
+const cachedDirectory = () => cachedRead('directory', DIRECTORY_TTL_MS, () => values('directory'))
+
+// Any write that changes a teacher-quest board cell drops this student's cached
+// board so the next read (map markers, tracker, NPC panel) recomputes.
+const invalidateQuestBoard = (rawUserId: unknown) => invalidateReadCache(`questBoard:${String(rawUserId || '')}`)
+
+// Questions rarely change (admin edits invalidate them) and are re-read on
+// every quiz/boss/replay, so cache them per lesson.
+const questionRowsForLesson = async (lessonId: string) =>
+  cachedRead(`questions:${lessonId}`, CONTENT_TTL_MS, async () => {
+    const snapshot = await getDocs(query(collection(db, 'questions'), where('lessonId', '==', lessonId)))
+    return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Data))
+  })
 
 const questionCountsFor = async (lessonIds: string[]) => {
   const entries = await Promise.all(lessonIds.map(async (lessonId) => {
@@ -97,6 +118,25 @@ const ownedUser = async (userId: unknown) => {
   if (!snapshot.exists()) throw new Error('User not found')
   if (snapshot.data().ownerUid !== identity.uid) throw new Error('This student profile belongs to another session')
   return { identity, ref, snapshot }
+}
+
+// For mutations we build the user ref WITHOUT a pre-read and enforce ownership
+// inside the transaction that follows (which reads the user document anyway).
+// This drops the extra getDoc that ownedUser() cost on every reward/quest/shop
+// write — the biggest remaining per-student read source — and closes the small
+// read-then-transact gap the old pre-check had (the check now runs on the same
+// snapshot the write commits against).
+const ownedUserRef = async (rawUserId: unknown) => {
+  const identity = await ensureSignedIn()
+  return { identity, ref: doc(db, 'users', String(rawUserId || '')) }
+}
+
+function assertOwnedSnapshot(
+  snapshot: { exists(): boolean; data(): Record<string, unknown> | undefined },
+  identity: { uid: string },
+) {
+  if (!snapshot.exists()) throw new Error('User not found')
+  if (snapshot.data()?.ownerUid !== identity.uid) throw new Error('This student profile belongs to another session')
 }
 
 const DIRECTORY_MIRRORED_KEYS = ['name', 'class', 'avatar', 'xp', 'level', 'rank']
@@ -144,9 +184,10 @@ const todayThailand = () => new Intl.DateTimeFormat('en-CA', {
 
 async function mutateOwnedUser<T>(rawUserId: unknown, operation: (user: Data) => { result: T; update?: Data }): Promise<T> {
   const userId = String(rawUserId || '')
-  const { ref } = await ownedUser(userId)
+  const { identity, ref } = await ownedUserRef(userId)
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref)
+    assertOwnedSnapshot(snapshot, identity)
     const user = snapshot.data() || {}
     const change = operation(user)
     if (change.update) {
@@ -157,6 +198,18 @@ async function mutateOwnedUser<T>(rawUserId: unknown, operation: (user: Data) =>
     }
     return change.result
   })
+}
+
+// Same as mutateOwnedUser, but for writes that can change a teacher-quest board
+// cell (worksheet/quest-stamp updates): it drops the student's cached board so
+// the NPC panel and map markers reflect the change on the very next read.
+async function mutateOwnedUserAndRefreshQuests<T>(
+  rawUserId: unknown,
+  operation: (user: Data) => { result: T; update?: Data },
+): Promise<T> {
+  const result = await mutateOwnedUser(rawUserId, operation)
+  invalidateQuestBoard(rawUserId)
+  return result
 }
 
 const normalizeQuestion = (item: Data) => ({
@@ -178,26 +231,30 @@ const normalizeQuestion = (item: Data) => ({
 
 async function getRegisteredUsers() {
   await ensureSignedIn()
-  const users = (await values('directory')).map((item) => ({
+  const users = (await cachedDirectory()).map((item) => ({
     name: String(item.name || ''), class: String(item.class || ''), avatar: String(item.avatar || '🧙‍♂️'),
   }))
   return { success: true, data: users }
 }
 
 async function getSettings() {
-  await ensureSignedIn()
-  const snapshot = await getDoc(doc(db, 'settings', 'public'))
-  return {
-    success: true,
-    data: snapshot.exists()
-      ? sanitizePublicSettings(snapshot.data())
-      : { TimerPerQuestion: 30, Classes: 'ป.4,ป.5,ป.6' },
-  }
+  return cachedRead('settings:public', CONTENT_TTL_MS, async () => {
+    await ensureSignedIn()
+    const snapshot = await getDoc(doc(db, 'settings', 'public'))
+    return {
+      success: true,
+      data: snapshot.exists()
+        ? sanitizePublicSettings(snapshot.data())
+        : { TimerPerQuestion: 30, Classes: 'ป.4,ป.5,ป.6' },
+    }
+  })
 }
 
 async function getActiveNews() {
-  await ensureSignedIn()
-  return sortActiveNews(await values('news'))
+  return cachedRead('news:active', CONTENT_TTL_MS, async () => {
+    await ensureSignedIn()
+    return sortActiveNews(await values('news'))
+  })
 }
 
 export function subscribeActiveNews(onNews: (news: ActiveNews[]) => void, onError?: (error: Error) => void) {
@@ -253,6 +310,9 @@ export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvata
   const name = String(rawName || '').trim()
   const className = String(rawClass || '').trim()
   if (!name || !className) return { success: false, error: 'กรุณาระบุชื่อและชั้นเรียน' }
+  // Start each login with an empty cache so a shared classroom device never
+  // serves the previous student's per-user (progress) reads to the next.
+  clearReadCache()
 
   // Existing profiles are located via the reduced public directory; full user
   // docs are only readable after the claim write succeeds (rules enforce the
@@ -298,23 +358,30 @@ export async function loginStudent(rawName: unknown, rawClass: unknown, rawAvata
 }
 
 async function getStudentProgress(rawUserId: unknown) {
-  await ensureSignedIn()
-  const rows = await getDocs(query(collection(db, 'progress'), where('userId', '==', String(rawUserId))))
-  return {
-    success: true,
-    data: rows.docs.filter((item) => ['Passed', 'Completed'].includes(String(item.data().status))).map((item) => String(item.data().lessonId)),
-  }
+  const userId = String(rawUserId)
+  // Passed-lesson list is re-read by the map (×3 per open), profile, certificate
+  // and stats. Cache it per user and invalidate on every progress write below.
+  return cachedRead(`progress:${userId}`, PROGRESS_TTL_MS, async () => {
+    await ensureSignedIn()
+    const rows = await getDocs(query(collection(db, 'progress'), where('userId', '==', userId)))
+    return {
+      success: true,
+      data: rows.docs.filter((item) => ['Passed', 'Completed'].includes(String(item.data().status))).map((item) => String(item.data().lessonId)),
+    }
+  })
 }
 
-async function getLessons(rawUserId?: unknown) {
+// The lesson catalog (rows + per-lesson question counts) is identical for every
+// student and only changes when the teacher edits content. It used to be
+// re-read on every map open plus inside profile/certificate/stats; cache it so
+// those all share one read until an admin write invalidates it.
+const cachedLessonContent = () => cachedRead('lessons:content', CONTENT_TTL_MS, async () => {
   await ensureSignedIn()
-  const [lessonRows, progress] = await Promise.all([
-    values('lessons'), rawUserId ? getStudentProgress(rawUserId) : Promise.resolve({ data: [] as string[] }),
-  ])
+  const lessonRows = await values('lessons')
   // Aggregation queries cost 1 read per 1000 index entries instead of
   // downloading the whole question bank on every map open.
   const counts = await questionCountsFor(lessonRows.map((item) => String(item.lessonId || item.id)))
-  const lessons = lessonRows.map((item) => ({
+  return lessonRows.map((item) => ({
     ...item,
     id: String(item.lessonId || item.id),
     title: String(item.title || ''),
@@ -329,7 +396,14 @@ async function getLessons(rawUserId?: unknown) {
     lessonMapSet: String(item.lessonMapSet || ''),
     questionCount: counts[String(item.lessonId || item.id)] || 0,
   }))
-  return { success: true, data: lessons, passedLessons: progress.data }
+})
+
+async function getLessons(rawUserId?: unknown) {
+  const [data, progress] = await Promise.all([
+    cachedLessonContent(),
+    rawUserId ? getStudentProgress(rawUserId) : Promise.resolve({ data: [] as string[] }),
+  ])
+  return { success: true, data, passedLessons: progress.data }
 }
 
 async function questionsFor(rawLessonId: unknown, pretest: boolean) {
@@ -346,7 +420,7 @@ async function pvpQuestionRows() {
   const dedicated = await questionRowsForLesson('PVP_MODE')
   if (selectQuestionsForLesson(dedicated, 'PVP_MODE', false).length >= 10) return dedicated
   // Not enough dedicated PVP questions: top the set up from the full bank.
-  return values('questions')
+  return cachedRead('questions:all', CONTENT_TTL_MS, () => values('questions'))
 }
 
 export function selectQuestionsForLesson(rows: Data[], lessonId: string, pretest: boolean): Data[] {
@@ -374,11 +448,12 @@ async function getPreTestQuestions(lessonId: unknown) {
 async function saveStudentProgress(rawUserId: unknown, rawLessonId: unknown, rawStatus: unknown, rawScore: unknown, rawMaxScore?: unknown) {
   const userId = String(rawUserId || '')
   const lessonId = String(rawLessonId || '')
-  const { ref: userRef } = await ownedUser(userId)
+  const { identity, ref: userRef } = await ownedUserRef(userId)
   const progressRef = doc(db, 'progress', `${userId}_${lessonId}`)
 
   const stats = await runTransaction(db, async (transaction) => {
     const [userSnapshot, previousProgress] = await Promise.all([transaction.get(userRef), transaction.get(progressRef)])
+    assertOwnedSnapshot(userSnapshot, identity)
     const user = userSnapshot.data() || {}
     const alreadyPassed = ['Passed', 'Completed'].includes(String(previousProgress.data()?.status || ''))
     const passedNow = ['Passed', 'Completed'].includes(String(rawStatus || ''))
@@ -396,16 +471,30 @@ async function saveStudentProgress(rawUserId: unknown, rawLessonId: unknown, raw
     transaction.set(doc(db, 'directory', userId), directoryEntry({ ...user, xp, level, rank }), { merge: true })
     return { xp, coins, level, rank, gainedXp, alreadyPassed }
   })
+  // The student returns straight to the map expecting this lesson unlocked, so
+  // the cached passed-lesson list (and any quest whose objective is "pass this
+  // lesson") must reload on the next read.
+  invalidateReadCache(`progress:${userId}`)
+  invalidateQuestBoard(userId)
   return { success: true, stats }
 }
 
 async function rankedUsers() {
   await ensureSignedIn()
-  return (await values('directory')).map((item) => normalizeUser(String(item.id), item)).sort((a, b) => b.xp - a.xp)
+  return (await cachedDirectory()).map((item) => normalizeUser(String(item.id), item)).sort((a, b) => b.xp - a.xp)
 }
 
+// Individual leaderboard only shows the top 20, so query them server-side with
+// an ordered limit (directory.xp is auto-indexed). This reads ~20 docs no
+// matter how many students exist, instead of downloading the whole directory —
+// the key change that lets the free tier scale to a much larger school.
 async function getLeaderboard() {
-  return { success: true, data: (await rankedUsers()).slice(0, 20) }
+  const data = await cachedRead('leaderboard:top', DIRECTORY_TTL_MS, async () => {
+    await ensureSignedIn()
+    const snapshot = await getDocs(query(collection(db, 'directory'), orderBy('xp', 'desc'), limit(20)))
+    return snapshot.docs.map((item) => normalizeUser(item.id, item.data()))
+  })
+  return { success: true, data }
 }
 
 async function getGuildLeaderboard() {
@@ -422,9 +511,11 @@ async function getGuildLeaderboard() {
 }
 
 async function getCyberSafetyScenarios() {
-  await ensureSignedIn()
-  const scenarios = await values('cyberSafetyScenarios')
-  return { success: true, data: scenarios.map((scenario) => normalizeCyberScenario(String(scenario.id || ''), scenario)) }
+  return cachedRead('cyberScenarios', CONTENT_TTL_MS, async () => {
+    await ensureSignedIn()
+    const scenarios = await values('cyberSafetyScenarios')
+    return { success: true, data: scenarios.map((scenario) => normalizeCyberScenario(String(scenario.id || ''), scenario)) }
+  })
 }
 
 // Flush of field-combat rewards from the lesson adventure (monster-kill XP and
@@ -481,7 +572,7 @@ async function saveWorksheetSubmission(rawUserId: unknown, rawLessonId: unknown,
   const lessonId = String(rawLessonId || '').trim()
   const answer = String(rawAnswer || '').trim().slice(0, WORKSHEET_ANSWER_MAX_LENGTH)
   if (!lessonId || !answer) return { success: false, error: 'ไม่พบบทเรียนหรือคำตอบสำหรับบันทึก' }
-  return mutateOwnedUser(rawUserId, (user) => {
+  return mutateOwnedUserAndRefreshQuests(rawUserId, (user) => {
     const inventory = user.inventory && typeof user.inventory === 'object' ? { ...(user.inventory as Data) } : {}
     const worksheets = inventory.worksheets && typeof inventory.worksheets === 'object' ? { ...(inventory.worksheets as Data) } : {}
     const firstSubmission = !(lessonId in worksheets)
@@ -535,23 +626,31 @@ const questContextFor = (
 
 // Students may only list non-draft quests (rules enforce this), so the query
 // filter is part of the security contract, not just an optimization.
-const studentQuestRows = async () => {
-  const snapshot = await getDocs(query(collection(db, 'teacherQuests'), where('status', 'in', ['active', 'closed'])))
-  return snapshot.docs.map((item) => normalizeTeacherQuest(item.id, item.data()))
-}
+const studentQuestRows = async () =>
+  cachedRead('teacherQuests:studentRows', CONTENT_TTL_MS, async () => {
+    const snapshot = await getDocs(query(collection(db, 'teacherQuests'), where('status', 'in', ['active', 'closed'])))
+    return snapshot.docs.map((item) => normalizeTeacherQuest(item.id, item.data()))
+  })
 
+// Opening the map fetches this board twice (quest markers + tracker widget) and
+// the lesson page reads it again, so cache it briefly per user. Every write that
+// can change a board cell — accept/study/turn-in, a passed lesson, a submitted
+// worksheet — invalidates `questBoard:<userId>` below so the NPC panel never
+// shows a quest the student just acted on as still pending.
 async function getTeacherQuestBoard(rawUserId: unknown) {
   const userId = String(rawUserId || '')
-  const { snapshot } = await ownedUser(userId)
-  const user = snapshot.data() || {}
-  const [quests, progress] = await Promise.all([studentQuestRows(), getStudentProgress(userId)])
-  const today = todayThailand()
-  const states = questStatesOf(user)
-  const passed = new Set(progress.data)
-  const data = quests
-    .filter((quest) => questVisibleToStudent(quest, String(user.class || ''), today, Boolean(states[quest.questId])))
-    .map((quest) => buildStudentQuestView(quest, questContextFor(quest.lessonId, states[quest.questId], passed, user), today))
-  return { success: true, data }
+  return cachedRead(`questBoard:${userId}`, PROGRESS_TTL_MS, async () => {
+    const { snapshot } = await ownedUser(userId)
+    const user = snapshot.data() || {}
+    const [quests, progress] = await Promise.all([studentQuestRows(), getStudentProgress(userId)])
+    const today = todayThailand()
+    const states = questStatesOf(user)
+    const passed = new Set(progress.data)
+    const data = quests
+      .filter((quest) => questVisibleToStudent(quest, String(user.class || ''), today, Boolean(states[quest.questId])))
+      .map((quest) => buildStudentQuestView(quest, questContextFor(quest.lessonId, states[quest.questId], passed, user), today))
+    return { success: true, data }
+  })
 }
 
 // Idempotent acceptance stamp: re-accepting (double tap, refresh) never
@@ -559,7 +658,7 @@ async function getTeacherQuestBoard(rawUserId: unknown) {
 async function acceptTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
   const questId = String(rawQuestId || '')
   if (!questId) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ' }
-  return mutateOwnedUser(rawUserId, (user) => {
+  return mutateOwnedUserAndRefreshQuests(rawUserId, (user) => {
     const states = { ...questStatesOf(user) }
     if (states[questId]?.acceptedAt) return { result: { success: true, alreadyAccepted: true } }
     states[questId] = { ...states[questId], acceptedAt: new Date().toISOString() }
@@ -577,7 +676,7 @@ async function markTeacherQuestStudiedForLesson(rawUserId: unknown, rawLessonId:
   const quests = await studentQuestRows()
   const questIds = quests.filter((quest) => quest.lessonId === lessonId).map((quest) => quest.questId)
   if (questIds.length === 0) return { success: true, stamped: 0 }
-  return mutateOwnedUser(rawUserId, (user) => {
+  return mutateOwnedUserAndRefreshQuests(rawUserId, (user) => {
     const states = { ...questStatesOf(user) }
     const stamped: string[] = []
     for (const questId of questIds) {
@@ -597,7 +696,7 @@ async function markTeacherQuestStudiedForLesson(rawUserId: unknown, rawLessonId:
 async function markTeacherQuestStudied(rawUserId: unknown, rawQuestId: unknown) {
   const questId = String(rawQuestId || '')
   if (!questId) return { success: false, error: 'ไม่พบภารกิจนี้ในระบบ' }
-  return mutateOwnedUser(rawUserId, (user) => {
+  return mutateOwnedUserAndRefreshQuests(rawUserId, (user) => {
     const states = { ...questStatesOf(user) }
     const state = states[questId]
     if (!state?.acceptedAt || state.studiedAt) return { result: { success: true } }
@@ -627,7 +726,7 @@ async function turnInTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
   const progressSnapshot = await getDoc(doc(db, 'progress', `${userId}_${quest.lessonId}`))
   const lessonPassed = ['Passed', 'Completed'].includes(String(progressSnapshot.data()?.status || ''))
   const today = todayThailand()
-  return mutateOwnedUser<TurnInResult>(userId, (user) => {
+  return mutateOwnedUserAndRefreshQuests<TurnInResult>(userId, (user) => {
     const states = { ...questStatesOf(user) }
     const state = states[questId]
     // The turnedInAt stamp is the payout ledger: a quest already stamped never
@@ -673,9 +772,10 @@ async function turnInTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
 
 async function saveCyberSafetyResult(rawUserId: unknown, rawScore: unknown, rawCoins: unknown, rawXp: unknown) {
   const userId = String(rawUserId || '')
-  const { ref } = await ownedUser(userId)
+  const { identity, ref } = await ownedUserRef(userId)
   const result = await runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref)
+    assertOwnedSnapshot(snapshot, identity)
     const user = snapshot.data() || {}
     const coins = Number(user.coins || 0) + (Number(rawCoins) || 0)
     const xp = Number(user.xp || 0) + (Number(rawXp) || 0)
@@ -688,6 +788,7 @@ async function saveCyberSafetyResult(rawUserId: unknown, rawScore: unknown, rawC
     transaction.set(doc(db, 'directory', userId), directoryEntry({ ...user, xp, level, rank }), { merge: true })
     return { coins, xp, level, rank }
   })
+  invalidateReadCache(`progress:${userId}`)
   return { success: true, ...result }
 }
 
@@ -709,8 +810,10 @@ async function claimLoginBonus(rawUserId: unknown) {
 // Student-facing daily-quest catalog: admin overrides from the `dailyQuests`
 // collection merged over the code defaults; inactive quests drop out.
 async function getDailyQuestConfig() {
-  await ensureSignedIn()
-  const questRows = await values('dailyQuests')
+  const questRows = await cachedRead('dailyQuests', CONTENT_TTL_MS, async () => {
+    await ensureSignedIn()
+    return values('dailyQuests')
+  })
   const byId = new Map(questRows.map((row) => [String(row.questId || row.id), row]))
   const data = DAILY_QUEST_DEFAULTS
     .map((defaults) => mergeDailyQuestConfig(defaults, byId.get(defaults.id)))
@@ -870,14 +973,15 @@ async function getWorldBossConfig() {
 async function submitWorldBossScore(rawUserId: unknown, rawBossId: unknown, rawScore: unknown, rawBonusCoins: unknown) {
   const userId = String(rawUserId || '')
   const bossId = String(rawBossId || '')
-  const { ref: userRef } = await ownedUser(userId)
+  const { identity, ref: userRef } = await ownedUserRef(userId)
   const boss = findWorldBoss(bossId)
   if (!boss) return { success: false, error: 'ไม่พบบอสที่เปิดใช้งาน' }
   const scoreRef = doc(db, 'worldBossScores', `${userId}_${bossId}`)
-  return runTransaction(db, async (transaction) => {
+  const result = await runTransaction(db, async (transaction) => {
     const [userSnapshot, scoreSnapshot] = await Promise.all([
       transaction.get(userRef), transaction.get(scoreRef),
     ])
+    assertOwnedSnapshot(userSnapshot, identity)
     const user = userSnapshot.data() || {}
     const previous = scoreSnapshot.exists() ? Number(scoreSnapshot.data().bestTime ?? scoreSnapshot.data().bestScore) : null
     const score = worldBossResult(bossId, Number(rawScore), previous)
@@ -906,21 +1010,27 @@ async function submitWorldBossScore(rawUserId: unknown, rawBossId: unknown, rawS
       bossName: boss.name,
     }
   })
+  // A personal best changes this boss's leaderboard; drop its cache so the
+  // player sees their new rank immediately (others refresh on the TTL).
+  if (result.isPersonalBest) invalidateReadCache(`worldBossLb:${bossId}`)
+  return result
 }
 
 async function getWorldBossLeaderboard(rawBossId: unknown) {
-  await ensureSignedIn()
   const bossId = String(rawBossId || '')
-  const rows = await getDocs(query(collection(db, 'worldBossScores'), where('bossId', '==', bossId)))
-  const timeBased = bossId !== 'WB003' && (!bossId.startsWith('WB002') || bossId === 'WB002_SPEEDRUN')
-  const data = rows.docs.map((row) => {
-    const value = row.data()
-    return {
-      userId: String(value.userId || ''), name: String(value.name || ''), className: String(value.className || value.class || ''),
-      bestTime: Number(value.bestTime ?? value.bestScore) || (timeBased ? 9999 : 0), date: String(value.date || ''),
-    }
-  }).sort((a, b) => timeBased ? a.bestTime - b.bestTime : b.bestTime - a.bestTime).slice(0, 10)
-  return { success: true, data }
+  return cachedRead(`worldBossLb:${bossId}`, DIRECTORY_TTL_MS, async () => {
+    await ensureSignedIn()
+    const rows = await getDocs(query(collection(db, 'worldBossScores'), where('bossId', '==', bossId)))
+    const timeBased = bossId !== 'WB003' && (!bossId.startsWith('WB002') || bossId === 'WB002_SPEEDRUN')
+    const data = rows.docs.map((row) => {
+      const value = row.data()
+      return {
+        userId: String(value.userId || ''), name: String(value.name || ''), className: String(value.className || value.class || ''),
+        bestTime: Number(value.bestTime ?? value.bestScore) || (timeBased ? 9999 : 0), date: String(value.date || ''),
+      }
+    }).sort((a, b) => timeBased ? a.bestTime - b.bestTime : b.bestTime - a.bestTime).slice(0, 10)
+    return { success: true, data }
+  })
 }
 
 async function getScriptUrl() {
