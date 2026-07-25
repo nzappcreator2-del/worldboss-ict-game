@@ -66,6 +66,30 @@ describe('HeroProfile (the one shared profile window)', () => {
     }
   })
 
+  // The stat rows overflow a phone screen, so the panel scrolls. Keep the ×
+  // outside that scroller and offer a second exit at the end of the content, or
+  // a player who paged down to allocate points is trapped in the window.
+  it('keeps a reachable way out once the panel content scrolls', () => {
+    setup()
+    openProfile()
+    const panel = screen.getByTestId('hero-profile-panel')
+    const scroller = panel.querySelector('.lesson-char-scroll')
+
+    expect(scroller).toBeTruthy()
+    expect(scroller?.contains(within(panel).getByRole('button', { name: 'ปิดโปรไฟล์' }))).toBe(false)
+
+    let closed = 0
+    const seen = () => { closed += 1 }
+    window.addEventListener('nextgen:hero-profile-closed', seen)
+    try {
+      fireEvent.click(within(panel).getByRole('button', { name: 'ปิดหน้าต่าง' }))
+      expect(screen.queryByTestId('hero-profile-panel')).toBeNull()
+      expect(closed).toBe(1)
+    } finally {
+      window.removeEventListener('nextgen:hero-profile-closed', seen)
+    }
+  })
+
   it('stays closed when nobody is logged in', () => {
     setup(null)
     openProfile()

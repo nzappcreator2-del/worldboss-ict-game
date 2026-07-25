@@ -2121,6 +2121,17 @@
 .dashboard-move-controls button:nth-child(3) { grid-area: down; }
 .dashboard-move-controls button:nth-child(4) { grid-area: right; }
 
+/* The hall's own movement controls are screen-space (fixed/absolute) and live
+   outside the tab mounts, so React parks them with a bare `hidden` class when
+   another scene owns the screen. That class comes from Tailwind and carries the
+   same specificity as the display rules above, which are declared later and
+   therefore win — leaving the hall joystick floating on top of the adventure
+   map, where it swallows the map joystick's touches and the player can no
+   longer walk. State the hidden case explicitly, exactly like
+   `.hub-minimap.hidden` and `.dashboard-camera-world.hidden` already do. */
+.dashboard-move-controls.hidden,
+.dashboard-joystick-dock.hidden { display: none; }
+
 .dashboard-home-layout.detail-open { z-index: 80; }
 
 .dashboard-board-trigger {
@@ -2487,7 +2498,13 @@
 .lesson-status-avatar:hover { transform: scale(1.07); }
 .lesson-avatar-sprite { display: block; overflow: hidden; border-radius: 8px; background-repeat: no-repeat; image-rendering: pixelated; }
 /* In-lesson character profile window (RO Alt+A): stats, allocation, live readouts. */
-.lesson-char-panel { position: relative; width: min(480px, 94vw); max-height: 88vh; overflow: auto; padding: 26px 28px; border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; }
+/* The panel is the frame, .lesson-char-scroll is the only thing that scrolls —
+   so the absolutely positioned close × stays pinned to the panel corner instead
+   of scrolling out of reach once the stat rows overflow. */
+.lesson-char-panel { position: relative; display: flex; flex-direction: column; width: min(480px, 94vw); max-height: 88vh; overflow: hidden; padding: 26px 28px; border: none; border-radius: 20px; background: url('./assets/ui/ui-panel-parchment.png') center / 100% 100% no-repeat; color: #3f2516; box-shadow: 0 20px 70px #000; }
+.lesson-char-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.lesson-char-close-bottom { display: block; width: 100%; min-height: 46px; margin-top: 14px; padding: 10px; border: 3px solid #a86a2c; border-radius: 12px; background: linear-gradient(#e6c07a, #c08a3d); color: #3f2516; font: 1000 16px "Prompt", system-ui, sans-serif; cursor: pointer; }
+.lesson-char-close-bottom:active { transform: translateY(2px); }
 .lesson-char-head { display: flex; align-items: center; gap: 14px; }
 .lesson-char-portrait { display: grid; place-items: center; width: 84px; height: 84px; flex-shrink: 0; border-radius: 12px; background: url('./assets/ui/ui-ornate-frame.png') center / 100% 100% no-repeat; }
 .lesson-char-portrait i { display: block; background-repeat: no-repeat; image-rendering: pixelated; }
@@ -2517,7 +2534,7 @@
 .lesson-char-equip-slot i { font-size: 22px; font-style: normal; opacity: .35; filter: grayscale(1); }
 .lesson-char-equip-slot small { color: #8b572a; font-size: 13px; font-weight: 900; }
 .lesson-char-hint { display: block; margin-top: 12px; color: #8b572a; font-size: 15px; font-weight: 800; text-align: center; }
-.lesson-char-panel .lesson-modal-close { color: #6b3a0a; }
+.lesson-char-panel .lesson-modal-close { z-index: 3; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; background: rgba(255, 245, 219, .82); color: #6b3a0a; line-height: 1; }
 /* Clickable dashboard portrait opens the profile tab. Explicit width/height
    here matters: the sprite inside is position:absolute (it fills this box
    via inset:0), which takes it out of flow entirely — without a size on the
@@ -3903,6 +3920,11 @@
   .teacher-quest-tracker { top: auto; left: auto; right: 8px; bottom: 106px; width: 205px; padding: 8px 10px; }
   .teacher-quest-tracker b { font-size: 12px; }
   .teacher-quest-tracker small, .teacher-quest-tracker em { font-size: 11px; }
+  /* The lesson variant keeps its own top anchor under the minimap, so it must
+     drop the hub's bottom anchor too — with both set the card stretched from
+     196px down to the EXP strip and its translucent panel covered most of the
+     fight even though the text inside was only ~80px tall. */
+  .teacher-quest-tracker.on-lesson { bottom: auto; }
 }
 
 @media (max-width: 700px) {
@@ -3910,10 +3932,26 @@
   .teacher-quest-toast { top: 8px; max-width: calc(100vw - 18px); font-size: 13px; }
   .npc-dialogue-panel { padding: 22px 20px 18px; }
   /* Matches .lesson-minimap's own shrink at this breakpoint so the tracker
-     stays parked directly under it instead of drifting off the column. */
-  .teacher-quest-tracker.on-lesson { top: 196px; right: 8px; width: 150px; padding: 8px 10px; }
-  .teacher-quest-tracker.on-lesson b { font-size: 12px; }
-  .teacher-quest-tracker.on-lesson small, .teacher-quest-tracker.on-lesson em { font-size: 11px; }
+     stays parked directly under it instead of drifting off the column.
+     Every line is clamped: on a portrait phone a long quest title plus three
+     wrapped objectives grew this card to ~63% of the screen height and buried
+     the fight underneath it. Collapsed it now costs one title line, one line
+     per objective and one hint line; the full text is still one tap away in
+     the expanded detail card. */
+  .teacher-quest-tracker.on-lesson { top: 196px; right: 8px; width: 138px; gap: 2px; padding: 6px 8px; border-width: 1px; border-left-width: 3px; border-radius: 9px; }
+  .teacher-quest-tracker.on-lesson b { display: -webkit-box; overflow: hidden; font-size: 10px; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .teacher-quest-tracker.on-lesson small { overflow: hidden; font-size: 9px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+  .teacher-quest-tracker.on-lesson small i { width: 11px; }
+  .teacher-quest-tracker.on-lesson em { margin-top: 2px; overflow: hidden; font-size: 9px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+  .teacher-quest-tracker.on-lesson .teacher-quest-tracker-toggle { gap: 2px; padding-right: 12px; }
+  .teacher-quest-tracker.on-lesson .teacher-quest-tracker-chevron { font-size: 9px; }
+  /* Expanded, the card may say more — but never more than the screen: it gets
+     its own scroll instead of pushing past the bottom edge. */
+  .teacher-quest-tracker.on-lesson.expanded { max-height: 54vh; overflow-y: auto; }
+  .teacher-quest-tracker.on-lesson .teacher-quest-tracker-detail { gap: 4px; margin-top: 5px; padding-top: 5px; }
+  .teacher-quest-tracker.on-lesson .teacher-quest-tracker-detail li { font-size: 10px; }
+  .teacher-quest-tracker.on-lesson .teacher-quest-tracker-detail p { font-size: 9px; }
+  .teacher-quest-tracker.on-lesson .teacher-quest-tracker-goto { padding: 6px 6px; font-size: 10px; }
 }
 
 /* Sprite frame stepping honours reduced-motion in the component itself
@@ -4085,7 +4123,12 @@
 }
 
 @media (max-width: 760px) {
-  .worksheet-page { position: fixed; overflow-y: auto; padding: 8px; }
+  .worksheet-page { position: fixed; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; }
+  /* 16px is the threshold under which mobile Safari zooms the page on focus.
+     Inside this fixed, viewport-height container that zoom left the caret and
+     the field itself off-screen behind the keyboard, so the answer box looked
+     like it refused to accept typing. Never let it shrink below 16px here. */
+  .worksheet-answer-panel textarea { font-size: 16px; }
   .worksheet-command-bar { position: sticky; top: 0; z-index: 4; min-height: 64px; margin-bottom: 9px; padding: 7px; border-radius: 14px; }
   .worksheet-back-button { min-height: 42px; padding: 7px 10px; font-size: 11px; }
   .worksheet-close-button { width: 42px; height: 42px; font-size: 26px; }

@@ -40,6 +40,31 @@ describe('cross-device viewport contract', () => {
     expect(css).toMatch(/@media \(max-width: 700px\)[\s\S]*?\.lesson-auto-chip\s*\{\s*display:\s*none;/)
   })
 
+  // Regression guards for four phone-only defects reported from the field.
+  it('hides the hall movement controls whenever another scene owns the screen', () => {
+    // React parks them with Tailwind's bare `.hidden`, which ties on specificity
+    // with the display rules here and loses because those come later — so the
+    // hall joystick used to float on top of the adventure map and eat its touches.
+    expect(css).toMatch(/\.dashboard-move-controls\.hidden,\s*\.dashboard-joystick-dock\.hidden\s*\{\s*display:\s*none;/)
+  })
+
+  it('keeps the in-lesson quest tracker a small corner card on a phone', () => {
+    // The hub breakpoint anchors the tracker to `bottom`, the lesson variant to
+    // `top`; with both live the card stretched down the whole screen.
+    expect(css).toMatch(/\.teacher-quest-tracker\.on-lesson\s*\{\s*bottom:\s*auto;\s*\}/)
+    expect(css).toMatch(/\.teacher-quest-tracker\.on-lesson\s*\{[^}]*width:\s*138px;/s)
+    expect(css).toMatch(/\.teacher-quest-tracker\.on-lesson b\s*\{[^}]*-webkit-line-clamp:\s*2;/s)
+    expect(css).toMatch(/\.teacher-quest-tracker\.on-lesson small\s*\{[^}]*white-space:\s*nowrap;/s)
+    expect(css).toMatch(/\.teacher-quest-tracker\.on-lesson\.expanded\s*\{[^}]*max-height:\s*54vh;/s)
+  })
+
+  it('never lets the worksheet answer box trigger the mobile focus zoom', () => {
+    // Below 16px mobile Safari zooms on focus, which pushed the field out of the
+    // fixed worksheet layer and made it look like typing did nothing.
+    const mobileWorksheet = css.slice(css.indexOf('@media (max-width: 760px)'))
+    expect(mobileWorksheet).toMatch(/\.worksheet-answer-panel textarea\s*\{\s*font-size:\s*16px;/)
+  })
+
   it('reserves most of a phone lesson modal for reading and compacts combat feedback', () => {
     const marker = '/* Mobile lesson reading and combat feedback'
     const mobilePolicy = css.slice(css.indexOf(marker))

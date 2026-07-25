@@ -121,48 +121,58 @@ export function HeroProfile({ service, onUserUpdate }: Props) {
     <div className="lesson-modal-backdrop" role="dialog" aria-modal="true" aria-label="โปรไฟล์ตัวละคร" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
       <article className="lesson-char-panel" data-testid="hero-profile-panel">
         <button type="button" className="lesson-modal-close" aria-label="ปิดโปรไฟล์" onClick={close}>×</button>
-        <div className="lesson-char-head">
-          <span className="lesson-char-portrait" aria-hidden="true"><i style={portraitStyle} /></span>
-          <div className="lesson-char-identity">
-            <h3>{user.name || 'ผู้กล้า'} Lv.{xpProgress.level}</h3>
-            <p>{user.rank || 'BRONZE'} · 🪙 {user.coins ?? 0} เหรียญ</p>
-            <span className="lesson-bar lesson-bar-xp"><i style={{ width: `${xpProgress.percent}%` }} /><em>EXP {xpProgress.intoLevel}/{xpProgress.requiredXp || 'MAX'}</em></span>
-          </div>
-        </div>
-        <div className="lesson-char-readout">
-          <span>❤️ HP สูงสุด {combat.maxHp}</span>
-          <span>⚔️ ATK {LESSON_PLAYER_BASE_DAMAGE + combat.bonusAttack}</span>
-          <span>🧪 ยา x{Number(user.inventory?.potion) || 0}</span>
-        </div>
-        <div className="lesson-char-stats">
-          <b>แต้มสเตตัสคงเหลือ: {statPointsLeft}</b>
-          {notice && <em className="lesson-char-notice">{notice}</em>}
-          {HERO_STAT_KEYS.map((key) => (
-            <div key={key} className="lesson-char-stat-row">
-              <span>{STAT_LABELS[key].name}</span>
-              <small>{STAT_LABELS[key].effect}</small>
-              <strong>{heroStats[key]}</strong>
-              <button
-                type="button"
-                aria-label={`เพิ่มแต้ม ${key.toUpperCase()}`}
-                disabled={pending || statPointsLeft <= 0 || !service.allocateStat}
-                onClick={() => void mutate('stat', key)}
-              >+</button>
+        {/* The panel itself must stay unscrolled so the absolutely positioned ×
+            above stays pinned to its corner; everything else scrolls in here.
+            Without this the × scrolled away with the content and a phone player
+            who had paged down to the stat buttons had no way out. */}
+        <div className="lesson-char-scroll">
+          <div className="lesson-char-head">
+            <span className="lesson-char-portrait" aria-hidden="true"><i style={portraitStyle} /></span>
+            <div className="lesson-char-identity">
+              <h3>{user.name || 'ผู้กล้า'} Lv.{xpProgress.level}</h3>
+              <p>{user.rank || 'BRONZE'} · 🪙 {user.coins ?? 0} เหรียญ</p>
+              <span className="lesson-bar lesson-bar-xp"><i style={{ width: `${xpProgress.percent}%` }} /><em>EXP {xpProgress.intoLevel}/{xpProgress.requiredXp || 'MAX'}</em></span>
             </div>
-          ))}
+          </div>
+          <div className="lesson-char-readout">
+            <span>❤️ HP สูงสุด {combat.maxHp}</span>
+            <span>⚔️ ATK {LESSON_PLAYER_BASE_DAMAGE + combat.bonusAttack}</span>
+            <span>🧪 ยา x{Number(user.inventory?.potion) || 0}</span>
+          </div>
+          <div className="lesson-char-stats">
+            <b>แต้มสเตตัสคงเหลือ: {statPointsLeft}</b>
+            {notice && <em className="lesson-char-notice">{notice}</em>}
+            {HERO_STAT_KEYS.map((key) => (
+              <div key={key} className="lesson-char-stat-row">
+                <span>{STAT_LABELS[key].name}</span>
+                <small>{STAT_LABELS[key].effect}</small>
+                <strong>{heroStats[key]}</strong>
+                <button
+                  type="button"
+                  aria-label={`เพิ่มแต้ม ${key.toUpperCase()}`}
+                  disabled={pending || statPointsLeft <= 0 || !service.allocateStat}
+                  onClick={() => void mutate('stat', key)}
+                >+</button>
+              </div>
+            ))}
+          </div>
+          <div className="lesson-char-equip" data-testid="hero-profile-equipment">
+            <b>ชุดสวมใส่</b>
+            <CharacterEquipment
+              inventory={user.inventory}
+              gender={user.gender}
+              pending={pending}
+              onToggle={undefined}
+              showWardrobe={false}
+              previewSize={72}
+            />
+          </div>
+          <small className="lesson-char-hint">เลเวลอัพได้จากการตีมอนสเตอร์ ทำใบงาน และปราบบอส · แต้มสเตตัส +3 ทุกเลเวล · ซื้อชุดได้ที่ร้านค้า</small>
+          {/* Second, full-width way out at the end of the content: on a phone the
+              × is a small corner target, and this one is right where the player
+              finishes reading. */}
+          <button type="button" className="lesson-char-close-bottom" onClick={close}>ปิดหน้าต่าง</button>
         </div>
-        <div className="lesson-char-equip" data-testid="hero-profile-equipment">
-          <b>ชุดสวมใส่</b>
-          <CharacterEquipment
-            inventory={user.inventory}
-            gender={user.gender}
-            pending={pending}
-            onToggle={undefined}
-            showWardrobe={false}
-            previewSize={72}
-          />
-        </div>
-        <small className="lesson-char-hint">เลเวลอัพได้จากการตีมอนสเตอร์ ทำใบงาน และปราบบอส · แต้มสเตตัส +3 ทุกเลเวล · ซื้อชุดได้ที่ร้านค้า</small>
       </article>
     </div>,
     document.body,

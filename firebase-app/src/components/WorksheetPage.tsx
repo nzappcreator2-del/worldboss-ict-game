@@ -193,7 +193,20 @@ export function WorksheetPage({ service, onBack, onUserUpdate, draw = defaultDra
             <span>3</span><p><b>บันทึกและส่ง</b><small>ระบบสร้างรูปใบงานพร้อมบันทึกให้ครู</small></p>
           </div>
           <label className="worksheet-answer-label" htmlFor="worksheet-answer">คำตอบของผู้กล้า</label>
-          <textarea id="worksheet-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="พิมพ์ส่งงาน หรือ สรุปความรู้ได้ที่นี่..." />
+          <textarea
+            id="worksheet-answer"
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            // This page is a fixed, viewport-height scroll container, so a phone's
+            // soft keyboard opens on top of it without the browser being able to
+            // scroll the field clear. Pull it back into view once the keyboard has
+            // settled (scrollIntoView is absent in jsdom, hence the optional call).
+            onFocus={(event) => {
+              const field = event.currentTarget
+              window.setTimeout(() => field.scrollIntoView?.({ block: 'center' }), 300)
+            }}
+            placeholder="พิมพ์ส่งงาน หรือ สรุปความรู้ได้ที่นี่..."
+          />
           {validation && <p role="alert" className="worksheet-validation">{validation}</p>}
           <div className="worksheet-submit-zone">
             <p>🎁 ส่งครั้งแรกได้รับรางวัลการเรียนรู้ และยังเซฟรูปไปส่ง Classroom ได้เหมือนเดิม</p>
