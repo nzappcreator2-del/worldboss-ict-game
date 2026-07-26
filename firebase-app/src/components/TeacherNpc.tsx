@@ -398,14 +398,15 @@ export function TeacherNpc({ service, onOpenMap, onUserUpdate }: Props) {
         </button>
       </div>
 
-      {tracked && (
+      {tracked && createPortal(
         <TeacherQuestTracker
           tracked={tracked}
           onClick={() => {
             setSelectedQuestId(tracked.questId)
             openDialogue()
           }}
-        />
+        />,
+        document.body,
       )}
 
       {rewardPops.length > 0 && createPortal(

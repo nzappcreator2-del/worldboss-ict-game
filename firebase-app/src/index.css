@@ -1448,9 +1448,9 @@
    clips text. --board-tilt matches each sign's painted rotation and is kept
    in a variable so the hover lift can re-compose the same transform. */
 /* Tilt angles were re-measured against the painting with a pixel-grid
-   overlay (see memory notes): the two signs lean in OPPOSITE directions —
-   quest sign rises to the right (−1.9°), news sign drops to the right
-   (+3.9°). Don't "fix" one to match the other. */
+   overlay: the two signs lean in OPPOSITE directions — quest sign rises to
+   the right (−1.9°), while the news copy follows the wooden frame and drops
+   to the right (+6.2°). */
 .dashboard-daily-board {
   --board-tilt: -1.9deg;
   top: 23.3%;
@@ -1462,7 +1462,7 @@
 }
 
 .dashboard-news-board {
-  --board-tilt: 3.9deg;
+  --board-tilt: 6.2deg;
   top: 61.6%;
   left: 73.9%;
   width: 19%;
@@ -2160,12 +2160,16 @@
 .dashboard-all-clear { color: #376c34; }
 
 .dashboard-detail-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 200;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding:
+    max(24px, var(--safe-top))
+    max(24px, var(--safe-right))
+    max(24px, var(--safe-bottom))
+    max(24px, var(--safe-left));
   background: radial-gradient(circle, rgba(11, 22, 37, .45), rgba(5, 7, 12, .86));
   backdrop-filter: blur(3px);
   pointer-events: auto;
@@ -2180,6 +2184,7 @@
   background: #e8c98d;
   box-shadow: inset 0 0 0 4px #57341d, 0 20px 60px rgba(0, 0, 0, .72);
   color: #432815;
+  font-family: "Prompt", system-ui, sans-serif;
 }
 
 .dashboard-detail-panel > header {
@@ -2271,7 +2276,13 @@
   .dashboard-move-controls { display: none; }
   .dashboard-joystick-dock { display: block; bottom: 96px; }
   .dashboard-feature-panel { inset: 14% 3% 12%; border-width: 3px; border-radius: 14px; }
-  .dashboard-detail-backdrop { padding: 12px; }
+  .dashboard-detail-backdrop {
+    padding:
+      max(12px, var(--safe-top))
+      max(12px, var(--safe-right))
+      max(12px, var(--safe-bottom))
+      max(12px, var(--safe-left));
+  }
   .dashboard-detail-panel { width: min(680px, calc(100vw - 24px)); max-height: 74vh; }
   .adventure-map { background-position: 50% center; }
   .adventure-map-title { top: 138px; min-width: 220px; padding: 5px 14px; font-size: 13px; }
@@ -2300,7 +2311,13 @@
   .dashboard-move-controls { grid-template-columns: repeat(3, 30px); }
   .dashboard-move-controls button { width: 30px; height: 30px; }
   .dashboard-board-hint { font-size: 7px; }
-  .dashboard-detail-backdrop { padding: 7px; }
+  .dashboard-detail-backdrop {
+    padding:
+      max(7px, var(--safe-top))
+      max(7px, var(--safe-right))
+      max(7px, var(--safe-bottom))
+      max(7px, var(--safe-left));
+  }
   .dashboard-detail-panel { width: calc(100vw - 14px); max-height: 76vh; border-width: 3px; border-radius: 14px; }
   .dashboard-detail-panel > header { min-height: 72px; padding: 9px 11px; gap: 9px; }
   .dashboard-detail-panel > header > span { font-size: 28px; }
@@ -3509,6 +3526,11 @@
   transition: filter .15s ease, transform .15s ease;
 }
 
+.teacher-quest-tracker.on-hub {
+  position: fixed;
+  z-index: 140;
+}
+
 .teacher-quest-tracker:hover { filter: brightness(1.15); transform: translateX(3px); }
 .teacher-quest-tracker b { color: #ffd76d; font-size: 14px; font-weight: 1000; text-shadow: 0 2px 2px #000; }
 .teacher-quest-tracker b span { color: #52caff; }
@@ -3918,6 +3940,10 @@
   /* The hub quest panel hides on small screens; park the teacher tracker
      bottom-right above the EXP strip instead of the left rail. */
   .teacher-quest-tracker { top: auto; left: auto; right: 8px; bottom: 106px; width: 205px; padding: 8px 10px; }
+  .teacher-quest-tracker.on-hub {
+    right: max(8px, var(--safe-right));
+    bottom: calc(106px + var(--safe-bottom));
+  }
   .teacher-quest-tracker b { font-size: 12px; }
   .teacher-quest-tracker small, .teacher-quest-tracker em { font-size: 11px; }
   /* The lesson variant keeps its own top anchor under the minimap, so it must
@@ -4961,7 +4987,7 @@ body {
   }
 
   .dashboard-news-board {
-    --board-tilt: 3.9deg;
+    --board-tilt: 6.2deg;
     top: 61.6%;
     right: auto;
     left: 73.9%;

@@ -22,7 +22,7 @@ export function TeacherQuestTracker({ tracked, onClick, variant = 'hub', testId 
 
   if (variant === 'hub') {
     return (
-      <button type="button" className="teacher-quest-tracker" data-testid={testId} onClick={onClick}>
+      <button type="button" className="teacher-quest-tracker on-hub" data-testid={testId} onClick={onClick}>
         <TrackerHeader tracked={tracked} />
       </button>
     )

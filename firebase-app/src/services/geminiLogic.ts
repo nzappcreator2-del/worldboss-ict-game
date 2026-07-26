@@ -48,7 +48,10 @@ export function buildTutorRequest(question: string, context: string, history: Tu
       temperature: 0.7,
       maxOutputTokens: 1024,
       // Latency matters more than deep reasoning for a kid-facing chat.
-      thinkingConfig: { thinkingBudget: 0 },
+      // thinkingBudget: 0 (fully disabled) is rejected with a 400 by the
+      // current gemini-flash-latest release, so use the lowest budget that
+      // model still accepts instead of turning thinking off entirely.
+      thinkingConfig: { thinkingBudget: 128 },
     },
     safetySettings: KID_SAFETY_SETTINGS,
   }

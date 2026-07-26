@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { DAILY_QUEST_DEFAULTS, type DailyQuestConfig } from '../services/gameLogic'
 
 export type DashboardUser = { id: string; coins?: number; xp?: number }
@@ -233,7 +234,7 @@ export function DashboardHome({ service, onUserReward }: Props) {
         </div>
       </aside>
 
-      {detailPanel && <div
+      {detailPanel && createPortal(<div
         className="dashboard-detail-backdrop"
         role="dialog"
         aria-modal="true"
@@ -259,7 +260,7 @@ export function DashboardHome({ service, onUserReward }: Props) {
             {claimError && detailPanel === 'quests' && <p role="alert" className="dashboard-claim-error">{claimError}</p>}
           </div>
         </section>
-      </div>}
+      </div>, document.body)}
     </div>
   )
 }

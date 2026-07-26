@@ -307,6 +307,7 @@ describe('TeacherNpc', () => {
     const tracker = await screen.findByTestId('npc-tracker')
     expect(tracker.textContent).toContain('ภารกิจ: ความปลอดภัยบนโลกออนไลน์')
     expect(tracker.textContent).toContain('ทำใบงานส่งครู')
+    expect(tracker.parentElement).toBe(document.body)
 
     fireEvent.click(tracker)
     await screen.findByTestId('npc-dialogue')

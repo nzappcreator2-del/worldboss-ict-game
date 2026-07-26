@@ -44,9 +44,9 @@ describe('buildTutorRequest', () => {
     expect(contents.at(-1)?.parts[0].text).toBe('คำถามใหม่')
   })
 
-  it('disables thinking for fast kid-facing answers and applies safety settings', () => {
+  it('keeps the thinking budget low for fast kid-facing answers and applies safety settings', () => {
     const request = buildTutorRequest('คำถาม', 'บริบท', []) as Data
-    expect((request.generationConfig as Data).thinkingConfig).toEqual({ thinkingBudget: 0 })
+    expect((request.generationConfig as Data).thinkingConfig).toEqual({ thinkingBudget: 128 })
     expect(Array.isArray(request.safetySettings)).toBe(true)
     expect((request.safetySettings as Data[]).length).toBeGreaterThan(0)
   })

@@ -35,6 +35,16 @@ describe('cross-device viewport contract', () => {
     expect(css).toContain('bottom: var(--map-control-clearance)')
   })
 
+  it('keeps opened hub cards in viewport space above the transformed camera', () => {
+    expect(css).toMatch(/\.teacher-quest-tracker\.on-hub\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*140;/s)
+    expect(css).toMatch(/\.dashboard-detail-backdrop\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*200;/s)
+  })
+
+  it('matches the announcement copy to the painted frame tilt', () => {
+    const matches = css.match(/\.dashboard-news-board\s*\{[^}]*--board-tilt:\s*6\.2deg;/gs) || []
+    expect(matches).toHaveLength(2)
+  })
+
   it('uses a compact phone login composition and removes the redundant mobile AUTO banner', () => {
     expect(css).toContain('--landing-phone-field-height: 62px')
     expect(css).toMatch(/@media \(max-width: 700px\)[\s\S]*?\.lesson-auto-chip\s*\{\s*display:\s*none;/)

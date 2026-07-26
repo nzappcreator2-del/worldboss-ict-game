@@ -41,7 +41,9 @@ describe('DashboardHome', () => {
     expect(screen.getByText('2 / 5')).toBeTruthy()
     fireEvent.click(board)
 
-    expect(screen.getByRole('dialog', { name: 'รายละเอียดภารกิจประจำวัน' })).toBeTruthy()
+    const dialog = screen.getByRole('dialog', { name: 'รายละเอียดภารกิจประจำวัน' })
+    expect(dialog).toBeTruthy()
+    expect(dialog.parentElement).toBe(document.body)
     expect(await screen.findByText(/เคลียร์เรียบร้อย/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'รับรางวัล เริ่มการเดินทาง' })).toBeTruthy()
   })
@@ -86,7 +88,9 @@ describe('DashboardHome', () => {
     expect(screen.queryByText('เปิดเทอมใหม่')).toBeNull()
     fireEvent.click(board)
 
-    expect(screen.getByRole('dialog', { name: 'ประกาศข่าวสารทั้งหมด' })).toBeTruthy()
+    const dialog = screen.getByRole('dialog', { name: 'ประกาศข่าวสารทั้งหมด' })
+    expect(dialog).toBeTruthy()
+    expect(dialog.parentElement).toBe(document.body)
     expect(screen.getAllByText('กิจกรรมล่าสุด')).toHaveLength(2)
     expect(screen.getByText('เปิดเทอมใหม่')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'ปิดรายละเอียด' }))
