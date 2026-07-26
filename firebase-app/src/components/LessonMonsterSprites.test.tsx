@@ -50,14 +50,25 @@ describe('LessonMonsterSprite', () => {
   })
 
   it('renders external sprites with deterministic frame metadata and horizontal facing', () => {
-    const { container } = render(<LessonAssetMonsterSprite skin="tiny-orc" mode="chase" direction="left" frame={3} />)
-    const sprite = container.querySelector('[data-monster-skin="tiny-orc"]') as HTMLElement | null
-    expect(sprite?.dataset.animation).toBe('walk')
+    const { container } = render(<LessonAssetMonsterSprite skin="forest-flyer" mode="chase" direction="left" frame={3} />)
+    const sprite = container.querySelector('[data-monster-skin="forest-flyer"]') as HTMLElement | null
+    expect(sprite?.dataset.animation).toBe('move')
     expect(sprite?.dataset.frames).toBe('8')
     expect(sprite?.dataset.renderSize).toBe('136')
     expect(sprite?.getAttribute('style')).toContain('width: 136px')
     expect(sprite?.getAttribute('style')).toContain('scaleX(-1)')
     expect(sprite?.getAttribute('style')).toContain('background-position')
+  })
+
+  it('bumps the default field size for the small-framed tiny-* skins, but not forest-* or an explicit renderSize', () => {
+    const { container: orc } = render(<LessonAssetMonsterSprite skin="tiny-orc" mode="chase" direction="left" frame={3} />)
+    const orcSprite = orc.querySelector('[data-monster-skin="tiny-orc"]') as HTMLElement | null
+    expect(orcSprite?.dataset.renderSize).toBe('200')
+    expect(orcSprite?.getAttribute('style')).toContain('width: 200px')
+    cleanup()
+    const { container: mushroom } = render(<LessonAssetMonsterSprite skin="forest-mushroom" mode="chase" direction="left" frame={3} />)
+    const mushroomSprite = mushroom.querySelector('[data-monster-skin="forest-mushroom"]') as HTMLElement | null
+    expect(mushroomSprite?.dataset.renderSize).toBe('136')
   })
 
   it('supports an oversized boss render that is clearly larger than the hero', () => {

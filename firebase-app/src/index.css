@@ -2415,7 +2415,16 @@
    background-images on the sprite div itself (see characterAssets.ts). */
 .lesson-monster { --monster-hue: 190deg; position: absolute; z-index: 5; width: 140px; height: 168px; padding: 0; border: 0; background: transparent; cursor: crosshair; transition: left .1s linear, top .1s linear; }
 .lesson-monster[data-species='archive-guard'] { --monster-hue: 320deg; }
+/* tiny-orc/tiny-demon/tiny-blood draw a small character on a padded 100x100
+   frame (see LessonMonsterSprites.tsx), so their field render size is bumped
+   up to read clearly; widen the hitbox to match so the visible sprite stays
+   fully clickable, the same pattern .lesson-boss-target already uses for the
+   (also oversized) boss sprite. margin-left (not transform) re-centers the
+   wider box on its original spawn point without fighting the mobile
+   `.lesson-monster { transform: scale(.78) }` rule below. */
+.lesson-monster[data-skin='tiny-orc'], .lesson-monster[data-skin='tiny-demon'], .lesson-monster[data-skin='tiny-blood'] { width: 200px; height: 236px; margin-left: -30px; }
 .lesson-monster span { display: block; width: 104px; height: 104px; overflow: hidden; background-position: 0 -1040px; background-size: 1872px 6448px; image-rendering: pixelated; filter: drop-shadow(0 8px 7px #000b) hue-rotate(var(--monster-hue)) saturate(1.5); transition: transform .16s; }
+.lesson-asset-monster-sprite { margin-left: auto; margin-right: auto; }
 .lesson-monster:hover span { transform: scale(1.08) translateY(-5px); }
 .lesson-monster[data-mode='chase'] b { border-color: #ff735d; color: #ffd2bd; }
 .lesson-monster[data-mode='attack'] span { filter: drop-shadow(0 8px 7px #000b) drop-shadow(0 0 15px #f33) hue-rotate(var(--monster-hue)) saturate(1.8); }

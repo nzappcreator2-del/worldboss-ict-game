@@ -128,10 +128,22 @@ export function LessonMonsterSprite({ body, direction }: Props) {
   )
 }
 
-export function LessonAssetMonsterSprite({ skin, mode, direction, frame, renderSize = 136 }: { skin: LessonMonsterSkinKey; mode: LessonEnemyMode; direction: WalkDirection; frame: number; renderSize?: number }) {
+// tiny-orc/tiny-demon/tiny-blood draw a small, bottom-anchored character inside a
+// mostly-transparent 100x100 frame (walk-cycle padding), so at the shared default
+// size they read much smaller on the field than forest-mushroom/forest-flyer, whose
+// art nearly fills its frame. Bump just those three so field spawns read at a
+// comparable size; callers that pass an explicit renderSize (e.g. the boss encounter)
+// are unaffected.
+const SMALL_FRAME_FIELD_RENDER_SIZE: Partial<Record<LessonMonsterSkinKey, number>> = {
+  'tiny-orc': 200,
+  'tiny-demon': 200,
+  'tiny-blood': 200,
+}
+
+export function LessonAssetMonsterSprite({ skin, mode, direction, frame, renderSize }: { skin: LessonMonsterSkinKey; mode: LessonEnemyMode; direction: WalkDirection; frame: number; renderSize?: number }) {
   const animation = monsterAnimationFor(skin, mode)
   const frameIndex = Math.abs(Math.floor(frame || 0)) % animation.frames
-  const renderWidth = renderSize
+  const renderWidth = renderSize ?? SMALL_FRAME_FIELD_RENDER_SIZE[skin] ?? 136
   const renderHeight = renderWidth * (animation.frameHeight / animation.frameWidth)
   const style: CSSProperties = {
     backgroundImage: `url(${animation.image})`,
@@ -139,9 +151,9 @@ export function LessonAssetMonsterSprite({ skin, mode, direction, frame, renderS
     backgroundSize: `${animation.frames * renderWidth}px ${renderHeight}px`,
     backgroundPosition: `${-frameIndex * renderWidth}px bottom`,
     transform: direction === 'left' ? 'scaleX(-1)' : undefined,
-    width: renderSize,
-    height: renderSize,
+    width: renderWidth,
+    height: renderWidth,
     display: 'block',
   }
-  return <span className="lesson-asset-monster-sprite" data-monster-skin={skin} data-animation={animation.animation} data-frames={animation.frames} data-render-size={renderSize} style={style} aria-hidden="true" />
+  return <span className="lesson-asset-monster-sprite" data-monster-skin={skin} data-animation={animation.animation} data-frames={animation.frames} data-render-size={renderWidth} style={style} aria-hidden="true" />
 }
