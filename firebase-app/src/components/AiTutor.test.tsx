@@ -3,7 +3,19 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AiTutor, type AiTutorService } from './AiTutor'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+})
+
+// jsdom has no PointerEvent constructor, so fireEvent.pointerDown falls back to a bare
+// Event that silently drops clientX/clientY/pointerId — build the event by hand instead
+// (same pattern as VirtualJoystick.test.tsx).
+function firePointer(type: 'pointerdown' | 'pointermove' | 'pointerup', el: HTMLElement, init: { pointerId: number; clientX: number; clientY: number }) {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.assign(event, init)
+  fireEvent(el, event)
+}
 
 function setup(answer: Awaited<ReturnType<AiTutorService['ask']>> = { success: true, answer: '**เครือข่าย** คือการเชื่อมต่อ\nอย่างเป็นระบบ' }) {
   const service: AiTutorService = {
@@ -112,5 +124,45 @@ describe('AiTutor', () => {
 
     expect(await screen.findByText(/ระบบยังไม่พร้อม/)).toBeTruthy()
     expect((screen.getByRole('button', { name: 'ส่งคำถาม' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('floats above every full-screen page (dashboard/worksheet/etc. all sit at z-index 100-230)', async () => {
+    setup()
+    const fab = screen.getByRole('button', { name: 'เปิด AI Tutor' })
+    expect(fab.className).toContain('z-[9500]')
+    fireEvent.click(fab)
+    expect(screen.getByRole('dialog', { name: 'ผู้พิทักษ์ความรู้' }).className).toContain('z-[9500]')
+  })
+
+  it('drags into the trash zone to dismiss the widget, persists it, and restores from the mini tab', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 100, right: 200, top: 600, bottom: 700, width: 100, height: 100, x: 100, y: 600, toJSON: () => {},
+    } as DOMRect)
+    setup()
+    const fab = screen.getByRole('button', { name: 'เปิด AI Tutor' })
+
+    firePointer('pointerdown', fab, { pointerId: 1, clientX: 1200, clientY: 650 })
+    firePointer('pointermove', fab, { pointerId: 1, clientX: 150, clientY: 650 })
+    firePointer('pointerup', fab, { pointerId: 1, clientX: 150, clientY: 650 })
+
+    expect(localStorage.getItem('nextgen:ai-tutor-dismissed')).toBe('1')
+    const miniTab = screen.getByRole('button', { name: 'เปิด AI Tutor' })
+    expect(miniTab).not.toBe(fab)
+
+    fireEvent.click(miniTab)
+    expect(localStorage.getItem('nextgen:ai-tutor-dismissed')).toBeNull()
+    expect(screen.getByRole('button', { name: 'เปิด AI Tutor' }).className).toContain('cursor-grab')
+  })
+
+  it('does not dismiss on a small reposition drag that never reaches the trash zone', () => {
+    setup()
+    const fab = screen.getByRole('button', { name: 'เปิด AI Tutor' })
+
+    firePointer('pointerdown', fab, { pointerId: 1, clientX: 500, clientY: 500 })
+    firePointer('pointermove', fab, { pointerId: 1, clientX: 520, clientY: 505 })
+    firePointer('pointerup', fab, { pointerId: 1, clientX: 520, clientY: 505 })
+
+    expect(localStorage.getItem('nextgen:ai-tutor-dismissed')).toBeNull()
+    expect(screen.getByRole('button', { name: 'เปิด AI Tutor' })).toBe(fab)
   })
 })

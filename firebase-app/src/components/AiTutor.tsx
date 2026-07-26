@@ -20,6 +20,26 @@ const quickQuestions = [
   'ขอข้อซ้อมมือ 1 ข้อ',
 ]
 
+// Every full-screen page in the app (dashboard, worksheet, lesson modals, ...)
+// already sits at z-index 100-230, so the widget needs a tier above all of
+// them to stay reachable everywhere — matching the same "always readable over
+// every scene" tier .game-audio-control already uses, one step below it so
+// the two never fight for the same pixel if they ever overlap while dragging.
+const WIDGET_Z = 'z-[9500]'
+
+const DISMISS_STORAGE_KEY = 'nextgen:ai-tutor-dismissed'
+// Small reposition drags shouldn't flash the drop zone; only a deliberate,
+// far drag toward it counts as "trying to dismiss".
+const DISMISS_ARM_DISTANCE = 90
+
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(DISMISS_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export function AiTutor({ service }: { service: AiTutorService }) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -31,6 +51,10 @@ export function AiTutor({ service }: { service: AiTutorService }) {
   const nextId = useRef(2)
   const dragRef = useRef({ pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0, moved: false })
   const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [dismissed, setDismissed] = useState(readDismissed)
+  const [showDismissZone, setShowDismissZone] = useState(false)
+  const [dragArmed, setDragArmed] = useState(false)
+  const dismissZoneRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (open) inputRef.current?.focus()
@@ -77,6 +101,22 @@ export function AiTutor({ service }: { service: AiTutorService }) {
     }
   }
 
+  const setDismissedPersisted = (value: boolean) => {
+    setDismissed(value)
+    try {
+      if (value) localStorage.setItem(DISMISS_STORAGE_KEY, '1')
+      else localStorage.removeItem(DISMISS_STORAGE_KEY)
+    } catch { /* storage unavailable (private browsing, etc.) — dismissal just won't survive a reload */ }
+  }
+
+  // Recomputed fresh from live coordinates (not read from state) so the drop
+  // decision in onPointerUp can never see a stale value from a pointermove
+  // whose state update hasn't committed yet.
+  const isOverDismissZone = (clientX: number, clientY: number) => {
+    const zone = dismissZoneRef.current?.getBoundingClientRect()
+    return !!zone && clientX >= zone.left && clientX <= zone.right && clientY >= zone.top && clientY <= zone.bottom
+  }
+
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     dragRef.current = {
       pointerId: event.pointerId,
@@ -96,17 +136,60 @@ export function AiTutor({ service }: { service: AiTutorService }) {
     const dy = event.clientY - drag.startY
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) drag.moved = true
     setPosition({ x: drag.originX + dx, y: drag.originY + dy })
+
+    const farEnoughToDismiss = Math.hypot(dx, dy) >= DISMISS_ARM_DISTANCE
+    setShowDismissZone(farEnoughToDismiss)
+    setDragArmed(farEnoughToDismiss && isOverDismissZone(event.clientX, event.clientY))
   }
 
   const onPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (dragRef.current.pointerId === event.pointerId) dragRef.current.pointerId = -1
+    const dx = event.clientX - dragRef.current.startX
+    const dy = event.clientY - dragRef.current.startY
+    const droppedOnZone = Math.hypot(dx, dy) >= DISMISS_ARM_DISTANCE && isOverDismissZone(event.clientX, event.clientY)
+    if (droppedOnZone) {
+      setPosition({ x: 0, y: 0 })
+      setOpen(false)
+      setDismissedPersisted(true)
+    }
+    setShowDismissZone(false)
+    setDragArmed(false)
   }
 
   const user = service.getCurrentUser()
   const showSuggestions = messages.length === 1 && !loading
 
+  if (dismissed) {
+    return (
+      <button
+        type="button"
+        aria-label="เปิด AI Tutor"
+        title="เปิด AI Tutor"
+        onClick={() => setDismissedPersisted(false)}
+        className={`fixed top-1/2 -translate-y-1/2 right-0 ${WIDGET_Z} flex h-14 w-8 items-center justify-center rounded-l-2xl border border-r-0 border-white/40 bg-gradient-to-tr from-indigo-500/80 to-purple-600/80 text-2xl shadow-lg backdrop-blur-sm`}
+      >
+        🤖
+      </button>
+    )
+  }
+
   return (
     <>
+      <div
+        ref={dismissZoneRef}
+        aria-hidden="true"
+        className={`fixed bottom-8 left-1/2 -translate-x-1/2 ${WIDGET_Z} flex flex-col items-center gap-1 rounded-full border-2 px-5 py-4 text-center pointer-events-none transition-all duration-150 ${
+          showDismissZone
+            ? dragArmed
+              ? 'scale-110 border-red-400 bg-red-500/90 text-white opacity-100'
+              : 'scale-100 border-white/60 bg-slate-900/80 text-white opacity-90'
+            : 'scale-75 opacity-0'
+        }`}
+      >
+        <span className="text-2xl">🗑️</span>
+        <span className="text-xs font-bold whitespace-nowrap">{dragArmed ? 'ปล่อยเพื่อซ่อน AI Tutor' : 'ลากมาที่นี่เพื่อซ่อน'}</span>
+      </div>
+
       <button
         type="button"
         aria-label="เปิด AI Tutor"
@@ -120,8 +203,8 @@ export function AiTutor({ service }: { service: AiTutorService }) {
           }
           setOpen(true)
         }}
-        className="fixed top-1/2 right-4 -mt-8 md:top-auto md:mt-0 md:bottom-6 md:right-6 w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.6)] flex items-center justify-center text-4xl z-[60] cursor-grab active:cursor-grabbing border-4 border-white/40 touch-none"
-        style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)`, userSelect: 'none' }}
+        className={`fixed top-1/2 right-4 -mt-8 md:top-auto md:mt-0 md:bottom-24 md:right-6 w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.6)] flex items-center justify-center text-4xl ${WIDGET_Z} cursor-grab active:cursor-grabbing border-4 border-white/40 touch-none transition-[opacity] ${dragArmed ? 'opacity-60' : ''}`}
+        style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0) ${dragArmed ? 'scale(0.85)' : ''}`, userSelect: 'none' }}
       >
         <span className="w-full h-full flex items-center justify-center rounded-full hover:scale-110 hover:rotate-12 transition-transform animate-bounce pointer-events-none drop-shadow-md">
           🤖
@@ -133,7 +216,7 @@ export function AiTutor({ service }: { service: AiTutorService }) {
         <div
           role="dialog"
           aria-label="ผู้พิทักษ์ความรู้"
-          className="fixed bottom-24 right-6 w-[370px] max-w-[calc(100vw-3rem)] h-[500px] max-h-[65vh] bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl z-[60] flex flex-col overflow-hidden"
+          className={`fixed bottom-24 right-6 md:bottom-40 w-[370px] max-w-[calc(100vw-3rem)] h-[500px] max-h-[65vh] bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl ${WIDGET_Z} flex flex-col overflow-hidden`}
         >
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex justify-between items-center shadow-md relative overflow-hidden">
             <div className="absolute -right-4 -top-4 opacity-20 text-6xl">✨</div>
