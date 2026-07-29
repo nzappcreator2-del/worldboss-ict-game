@@ -537,7 +537,10 @@ export function AdminPanel({ service, onExit, confirmAction, downloadCsv = defau
     if (!questionLesson || questions.some((question) => !question.text.trim())) return setStatus('กรุณาระบุคำถามให้ครบ')
     const cleaned = questions.map((question) => ({ ...question, matchingPairs: question.pattern === 'matching' ? question.matchingPairs.filter((pair) => pair.left.trim() && pair.right.trim()) : [] }))
     const result = await run(() => service.saveQuestions(questionLesson.id, questionType, cleaned, password), 'บันทึกข้อสอบแล้ว')
-    if (result) setQuestionLesson(null)
+    // Reload like saveLesson/deleteLesson do: the row under each lesson shows a
+    // question count, and leaving it stale reads as "the save did nothing",
+    // which invites the teacher to enter the same questions a second time.
+    if (result) { setQuestionLesson(null); await loadLessons() }
   }
   const studentAction = async (kind: 'reset' | 'delete' | 'unbind', student: AdminStudent) => {
     const labels = { reset: 'รีเซ็ตข้อมูล', delete: 'ลบข้อมูล', unbind: 'ปลดล็อกโปรไฟล์จากอุปกรณ์เดิมของ' } as const

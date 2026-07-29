@@ -580,7 +580,7 @@ export function LessonPage({ service, onBack, onStartQuiz, onOpenWorksheet, onUs
     // Opening the lesson is what satisfies a teacher quest's "ศึกษาบทเรียน"
     // objective. Fire-and-forget: the stamp is idempotent server-side and must
     // never delay or block the adventure starting.
-    if (nextLesson?.id) void service.markLessonStudied?.(nextLesson.id)
+    if (nextLesson?.id) void service.markLessonStudied?.(nextLesson.id)?.catch(() => undefined)
     const hero = service.getCurrentUser?.() || null
     setHeroUser(hero)
     heroUserRef.current = hero

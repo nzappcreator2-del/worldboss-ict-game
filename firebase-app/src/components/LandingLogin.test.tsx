@@ -154,4 +154,16 @@ describe('LandingLogin', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('Anonymous Authentication')
   })
+
+  it('translates the free-plan daily quota error instead of showing the raw Firebase text', async () => {
+    render(<LandingLogin
+      service={{ ...service, getInitialData: vi.fn().mockRejectedValue(new Error('Quota exceeded.')) }}
+      onLogin={vi.fn()}
+      onAdmin={vi.fn()}
+    />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('เกินโควตาฟรีของ Firebase')
+    expect(alert.textContent).not.toContain('Quota exceeded')
+  })
 })

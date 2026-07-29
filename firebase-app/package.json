@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:emulator": "vite --mode emulator",
+    "emulator": "firebase emulators:start --config ../firebase.json --only auth,firestore --project nextgen-play-19dd2",
+    "seed:emulator": "node scripts/seed-emulator.mjs",
     "build": "vite build",
     "migrate": "node scripts/import-firestore.mjs",
     "backup": "node scripts/export-firestore.mjs",

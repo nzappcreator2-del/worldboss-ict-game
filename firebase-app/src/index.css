@@ -2947,6 +2947,31 @@
 .ro-gacha-confirm { width: 100%; padding: 13px; border: 3px solid #e0aa4d; border-radius: 11px; background: linear-gradient(#63431e, #2d1a12); color: #fff2bb; font-size: 15px; font-weight: 900; cursor: pointer; }
 .ro-gacha-confirm:hover { filter: brightness(1.08); }
 
+/* Item gacha: the prize sprite, its rarity tint, and the published drop rates. */
+.ro-gacha-prize { margin: 14px auto 6px; width: 104px; height: 104px; display: grid; place-items: center; border-radius: 18px; background: radial-gradient(circle at 50% 40%, #fff8dd, #e6c489); box-shadow: inset 0 0 0 3px #4d2c17, 0 6px 18px #0004; }
+.ro-gacha-prize img { width: 78px; height: 78px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 4px 4px #0003); }
+.ro-gacha-prize-name { font-size: 18px; font-weight: 900; color: #3f2516 !important; margin: 4px 0 6px !important; }
+.ro-gacha-window.ro-rarity-legendary { border-color: #d99a24; box-shadow: inset 0 0 0 3px #6b3f10, 0 0 44px #f2b73c88, 0 20px 70px #000; }
+.ro-gacha-window.ro-rarity-rare { border-color: #7b5bc9; box-shadow: inset 0 0 0 3px #3c2a63, 0 0 34px #9a7ae688, 0 20px 70px #000; }
+.ro-rarity-common .ro-gacha-rarity { color: #5d6b52; }
+.ro-rarity-uncommon .ro-gacha-rarity { color: #2f7a54; }
+.ro-rarity-rare .ro-gacha-rarity { color: #6a3fb0; }
+.ro-rarity-legendary .ro-gacha-rarity { color: #a4610b; text-shadow: 0 0 12px #f6c65c88; }
+
+/* The shop card is a centred column flex, so a grid child shrinks to its own
+   content unless it is told to fill the row — without this the four rate tiles
+   collapse to ~56px each and the Thai labels wrap to shreds on a phone. */
+.ro-gacha-odds { list-style: none; margin: 8px 0 10px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; width: 100%; align-self: stretch; }
+.ro-gacha-odd { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px; border: 2px solid #00000022; border-radius: 8px; background: #ffffff55; line-height: 1.1; }
+.ro-gacha-odd b { font-size: 11px; }
+.ro-gacha-odd span { font-size: 13px; font-weight: 900; }
+.ro-gacha-odd small { font-size: 9px; opacity: .7; }
+.ro-gacha-odd.ro-rarity-common b { color: #5d6b52; }
+.ro-gacha-odd.ro-rarity-uncommon b { color: #2f7a54; }
+.ro-gacha-odd.ro-rarity-rare b { color: #6a3fb0; }
+.ro-gacha-odd.ro-rarity-legendary b { color: #a4610b; }
+.ro-gacha-soldout { display: block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #2f7a54; }
+
 @media (max-width: 700px) {
   .ro-float-btn { width: 48px; height: 48px; border-width: 2px; }
   .ro-float-btn span { font-size: 20px; }.ro-float-btn small { font-size: 7.5px; }

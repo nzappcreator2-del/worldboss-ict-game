@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app'
-import { browserLocalPersistence, indexedDBLocalPersistence, initializeAuth, signInAnonymously } from 'firebase/auth'
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { browserLocalPersistence, connectAuthEmulator, indexedDBLocalPersistence, initializeAuth, signInAnonymously } from 'firebase/auth'
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { firebaseConfig } from './config'
+import { AUTH_EMULATOR_URL, FIRESTORE_EMULATOR_HOST, FIRESTORE_EMULATOR_PORT, emulatorEnabled } from './emulator'
 
 export const firebaseApp = initializeApp(firebaseConfig)
 // initializeAuth (not getAuth) with no popupRedirectResolver: the main app only
@@ -27,6 +28,13 @@ export const db = (() => {
     return getFirestore(firebaseApp)
   }
 })()
+
+// Dev-only: see ./emulator.ts. Must run before the first auth/Firestore call,
+// which is why it sits at module scope rather than inside ensureSignedIn().
+if (emulatorEnabled()) {
+  connectAuthEmulator(auth, AUTH_EMULATOR_URL, { disableWarnings: true })
+  connectFirestoreEmulator(db, FIRESTORE_EMULATOR_HOST, FIRESTORE_EMULATOR_PORT)
+}
 
 let authTask: ReturnType<typeof signInAnonymously> | undefined
 

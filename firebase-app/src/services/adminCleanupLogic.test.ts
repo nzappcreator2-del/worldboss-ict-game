@@ -137,6 +137,34 @@ describe('planCleanup — orphans', () => {
     expect(ids(plan, 'pvpRankings')).toEqual(['gone'])
   })
 
+  // PVP questions are stored under the synthetic lesson id `PVP_MODE`, which by
+  // design has no row in `lessons` (see selectQuestionsForLesson). Judging them
+  // by "is there a lesson with this id" would let the orphan sweep — advertised
+  // as deleting only rows whose owner is gone — silently wipe the entire PVP
+  // question bank and break the arena.
+  it('never treats the synthetic PVP_MODE question bank as orphaned', () => {
+    const plan = planCleanup(['orphans'], snapshot({
+      lessons: [{ id: 'L1', lessonId: 'L1' }],
+      questions: [
+        { id: 'q1', lessonId: 'L1' },
+        { id: 'pvp1', lessonId: 'PVP_MODE' },
+        { id: 'pvp2', lessonId: 'PVP_MODE' },
+        { id: 'dead', lessonId: 'L9' },
+      ],
+    }))
+
+    expect(ids(plan, 'questions')).toEqual(['dead'])
+  })
+
+  it('never treats a quest pinned to a synthetic lesson as orphaned', () => {
+    const plan = planCleanup(['orphans'], snapshot({
+      lessons: [{ id: 'L1', lessonId: 'L1' }],
+      teacherQuests: [{ id: 'TQ1', lessonId: 'PVP_MODE' }, { id: 'TQ2', lessonId: 'L9' }],
+    }))
+
+    expect(ids(plan, 'teacherQuests')).toEqual(['TQ2'])
+  })
+
   it('refuses to treat anything as orphaned when the parent collection failed to load', () => {
     // An empty `lessons` list is ambiguous — a real wipe or a failed read — so
     // the scan must not delete every question in the system on that basis.

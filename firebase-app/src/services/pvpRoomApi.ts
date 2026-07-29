@@ -305,7 +305,9 @@ export async function leavePvpRoom(roomId: string, userId: string): Promise<Muta
     return next === room ? null : next
   })
   const identity = await ensureSignedIn()
-  await deleteDoc(doc(db, ROOMS, roomId, 'presence', identity.uid)).catch(() => undefined)
+  // Same synchronous doc() throw as updatePvpPresence: guard the id, not just
+  // the write.
+  if (roomId) await deleteDoc(doc(db, ROOMS, roomId, 'presence', identity.uid)).catch(() => undefined)
   return result
 }
 
@@ -411,6 +413,13 @@ export function subscribeToPvpChat(roomId: string, onData: (messages: PvpChatMes
 export type PvpPresence = { uid: string; userId: string; x: number; y: number; direction: string; action: string }
 
 export async function updatePvpPresence(roomId: string, presence: { userId: string; x: number; y: number; direction: string; action: string }): Promise<void> {
+  // A presence tick can outlive the room it belongs to by one interval: leaving
+  // the lobby blanks the caller's room id before its 350 ms timer is torn down.
+  // An empty id collapses the path to an odd segment count, and doc() throws on
+  // that *synchronously* — before the setDoc().catch() below can ever see it —
+  // so the failure escapes as an unhandled rejection and burns a clientErrors
+  // write. Nothing is worth writing without a room, so bail out first.
+  if (!roomId) return
   const identity = await ensureSignedIn()
   await setDoc(doc(db, ROOMS, roomId, 'presence', identity.uid), {
     uid: identity.uid,

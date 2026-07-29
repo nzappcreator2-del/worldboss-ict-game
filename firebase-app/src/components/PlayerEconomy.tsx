@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { COSMETIC_CATALOG, cosmeticsState } from '../services/gameLogic'
+import { gachaOdds, type GachaRarity } from '../services/gachaLogic'
 import { COSMETIC_ICONS } from './characterAssets'
 import { CharacterEquipment, LayeredHeroPreview } from './CharacterEquipment'
 
 export type EconomyInventory = { potion?: number; magnifier?: number; [key: string]: unknown }
 export type EconomyUser = { id: string; coins: number; avatar?: string; gender?: string; inventory?: EconomyInventory }
 type PurchaseResult = { success: boolean; coins?: number; inventory?: EconomyInventory; error?: string }
-type GachaResult = { success: boolean; coins?: number; avatar?: string; rarity?: string; error?: string }
+type GachaResult = {
+  success: boolean
+  coins?: number
+  inventory?: EconomyInventory
+  itemId?: string
+  name?: string
+  price?: number
+  rarity?: string
+  error?: string
+}
 type EquipResult = { success: boolean; equipped?: boolean; inventory?: EconomyInventory; error?: string }
 
 export type EconomyService = {
@@ -21,6 +31,13 @@ export type EconomyService = {
 type Props = {
   service: EconomyService
   onUserUpdate(user: Partial<EconomyUser>): void
+}
+
+const GACHA_RARITY_LABELS: Record<GachaRarity, string> = {
+  COMMON: 'ธรรมดา',
+  UNCOMMON: 'ไม่ธรรมดา',
+  RARE: 'หายาก',
+  LEGENDARY: 'ตำนาน',
 }
 
 const itemDetails = {
@@ -102,7 +119,7 @@ export function PlayerEconomy({ service, onUserUpdate }: Props) {
   const [showFloating, setShowFloating] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
-  const [gachaResult, setGachaResult] = useState<{ avatar: string; rarity: string } | null>(null)
+  const [gachaResult, setGachaResult] = useState<{ itemId: string; name: string; rarity: string; price: number } | null>(null)
   const previousMode = useRef<'shop' | 'inventory' | null>(null)
 
   const open = useCallback((nextMode: 'shop' | 'inventory') => {
@@ -202,14 +219,19 @@ export function PlayerEconomy({ service, onUserUpdate }: Props) {
     setNotice(null)
     try {
       const result = await service.gacha(user.id)
-      if (!result.success || result.coins === undefined || !result.avatar) {
-        setNotice({ kind: 'error', text: result.error || 'สุ่มอวาตาร์ไม่สำเร็จ' })
+      if (!result.success || result.coins === undefined || !result.itemId || !result.inventory) {
+        setNotice({ kind: 'error', text: result.error || 'สุ่มไอเทมไม่สำเร็จ' })
         return
       }
-      const update = { coins: result.coins, avatar: result.avatar }
+      const update = { coins: result.coins, inventory: result.inventory }
       setUser((current) => current ? { ...current, ...update } : current)
       onUserUpdate(update)
-      setGachaResult({ avatar: result.avatar, rarity: result.rarity || 'Unknown' })
+      setGachaResult({
+        itemId: result.itemId,
+        name: result.name || COSMETIC_CATALOG[result.itemId]?.name || 'ไอเทมใหม่',
+        rarity: result.rarity || 'COMMON',
+        price: result.price ?? COSMETIC_CATALOG[result.itemId]?.price ?? 0,
+      })
     } catch (error) {
       setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'การเชื่อมต่อล้มเหลว' })
     } finally {
@@ -271,6 +293,11 @@ export function PlayerEconomy({ service, onUserUpdate }: Props) {
   const decorativeSlotCount = Math.max(0, RO_INVENTORY_SLOT_COUNT - itemIds.length)
   const wardrobe = cosmeticsState(user?.inventory, user?.gender)
   const shopCosmetics = cosmeticsForTab(shopTab, user?.gender)
+  // Drop rates are shown per player: the counts shrink as the wardrobe fills,
+  // and the box locks itself once there is nothing left to win.
+  const ownedCosmeticIds = wardrobe.owned
+  const gachaRates = gachaOdds(ownedCosmeticIds)
+  const remainingGachaItems = gachaRates.reduce((total, row) => total + row.count, 0)
 
   return (
     <>
@@ -336,9 +363,19 @@ export function PlayerEconomy({ service, onUserUpdate }: Props) {
                 {shopTab === 'special' && (
                   <div className="ro-shop-item ro-tint-fortune">
                     <div className="ro-shop-icon" aria-hidden="true">🔮</div>
-                    <h4>สุ่มอวาตาร์</h4>
-                    <p>ได้อวาตาร์ตัวใหม่สุดแรร์!</p>
-                    <button type="button" aria-label="สุ่มอวาตาร์ ราคา 500 เหรียญ" disabled={pending !== null} onClick={() => void buyGacha()} className="ro-shop-buy">🪙 500</button>
+                    <h4>กล่องสุ่มไอเทม</h4>
+                    <p>สุ่มได้ผม เสื้อผ้า หมวก อาวุธ หรือของตกแต่ง ที่ยังไม่มีในตู้ — ของแพงยิ่งหายาก!</p>
+                    <ul className="ro-gacha-odds" aria-label="อัตราการออกของกล่องสุ่ม">
+                      {gachaRates.map((row) => (
+                        <li key={row.rarity} className={`ro-gacha-odd ro-rarity-${row.rarity.toLowerCase()}`}>
+                          <b>{GACHA_RARITY_LABELS[row.rarity]}</b>
+                          <span>{row.percent}%</span>
+                          <small>เหลือ {row.count} ชิ้น</small>
+                        </li>
+                      ))}
+                    </ul>
+                    <button type="button" aria-label="สุ่มไอเทม ราคา 500 เหรียญ" disabled={pending !== null || remainingGachaItems === 0} onClick={() => void buyGacha()} className="ro-shop-buy">🪙 500</button>
+                    {remainingGachaItems === 0 && <small className="ro-gacha-soldout">สะสมครบทุกชิ้นแล้ว 🎉</small>}
                   </div>
                 )}
                 {shopTab === 'consumable' && itemIds.map((itemId) => {
@@ -442,9 +479,15 @@ export function PlayerEconomy({ service, onUserUpdate }: Props) {
 
       {gachaResult && (
         <BodyPortal>
-        <div role="dialog" aria-label="ผลการสุ่มอวาตาร์" aria-modal="true" onClick={(event) => { if (event.target === event.currentTarget) setGachaResult(null) }} className="ro-modal-backdrop ro-gacha-backdrop">
-          <div className="ro-gacha-window">
-            <h3>🎉 ยินดีด้วย!</h3><div className="ro-gacha-avatar">{gachaResult.avatar}</div><div className="ro-gacha-rarity">ได้ตัวละครระดับ {gachaResult.rarity}!</div><p>อวาตาร์ของคุณเปลี่ยนเป็น {gachaResult.avatar} แล้ว</p>
+        <div role="dialog" aria-label="ผลการสุ่มไอเทม" aria-modal="true" onClick={(event) => { if (event.target === event.currentTarget) setGachaResult(null) }} className="ro-modal-backdrop ro-gacha-backdrop">
+          <div className={`ro-gacha-window ro-rarity-${gachaResult.rarity.toLowerCase()}`}>
+            <h3>🎉 ยินดีด้วย!</h3>
+            <div className="ro-gacha-prize">
+              <img src={COSMETIC_ICONS[gachaResult.itemId]} alt="" draggable={false} />
+            </div>
+            <div className="ro-gacha-rarity">{GACHA_RARITY_LABELS[gachaResult.rarity as GachaRarity] || gachaResult.rarity}</div>
+            <p className="ro-gacha-prize-name">{gachaResult.name}</p>
+            <p>มูลค่า 🪙 {gachaResult.price} — เก็บเข้าตู้เสื้อผ้าและสวมใส่ให้แล้ว</p>
             <button type="button" onClick={() => setGachaResult(null)} className="ro-gacha-confirm">ว้าว! ขอบคุณครับ 🎁</button>
           </div>
         </div>

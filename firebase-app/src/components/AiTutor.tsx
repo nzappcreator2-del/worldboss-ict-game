@@ -126,7 +126,14 @@ export function AiTutor({ service }: { service: AiTutorService }) {
       originY: position.y,
       moved: false,
     }
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    try {
+      // A pointer released between the browser dispatching pointerdown and
+      // React running this handler is already gone, and setPointerCapture
+      // throws NotFoundError for an id it no longer tracks. Dragging simply
+      // falls back to plain pointermove events, so the throw is worth nothing
+      // except an uncaught error and a wasted clientErrors row.
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch { /* pointer already released — drag still works without capture */ }
   }
 
   const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {

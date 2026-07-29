@@ -40,6 +40,7 @@ import {
 } from './gameLogic'
 import { sanitizePublicSettings } from './adminLogic'
 import { allocateHeroStat } from './heroStats'
+import { applyGachaRoll } from './gachaLogic'
 import { directoryEntry, normalizeCyberScenario, normalizeGender, normalizeUser, rankForXp } from './normalizers'
 import { clampSessionReward, levelForXp } from './levelSystem'
 import type { FirebaseServices } from './legacyRunner'
@@ -770,15 +771,23 @@ async function turnInTeacherQuest(rawUserId: unknown, rawQuestId: unknown) {
   })
 }
 
+// The run pays 20 coins/XP per first-try-correct scenario and the scenario list
+// is admin-authored with no length limit, so a long enough run would ask for a
+// delta above the ±1000-per-write rules cap and the whole save would be denied
+// — losing the student's entire session. Clamping to the shared session cap
+// keeps every realistic run (the deployed set is far below it) byte-identical
+// while making an oversized one degrade into a smaller reward instead of a
+// failed write.
 async function saveCyberSafetyResult(rawUserId: unknown, rawScore: unknown, rawCoins: unknown, rawXp: unknown) {
   const userId = String(rawUserId || '')
+  const gain = clampSessionReward(Number(rawXp), Number(rawCoins))
   const { identity, ref } = await ownedUserRef(userId)
   const result = await runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(ref)
     assertOwnedSnapshot(snapshot, identity)
     const user = snapshot.data() || {}
-    const coins = Number(user.coins || 0) + (Number(rawCoins) || 0)
-    const xp = Number(user.xp || 0) + (Number(rawXp) || 0)
+    const coins = Number(user.coins || 0) + gain.coins
+    const xp = Number(user.xp || 0) + gain.xp
     const level = levelForXp(xp)
     const rank = rankForXp(xp)
     transaction.update(ref, { coins, xp, level, rank })
@@ -890,6 +899,34 @@ async function gachaAvatar(rawUserId: unknown) {
     return {
       result: { success: true, coins: newCoins, avatar: selected.emoji, rarity: selected.rarity, message: 'ได้ตัวละครใหม่แล้ว!' },
       update: { coins: newCoins, avatar: selected.emoji },
+    }
+  })
+}
+
+// Item gacha: 500 coins for a random unowned wardrobe piece, weighted so the
+// dear items stay hard to hit (see gachaLogic). The legacy emoji gachaAvatar
+// above is kept because the legacy bridge still calls it; this is what the
+// React shop uses. Both refusal paths return before the transaction writes, so
+// a rejected roll can never cost the student coins.
+async function gachaRoll(rawUserId: unknown) {
+  return mutateOwnedUser<{
+    success: boolean; error?: string; coins?: number; itemId?: string
+    name?: string; slot?: string; price?: number; rarity?: string; inventory?: Inventory
+  }>(rawUserId, (user) => {
+    const outcome = applyGachaRoll(Number(user.coins) || 0, (user.inventory as Inventory) || {}, user.gender)
+    if (!outcome.success) return { result: outcome }
+    return {
+      result: {
+        success: true,
+        coins: outcome.coins,
+        itemId: outcome.itemId,
+        name: outcome.name,
+        slot: outcome.slot,
+        price: outcome.price,
+        rarity: outcome.rarity,
+        inventory: outcome.inventory,
+      },
+      update: { coins: outcome.coins, inventory: outcome.inventory },
     }
   })
 }
@@ -1074,6 +1111,7 @@ export const firestoreApi = {
   equipCosmeticItem,
   allocateStatPoint,
   gachaAvatar,
+  gachaRoll,
   getUserStats,
   checkCertificateEligibility,
   getStudentProfileData,

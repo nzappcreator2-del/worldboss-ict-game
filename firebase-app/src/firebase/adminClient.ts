@@ -1,7 +1,8 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { browserSessionPersistence, getAuth, initializeAuth, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { browserSessionPersistence, connectAuthEmulator, getAuth, initializeAuth, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
 import { firebaseConfig } from './config'
+import { AUTH_EMULATOR_URL, FIRESTORE_EMULATOR_HOST, FIRESTORE_EMULATOR_PORT, emulatorEnabled } from './emulator'
 
 export const ADMIN_EMAIL = 'admin@nextgen-play.local'
 
@@ -18,6 +19,14 @@ export const adminAuth = adminAppExists
   ? getAuth(adminApp)
   : initializeAuth(adminApp, { persistence: browserSessionPersistence })
 export const adminDb = getFirestore(adminApp)
+
+// Dev-only: see ./emulator.ts. The admin app is a second Firebase app, so it
+// needs its own redirect — but only on a first init, since connect* throws once
+// the instance has already issued a request (HMR re-entry).
+if (emulatorEnabled() && !adminAppExists) {
+  connectAuthEmulator(adminAuth, AUTH_EMULATOR_URL, { disableWarnings: true })
+  connectFirestoreEmulator(adminDb, FIRESTORE_EMULATOR_HOST, FIRESTORE_EMULATOR_PORT)
+}
 
 let persistenceTask: Promise<void> | undefined
 

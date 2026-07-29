@@ -51,6 +51,12 @@ const friendlyError = (reason: unknown) => {
   if (message.includes('auth/network-request-failed')) {
     return 'เชื่อมต่อ Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง'
   }
+  // Spark (free) plan daily Firestore quota. Firebase reports this as a bare
+  // English "Quota exceeded." that means nothing to a student or a teacher —
+  // and it is not a bug they can retry their way out of, so say what it is.
+  if (message.includes('Quota exceeded') || message.includes('resource-exhausted')) {
+    return 'วันนี้มีการใช้งานเกินโควตาฟรีของ Firebase แล้ว ระบบจะกลับมาใช้ได้อีกครั้งในวันถัดไป กรุณาแจ้งผู้ดูแลระบบ'
+  }
   return message
 }
 

@@ -42,6 +42,17 @@ export const emptyCleanupSnapshot = (): CleanupSnapshot => ({
 // Authored content the cleanup tab must never wipe wholesale.
 export const CLEANUP_PROTECTED_COLLECTIONS = ['lessons', 'questions', 'settings', 'news', 'cyberSafetyScenarios', 'dailyQuests'] as const
 
+// Lesson ids the app uses as routing keys rather than real lesson rows. The PVP
+// arena stores its dedicated question bank under `PVP_MODE` and Cyber Safety
+// files progress under `CYBER_SAFETY`; neither will ever exist in `lessons`, so
+// "no matching lesson" does NOT mean orphaned for rows pointing at them. Left
+// unguarded, one click of the orphan sweep — the task that promises to delete
+// only rows whose owner is gone — silently empties the PVP question bank.
+export const SYNTHETIC_LESSON_IDS = ['PVP_MODE', 'CYBER_SAFETY'] as const
+
+const pinnedToSyntheticLesson = (row: CleanupRow): boolean =>
+  (SYNTHETIC_LESSON_IDS as readonly string[]).includes(String(row.lessonId || ''))
+
 export type CleanupTaskKey = 'players' | 'logs' | 'gameSessions' | 'orphans'
 
 export type CleanupTaskDefinition = {
@@ -148,8 +159,11 @@ export function planCleanup(keys: CleanupTaskKey[], snapshot: CleanupSnapshot): 
     const lessonSelfId = (row: CleanupRow) => String(row.lessonId || row.id)
     add('progress', orphansOf(snapshot.progress, snapshot.users, selfId, userId))
     add('directory', orphansOf(snapshot.directory, snapshot.users, selfId, selfId))
-    add('questions', orphansOf(snapshot.questions, snapshot.lessons, lessonSelfId, lessonId))
-    add('teacherQuests', orphansOf(snapshot.teacherQuests, snapshot.lessons, lessonSelfId, lessonId))
+    // Rows keyed to a synthetic lesson are filtered out before the scan, so a
+    // missing `lessons` row can never condemn them.
+    const realLessonChildren = (rows: CleanupRow[]) => rows.filter((row) => !pinnedToSyntheticLesson(row))
+    add('questions', orphansOf(realLessonChildren(snapshot.questions), snapshot.lessons, lessonSelfId, lessonId))
+    add('teacherQuests', orphansOf(realLessonChildren(snapshot.teacherQuests), snapshot.lessons, lessonSelfId, lessonId))
     // Score rows live outside the user document, so a student deleted before
     // the delete-cascade existed can still be sitting on the leaderboards.
     add('worldBossScores', orphansOf(snapshot.worldBossScores, snapshot.users, selfId, userId))

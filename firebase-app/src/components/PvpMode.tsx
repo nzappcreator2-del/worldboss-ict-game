@@ -405,7 +405,7 @@ export function PvpMode({ service, onExit }: Props) {
         y: myPositionRef.current.y,
         direction: myDirection,
         action: myAction,
-      })
+      }).catch(() => undefined)
     }, PRESENCE_TICK_MS)
     return () => window.clearInterval(timer)
   }, [me, myAction, myDirection, service, view])
@@ -687,7 +687,7 @@ export function PvpMode({ service, onExit }: Props) {
                   <div className="text-xs font-bold text-slate-300 mb-2">⚙️ ตั้งค่าห้อง (หัวหน้า): ผู้เล่นทีมละ</div>
                   <div className="flex gap-2">
                     {PVP_TEAM_SIZES.map((size) => (
-                      <button key={size} type="button" onClick={() => void service.setTeamSize(room.roomId, myId, size)} className={`flex-1 py-1.5 rounded-lg font-black text-sm border ${room.teamSize === size ? 'bg-amber-500 text-slate-950 border-yellow-300' : 'bg-slate-800 border-slate-600'}`}>{size} vs {size}</button>
+                      <button key={size} type="button" onClick={() => void service.setTeamSize(room.roomId, myId, size).catch(() => setMessage('ปรับขนาดทีมไม่สำเร็จ'))} className={`flex-1 py-1.5 rounded-lg font-black text-sm border ${room.teamSize === size ? 'bg-amber-500 text-slate-950 border-yellow-300' : 'bg-slate-800 border-slate-600'}`}>{size} vs {size}</button>
                     ))}
                   </div>
                 </div>
@@ -706,7 +706,7 @@ export function PvpMode({ service, onExit }: Props) {
                           <div className="text-[11px] text-slate-400">LV {player.level} • HP {player.maxHp}</div>
                         </div>
                         {player.userId === myId && room.mode === 'team' && (
-                          <button type="button" onClick={() => void service.switchTeam(room.roomId, myId)} className="text-[11px] bg-slate-700 hover:bg-slate-600 rounded-lg px-2 py-1 font-bold">สลับทีม</button>
+                          <button type="button" onClick={() => void service.switchTeam(room.roomId, myId).catch(() => setMessage('สลับทีมไม่สำเร็จ'))} className="text-[11px] bg-slate-700 hover:bg-slate-600 rounded-lg px-2 py-1 font-bold">สลับทีม</button>
                         )}
                         <span className={`text-[11px] font-black ${player.ready ? 'text-emerald-300' : 'text-red-300'}`}>{player.ready ? '🟢 พร้อม' : '🔴 รอ'}</span>
                       </div>
@@ -725,7 +725,9 @@ export function PvpMode({ service, onExit }: Props) {
                   <button
                     type="button"
                     disabled={!startCheck.ok || questions.length === 0}
-                    onClick={() => void service.startBattle(room.roomId, myId, questions.map((question) => question.qId)).then((result) => { if (!result.success) setMessage(result.error || '') })}
+                    onClick={() => void service.startBattle(room.roomId, myId, questions.map((question) => question.qId))
+                      .then((result) => { if (!result.success) setMessage(result.error || '') })
+                      .catch(() => setMessage('เริ่มการต่อสู้ไม่สำเร็จ ลองใหม่อีกครั้ง'))}
                     className="w-full py-3.5 rounded-2xl font-black text-xl bg-gradient-to-b from-orange-500 to-red-600 disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 shadow-lg"
                   >⚔️ เริ่มการต่อสู้!</button>
                   {!startCheck.ok && <p className="text-[11px] text-slate-400 text-center mt-1">{startCheck.reason}</p>}
@@ -739,7 +741,7 @@ export function PvpMode({ service, onExit }: Props) {
               onSubmit={(event) => {
                 event.preventDefault()
                 if (!me || !chatText.trim()) return
-                void service.sendChat(room.roomId, me, chatText.trim())
+                void service.sendChat(room.roomId, me, chatText.trim()).catch(() => setMessage('ส่งข้อความไม่สำเร็จ'))
                 setChatText('')
               }}
             >

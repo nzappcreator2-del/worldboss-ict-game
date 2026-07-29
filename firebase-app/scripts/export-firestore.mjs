@@ -9,9 +9,15 @@ import { applicationDefault, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
 const expectedProjectId = 'nextgen-play-19dd2'
+// Every top-level collection the app writes. Keep this in sync with README
+// "Collections" — a name missing here is silently absent from the restore
+// point, which is how teacher-authored quests could be wiped with no way back.
+// `worldBossConfig` is retired but stays listed so backups taken before the
+// mini-game catalog moved into code remain restorable.
 export const exportedCollections = [
   'users', 'directory', 'lessons', 'questions', 'progress', 'settings', 'news',
-  'pvpMatches', 'worldBossConfig', 'worldBossScores', 'dailyQuests',
+  'teacherQuests', 'pvpMatches', 'pvpRooms', 'pvpRankings',
+  'worldBossConfig', 'worldBossScores', 'dailyQuests',
   'cyberSafetyScenarios', 'clientErrors',
 ]
 

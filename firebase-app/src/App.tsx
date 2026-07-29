@@ -286,7 +286,7 @@ function App() {
             service={{
               getCurrentUser: () => bridge()?.getCurrentUser() as unknown as EconomyUser | null,
               buyItem: async (userId, itemId) => await firestoreApi.buyItem(userId, itemId),
-              gacha: async (userId) => await firestoreApi.gachaAvatar(userId),
+              gacha: async (userId) => await firestoreApi.gachaRoll(userId),
               buyCosmetic: async (userId, itemId) => await firestoreApi.buyCosmeticItem(userId, itemId),
               equipCosmetic: async (userId, itemId) => await firestoreApi.equipCosmeticItem(userId, itemId),
             }}

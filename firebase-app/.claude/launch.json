@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "preview", "--port", "4173", "--strictPort"],
       "port": 4173
+    },
+    {
+      "name": "nextgen-emulator",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:emulator", "--", "--port", "5175", "--strictPort"],
+      "port": 5175
     }
   ]
 }

@@ -13,6 +13,20 @@ Vite + React frontend สำหรับย้ายระบบเดิมจ�
 
 ก่อน deploy Rules ให้ติดตั้ง Java 21 ขึ้นไปและรัน `npm run test:rules` จาก root เพื่อทดสอบ Rules ผ่าน Firestore emulator จริง
 
+## ทดสอบทั้งแอปบน emulator (ไม่แตะข้อมูลจริง)
+
+ใช้เมื่อต้องการกดใช้งานจริงทุกฟีเจอร์โดยไม่กินโควตาและไม่แตะ Firestore ของโรงเรียน เปิด 3 เทอร์มินัลจาก `firebase-app/`
+
+```bash
+npm run emulator        # Auth :9099, Firestore :8080, UI :4000
+npm run seed:emulator   # ใส่ข้อมูลจำลอง (3 ด่าน, 34 ข้อสอบ, 12 นักเรียน, ข่าว, เควสต์ครู, สถานการณ์ไซเบอร์)
+npm run dev:emulator    # vite --mode emulator
+```
+
+รหัสผ่าน Admin Panel บน emulator คือ `emulator-admin-pass` (สร้างโดยสคริปต์ seed)
+
+`npm run dev` ตามปกติยังชี้ไปที่โปรเจกต์จริงเหมือนเดิม การต่อ emulator เปิดด้วย `VITE_FIREBASE_EMULATOR=1` ใน `.env.emulator` เท่านั้น และ production build จะตัดโค้ดส่วนนี้ทิ้งทั้งหมดผ่าน guard `import.meta.env.DEV` ใน `src/firebase/emulator.ts`
+
 ## ย้ายข้อมูลจาก Google Sheets
 
 1. เพิ่ม `legacy-gas/ExportForFirestore.js` เข้า Apps Script เดิม แล้วรัน `exportSheetsForFirestore()` หนึ่งครั้ง

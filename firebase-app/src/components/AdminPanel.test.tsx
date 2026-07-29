@@ -196,6 +196,22 @@ describe('AdminPanel', () => {
     await waitFor(() => expect(service.saveQuestions).toHaveBeenCalledWith('L1', 'posttest', [expect.objectContaining({ text: 'ข้อใดถูกต้อง', pattern: 'matching', matchingPairs: [{ left: 'CPU', right: 'หน่วยประมวลผล' }] })], 'secret123'))
   })
 
+  // The lesson row prints a live question count, so a save that does not
+  // refresh it reads as "nothing happened" and invites duplicate entry.
+  it('refreshes the lesson list after saving questions so the question count is not stale', async () => {
+    const { service } = setup()
+    await login()
+    const listLoadsAfterLogin = (service.loadLessons as ReturnType<typeof vi.fn>).mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'จัดการข้อสอบ อินเทอร์เน็ต' }))
+    await screen.findByRole('heading', { name: 'จัดการข้อสอบ: อินเทอร์เน็ต' })
+    fireEvent.change(screen.getByLabelText('คำถามข้อ 1'), { target: { value: 'ข้อสอบใหม่' } })
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อสอบ' }))
+
+    await waitFor(() => expect(service.saveQuestions).toHaveBeenCalled())
+    await waitFor(() => expect((service.loadLessons as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(listLoadsAfterLogin))
+  })
+
   it('defaults new lessons to automatic map sets and lets teachers choose an explicit themed set', async () => {
     const { service } = setup()
     await login()

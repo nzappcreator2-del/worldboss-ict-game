@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PlayerEconomy, type EconomyService, type EconomyUser } from './PlayerEconomy'
+import { COSMETIC_CATALOG } from '../services/gameLogic'
 
 afterEach(() => {
   cleanup()
@@ -14,7 +15,15 @@ function setup(user: EconomyUser = { id: 'u1', coins: 600, avatar: '🧙', inven
   const service: EconomyService = {
     getCurrentUser: () => currentUser,
     buyItem: vi.fn().mockResolvedValue({ success: true, coins: 500, inventory: { potion: 2, magnifier: 2 } }),
-    gacha: vi.fn().mockResolvedValue({ success: true, coins: 100, avatar: '🐉', rarity: 'Legendary' }),
+    gacha: vi.fn().mockResolvedValue({
+      success: true,
+      coins: 100,
+      itemId: 'hat-crown',
+      name: 'มงกุฎราชาแห่งปัญญา',
+      price: 950,
+      rarity: 'LEGENDARY',
+      inventory: { potion: 1, cosmetics: { owned: ['hat-crown'], equipped: { hat: 'hat-crown' } } },
+    }),
     buyCosmetic: vi.fn().mockResolvedValue({ success: true, coins: 350, inventory: { cosmetics: { owned: ['hat-feather'], equipped: { hat: 'hat-feather' } } } }),
     equipCosmetic: vi.fn().mockResolvedValue({ success: true, equipped: false, inventory: { cosmetics: { owned: ['hat-feather'], equipped: {} } } }),
   }
@@ -82,19 +91,36 @@ describe('PlayerEconomy', () => {
     expect(screen.getByText('เหรียญไม่พอจ้า')).toBeTruthy()
   })
 
-  it('keeps the shop open after gacha, updates the avatar, and closes the result with Escape', async () => {
+  // The gacha now pays out a real wardrobe piece rather than an emoji avatar,
+  // so the reveal names the item and the payload updates the cosmetics bag.
+  it('keeps the shop open after gacha, banks the won item, and closes the result with Escape', async () => {
     const { service, onUserUpdate } = setup()
     fireEvent(window, new Event('nextgen:open-shop'))
     fireEvent.click(screen.getByRole('button', { name: 'หมวดพิเศษ' }))
-    fireEvent.click(screen.getByRole('button', { name: 'สุ่มอวาตาร์ ราคา 500 เหรียญ' }))
+    fireEvent.click(screen.getByRole('button', { name: 'สุ่มไอเทม ราคา 500 เหรียญ' }))
 
     await waitFor(() => expect(service.gacha).toHaveBeenCalledWith('u1'))
-    expect(onUserUpdate).toHaveBeenCalledWith({ coins: 100, avatar: '🐉' })
-    expect(await screen.findByRole('dialog', { name: 'ผลการสุ่มอวาตาร์' })).toBeTruthy()
-    expect(screen.getByText(/Legendary/)).toBeTruthy()
+    expect(onUserUpdate).toHaveBeenCalledWith({
+      coins: 100,
+      inventory: { potion: 1, cosmetics: { owned: ['hat-crown'], equipped: { hat: 'hat-crown' } } },
+    })
+    const reveal = await screen.findByRole('dialog', { name: 'ผลการสุ่มไอเทม' })
+    expect(within(reveal).getByText('มงกุฎราชาแห่งปัญญา')).toBeTruthy()
+    expect(within(reveal).getByText('ตำนาน')).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog', { name: 'ผลการสุ่มอวาตาร์' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'ผลการสุ่มไอเทม' })).toBeNull()
     expect(screen.getByRole('dialog', { name: 'ร้านค้าลับ' })).toBeTruthy()
+  })
+
+  it('publishes the drop rates and locks the box once every item is owned', () => {
+    const owned = Object.values(COSMETIC_CATALOG).filter((item) => item.price > 0).map((item) => item.id)
+    setup({ id: 'u1', coins: 5000, inventory: { cosmetics: { owned, equipped: {} } } })
+    fireEvent(window, new Event('nextgen:open-shop'))
+    fireEvent.click(screen.getByRole('button', { name: 'หมวดพิเศษ' }))
+
+    expect(screen.getByLabelText('อัตราการออกของกล่องสุ่ม')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'สุ่มไอเทม ราคา 500 เหรียญ' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/สะสมครบทุกชิ้นแล้ว/)).toBeTruthy()
   })
 
   it('gives the shop a Ragnarok-style NPC vendor window with category tabs and item tint slots', () => {
